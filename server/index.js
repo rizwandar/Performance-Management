@@ -7,11 +7,13 @@ app.use(cors({
 }));
 app.use(express.json());
 
-app.use('/api/employees', require('./routes/employees'));
-app.use('/api/cycles', require('./routes/cycles'));
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/users', require('./routes/users'));
+app.use('/api/admin', require('./routes/admin'));
+app.use('/api/settings', require('./routes/settings'));
 app.use('/api/deezer', require('./routes/deezer'));
 
-app.get('/', (req, res) => res.json({ status: 'Performance API running' }));
+app.get('/', (req, res) => res.json({ status: 'API running' }));
 
 const PORT = 3001;
 app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
