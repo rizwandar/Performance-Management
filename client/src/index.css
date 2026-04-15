@@ -1,0 +1,78 @@
+body {
+  background-color: #f0f2f5;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.navbar-brand {
+  font-weight: 700;
+  font-size: 1.3rem;
+}
+
+.card {
+  border: none;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  border-radius: 12px;
+}
+
+.card-header {
+  background: white;
+  border-bottom: 1px solid #f0f0f0;
+  border-radius: 12px 12px 0 0 !important;
+  font-weight: 600;
+}
+
+.employee-card {
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.employee-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+}
+
+.goal-card {
+  background: #f8f9ff;
+  border-left: 4px solid #0d6efd;
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+
+.review-section {
+  background: #fff9f0;
+  border-left: 4px solid #fd7e14;
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+
+.review-section.final {
+  background: #f0fff4;
+  border-left-color: #198754;
+}
+
+.badge-dept {
+  background-color: #e8f0fe;
+  color: #1a56db;
+  font-weight: 500;
+}
+
+.page-title {
+  color: #1a1a2e;
+  font-weight: 700;
+}
+
+.search-box {
+  border-radius: 50px;
+  padding-left: 20px;
+  border: 2px solid #dee2e6;
+}
+
+.search-box:focus {
+  border-color: #0d6efd;
+  box-shadow: 0 0 0 0.2rem rgba(13,110,253,0.15);
+}
