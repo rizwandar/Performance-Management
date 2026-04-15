@@ -7,6 +7,7 @@ const auth = require('../middleware/auth');
 router.get('/me', auth, (req, res) => {
   const user = db.prepare(`
     SELECT id, name, email, date_of_birth, about_me, legacy_message,
+           emergency_contact_name, emergency_contact_phone,
            songs_enabled, bucket_list_enabled, is_admin, created_at
     FROM users WHERE id = ?
   `).get(req.user.id);
@@ -20,11 +21,13 @@ router.get('/me', auth, (req, res) => {
 
 // Update own profile
 router.put('/me', auth, (req, res) => {
-  const { name, email, date_of_birth, about_me, legacy_message } = req.body;
+  const { name, email, date_of_birth, about_me, legacy_message, emergency_contact_name, emergency_contact_phone } = req.body;
   try {
     db.prepare(`
-      UPDATE users SET name=?, email=?, date_of_birth=?, about_me=?, legacy_message=? WHERE id=?
-    `).run(name, email, date_of_birth || null, about_me || null, legacy_message || null, req.user.id);
+      UPDATE users SET name=?, email=?, date_of_birth=?, about_me=?, legacy_message=?,
+        emergency_contact_name=?, emergency_contact_phone=? WHERE id=?
+    `).run(name, email, date_of_birth || null, about_me || null, legacy_message || null,
+           emergency_contact_name || null, emergency_contact_phone || null, req.user.id);
     res.json({ success: true });
   } catch (err) {
     if (err.message.includes('UNIQUE')) {

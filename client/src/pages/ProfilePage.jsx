@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Card, Button, Form, Alert, Spinner, Badge, ProgressBar, Row, Col } from 'react-bootstrap'
 import axios from 'axios'
 
@@ -189,13 +190,17 @@ function BucketListSection({ items, onAdd, onDelete }) {
 
 // ── Main profile page ───────────────────────────────────────────────────────
 export default function ProfilePage() {
+  const navigate = useNavigate()
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
   const [step, setStep] = useState(0)
   const [alert, setAlert] = useState(null)
   const [saving, setSaving] = useState(false)
 
-  const [basicForm, setBasicForm] = useState({ name: '', email: '', date_of_birth: '' })
+  const [basicForm, setBasicForm] = useState({
+    name: '', email: '', date_of_birth: '',
+    emergency_contact_name: '', emergency_contact_phone: ''
+  })
   const [aboutMe, setAboutMe] = useState('')
   const [legacyMessage, setLegacyMessage] = useState('')
 
@@ -205,7 +210,13 @@ export default function ProfilePage() {
       const res = await axios.get(`${API}/users/me`)
       const p = res.data
       setProfile(p)
-      setBasicForm({ name: p.name, email: p.email, date_of_birth: p.date_of_birth || '' })
+      setBasicForm({
+        name: p.name,
+        email: p.email,
+        date_of_birth: p.date_of_birth || '',
+        emergency_contact_name: p.emergency_contact_name || '',
+        emergency_contact_phone: p.emergency_contact_phone || ''
+      })
       setAboutMe(p.about_me || '')
       setLegacyMessage(p.legacy_message || '')
     } catch {
@@ -237,7 +248,7 @@ export default function ProfilePage() {
     setTimeout(() => setAlert(null), 3000)
   }
 
-  const saveBasic = async () => {
+  const saveAll = async () => {
     setSaving(true)
     try {
       await axios.put(`${API}/users/me`, {
@@ -249,23 +260,6 @@ export default function ProfilePage() {
       load()
     } catch (err) {
       showAlert('danger', err.response?.data?.error || 'Save failed')
-    }
-    setSaving(false)
-  }
-
-  const saveText = async () => {
-    setSaving(true)
-    try {
-      await axios.put(`${API}/users/me`, {
-        name: basicForm.name,
-        email: basicForm.email,
-        date_of_birth: basicForm.date_of_birth,
-        about_me: aboutMe,
-        legacy_message: legacyMessage
-      })
-      showAlert('success', 'Saved!')
-    } catch {
-      showAlert('danger', 'Save failed')
     }
     setSaving(false)
   }
@@ -367,8 +361,25 @@ export default function ProfilePage() {
                     onChange={e => setBasicForm({ ...basicForm, date_of_birth: e.target.value })}
                   />
                 </Col>
+                <Col md={6}>
+                  <Form.Label className="text-muted small">Emergency Contact Name</Form.Label>
+                  <Form.Control
+                    value={basicForm.emergency_contact_name}
+                    onChange={e => setBasicForm({ ...basicForm, emergency_contact_name: e.target.value })}
+                    placeholder="e.g. Jane Smith"
+                  />
+                </Col>
+                <Col md={6}>
+                  <Form.Label className="text-muted small">Emergency Contact Phone</Form.Label>
+                  <Form.Control
+                    type="tel"
+                    value={basicForm.emergency_contact_phone}
+                    onChange={e => setBasicForm({ ...basicForm, emergency_contact_phone: e.target.value })}
+                    placeholder="e.g. +44 7700 900000"
+                  />
+                </Col>
               </Row>
-              <Button variant="primary" size="sm" className="mt-3" onClick={saveBasic} disabled={saving}>
+              <Button variant="primary" size="sm" className="mt-3" onClick={saveAll} disabled={saving}>
                 {saving ? 'Saving...' : 'Save'}
               </Button>
             </>
@@ -388,7 +399,7 @@ export default function ProfilePage() {
                 onChange={e => setAboutMe(e.target.value)}
                 placeholder="Share something about yourself..."
               />
-              <Button variant="primary" size="sm" className="mt-3" onClick={saveText} disabled={saving}>
+              <Button variant="primary" size="sm" className="mt-3" onClick={saveAll} disabled={saving}>
                 {saving ? 'Saving...' : 'Save'}
               </Button>
             </>
@@ -411,7 +422,7 @@ export default function ProfilePage() {
                 onChange={e => setLegacyMessage(e.target.value)}
                 placeholder="Your message..."
               />
-              <Button variant="primary" size="sm" className="mt-3" onClick={saveText} disabled={saving}>
+              <Button variant="primary" size="sm" className="mt-3" onClick={saveAll} disabled={saving}>
                 {saving ? 'Saving...' : 'Save'}
               </Button>
             </>
@@ -441,9 +452,15 @@ export default function ProfilePage() {
         <Button variant="outline-secondary" disabled={step === 0} onClick={() => setStep(s => s - 1)}>
           ← Previous
         </Button>
-        <Button variant="primary" disabled={step === steps.length - 1} onClick={() => setStep(s => s + 1)}>
-          Next →
-        </Button>
+        {step < steps.length - 1 ? (
+          <Button variant="primary" onClick={() => setStep(s => s + 1)}>
+            Next →
+          </Button>
+        ) : (
+          <Button variant="success" onClick={() => navigate('/profile')}>
+            View My Profile ✓
+          </Button>
+        )}
       </div>
     </>
   )

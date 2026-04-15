@@ -222,6 +222,15 @@ export default function AdminPage() {
                   <small className="text-muted d-block">Joined</small>
                   <span>{new Date(selectedUser.created_at).toLocaleDateString()}</span>
                 </Col>
+                {selectedUser.emergency_contact_name && (
+                  <Col md={6}>
+                    <small className="text-muted d-block">Emergency Contact</small>
+                    <span>{selectedUser.emergency_contact_name}</span>
+                    {selectedUser.emergency_contact_phone && (
+                      <span className="text-muted ms-2">· {selectedUser.emergency_contact_phone}</span>
+                    )}
+                  </Col>
+                )}
               </Row>
 
               {/* About me */}

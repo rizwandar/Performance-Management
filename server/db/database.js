@@ -50,6 +50,11 @@ db.exec(`
   );
 `);
 
+// Migrations — safe to run on existing DB
+for (const col of ['emergency_contact_name', 'emergency_contact_phone']) {
+  try { db.exec(`ALTER TABLE users ADD COLUMN ${col} TEXT`); } catch (_) {}
+}
+
 // Seed default settings
 const resetMethodSetting = db.prepare('SELECT * FROM app_settings WHERE key = ?').get('password_reset_method');
 if (!resetMethodSetting) {
