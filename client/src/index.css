@@ -1,78 +1,148 @@
-body {
-  background-color: #f0f2f5;
-  font-family: 'Segoe UI', system-ui, sans-serif;
+/* ── Royal Purple Theme ────────────────────────────────────────────────── */
+:root {
+  --purple-900: #3B0764;
+  --purple-800: #4C1D95;
+  --purple-700: #6D28D9;
+  --purple-600: #7C3AED;
+  --purple-500: #8B5CF6;
+  --purple-100: #EDE9FE;
+  --purple-50:  #FAF5FF;
+
+  --bs-primary:          #6D28D9;
+  --bs-primary-rgb:      109, 40, 217;
+  --bs-link-color:       #6D28D9;
+  --bs-link-hover-color: #4C1D95;
 }
 
-#root {
-  min-height: 100vh;
+/* ── Base ──────────────────────────────────────────────────────────────── */
+body {
+  background-color: var(--purple-50);
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  color: #1e1333;
+}
+
+#root { min-height: 100vh; }
+
+/* ── Navbar ────────────────────────────────────────────────────────────── */
+.navbar {
+  background: linear-gradient(135deg, var(--purple-900) 0%, var(--purple-700) 100%) !important;
+  box-shadow: 0 2px 12px rgba(109,40,217,0.25);
 }
 
 .navbar-brand {
   font-weight: 700;
-  font-size: 1.3rem;
+  font-size: 1.2rem;
+  letter-spacing: 0.01em;
+  color: #fff !important;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
+.navbar .nav-link { color: rgba(255,255,255,0.88) !important; }
+.navbar .nav-link:hover { color: #fff !important; }
+
+/* ── Buttons ───────────────────────────────────────────────────────────── */
+.btn-primary {
+  background: var(--purple-700);
+  border-color: var(--purple-700);
+}
+.btn-primary:hover, .btn-primary:focus {
+  background: var(--purple-800);
+  border-color: var(--purple-800);
+}
+.btn-outline-primary {
+  color: var(--purple-700);
+  border-color: var(--purple-700);
+}
+.btn-outline-primary:hover {
+  background: var(--purple-700);
+  border-color: var(--purple-700);
+}
+.btn-outline-light { border-color: rgba(255,255,255,0.6); }
+
+/* ── Cards ─────────────────────────────────────────────────────────────── */
 .card {
   border: none;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(109,40,217,0.08);
+  border-radius: 14px;
 }
 
 .card-header {
-  background: white;
-  border-bottom: 1px solid #f0f0f0;
-  border-radius: 12px 12px 0 0 !important;
+  background: linear-gradient(135deg, var(--purple-50) 0%, #f3f0ff 100%);
+  border-bottom: 1px solid var(--purple-100);
+  border-radius: 14px 14px 0 0 !important;
   font-weight: 600;
+  color: var(--purple-900);
 }
 
-.employee-card {
-  cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+/* ── Progress bar ──────────────────────────────────────────────────────── */
+.progress-bar {
+  background: linear-gradient(90deg, var(--purple-700), var(--purple-500));
 }
 
-.employee-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+/* ── Forms ─────────────────────────────────────────────────────────────── */
+.form-control:focus, .form-select:focus {
+  border-color: var(--purple-500);
+  box-shadow: 0 0 0 0.2rem rgba(109,40,217,0.15);
 }
 
+.form-check-input:checked {
+  background-color: var(--purple-700);
+  border-color: var(--purple-700);
+}
+
+/* ── Badges ────────────────────────────────────────────────────────────── */
+.badge.bg-secondary {
+  background-color: var(--purple-100) !important;
+  color: var(--purple-800) !important;
+  font-weight: 500;
+}
+
+/* ── Links ─────────────────────────────────────────────────────────────── */
+a { color: var(--purple-700); }
+a:hover { color: var(--purple-900); }
+
+/* ── Page title ────────────────────────────────────────────────────────── */
+.page-title {
+  color: var(--purple-900);
+  font-weight: 700;
+}
+
+/* ── Item cards (bucket list / songs) ──────────────────────────────────── */
 .goal-card {
-  background: #f8f9ff;
-  border-left: 4px solid #0d6efd;
-  border-radius: 8px;
+  background: linear-gradient(135deg, var(--purple-50) 0%, #f3f0ff 100%);
+  border-left: 4px solid var(--purple-600);
+  border-radius: 10px;
   padding: 14px 16px;
   margin-bottom: 12px;
 }
 
-.review-section {
-  background: #fff9f0;
-  border-left: 4px solid #fd7e14;
-  border-radius: 8px;
-  padding: 14px 16px;
+/* ── Alerts ────────────────────────────────────────────────────────────── */
+.alert-success {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #166534;
+}
+.alert-danger {
+  background: #fff1f2;
+  border-color: #fecdd3;
+  color: #9f1239;
 }
 
-.review-section.final {
-  background: #f0fff4;
-  border-left-color: #198754;
+/* ── Table hover ───────────────────────────────────────────────────────── */
+.table-hover tbody tr:hover {
+  background-color: var(--purple-50);
 }
 
-.badge-dept {
-  background-color: #e8f0fe;
-  color: #1a56db;
-  font-weight: 500;
+/* ── Landing page ──────────────────────────────────────────────────────── */
+.landing-hero {
+  padding: 60px 20px;
+  text-align: center;
 }
 
-.page-title {
-  color: #1a1a2e;
-  font-weight: 700;
-}
-
-.search-box {
-  border-radius: 50px;
-  padding-left: 20px;
-  border: 2px solid #dee2e6;
-}
-
-.search-box:focus {
-  border-color: #0d6efd;
-  box-shadow: 0 0 0 0.2rem rgba(13,110,253,0.15);
+.landing-hero h1 {
+  font-size: 2.4rem;
+  font-weight: 800;
+  color: var(--purple-900);
 }

@@ -17,118 +17,144 @@ export default function ProfileViewPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  if (loading) return <div className="text-center py-5"><Spinner animation="border" variant="primary" /></div>
-  if (!profile) return <Alert variant="danger">Failed to load profile.</Alert>
+  if (loading) return <div className="text-center py-5"><Spinner animation="border" /></div>
 
-  const Field = ({ label, value }) => value ? (
-    <div className="mb-3">
-      <small className="text-muted d-block fw-semibold mb-1">{label}</small>
-      <span>{value}</span>
-    </div>
-  ) : null
+  if (!profile) return (
+    <Alert variant="danger">
+      We were unable to load your profile. Please try refreshing the page.
+    </Alert>
+  )
 
-  const LongField = ({ label, value }) => value ? (
-    <div className="mb-3">
-      <small className="text-muted d-block fw-semibold mb-1">{label}</small>
-      <p className="mb-0" style={{ whiteSpace: 'pre-wrap' }}>{value}</p>
-    </div>
-  ) : null
+  const Section = ({ title, children, show = true }) => {
+    if (!show) return null
+    return (
+      <Card className="mb-4">
+        <Card.Header>{title}</Card.Header>
+        <Card.Body>{children}</Card.Body>
+      </Card>
+    )
+  }
+
+  const Field = ({ label, value }) => {
+    if (!value) return null
+    return (
+      <div className="mb-2">
+        <small className="text-muted d-block mb-1" style={{ fontWeight: 600 }}>{label}</small>
+        <span>{value}</span>
+      </div>
+    )
+  }
+
+  const hasEmergencyContact = profile.emergency_contact_name || profile.emergency_contact_phone || profile.emergency_contact_email
 
   return (
     <>
       <div className="d-flex align-items-center justify-content-between mb-4">
         <h2 className="page-title mb-0">{profile.name}</h2>
         <Button variant="primary" onClick={() => navigate('/profile/edit')}>
-          Edit Profile
+          Edit My Story
         </Button>
       </div>
 
-      {/* Basic Info */}
-      <Card className="mb-4">
-        <Card.Header className="fw-bold">Basic Information</Card.Header>
-        <Card.Body>
-          <Row>
-            <Col md={6}><Field label="Email" value={profile.email} /></Col>
-            <Col md={3}><Field label="Date of Birth" value={profile.date_of_birth} /></Col>
-            <Col md={3}><Field label="Member Since" value={new Date(profile.created_at).toLocaleDateString()} /></Col>
+      {/* ── Personal Details ── */}
+      <Section title="Personal Details">
+        <Row className="g-3">
+          <Col md={6}><Field label="Email Address" value={profile.email} /></Col>
+          <Col md={3}><Field label="Date of Birth" value={profile.date_of_birth} /></Col>
+          <Col md={3}>
+            <small className="text-muted d-block mb-1" style={{ fontWeight: 600 }}>Member Since</small>
+            <span>{new Date(profile.created_at).toLocaleDateString()}</span>
+          </Col>
+        </Row>
+      </Section>
+
+      {/* ── Trusted Contact ── */}
+      {hasEmergencyContact && (
+        <Section title="My Trusted Contact">
+          <Row className="g-3">
+            <Col md={4}><Field label="Name" value={profile.emergency_contact_name} /></Col>
+            <Col md={4}><Field label="Phone" value={profile.emergency_contact_phone} /></Col>
+            <Col md={4}><Field label="Email" value={profile.emergency_contact_email} /></Col>
           </Row>
-          {(profile.emergency_contact_name || profile.emergency_contact_phone) && (
-            <Row className="mt-2">
-              <Col md={6}><Field label="Emergency Contact" value={profile.emergency_contact_name} /></Col>
-              <Col md={6}><Field label="Emergency Contact Phone" value={profile.emergency_contact_phone} /></Col>
-            </Row>
-          )}
-        </Card.Body>
-      </Card>
+        </Section>
+      )}
 
-      {/* About Me */}
+      {/* ── About Me ── */}
       {profile.about_me && (
-        <Card className="mb-4">
-          <Card.Header className="fw-bold">About Me</Card.Header>
-          <Card.Body>
-            <LongField value={profile.about_me} />
-          </Card.Body>
-        </Card>
+        <Section title="My Story">
+          <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.8 }} className="mb-0">
+            {profile.about_me}
+          </p>
+        </Section>
       )}
 
-      {/* Legacy Message */}
+      {/* ── Legacy Message ── */}
       {profile.legacy_message && (
-        <Card className="mb-4">
-          <Card.Header className="fw-bold">My Message</Card.Header>
-          <Card.Body>
-            <LongField value={profile.legacy_message} />
-          </Card.Body>
-        </Card>
+        <Section title="Words for Those I Leave Behind">
+          <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.8, fontStyle: 'italic' }} className="mb-0">
+            {profile.legacy_message}
+          </p>
+        </Section>
       )}
 
-      {/* Favourite Songs */}
+      {/* ── Songs ── */}
       {profile.songs_enabled && (
-        <Card className="mb-4">
-          <Card.Header className="d-flex justify-content-between align-items-center fw-bold">
-            <span>Favourite Songs</span>
-            <Badge bg="secondary">{profile.songs?.length || 0} / 20</Badge>
-          </Card.Header>
-          <Card.Body>
-            {!profile.songs?.length ? (
-              <p className="text-muted small mb-0">No songs added yet.</p>
-            ) : (
-              profile.songs.map(song => (
-                <div key={song.id} className="py-2 border-bottom">
+        <Section title={`Songs Close to My Heart  (${profile.songs?.length || 0} of 20)`}>
+          {!profile.songs?.length ? (
+            <p className="text-muted small mb-0">
+              No songs added yet. <button className="btn btn-link btn-sm p-0" onClick={() => navigate('/profile/edit')}>Add some?</button>
+            </p>
+          ) : (
+            profile.songs.map((song, i) => (
+              <div key={song.id} className="d-flex align-items-center py-2 border-bottom">
+                <span className="text-muted me-3" style={{ minWidth: 24, fontWeight: 600 }}>{i + 1}</span>
+                <div>
                   <span className="fw-semibold">{song.title}</span>
-                  <span className="text-muted small ms-2">— {song.artist}</span>
-                  {song.album && <span className="text-muted small ms-2">({song.album})</span>}
+                  <span className="text-muted ms-2 small">— {song.artist}</span>
+                  {song.album && <span className="text-muted ms-2 small">· {song.album}</span>}
                 </div>
-              ))
-            )}
-          </Card.Body>
-        </Card>
+              </div>
+            ))
+          )}
+        </Section>
       )}
 
-      {/* Bucket List */}
+      {/* ── Bucket List ── */}
       {profile.bucket_list_enabled && (
-        <Card className="mb-5">
-          <Card.Header className="d-flex justify-content-between align-items-center fw-bold">
-            <span>Bucket List</span>
-            <Badge bg="secondary">{profile.bucket_list?.length || 0} / 50</Badge>
-          </Card.Header>
-          <Card.Body>
-            {!profile.bucket_list?.length ? (
-              <p className="text-muted small mb-0">No items added yet.</p>
-            ) : (
-              profile.bucket_list.map(item => (
-                <div key={item.id} className="py-2 border-bottom">
-                  <div className="fw-semibold">{item.title}</div>
-                  {item.description && <div className="text-muted small mt-1">{item.description}</div>}
-                  {item.planning && (
-                    <div className="text-muted small mt-1">
-                      <strong>Planning:</strong> {item.planning}
-                    </div>
-                  )}
+        <Section title={`Life's Wishes  (${profile.bucket_list?.length || 0} of 50)`}>
+          {!profile.bucket_list?.length ? (
+            <p className="text-muted small mb-0">
+              No wishes added yet. <button className="btn btn-link btn-sm p-0" onClick={() => navigate('/profile/edit')}>Add some?</button>
+            </p>
+          ) : (
+            profile.bucket_list.map((item, i) => (
+              <div key={item.id} className="goal-card">
+                <div className="d-flex align-items-start gap-2">
+                  <span className="text-muted" style={{ minWidth: 24, fontWeight: 600, marginTop: 1 }}>{i + 1}</span>
+                  <div>
+                    <div className="fw-semibold">{item.title}</div>
+                    {item.description && <div className="text-muted small mt-1">{item.description}</div>}
+                    {item.planning && (
+                      <div className="text-muted small mt-1">
+                        <strong>Steps taken:</strong> {item.planning}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              ))
-            )}
-          </Card.Body>
-        </Card>
+              </div>
+            ))
+          )}
+        </Section>
+      )}
+
+      {/* Prompt if profile is mostly empty */}
+      {!profile.about_me && !profile.legacy_message && (
+        <div className="text-center py-4 text-muted">
+          <p>Your story is waiting to be told.</p>
+          <Button variant="primary" onClick={() => navigate('/profile/edit')}>
+            Complete My Story
+          </Button>
+        </div>
       )}
     </>
   )

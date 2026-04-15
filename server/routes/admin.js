@@ -37,7 +37,7 @@ router.get('/users', auth, adminOnly, (req, res) => {
 router.get('/users/:id', auth, adminOnly, (req, res) => {
   const user = db.prepare(`
     SELECT id, name, email, date_of_birth, about_me, legacy_message,
-           emergency_contact_name, emergency_contact_phone,
+           emergency_contact_name, emergency_contact_phone, emergency_contact_email,
            songs_enabled, bucket_list_enabled, created_at
     FROM users WHERE id = ?
   `).get(req.params.id);

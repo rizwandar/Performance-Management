@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Card, Button, Form, Alert, Spinner, Badge, ProgressBar, Row, Col } from 'react-bootstrap'
 import axios from 'axios'
 
 const API = import.meta.env.VITE_API_URL
 
-// ── Song search section ─────────────────────────────────────────────────────
+// ── Song search ─────────────────────────────────────────────────────────────
 function SongsSection({ songs, onAdd, onDelete }) {
   const [artistQuery, setArtistQuery] = useState('')
   const [searching, setSearching] = useState(false)
@@ -22,10 +22,10 @@ function SongsSection({ songs, onAdd, onDelete }) {
     setSearchError('')
     try {
       const res = await axios.get(`${API}/deezer/search`, { params: { artist: artistQuery } })
-      if (res.data.length === 0) setSearchError('No songs found for that artist or band.')
+      if (res.data.length === 0) setSearchError('We couldn\'t find any songs for that artist. Please try a different name.')
       else setResults(res.data)
     } catch {
-      setSearchError('Search failed. Please try again.')
+      setSearchError('The search didn\'t work. Please try again in a moment.')
     }
     setSearching(false)
   }
@@ -43,14 +43,15 @@ function SongsSection({ songs, onAdd, onDelete }) {
 
   return (
     <div>
+      <p className="text-muted small mb-3">
+        Search for an artist or band, then choose a song that is close to your heart.
+      </p>
       <div className="d-flex justify-content-between align-items-center mb-3">
-        <span className="text-muted small">Your favourite songs to play on your birthday.</span>
-        <Badge bg="secondary">{songs.length} / 20</Badge>
+        <span className="text-muted small">Songs added</span>
+        <Badge>{songs.length} / 20</Badge>
       </div>
 
-      {songs.length === 0 ? (
-        <p className="text-muted small">No songs added yet.</p>
-      ) : (
+      {songs.length > 0 && (
         <div className="mb-4">
           {songs.map(song => (
             <div key={song.id} className="d-flex justify-content-between align-items-center py-2 border-bottom">
@@ -69,7 +70,7 @@ function SongsSection({ songs, onAdd, onDelete }) {
         <>
           <div className="d-flex gap-2 mb-2">
             <Form.Control
-              placeholder="Type an artist or band name..."
+              placeholder="Enter an artist or band name..."
               value={artistQuery}
               onChange={e => { setArtistQuery(e.target.value); setSearchError('') }}
               onKeyDown={e => e.key === 'Enter' && search()}
@@ -82,9 +83,9 @@ function SongsSection({ songs, onAdd, onDelete }) {
           {results.length > 0 && (
             <div className="d-flex gap-2">
               <Form.Select value={selected} onChange={e => setSelected(e.target.value)}>
-                <option value="">— Select a song —</option>
+                <option value="">— Choose a song —</option>
                 {results.map(t => (
-                  <option key={t.deezer_id} value={t.deezer_id}>{t.title} ({t.album})</option>
+                  <option key={t.deezer_id} value={t.deezer_id}>{t.title} · {t.album}</option>
                 ))}
               </Form.Select>
               <Button variant="success" onClick={handleAdd} disabled={!selected || adding}>
@@ -94,12 +95,12 @@ function SongsSection({ songs, onAdd, onDelete }) {
           )}
         </>
       )}
-      {songs.length >= 20 && <p className="text-muted small mt-2">Maximum of 20 songs reached.</p>}
+      {songs.length >= 20 && <p className="text-muted small mt-2">You've reached the limit of 20 songs. Remove one to add another.</p>}
     </div>
   )
 }
 
-// ── Bucket list section ─────────────────────────────────────────────────────
+// ── Bucket list ──────────────────────────────────────────────────────────────
 function BucketListSection({ items, onAdd, onDelete }) {
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ title: '', description: '', planning: '' })
@@ -116,27 +117,24 @@ function BucketListSection({ items, onAdd, onDelete }) {
 
   return (
     <div>
+      <p className="text-muted small mb-3">
+        Share the experiences and adventures you wish to have in your lifetime.
+      </p>
       <div className="d-flex justify-content-between align-items-center mb-3">
-        <span className="text-muted small">Things you want to do in your life.</span>
-        <Badge bg="secondary">{items.length} / 50</Badge>
+        <span className="text-muted small">Wishes added</span>
+        <Badge>{items.length} / 50</Badge>
       </div>
 
-      {items.length === 0 ? (
-        <p className="text-muted small">No items added yet.</p>
-      ) : (
+      {items.length > 0 && (
         <div className="mb-4">
           {items.map(item => (
-            <div key={item.id} className="goal-card mb-3">
+            <div key={item.id} className="goal-card">
               <div className="d-flex justify-content-between align-items-start">
                 <span className="fw-semibold">{item.title}</span>
                 <Button variant="outline-danger" size="sm" onClick={() => onDelete(item.id)}>Remove</Button>
               </div>
               {item.description && <div className="text-muted small mt-1">{item.description}</div>}
-              {item.planning && (
-                <div className="text-muted small mt-1">
-                  <strong>Planning:</strong> {item.planning}
-                </div>
-              )}
+              {item.planning && <div className="text-muted small mt-1"><strong>Steps taken:</strong> {item.planning}</div>}
             </div>
           ))}
         </div>
@@ -144,51 +142,51 @@ function BucketListSection({ items, onAdd, onDelete }) {
 
       {items.length < 50 && (
         !showForm ? (
-          <Button variant="outline-primary" size="sm" onClick={() => setShowForm(true)}>+ Add Item</Button>
+          <Button variant="outline-primary" size="sm" onClick={() => setShowForm(true)}>+ Add a Wish</Button>
         ) : (
-          <Form onSubmit={handleAdd} className="border rounded p-3 bg-light">
+          <Form onSubmit={handleAdd} className="border rounded p-3" style={{ background: 'var(--purple-50)' }}>
             <Form.Group className="mb-2">
-              <Form.Label className="small fw-semibold">Bucket List Item *</Form.Label>
+              <Form.Label className="small fw-semibold">My Wish *</Form.Label>
               <Form.Control
                 value={form.title}
                 onChange={e => setForm({ ...form, title: e.target.value })}
-                placeholder="What do you want to do?"
+                placeholder="What would you love to do?"
                 required
               />
             </Form.Group>
             <Form.Group className="mb-2">
-              <Form.Label className="small fw-semibold">Description</Form.Label>
+              <Form.Label className="small fw-semibold">Tell us more</Form.Label>
               <Form.Control
                 as="textarea" rows={2}
                 value={form.description}
                 onChange={e => setForm({ ...form, description: e.target.value })}
-                placeholder="Tell us more..."
+                placeholder="Describe this wish in a little more detail..."
               />
             </Form.Group>
             <Form.Group className="mb-3">
-              <Form.Label className="small fw-semibold">Planning</Form.Label>
+              <Form.Label className="small fw-semibold">Steps I've taken</Form.Label>
               <Form.Control
                 as="textarea" rows={2}
                 value={form.planning}
                 onChange={e => setForm({ ...form, planning: e.target.value })}
-                placeholder="What steps have you taken to make this happen?"
+                placeholder="What have you done so far to make this happen?"
               />
             </Form.Group>
             <div className="d-flex gap-2">
               <Button type="submit" variant="primary" size="sm" disabled={adding}>
-                {adding ? 'Adding...' : 'Add Item'}
+                {adding ? 'Saving...' : 'Save Wish'}
               </Button>
               <Button variant="outline-secondary" size="sm" onClick={() => setShowForm(false)}>Cancel</Button>
             </div>
           </Form>
         )
       )}
-      {items.length >= 50 && <p className="text-muted small mt-2">Maximum of 50 items reached.</p>}
+      {items.length >= 50 && <p className="text-muted small mt-2">You've added 50 wishes — what a wonderful life you've planned.</p>}
     </div>
   )
 }
 
-// ── Main profile page ───────────────────────────────────────────────────────
+// ── Main edit page ───────────────────────────────────────────────────────────
 export default function ProfilePage() {
   const navigate = useNavigate()
   const [profile, setProfile] = useState(null)
@@ -196,10 +194,11 @@ export default function ProfilePage() {
   const [step, setStep] = useState(0)
   const [alert, setAlert] = useState(null)
   const [saving, setSaving] = useState(false)
+  const alertTimer = useRef(null)
 
   const [basicForm, setBasicForm] = useState({
     name: '', email: '', date_of_birth: '',
-    emergency_contact_name: '', emergency_contact_phone: ''
+    emergency_contact_name: '', emergency_contact_phone: '', emergency_contact_email: ''
   })
   const [aboutMe, setAboutMe] = useState('')
   const [legacyMessage, setLegacyMessage] = useState('')
@@ -211,16 +210,17 @@ export default function ProfilePage() {
       const p = res.data
       setProfile(p)
       setBasicForm({
-        name: p.name,
-        email: p.email,
+        name: p.name || '',
+        email: p.email || '',
         date_of_birth: p.date_of_birth || '',
         emergency_contact_name: p.emergency_contact_name || '',
-        emergency_contact_phone: p.emergency_contact_phone || ''
+        emergency_contact_phone: p.emergency_contact_phone || '',
+        emergency_contact_email: p.emergency_contact_email || ''
       })
       setAboutMe(p.about_me || '')
       setLegacyMessage(p.legacy_message || '')
     } catch {
-      setAlert({ type: 'danger', msg: 'Failed to load profile' })
+      showAlert('danger', 'We had trouble loading your profile. Please refresh the page.')
     }
     setLoading(false)
   }
@@ -230,12 +230,12 @@ export default function ProfilePage() {
   const buildSteps = (p) => {
     if (!p) return []
     const s = [
-      { key: 'basic', title: 'Basic Info' },
-      { key: 'about', title: 'About Me' },
-      { key: 'legacy', title: 'My Message' },
+      { key: 'basic',  title: 'Your Details' },
+      { key: 'about',  title: 'Your Story' },
+      { key: 'legacy', title: 'Your Message' },
     ]
-    if (p.songs_enabled) s.push({ key: 'songs', title: 'Favourite Songs' })
-    if (p.bucket_list_enabled) s.push({ key: 'bucket', title: 'Bucket List' })
+    if (p.songs_enabled)       s.push({ key: 'songs',  title: 'Songs Close to Your Heart' })
+    if (p.bucket_list_enabled) s.push({ key: 'bucket', title: "Life's Wishes" })
     return s
   }
 
@@ -245,10 +245,13 @@ export default function ProfilePage() {
 
   const showAlert = (type, msg) => {
     setAlert({ type, msg })
-    setTimeout(() => setAlert(null), 3000)
+    clearTimeout(alertTimer.current)
+    alertTimer.current = setTimeout(() => setAlert(null), 4000)
   }
 
-  const saveAll = async () => {
+  // Save all text fields — called on every step navigation and on Save button
+  const saveAll = async (quiet = false) => {
+    if (!basicForm.name) return // don't save if name not loaded yet
     setSaving(true)
     try {
       await axios.put(`${API}/users/me`, {
@@ -256,12 +259,23 @@ export default function ProfilePage() {
         about_me: aboutMe,
         legacy_message: legacyMessage
       })
-      showAlert('success', 'Saved!')
-      load()
+      if (!quiet) {
+        showAlert('success', 'Your changes have been saved.')
+        load()
+      }
     } catch (err) {
-      showAlert('danger', err.response?.data?.error || 'Save failed')
+      showAlert('danger', err.response?.data?.error || 'We couldn\'t save your changes. Please try again.')
     }
     setSaving(false)
+  }
+
+  // Auto-save before navigating between steps
+  const goToStep = async (newStep) => {
+    const textSteps = ['basic', 'about', 'legacy']
+    if (textSteps.includes(currentStep?.key)) {
+      await saveAll(true) // silent auto-save
+    }
+    setStep(newStep)
   }
 
   const addSong = async (track) => {
@@ -269,7 +283,7 @@ export default function ProfilePage() {
       await axios.post(`${API}/users/me/songs`, track)
       load()
     } catch (err) {
-      showAlert('danger', err.response?.data?.error || 'Failed to add song')
+      showAlert('danger', err.response?.data?.error || 'We couldn\'t add that song. Please try again.')
     }
   }
 
@@ -278,7 +292,7 @@ export default function ProfilePage() {
       await axios.delete(`${API}/users/me/songs/${songId}`)
       load()
     } catch {
-      showAlert('danger', 'Failed to remove song')
+      showAlert('danger', 'We couldn\'t remove that song. Please try again.')
     }
   }
 
@@ -287,7 +301,7 @@ export default function ProfilePage() {
       await axios.post(`${API}/users/me/bucket-list`, form)
       load()
     } catch (err) {
-      showAlert('danger', err.response?.data?.error || 'Failed to add item')
+      showAlert('danger', err.response?.data?.error || 'We couldn\'t save that wish. Please try again.')
     }
   }
 
@@ -296,17 +310,20 @@ export default function ProfilePage() {
       await axios.delete(`${API}/users/me/bucket-list/${itemId}`)
       load()
     } catch {
-      showAlert('danger', 'Failed to remove item')
+      showAlert('danger', 'We couldn\'t remove that item. Please try again.')
     }
   }
 
-  if (loading) return <div className="text-center py-5"><Spinner animation="border" variant="primary" /></div>
-  if (!profile) return <Alert variant="danger">Failed to load profile.</Alert>
+  if (loading) return <div className="text-center py-5"><Spinner animation="border" /></div>
+  if (!profile) return <Alert variant="danger">We couldn't load your profile. Please try refreshing.</Alert>
 
   return (
     <>
       <div className="d-flex align-items-center justify-content-between mb-4">
-        <h2 className="page-title mb-0">{profile.name}'s Profile</h2>
+        <h2 className="page-title mb-0">Edit My Story</h2>
+        <Button variant="outline-secondary" size="sm" onClick={() => navigate('/profile')}>
+          ← Back to Profile
+        </Button>
       </div>
 
       {alert && (
@@ -322,7 +339,7 @@ export default function ProfilePage() {
               key={s.key}
               size="sm"
               variant={i === step ? 'primary' : 'outline-secondary'}
-              onClick={() => setStep(i)}
+              onClick={() => goToStep(i)}
             >
               {i + 1}. {s.title}
             </Button>
@@ -332,11 +349,12 @@ export default function ProfilePage() {
 
       {/* Step content */}
       <Card className="mb-4">
-        <Card.Header className="fw-bold">{currentStep?.title}</Card.Header>
+        <Card.Header>{currentStep?.title}</Card.Header>
         <Card.Body>
 
           {currentStep?.key === 'basic' && (
             <>
+              <p className="text-muted small mb-3">Keep your details up to date so your story is always accurate.</p>
               <Row className="g-3">
                 <Col md={6}>
                   <Form.Label className="text-muted small">Full Name</Form.Label>
@@ -346,7 +364,7 @@ export default function ProfilePage() {
                   />
                 </Col>
                 <Col md={6}>
-                  <Form.Label className="text-muted small">Email</Form.Label>
+                  <Form.Label className="text-muted small">Email Address</Form.Label>
                   <Form.Control
                     type="email"
                     value={basicForm.email}
@@ -361,16 +379,23 @@ export default function ProfilePage() {
                     onChange={e => setBasicForm({ ...basicForm, date_of_birth: e.target.value })}
                   />
                 </Col>
-                <Col md={6}>
-                  <Form.Label className="text-muted small">Emergency Contact Name</Form.Label>
+              </Row>
+
+              <hr className="my-3" />
+              <p className="text-muted small mb-3">
+                Please share the details of someone we can contact on your behalf in an emergency.
+              </p>
+              <Row className="g-3">
+                <Col md={4}>
+                  <Form.Label className="text-muted small">Trusted Contact Name</Form.Label>
                   <Form.Control
                     value={basicForm.emergency_contact_name}
                     onChange={e => setBasicForm({ ...basicForm, emergency_contact_name: e.target.value })}
                     placeholder="e.g. Jane Smith"
                   />
                 </Col>
-                <Col md={6}>
-                  <Form.Label className="text-muted small">Emergency Contact Phone</Form.Label>
+                <Col md={4}>
+                  <Form.Label className="text-muted small">Trusted Contact Phone</Form.Label>
                   <Form.Control
                     type="tel"
                     value={basicForm.emergency_contact_phone}
@@ -378,52 +403,63 @@ export default function ProfilePage() {
                     placeholder="e.g. +44 7700 900000"
                   />
                 </Col>
+                <Col md={4}>
+                  <Form.Label className="text-muted small">Trusted Contact Email</Form.Label>
+                  <Form.Control
+                    type="email"
+                    value={basicForm.emergency_contact_email}
+                    onChange={e => setBasicForm({ ...basicForm, emergency_contact_email: e.target.value })}
+                    placeholder="e.g. jane@email.com"
+                  />
+                </Col>
               </Row>
-              <Button variant="primary" size="sm" className="mt-3" onClick={saveAll} disabled={saving}>
-                {saving ? 'Saving...' : 'Save'}
+              <Button variant="primary" size="sm" className="mt-3" onClick={() => saveAll(false)} disabled={saving}>
+                {saving ? 'Saving...' : 'Save Details'}
               </Button>
             </>
           )}
 
           {currentStep?.key === 'about' && (
             <>
+              <p className="text-muted small mb-3">
+                Share your story — who you are, what matters to you, and what you'd like others to know about you.
+              </p>
               <Form.Label className="text-muted small">
-                Tell us about yourself&nbsp;
-                <span className="text-muted">({aboutMe.length} / 3000)</span>
+                Your Story <span className="ms-1">({aboutMe.length} / 3000 characters)</span>
               </Form.Label>
               <Form.Control
                 as="textarea"
-                rows={9}
+                rows={10}
                 maxLength={3000}
                 value={aboutMe}
                 onChange={e => setAboutMe(e.target.value)}
-                placeholder="Share something about yourself..."
+                placeholder="Begin your story here..."
               />
-              <Button variant="primary" size="sm" className="mt-3" onClick={saveAll} disabled={saving}>
-                {saving ? 'Saving...' : 'Save'}
+              <Button variant="primary" size="sm" className="mt-3" onClick={() => saveAll(false)} disabled={saving}>
+                {saving ? 'Saving...' : 'Save My Story'}
               </Button>
             </>
           )}
 
           {currentStep?.key === 'legacy' && (
             <>
-              <Form.Label className="text-muted small">
-                How would you like to be remembered?&nbsp;
-                <span className="text-muted">({legacyMessage.length} / 5000)</span>
-              </Form.Label>
-              <p className="text-muted small mb-2">
-                A personal message for those you leave behind — what you'd like read at your funeral or how you want to be remembered.
+              <p className="text-muted small mb-3">
+                This is a deeply personal space. Share the words you would like read at your funeral,
+                or simply how you wish to be remembered by those you love.
               </p>
+              <Form.Label className="text-muted small">
+                Your Message <span className="ms-1">({legacyMessage.length} / 5000 characters)</span>
+              </Form.Label>
               <Form.Control
                 as="textarea"
                 rows={12}
                 maxLength={5000}
                 value={legacyMessage}
                 onChange={e => setLegacyMessage(e.target.value)}
-                placeholder="Your message..."
+                placeholder="Write your message here..."
               />
-              <Button variant="primary" size="sm" className="mt-3" onClick={saveAll} disabled={saving}>
-                {saving ? 'Saving...' : 'Save'}
+              <Button variant="primary" size="sm" className="mt-3" onClick={() => saveAll(false)} disabled={saving}>
+                {saving ? 'Saving...' : 'Save My Message'}
               </Button>
             </>
           )}
@@ -447,17 +483,21 @@ export default function ProfilePage() {
         </Card.Body>
       </Card>
 
-      {/* Prev / Next */}
+      {/* Prev / Next / Done */}
       <div className="d-flex justify-content-between mb-5">
-        <Button variant="outline-secondary" disabled={step === 0} onClick={() => setStep(s => s - 1)}>
+        <Button
+          variant="outline-secondary"
+          disabled={step === 0}
+          onClick={() => goToStep(step - 1)}
+        >
           ← Previous
         </Button>
         {step < steps.length - 1 ? (
-          <Button variant="primary" onClick={() => setStep(s => s + 1)}>
+          <Button variant="primary" onClick={() => goToStep(step + 1)}>
             Next →
           </Button>
         ) : (
-          <Button variant="success" onClick={() => navigate('/profile')}>
+          <Button variant="success" onClick={async () => { await saveAll(true); navigate('/profile') }}>
             View My Profile ✓
           </Button>
         )}

@@ -199,7 +199,7 @@ export default function AdminPage() {
         </Card.Body>
       </Card>
       {/* User profile modal */}
-      <Modal show={loadingUser || !!selectedUser} onHide={() => setSelectedUser(null)} size="lg">
+      <Modal show={loadingUser || !!selectedUser} onHide={() => { setSelectedUser(null); setLoadingUser(false) }} size="lg">
         <Modal.Header closeButton>
           <Modal.Title>{selectedUser ? selectedUser.name : 'Loading...'}</Modal.Title>
         </Modal.Header>
@@ -223,12 +223,11 @@ export default function AdminPage() {
                   <span>{new Date(selectedUser.created_at).toLocaleDateString()}</span>
                 </Col>
                 {selectedUser.emergency_contact_name && (
-                  <Col md={6}>
-                    <small className="text-muted d-block">Emergency Contact</small>
+                  <Col md={12}>
+                    <small className="text-muted d-block">Trusted Contact</small>
                     <span>{selectedUser.emergency_contact_name}</span>
-                    {selectedUser.emergency_contact_phone && (
-                      <span className="text-muted ms-2">· {selectedUser.emergency_contact_phone}</span>
-                    )}
+                    {selectedUser.emergency_contact_phone && <span className="text-muted ms-2">· {selectedUser.emergency_contact_phone}</span>}
+                    {selectedUser.emergency_contact_email && <span className="text-muted ms-2">· {selectedUser.emergency_contact_email}</span>}
                   </Col>
                 )}
               </Row>
@@ -236,7 +235,7 @@ export default function AdminPage() {
               {/* About me */}
               {selectedUser.about_me && (
                 <div className="mb-3">
-                  <small className="text-muted d-block fw-semibold mb-1">About</small>
+                  <small className="text-muted d-block fw-semibold mb-1">Their Story</small>
                   <p className="mb-0" style={{ whiteSpace: 'pre-wrap' }}>{selectedUser.about_me}</p>
                 </div>
               )}
@@ -244,7 +243,7 @@ export default function AdminPage() {
               {/* Legacy message */}
               {selectedUser.legacy_message && (
                 <div className="mb-3">
-                  <small className="text-muted d-block fw-semibold mb-1">Legacy Message</small>
+                  <small className="text-muted d-block fw-semibold mb-1">Words for Those They Leave Behind</small>
                   <p className="mb-0" style={{ whiteSpace: 'pre-wrap' }}>{selectedUser.legacy_message}</p>
                 </div>
               )}

@@ -51,7 +51,7 @@ db.exec(`
 `);
 
 // Migrations — safe to run on existing DB
-for (const col of ['emergency_contact_name', 'emergency_contact_phone']) {
+for (const col of ['emergency_contact_name', 'emergency_contact_phone', 'emergency_contact_email']) {
   try { db.exec(`ALTER TABLE users ADD COLUMN ${col} TEXT`); } catch (_) {}
 }
 

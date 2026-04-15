@@ -29,13 +29,21 @@ function NavBar() {
   return (
     <Navbar bg="primary" variant="dark" expand="md" className="mb-4">
       <Container>
-        <Navbar.Brand as={Link} to="/">My Profile</Navbar.Brand>
+        <Navbar.Brand as={Link} to="/">
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" style={{marginRight: 8, verticalAlign: 'middle'}}>
+            <rect x="12" y="20" width="4" height="7" rx="1" fill="white" opacity="0.85"/>
+            <polygon points="14,2 5,13 23,13" fill="white" opacity="0.9"/>
+            <polygon points="14,6 4,18 24,18" fill="white" opacity="0.75"/>
+            <circle cx="14" cy="9" r="2.2" fill="#C4B5FD" opacity="0.9"/>
+          </svg>
+          My Legacy
+        </Navbar.Brand>
         <Navbar.Toggle />
         <Navbar.Collapse>
           <Nav className="ms-auto align-items-center">
             {isTokenValid() ? (
               <>
-                {!user?.is_admin && <Nav.Link as={Link} to="/profile">My Profile</Nav.Link>}
+                {!user?.is_admin && <Nav.Link as={Link} to="/profile">My Story</Nav.Link>}
                 {user?.is_admin && <Nav.Link as={Link} to="/admin">Admin Panel</Nav.Link>}
                 <Button variant="outline-light" size="sm" className="ms-2" onClick={handleLogout}>
                   Logout
