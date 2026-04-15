@@ -18,7 +18,7 @@ router.get('/', (req, res) => {
   res.json(employees);
 });
 
-// Get single employee with their review cycles
+// Get single employee with their review cycles and songs
 router.get('/:id', (req, res) => {
   const employee = db.prepare('SELECT * FROM employees WHERE id = ?').get(req.params.id);
   if (!employee) return res.status(404).json({ error: 'Employee not found' });
@@ -31,7 +31,9 @@ router.get('/:id', (req, res) => {
     return { ...cycle, goals, reviews };
   });
 
-  res.json({ ...employee, cycles: cyclesWithDetails });
+  const songs = db.prepare('SELECT * FROM favourite_songs WHERE employee_id = ? ORDER BY added_at').all(employee.id);
+
+  res.json({ ...employee, cycles: cyclesWithDetails, songs });
 });
 
 // Create employee
@@ -55,10 +57,32 @@ router.post('/', (req, res) => {
 
 // Update employee
 router.put('/:id', (req, res) => {
-  const { name, email, department, job_title } = req.body;
+  const { name, email, department, job_title, date_of_birth } = req.body;
   db.prepare(
-    'UPDATE employees SET name=?, email=?, department=?, job_title=? WHERE id=?'
-  ).run(name, email, department, job_title, req.params.id);
+    'UPDATE employees SET name=?, email=?, department=?, job_title=?, date_of_birth=? WHERE id=?'
+  ).run(name, email, department, job_title, date_of_birth || null, req.params.id);
+  res.json({ success: true });
+});
+
+// Add a favourite song
+router.post('/:id/songs', (req, res) => {
+  const { deezer_id, title, artist, album } = req.body;
+  if (!title || !artist) {
+    return res.status(400).json({ error: 'title and artist are required' });
+  }
+  const count = db.prepare('SELECT COUNT(*) as count FROM favourite_songs WHERE employee_id = ?').get(req.params.id);
+  if (count.count >= 20) {
+    return res.status(400).json({ error: 'Maximum 20 songs allowed' });
+  }
+  const result = db.prepare(
+    'INSERT INTO favourite_songs (employee_id, deezer_id, title, artist, album) VALUES (?, ?, ?, ?, ?)'
+  ).run(req.params.id, deezer_id || null, title, artist, album || null);
+  res.status(201).json({ id: result.lastInsertRowid });
+});
+
+// Delete a favourite song
+router.delete('/:id/songs/:songId', (req, res) => {
+  db.prepare('DELETE FROM favourite_songs WHERE id = ? AND employee_id = ?').run(req.params.songId, req.params.id);
   res.json({ success: true });
 });
 

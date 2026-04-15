@@ -13,20 +13,44 @@ const MONTHS = [
 export default function EmployeeDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
+
   const [employee, setEmployee] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState('')
   const [alert, setAlert] = useState(null)
+
+  // Employee edit form
+  const [editForm, setEditForm] = useState({})
+  const [savingProfile, setSavingProfile] = useState(false)
+
+  // Review modal
   const [showReviewModal, setShowReviewModal] = useState(false)
   const [reviewType, setReviewType] = useState('')
   const [reviewComment, setReviewComment] = useState('')
   const [activeCycleId, setActiveCycleId] = useState(null)
+  const [savingReview, setSavingReview] = useState(false)
+
+  // Songs
+  const [songs, setSongs] = useState([])
+  const [artistQuery, setArtistQuery] = useState('')
+  const [searching, setSearching] = useState(false)
+  const [searchResults, setSearchResults] = useState([])
+  const [selectedTrack, setSelectedTrack] = useState('')
+  const [addingSong, setAddingSong] = useState(false)
+  const [searchError, setSearchError] = useState('')
 
   const load = async () => {
     setLoading(true)
     try {
       const res = await axios.get(`${API}/employees/${id}`)
       setEmployee(res.data)
+      setEditForm({
+        name: res.data.name,
+        email: res.data.email,
+        department: res.data.department,
+        job_title: res.data.job_title,
+        date_of_birth: res.data.date_of_birth || ''
+      })
+      setSongs(res.data.songs || [])
     } catch {
       setEmployee(null)
     }
@@ -35,6 +59,20 @@ export default function EmployeeDetail() {
 
   useEffect(() => { load() }, [id])
 
+  // --- Profile save ---
+  const saveProfile = async () => {
+    setSavingProfile(true)
+    try {
+      await axios.put(`${API}/employees/${id}`, editForm)
+      setAlert({ type: 'success', msg: 'Profile saved!' })
+      load()
+    } catch {
+      setAlert({ type: 'danger', msg: 'Failed to save profile' })
+    }
+    setSavingProfile(false)
+  }
+
+  // --- Review modal ---
   const openReview = (cycleId, type, existing) => {
     setActiveCycleId(cycleId)
     setReviewType(type)
@@ -43,7 +81,7 @@ export default function EmployeeDetail() {
   }
 
   const saveReview = async () => {
-    setSaving('review')
+    setSavingReview(true)
     try {
       await axios.put(`${API}/cycles/${activeCycleId}/reviews/${reviewType}`, {
         comments: reviewComment
@@ -54,14 +92,60 @@ export default function EmployeeDetail() {
     } catch {
       setAlert({ type: 'danger', msg: 'Failed to save review' })
     }
-    setSaving('')
+    setSavingReview(false)
+  }
+
+  // --- Deezer search ---
+  const searchArtist = async () => {
+    if (!artistQuery.trim()) return
+    setSearching(true)
+    setSearchResults([])
+    setSelectedTrack('')
+    setSearchError('')
+    try {
+      const res = await axios.get(`${API}/deezer/search`, { params: { artist: artistQuery } })
+      if (res.data.length === 0) {
+        setSearchError('No songs found for that artist / band.')
+      } else {
+        setSearchResults(res.data)
+      }
+    } catch {
+      setSearchError('Search failed. Please try again.')
+    }
+    setSearching(false)
+  }
+
+  const addSong = async () => {
+    if (!selectedTrack) return
+    const track = searchResults.find(t => t.deezer_id === selectedTrack)
+    if (!track) return
+    setAddingSong(true)
+    try {
+      await axios.post(`${API}/employees/${id}/songs`, track)
+      setSongs(prev => [...prev, { ...track, id: Date.now() }])
+      setArtistQuery('')
+      setSearchResults([])
+      setSelectedTrack('')
+      load()
+    } catch (err) {
+      setAlert({ type: 'danger', msg: err.response?.data?.error || 'Failed to add song' })
+    }
+    setAddingSong(false)
+  }
+
+  const deleteSong = async (songId) => {
+    try {
+      await axios.delete(`${API}/employees/${id}/songs/${songId}`)
+      setSongs(prev => prev.filter(s => s.id !== songId))
+    } catch {
+      setAlert({ type: 'danger', msg: 'Failed to remove song' })
+    }
   }
 
   if (loading) return <div className="text-center py-5"><Spinner animation="border" variant="primary" /></div>
   if (!employee) return <Alert variant="danger">Employee not found.</Alert>
 
   const cycle = employee.cycles?.[0]
-
   const getMidyear = (c) => c?.reviews?.find(r => r.type === 'midyear')
   const getFinal = (c) => c?.reviews?.find(r => r.type === 'final')
 
@@ -74,37 +158,144 @@ export default function EmployeeDetail() {
 
       {alert && <Alert variant={alert.type} dismissible onClose={() => setAlert(null)}>{alert.msg}</Alert>}
 
-      {/* Basic Info */}
+      {/* Editable Profile */}
       <Card className="mb-4">
         <Card.Header>Employee Information</Card.Header>
         <Card.Body>
-          <Row className="g-2">
+          <Row className="g-3">
             <Col md={6}>
-              <small className="text-muted d-block">Email</small>
-              <span>{employee.email}</span>
+              <Form.Label className="text-muted small">Full Name</Form.Label>
+              <Form.Control
+                value={editForm.name || ''}
+                onChange={e => setEditForm({ ...editForm, name: e.target.value })}
+              />
             </Col>
-            <Col md={3}>
-              <small className="text-muted d-block">Department</small>
-              <Badge className="badge-dept">{employee.department}</Badge>
+            <Col md={6}>
+              <Form.Label className="text-muted small">Email</Form.Label>
+              <Form.Control
+                type="email"
+                value={editForm.email || ''}
+                onChange={e => setEditForm({ ...editForm, email: e.target.value })}
+              />
             </Col>
-            <Col md={3}>
-              <small className="text-muted d-block">Job Title</small>
-              <span>{employee.job_title}</span>
+            <Col md={4}>
+              <Form.Label className="text-muted small">Department</Form.Label>
+              <Form.Control
+                value={editForm.department || ''}
+                onChange={e => setEditForm({ ...editForm, department: e.target.value })}
+              />
+            </Col>
+            <Col md={4}>
+              <Form.Label className="text-muted small">Job Title</Form.Label>
+              <Form.Control
+                value={editForm.job_title || ''}
+                onChange={e => setEditForm({ ...editForm, job_title: e.target.value })}
+              />
+            </Col>
+            <Col md={4}>
+              <Form.Label className="text-muted small">Date of Birth</Form.Label>
+              <Form.Control
+                type="date"
+                value={editForm.date_of_birth || ''}
+                onChange={e => setEditForm({ ...editForm, date_of_birth: e.target.value })}
+              />
             </Col>
           </Row>
+          <div className="mt-3">
+            <Button variant="primary" size="sm" onClick={saveProfile} disabled={savingProfile}>
+              {savingProfile ? 'Saving...' : 'Save Profile'}
+            </Button>
+          </div>
         </Card.Body>
       </Card>
 
+      {/* Favourite Songs */}
+      <Card className="mb-4">
+        <Card.Header className="d-flex justify-content-between align-items-center">
+          <span>Favourite Songs</span>
+          <Badge bg="secondary">{songs.length} / 20</Badge>
+        </Card.Header>
+        <Card.Body>
+          {/* Current songs list */}
+          {songs.length === 0 ? (
+            <p className="text-muted small mb-3">No songs added yet.</p>
+          ) : (
+            <div className="mb-3">
+              {songs.map((song, i) => (
+                <div key={song.id} className="d-flex justify-content-between align-items-center py-2 border-bottom">
+                  <div>
+                    <span className="fw-semibold">{song.title}</span>
+                    <span className="text-muted small ms-2">— {song.artist}</span>
+                    {song.album && <span className="text-muted small ms-2">({song.album})</span>}
+                  </div>
+                  <Button
+                    variant="outline-danger"
+                    size="sm"
+                    onClick={() => deleteSong(song.id)}
+                  >
+                    Remove
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Add song */}
+          {songs.length < 20 && (
+            <>
+              <div className="d-flex gap-2 mb-2">
+                <Form.Control
+                  placeholder="Type an artist or band name..."
+                  value={artistQuery}
+                  onChange={e => { setArtistQuery(e.target.value); setSearchError('') }}
+                  onKeyDown={e => e.key === 'Enter' && searchArtist()}
+                />
+                <Button variant="outline-primary" onClick={searchArtist} disabled={searching || !artistQuery.trim()}>
+                  {searching ? <Spinner size="sm" animation="border" /> : 'Search'}
+                </Button>
+              </div>
+
+              {searchError && <p className="text-danger small mb-2">{searchError}</p>}
+
+              {searchResults.length > 0 && (
+                <div className="d-flex gap-2">
+                  <Form.Select
+                    value={selectedTrack}
+                    onChange={e => setSelectedTrack(e.target.value)}
+                  >
+                    <option value="">— Select a song —</option>
+                    {searchResults.map(t => (
+                      <option key={t.deezer_id} value={t.deezer_id}>
+                        {t.title} ({t.album})
+                      </option>
+                    ))}
+                  </Form.Select>
+                  <Button
+                    variant="success"
+                    onClick={addSong}
+                    disabled={!selectedTrack || addingSong}
+                  >
+                    {addingSong ? 'Adding...' : 'Add'}
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+
+          {songs.length >= 20 && (
+            <p className="text-muted small mt-2">Maximum of 20 songs reached.</p>
+          )}
+        </Card.Body>
+      </Card>
+
+      {/* Review Cycle */}
       {cycle ? (
         <>
-          {/* Cycle Info */}
           <Card className="mb-4">
             <Card.Header className="d-flex justify-content-between align-items-center">
               <span>Review Cycle — {cycle.year}</span>
               <Badge bg="secondary">Starts {MONTHS[cycle.start_month]} {cycle.year}</Badge>
             </Card.Header>
-
-            {/* Goals */}
             <Card.Body>
               <h6 className="fw-bold mb-3">Goals</h6>
               {cycle.goals?.length === 0 ? (
@@ -120,7 +311,6 @@ export default function EmployeeDetail() {
             </Card.Body>
           </Card>
 
-          {/* Mid-year Review */}
           <Card className="mb-4">
             <Card.Header className="d-flex justify-content-between align-items-center">
               <span>Mid-Year Review</span>
@@ -143,7 +333,6 @@ export default function EmployeeDetail() {
             </Card.Body>
           </Card>
 
-          {/* Final Review */}
           <Card className="mb-5">
             <Card.Header className="d-flex justify-content-between align-items-center">
               <span>Final Review (December)</span>
@@ -186,8 +375,8 @@ export default function EmployeeDetail() {
         </Modal.Body>
         <Modal.Footer>
           <Button variant="outline-secondary" onClick={() => setShowReviewModal(false)}>Cancel</Button>
-          <Button variant="primary" onClick={saveReview} disabled={saving === 'review'}>
-            {saving === 'review' ? 'Saving...' : 'Save Review'}
+          <Button variant="primary" onClick={saveReview} disabled={savingReview}>
+            {savingReview ? 'Saving...' : 'Save Review'}
           </Button>
         </Modal.Footer>
       </Modal>

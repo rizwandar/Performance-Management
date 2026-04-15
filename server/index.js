@@ -9,6 +9,7 @@ app.use(express.json());
 
 app.use('/api/employees', require('./routes/employees'));
 app.use('/api/cycles', require('./routes/cycles'));
+app.use('/api/deezer', require('./routes/deezer'));
 
 app.get('/', (req, res) => res.json({ status: 'Performance API running' }));
 

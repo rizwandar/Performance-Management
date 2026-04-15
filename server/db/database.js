@@ -42,6 +42,24 @@ db.exec(`
   );
 
   CREATE UNIQUE INDEX IF NOT EXISTS idx_goals_cycle_number ON goals(review_cycle_id, goal_number);
+
+  CREATE TABLE IF NOT EXISTS favourite_songs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    employee_id INTEGER NOT NULL,
+    deezer_id TEXT,
+    title TEXT NOT NULL,
+    artist TEXT NOT NULL,
+    album TEXT,
+    added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (employee_id) REFERENCES employees(id)
+  );
 `);
+
+// Migration: add date_of_birth to existing employees table
+try {
+  db.exec(`ALTER TABLE employees ADD COLUMN date_of_birth TEXT`);
+} catch (_) {
+  // Column already exists — safe to ignore
+}
 
 module.exports = db;
