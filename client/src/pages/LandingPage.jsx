@@ -2,9 +2,11 @@ import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from 'react-bootstrap'
 import { useAuth } from '../context/AuthContext'
+import { useBranding } from '../context/BrandingContext'
 
 export default function LandingPage() {
   const { isTokenValid, user } = useAuth()
+  const { siteName, logoUrl } = useBranding()
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -14,17 +16,25 @@ export default function LandingPage() {
   }, [])
 
   return (
-    <div className="text-center py-5">
-      <h1 className="mb-3">Welcome</h1>
-      <p className="lead text-muted mb-4">Create your profile to get started.</p>
-      <div className="d-flex justify-content-center gap-3">
+    <div className="landing-hero">
+      <img src={logoUrl} alt={siteName} width="90" height="90" className="mb-4" />
+      <h1 className="mb-3">{siteName}</h1>
+      <p className="lead mb-5">
+        A gentle, private space to gather everything your loved ones
+        will need, so that when the time comes, they are truly in good hands.
+      </p>
+      <div className="d-flex justify-content-center gap-3 flex-wrap">
         <Button variant="primary" size="lg" onClick={() => navigate('/register')}>
-          Create Profile
+          Begin my journey
         </Button>
         <Button variant="outline-primary" size="lg" onClick={() => navigate('/login')}>
-          Login
+          Sign in
         </Button>
       </div>
+      <p className="mt-5 text-muted" style={{ fontSize: '0.9rem', maxWidth: 480, margin: '2rem auto 0' }}>
+        Everything you record here is private and secure.
+        Share it only with those you choose, and only when you're ready.
+      </p>
     </div>
   )
 }

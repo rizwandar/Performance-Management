@@ -1,0 +1,17 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Heart -->
+  <path d="M100 92 C100 92 83 72 66 80 C49 88 49 112 66 126 L100 158 L134 126 C151 112 151 88 134 80 C117 72 100 92 100 92 Z"
+        fill="#A06830" opacity="0.22" transform="translate(2,3)"/>
+  <path d="M100 92 C100 92 83 72 66 80 C49 88 49 112 66 126 L100 158 L134 126 C151 112 151 88 134 80 C117 72 100 92 100 92 Z"
+        fill="#C9904A"/>
+  <path d="M100 92 C100 92 83 72 66 80 C49 88 49 112 66 126 L100 158 L134 126 C151 112 151 88 134 80 C117 72 100 92 100 92 Z"
+        fill="none" stroke="#9A6020" stroke-width="2.5"/>
+  <!-- Stem from top of heart -->
+  <line x1="100" y1="92" x2="100" y2="46" stroke="#2D5A3D" stroke-width="6" stroke-linecap="round"/>
+  <!-- Left leaf -->
+  <path d="M100 62 C100 62 82 48 68 56 C56 63 62 78 100 68 Z" fill="#2D5A3D"/>
+  <!-- Right leaf -->
+  <path d="M100 56 C100 56 118 40 132 48 C144 55 138 70 100 62 Z" fill="#3D7A53"/>
+  <!-- Highlight -->
+  <circle cx="82" cy="92" r="7" fill="white" opacity="0.26"/>
+</svg>

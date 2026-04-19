@@ -1,32 +1,42 @@
-/* ── Royal Purple Theme ────────────────────────────────────────────────── */
+/* ── In Good Hands Theme — warm, grounded, secure ────────────────────────── */
 :root {
-  --purple-900: #3B0764;
-  --purple-800: #4C1D95;
-  --purple-700: #6D28D9;
-  --purple-600: #7C3AED;
-  --purple-500: #8B5CF6;
-  --purple-100: #EDE9FE;
-  --purple-50:  #FAF5FF;
+  --green-900: #1A3D28;
+  --green-800: #2D5A3D;
+  --green-700: #3D7A53;
+  --green-600: #4D9466;
+  --green-100: #D6E8DC;
+  --green-50:  #F0F7F2;
 
-  --bs-primary:          #6D28D9;
-  --bs-primary-rgb:      109, 40, 217;
-  --bs-link-color:       #6D28D9;
-  --bs-link-hover-color: #4C1D95;
+  --gold:        #C9904A;
+  --gold-light:  #E8B97A;
+  --gold-50:     #FDF6EC;
+
+  --parchment:   #F7F5F0;
+  --parchment-dark: #EDE9DF;
+
+  --text:        #1A1A1A;
+  --text-muted:  #6B6B5F;
+  --border:      #E0DDD5;
+
+  --bs-primary:          #2D5A3D;
+  --bs-primary-rgb:      45, 90, 61;
+  --bs-link-color:       #2D5A3D;
+  --bs-link-hover-color: #1A3D28;
 }
 
 /* ── Base ──────────────────────────────────────────────────────────────── */
 body {
-  background-color: var(--purple-50);
-  font-family: 'Segoe UI', system-ui, sans-serif;
-  color: #1e1333;
+  background-color: var(--parchment);
+  font-family: var(--site-font, Georgia, 'Times New Roman', serif);
+  color: var(--text);
 }
 
 #root { min-height: 100vh; }
 
 /* ── Navbar ────────────────────────────────────────────────────────────── */
 .navbar {
-  background: linear-gradient(135deg, var(--purple-900) 0%, var(--purple-700) 100%) !important;
-  box-shadow: 0 2px 12px rgba(109,40,217,0.25);
+  background: linear-gradient(135deg, var(--green-900) 0%, var(--green-800) 100%) !important;
+  box-shadow: 0 2px 12px rgba(26, 61, 40, 0.3);
 }
 
 .navbar-brand {
@@ -44,75 +54,114 @@ body {
 
 /* ── Buttons ───────────────────────────────────────────────────────────── */
 .btn-primary {
-  background: var(--purple-700);
-  border-color: var(--purple-700);
+  background: var(--green-800);
+  border-color: var(--green-800);
+  font-family: inherit;
 }
 .btn-primary:hover, .btn-primary:focus {
-  background: var(--purple-800);
-  border-color: var(--purple-800);
+  background: var(--green-900);
+  border-color: var(--green-900);
 }
 .btn-outline-primary {
-  color: var(--purple-700);
-  border-color: var(--purple-700);
+  color: var(--green-800);
+  border-color: var(--green-800);
+  font-family: inherit;
 }
 .btn-outline-primary:hover {
-  background: var(--purple-700);
-  border-color: var(--purple-700);
+  background: var(--green-800);
+  border-color: var(--green-800);
+  color: #fff;
 }
 .btn-outline-light { border-color: rgba(255,255,255,0.6); }
 
+/* Gold accent button */
+.btn-accent {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: #fff;
+  font-family: inherit;
+}
+.btn-accent:hover {
+  background: #b07d3a;
+  border-color: #b07d3a;
+  color: #fff;
+}
+
 /* ── Cards ─────────────────────────────────────────────────────────────── */
 .card {
-  border: none;
-  box-shadow: 0 2px 12px rgba(109,40,217,0.08);
+  border: 1px solid var(--border);
+  box-shadow: 0 2px 12px rgba(45, 90, 61, 0.06);
   border-radius: 14px;
+  background: #fff;
 }
 
 .card-header {
-  background: linear-gradient(135deg, var(--purple-50) 0%, #f3f0ff 100%);
-  border-bottom: 1px solid var(--purple-100);
+  background: linear-gradient(135deg, var(--green-50) 0%, var(--parchment) 100%);
+  border-bottom: 1px solid var(--green-100);
   border-radius: 14px 14px 0 0 !important;
   font-weight: 600;
-  color: var(--purple-900);
+  color: var(--green-900);
+  font-family: Georgia, serif;
 }
 
 /* ── Progress bar ──────────────────────────────────────────────────────── */
 .progress-bar {
-  background: linear-gradient(90deg, var(--purple-700), var(--purple-500));
+  background: linear-gradient(90deg, var(--green-800), var(--green-600));
 }
 
 /* ── Forms ─────────────────────────────────────────────────────────────── */
+.form-control, .form-select {
+  font-family: Georgia, serif;
+  border-color: var(--border);
+  background-color: #fff;
+}
 .form-control:focus, .form-select:focus {
-  border-color: var(--purple-500);
-  box-shadow: 0 0 0 0.2rem rgba(109,40,217,0.15);
+  border-color: var(--green-600);
+  box-shadow: 0 0 0 0.2rem rgba(45, 90, 61, 0.15);
+}
+
+.form-label {
+  color: var(--green-900);
+  font-weight: 600;
+  font-size: 0.92rem;
 }
 
 .form-check-input:checked {
-  background-color: var(--purple-700);
-  border-color: var(--purple-700);
+  background-color: var(--green-800);
+  border-color: var(--green-800);
 }
 
 /* ── Badges ────────────────────────────────────────────────────────────── */
 .badge.bg-secondary {
-  background-color: var(--purple-100) !important;
-  color: var(--purple-800) !important;
+  background-color: var(--green-100) !important;
+  color: var(--green-900) !important;
   font-weight: 500;
 }
 
 /* ── Links ─────────────────────────────────────────────────────────────── */
-a { color: var(--purple-700); }
-a:hover { color: var(--purple-900); }
+a { color: var(--green-800); }
+a:hover { color: var(--green-900); }
 
 /* ── Page title ────────────────────────────────────────────────────────── */
 .page-title {
-  color: var(--purple-900);
+  color: var(--green-900);
   font-weight: 700;
 }
 
-/* ── Item cards (bucket list / songs) ──────────────────────────────────── */
+/* ── Section / item cards ───────────────────────────────────────────────── */
+.section-card {
+  background: #fff;
+  border-left: 4px solid var(--gold);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 1px 6px rgba(45, 90, 61, 0.06);
+}
+
+/* Legacy class kept for v1 items */
 .goal-card {
-  background: linear-gradient(135deg, var(--purple-50) 0%, #f3f0ff 100%);
-  border-left: 4px solid var(--purple-600);
+  background: linear-gradient(135deg, var(--green-50) 0%, var(--parchment) 100%);
+  border-left: 4px solid var(--gold);
   border-radius: 10px;
   padding: 14px 16px;
   margin-bottom: 12px;
@@ -120,29 +169,66 @@ a:hover { color: var(--purple-900); }
 
 /* ── Alerts ────────────────────────────────────────────────────────────── */
 .alert-success {
-  background: #f0fdf4;
-  border-color: #bbf7d0;
-  color: #166534;
+  background: var(--green-50);
+  border-color: var(--green-100);
+  color: var(--green-900);
 }
 .alert-danger {
   background: #fff1f2;
   border-color: #fecdd3;
   color: #9f1239;
 }
+.alert-info {
+  background: var(--gold-50);
+  border-color: var(--gold-light);
+  color: #7a5520;
+}
 
-/* ── Table hover ───────────────────────────────────────────────────────── */
+/* ── Table ──────────────────────────────────────────────────────────────── */
 .table-hover tbody tr:hover {
-  background-color: var(--purple-50);
+  background-color: var(--green-50);
 }
 
 /* ── Landing page ──────────────────────────────────────────────────────── */
 .landing-hero {
-  padding: 60px 20px;
+  padding: 80px 20px 60px;
   text-align: center;
 }
 
 .landing-hero h1 {
-  font-size: 2.4rem;
+  font-size: 2.6rem;
   font-weight: 800;
-  color: var(--purple-900);
+  color: var(--green-900);
+  font-family: Georgia, serif;
+}
+
+.landing-hero .lead {
+  color: var(--text-muted);
+  font-size: 1.2rem;
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+/* ── Divider ───────────────────────────────────────────────────────────── */
+.warm-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 2rem 0;
+}
+
+/* ── Section placeholder ────────────────────────────────────────────────── */
+.section-placeholder {
+  background: var(--parchment);
+  border: 2px dashed var(--border);
+  border-radius: 10px;
+  padding: 32px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+/* ── Print styles (PDF export of App Blueprint) ─────────────────────────── */
+@media print {
+  nav, footer, .no-print { display: none !important; }
+  body { background: #fff !important; }
+  .container, [class*="container"] { max-width: 100% !important; padding: 0 !important; }
 }

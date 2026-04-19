@@ -1,0 +1,21 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Dove body -->
+  <ellipse cx="90" cy="112" rx="42" ry="26" fill="#2D5A3D"/>
+  <!-- Dove head -->
+  <circle cx="128" cy="102" r="18" fill="#2D5A3D"/>
+  <!-- Beak -->
+  <path d="M144 97 L162 91 L144 107 Z" fill="#C9904A"/>
+  <!-- Eye -->
+  <circle cx="134" cy="98" r="3.5" fill="white"/>
+  <circle cx="135" cy="98" r="1.8" fill="#1A3D28"/>
+  <!-- Upper wing -->
+  <path d="M90 100 C68 80 40 72 24 82 C44 86 68 94 84 104 Z" fill="#3D7A53"/>
+  <!-- Lower wing sweep -->
+  <path d="M90 118 C62 124 36 120 22 130 C46 126 72 122 88 118 Z" fill="#3D7A53"/>
+  <!-- Tail feathers -->
+  <path d="M50 112 C38 116 26 124 18 118 C30 114 42 112 50 112 Z" fill="#2D5A3D"/>
+  <!-- Small heart carried in beak -->
+  <path d="M157 86 C157 86 153 82 149 84 C145 86 145 92 149 96 L157 104 L165 96 C169 92 169 86 165 84 C161 82 157 86 157 86 Z"
+        fill="#C9904A" stroke="#9A6020" stroke-width="1.5"/>
+  <circle cx="151" cy="87" r="3" fill="white" opacity="0.3"/>
+</svg>

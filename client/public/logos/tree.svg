@@ -1,0 +1,17 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Trunk -->
+  <rect x="90" y="128" width="20" height="46" rx="10" fill="#2D5A3D"/>
+  <!-- Roots spreading -->
+  <path d="M90 168 C76 172 60 170 48 176" stroke="#2D5A3D" stroke-width="6" stroke-linecap="round" fill="none"/>
+  <path d="M110 168 C124 172 140 170 152 176" stroke="#2D5A3D" stroke-width="6" stroke-linecap="round" fill="none"/>
+  <path d="M100 170 C100 175 100 178 100 182" stroke="#2D5A3D" stroke-width="6" stroke-linecap="round" fill="none"/>
+  <!-- Canopy layers -->
+  <ellipse cx="100" cy="102" rx="62" ry="48" fill="#3D7A53" opacity="0.4"/>
+  <ellipse cx="100" cy="94" rx="52" ry="42" fill="#2D5A3D"/>
+  <!-- Heart in canopy center -->
+  <path d="M100 82 C100 82 89 71 78 77 C67 83 67 99 78 108 L100 128 L122 108 C133 99 133 83 122 77 C111 71 100 82 100 82 Z"
+        fill="#A06830" opacity="0.28" transform="translate(1.5,2)"/>
+  <path d="M100 82 C100 82 89 71 78 77 C67 83 67 99 78 108 L100 128 L122 108 C133 99 133 83 122 77 C111 71 100 82 100 82 Z"
+        fill="#C9904A"/>
+  <circle cx="86" cy="83" r="6" fill="white" opacity="0.28"/>
+</svg>

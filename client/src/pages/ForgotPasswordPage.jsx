@@ -29,6 +29,13 @@ export default function ForgotPasswordPage() {
       const res = await axios.post(`${API}/auth/forgot-password`, form)
       if (method === 'dob' && res.data.token) {
         setDobToken(res.data.token)
+      } else if (res.data.reset_link) {
+        // Dev fallback: email not configured — show a direct reset link
+        setStatus({
+          type: 'warning',
+          msg: `${res.data.message}`,
+          link: res.data.reset_link,
+        })
       } else {
         setStatus({ type: 'success', msg: res.data.message })
       }
@@ -69,7 +76,18 @@ export default function ForgotPasswordPage() {
       <Card style={{ width: '100%', maxWidth: 420 }}>
         <Card.Header><h5 className="mb-0">Reset Password</h5></Card.Header>
         <Card.Body>
-          {status && <Alert variant={status.type}>{status.msg}</Alert>}
+          {status && (
+            <Alert variant={status.type}>
+              {status.msg}
+              {status.link && (
+                <div className="mt-2">
+                  <a href={status.link} style={{ wordBreak: 'break-all', fontSize: '0.85rem' }}>
+                    {status.link}
+                  </a>
+                </div>
+              )}
+            </Alert>
+          )}
 
           {dobToken ? (
             <Form onSubmit={handleReset}>

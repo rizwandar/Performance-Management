@@ -1,0 +1,11 @@
+{
+  "name": "@in-good-hands/shared",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./api": "./api.js",
+    "./auth": "./auth.js",
+    "./constants": "./constants.js"
+  }
+}

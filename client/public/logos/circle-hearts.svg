@@ -1,0 +1,22 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Outer connecting circle (subtle) -->
+  <circle cx="100" cy="100" r="72" fill="none" stroke="#2D5A3D" stroke-width="3" opacity="0.25"/>
+  <!-- Top heart -->
+  <path d="M100 36 C100 36 91 27 82 31 C73 35 73 47 82 54 L100 71 L118 54 C127 47 127 35 118 31 C109 27 100 36 100 36 Z"
+        fill="#2D5A3D"/>
+  <circle cx="87" cy="37" r="4" fill="white" opacity="0.3"/>
+  <!-- Bottom-left heart -->
+  <path d="M52 134 C52 134 43 125 34 129 C25 133 25 145 34 152 L52 169 L70 152 C79 145 79 133 70 129 C61 125 52 134 52 134 Z"
+        fill="#C9904A"/>
+  <path d="M52 134 C52 134 43 125 34 129 C25 133 25 145 34 152 L52 169 L70 152 C79 145 79 133 70 129 C61 125 52 134 52 134 Z"
+        fill="none" stroke="#9A6020" stroke-width="2"/>
+  <circle cx="39" cy="135" r="4" fill="white" opacity="0.3"/>
+  <!-- Bottom-right heart -->
+  <path d="M148 134 C148 134 139 125 130 129 C121 133 121 145 130 152 L148 169 L166 152 C175 145 175 133 166 129 C157 125 148 134 148 134 Z"
+        fill="#3D7A53"/>
+  <circle cx="135" cy="135" r="4" fill="white" opacity="0.28"/>
+  <!-- Connecting lines between hearts -->
+  <line x1="90" y1="68" x2="60" y2="124" stroke="#2D5A3D" stroke-width="3" stroke-linecap="round" opacity="0.4"/>
+  <line x1="110" y1="68" x2="140" y2="124" stroke="#2D5A3D" stroke-width="3" stroke-linecap="round" opacity="0.4"/>
+  <line x1="72" y1="160" x2="128" y2="160" stroke="#2D5A3D" stroke-width="3" stroke-linecap="round" opacity="0.4"/>
+</svg>

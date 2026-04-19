@@ -25,7 +25,15 @@ export default function LoginPage() {
       login(res.data.token, res.data.user)
       navigate(res.data.user.is_admin ? '/admin' : '/profile')
     } catch (err) {
-      setError(err.response?.data?.error || 'Login failed')
+      if (!err.response) {
+        setError("We couldn't reach the server. Please check your connection and try again.")
+      } else if (err.response.status === 429) {
+        setError('Too many sign-in attempts. Please wait 15 minutes and try again.')
+      } else if (err.response.status === 401) {
+        setError('Incorrect email or password. Please check your details and try again.')
+      } else {
+        setError(err.response?.data?.error || 'Sign in failed. Please try again.')
+      }
     }
     setLoading(false)
   }
@@ -33,9 +41,9 @@ export default function LoginPage() {
   return (
     <div className="d-flex justify-content-center pt-4">
       <Card style={{ width: '100%', maxWidth: 420 }}>
-        <Card.Header><h5 className="mb-0">Login</h5></Card.Header>
+        <Card.Header><h5 className="mb-0">Welcome back</h5></Card.Header>
         <Card.Body>
-          {registered && <Alert variant="success">Profile created! Please log in.</Alert>}
+          {registered && <Alert variant="success">Your account is ready. Please sign in to continue.</Alert>}
           {error && <Alert variant="danger">{error}</Alert>}
           <Form onSubmit={handleSubmit}>
             <Form.Group className="mb-3">
@@ -60,15 +68,15 @@ export default function LoginPage() {
               />
             </Form.Group>
             <Button type="submit" variant="primary" className="w-100" disabled={loading}>
-              {loading ? 'Logging in...' : 'Login'}
+              {loading ? 'Signing in...' : 'Sign in'}
             </Button>
           </Form>
           <div className="text-center mt-3">
-            <Link to="/forgot-password" className="text-muted small">Forgot password?</Link>
+            <Link to="/forgot-password" className="text-muted small">Forgot your password?</Link>
           </div>
           <div className="text-center mt-2">
             <small className="text-muted">
-              Don't have an account? <Link to="/register">Create one</Link>
+              New here? <Link to="/register">Begin your journey</Link>
             </small>
           </div>
         </Card.Body>

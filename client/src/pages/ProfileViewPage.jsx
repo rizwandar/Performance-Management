@@ -110,7 +110,7 @@ export default function ProfileViewPage() {
                 <span className="text-muted me-3" style={{ minWidth: 24, fontWeight: 600 }}>{i + 1}</span>
                 <div>
                   <span className="fw-semibold">{song.title}</span>
-                  <span className="text-muted ms-2 small">— {song.artist}</span>
+                  <span className="text-muted ms-2 small">by {song.artist}</span>
                   {song.album && <span className="text-muted ms-2 small">· {song.album}</span>}
                 </div>
               </div>
@@ -121,7 +121,7 @@ export default function ProfileViewPage() {
 
       {/* ── Bucket List ── */}
       {profile.bucket_list_enabled && (
-        <Section title={`Life's Wishes  (${profile.bucket_list?.length || 0} of 50)`}>
+        <Section title={`My Bucket List (${profile.bucket_list?.length || 0} of 50)`}>
           {!profile.bucket_list?.length ? (
             <p className="text-muted small mb-0">
               No wishes added yet. <button className="btn btn-link btn-sm p-0" onClick={() => navigate('/profile/edit')}>Add some?</button>

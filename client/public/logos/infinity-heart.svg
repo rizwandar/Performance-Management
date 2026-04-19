@@ -1,0 +1,16 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Infinity left loop -->
+  <path d="M100 100 C92 88 74 72 54 74 C34 76 22 92 22 106 C22 120 34 136 54 138 C74 140 92 124 100 112"
+        fill="none" stroke="#2D5A3D" stroke-width="13" stroke-linecap="round"/>
+  <!-- Infinity right loop -->
+  <path d="M100 100 C108 88 126 72 146 74 C166 76 178 92 178 106 C178 120 166 136 146 138 C126 140 108 124 100 112"
+        fill="none" stroke="#2D5A3D" stroke-width="13" stroke-linecap="round"/>
+  <!-- Heart at the crossing center -->
+  <path d="M100 94 C100 94 91 85 82 89 C74 93 74 105 82 112 L100 129 L118 112 C126 105 126 93 118 89 C109 85 100 94 100 94 Z"
+        fill="#A06830" opacity="0.25" transform="translate(1.5,2)"/>
+  <path d="M100 94 C100 94 91 85 82 89 C74 93 74 105 82 112 L100 129 L118 112 C126 105 126 93 118 89 C109 85 100 94 100 94 Z"
+        fill="#C9904A"/>
+  <path d="M100 94 C100 94 91 85 82 89 C74 93 74 105 82 112 L100 129 L118 112 C126 105 126 93 118 89 C109 85 100 94 100 94 Z"
+        fill="none" stroke="#9A6020" stroke-width="2"/>
+  <circle cx="87" cy="95" r="5" fill="white" opacity="0.3"/>
+</svg>

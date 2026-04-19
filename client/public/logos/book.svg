@@ -1,0 +1,22 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Left page -->
+  <path d="M100 50 C100 50 60 46 36 52 L36 162 C60 156 100 160 100 160 Z" fill="#2D5A3D"/>
+  <!-- Right page -->
+  <path d="M100 50 C100 50 140 46 164 52 L164 162 C140 156 100 160 100 160 Z" fill="#3D7A53"/>
+  <!-- Spine -->
+  <rect x="97" y="50" width="6" height="110" rx="3" fill="#1A3D28"/>
+  <!-- Lines on left page -->
+  <line x1="50" y1="80" x2="94" y2="78" stroke="white" stroke-width="3" stroke-linecap="round" opacity="0.4"/>
+  <line x1="50" y1="92" x2="94" y2="90" stroke="white" stroke-width="3" stroke-linecap="round" opacity="0.4"/>
+  <line x1="50" y1="104" x2="94" y2="102" stroke="white" stroke-width="3" stroke-linecap="round" opacity="0.4"/>
+  <!-- Lines on right page -->
+  <line x1="106" y1="78" x2="150" y2="80" stroke="white" stroke-width="3" stroke-linecap="round" opacity="0.35"/>
+  <line x1="106" y1="90" x2="150" y2="92" stroke="white" stroke-width="3" stroke-linecap="round" opacity="0.35"/>
+  <line x1="106" y1="102" x2="150" y2="104" stroke="white" stroke-width="3" stroke-linecap="round" opacity="0.35"/>
+  <!-- Heart centred above the book -->
+  <path d="M100 28 C100 28 91 18 82 22 C73 26 73 38 82 45 L100 62 L118 45 C127 38 127 26 118 22 C109 18 100 28 100 28 Z"
+        fill="#A06830" opacity="0.25" transform="translate(1.5,2)"/>
+  <path d="M100 28 C100 28 91 18 82 22 C73 26 73 38 82 45 L100 62 L118 45 C127 38 127 26 118 22 C109 18 100 28 100 28 Z"
+        fill="#C9904A"/>
+  <circle cx="87" cy="29" r="5" fill="white" opacity="0.3"/>
+</svg>
