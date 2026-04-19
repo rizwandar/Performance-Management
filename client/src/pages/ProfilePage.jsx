@@ -219,6 +219,47 @@ export default function ProfilePage() {
     </div>
   )
 
+  // Admin sees a stripped-down account page — password change only
+  if (authUser?.is_admin) return (
+    <div style={{ maxWidth: 520, margin: '0 auto' }}>
+      <div className="mb-4">
+        <h3 style={{ color: 'var(--green-900)', fontFamily: 'Georgia, serif' }}>Admin Account</h3>
+        <p className="text-muted">Manage your administrator password.</p>
+      </div>
+
+      <div style={{ background: 'var(--parchment)', borderRadius: 12, padding: '24px', border: '1px solid var(--border)' }}>
+        <h6 style={{ color: 'var(--green-900)', marginBottom: 20 }}>Change Password</h6>
+
+        {pwError   && <Alert variant="danger">{pwError}</Alert>}
+        {pwSuccess && <Alert variant="success">{pwSuccess}</Alert>}
+
+        <Form.Group className="mb-3">
+          <Form.Label>Current password</Form.Label>
+          <Form.Control type="password" value={pwForm.current}
+            onChange={e => setPwForm(f => ({ ...f, current: e.target.value }))}
+            placeholder="Your current password" />
+        </Form.Group>
+        <Form.Group className="mb-3">
+          <Form.Label>New password</Form.Label>
+          <Form.Control type="password" value={pwForm.next}
+            onChange={e => setPwForm(f => ({ ...f, next: e.target.value }))}
+            placeholder="At least 8 characters, one uppercase, one number" />
+          <PasswordRequirements password={pwForm.next} />
+        </Form.Group>
+        <Form.Group className="mb-4">
+          <Form.Label>Confirm new password</Form.Label>
+          <Form.Control type="password" value={pwForm.confirm}
+            onChange={e => setPwForm(f => ({ ...f, confirm: e.target.value }))}
+            placeholder="Type new password again"
+            onKeyDown={e => e.key === 'Enter' && handleChangePassword()} />
+        </Form.Group>
+        <Button variant="primary" onClick={handleChangePassword} disabled={pwSaving}>
+          {pwSaving ? 'Saving...' : 'Change password'}
+        </Button>
+      </div>
+    </div>
+  )
+
   return (
     <div style={{ maxWidth: 720, margin: '0 auto' }}>
       <div className="mb-4">

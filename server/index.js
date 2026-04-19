@@ -61,6 +61,25 @@ const apiLimiter = rateLimit({
 app.use('/api/', apiLimiter);
 app.use('/api/auth/', authLimiter);
 
+// Maintenance mode — blocks all non-admin requests except health + login
+app.use((req, res, next) => {
+  const exemptPaths = ['/api/health', '/api/auth/login', '/api/auth/logout'];
+  if (exemptPaths.includes(req.path)) return next();
+  const db = require('./db/database');
+  const setting = db.prepare("SELECT value FROM app_settings WHERE key = 'maintenance_mode'").get();
+  if (setting?.value !== '1') return next();
+  // Allow admins through during maintenance
+  const jwt = require('jsonwebtoken');
+  const token = req.headers.authorization?.split(' ')[1];
+  if (token) {
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      if (decoded.is_admin) return next();
+    } catch {}
+  }
+  res.status(503).json({ maintenance: true, error: 'The site is temporarily offline for maintenance. Please check back shortly.' });
+});
+
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/admin', require('./routes/admin'));

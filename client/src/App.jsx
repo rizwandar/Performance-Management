@@ -365,6 +365,21 @@ function NavBar() {
 
 function AppContent() {
   const { setBranding } = useBranding()
+  const [maintenance, setMaintenance] = useState(false)
+
+  // Global axios interceptor — catches maintenance mode 503 from the API
+  useEffect(() => {
+    const id = axios.interceptors.response.use(
+      res => res,
+      err => {
+        if (err.response?.status === 503 && err.response?.data?.maintenance) {
+          setMaintenance(true)
+        }
+        return Promise.reject(err)
+      }
+    )
+    return () => axios.interceptors.response.eject(id)
+  }, [])
 
   // Load and apply theme, font, and branding from settings on app boot
   useEffect(() => {
@@ -377,6 +392,30 @@ function AppContent() {
       })
     }).catch(() => {})
   }, [])
+
+  if (maintenance) return (
+    <div style={{
+      minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: 'var(--parchment)', padding: 24,
+    }}>
+      <div style={{ maxWidth: 480, textAlign: 'center' }}>
+        <div style={{ fontSize: '3rem', marginBottom: 16 }}>🔧</div>
+        <h2 style={{ color: 'var(--green-900)', fontFamily: 'Georgia, serif', marginBottom: 12 }}>
+          We'll be back shortly
+        </h2>
+        <p style={{ color: 'var(--text-muted)', lineHeight: 1.7, marginBottom: 24 }}>
+          In Good Hands is temporarily offline for maintenance.
+          We're working to make things better for you and will be back very soon.
+        </p>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+          If you need to reach us, contact us at{' '}
+          <a href="mailto:support@ingoodhands.ca" style={{ color: 'var(--green-800)' }}>
+            support@ingoodhands.ca
+          </a>
+        </p>
+      </div>
+    </div>
+  )
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>

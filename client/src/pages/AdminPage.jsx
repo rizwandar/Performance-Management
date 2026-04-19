@@ -1742,6 +1742,36 @@ export default function AdminPage() {
 
       {/* ── Settings ───────────────────────────────────────────────────────── */}
       {tab === 'Settings' && (
+        <div>
+        {/* Maintenance Mode */}
+        <div style={{ background: 'var(--parchment)', borderRadius: 12, padding: '24px', border: '1px solid var(--border)', marginBottom: 24 }}>
+          <div className="d-flex justify-content-between align-items-start flex-wrap gap-3">
+            <div>
+              <h6 style={{ color: 'var(--green-900)', marginBottom: 4 }}>Maintenance Mode</h6>
+              <p className="text-muted small mb-0">
+                When enabled, the site shows a maintenance message to all users. You can still log in as admin.
+              </p>
+            </div>
+            <div>
+              {settings.maintenance_mode === '1' ? (
+                <Button variant="success" onClick={() => saveSetting('maintenance_mode', '0')}>
+                  Take site live
+                </Button>
+              ) : (
+                <Button variant="outline-danger" onClick={() => saveSetting('maintenance_mode', '1')}>
+                  Enable maintenance mode
+                </Button>
+              )}
+            </div>
+          </div>
+          {settings.maintenance_mode === '1' && (
+            <div style={{ marginTop: 16, background: '#FEF3C7', border: '1px solid #F59E0B', borderRadius: 8, padding: '10px 14px', fontSize: '0.88rem', color: '#92400E' }}>
+              Site is currently in maintenance mode. Regular users will see a maintenance message.
+            </div>
+          )}
+        </div>
+
+        {/* Password Reset Method */}
         <div style={{ background: 'var(--parchment)', borderRadius: 12, padding: '24px', border: '1px solid var(--border)' }}>
           <h6 style={{ color: 'var(--green-900)', marginBottom: 4 }}>Password Reset Method</h6>
           <p className="text-muted small mb-4">
@@ -1767,6 +1797,7 @@ export default function AdminPage() {
               </div>
             ))}
           </div>
+        </div>
         </div>
       )}
 
