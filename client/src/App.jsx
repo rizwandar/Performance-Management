@@ -345,6 +345,7 @@ function NavBar() {
                   </>
                 )}
                 {user?.is_admin && <Nav.Link as={Link} to="/admin">Admin</Nav.Link>}
+                {user?.is_admin && <Nav.Link as={Link} to="/profile">My Account</Nav.Link>}
                 <Button variant="outline-light" size="sm" className="ms-2" onClick={handleLogout}>
                   Sign out
                 </Button>
