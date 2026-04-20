@@ -59,6 +59,7 @@ router.post('/', async (req, res) => {
     console.log(`[contact] ${typeLabel} from ${email}`);
     res.json({ success: true });
   } catch (err) {
+    console.error('[contact] Email failed:', err.message, '| ADMIN_EMAIL:', ADMIN_EMAIL);
     // If email fails in non-production, still acknowledge receipt
     if (process.env.NODE_ENV !== 'production') {
       console.warn('[contact] Email delivery failed — non-prod, acknowledging anyway');
