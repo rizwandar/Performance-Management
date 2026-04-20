@@ -366,11 +366,21 @@ const migrations = [
   'ALTER TABLE users ADD COLUMN vault_attempts INTEGER DEFAULT 0',
   // v6 — inactivity: track when trusted contacts were last notified on expiry
   'ALTER TABLE users ADD COLUMN inactivity_contacts_notified_at DATETIME',
+  // v7 — email verification
+  'ALTER TABLE users ADD COLUMN email_verified INTEGER DEFAULT 0',
+  'ALTER TABLE users ADD COLUMN email_verification_token TEXT',
+  'ALTER TABLE users ADD COLUMN email_verification_expires_at DATETIME',
 ];
 
 for (const sql of migrations) {
   try { db.exec(sql); } catch (_) {}
 }
+
+// Mark users who existed before email verification was introduced as verified
+// (they have no token set, so this is safe to run on every boot)
+try {
+  db.prepare('UPDATE users SET email_verified = 1 WHERE email_verification_token IS NULL AND email_verified = 0').run();
+} catch (_) {}
 
 // v1 tables — keep so existing data is not lost
 db.exec(`

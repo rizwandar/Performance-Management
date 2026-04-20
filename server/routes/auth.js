@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const { body } = require('express-validator');
 const db = require('../db/database');
 const { sendEmail } = require('../lib/sendEmail');
-const { welcomeEmail, passwordResetEmail } = require('../lib/emailTemplates');
+const { welcomeEmail, passwordResetEmail, emailVerificationEmail } = require('../lib/emailTemplates');
 const { validate } = require('../middleware/validate');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
@@ -58,17 +58,23 @@ router.post('/register', registerRules, validate, (req, res) => {
   }
   try {
     const hash = bcrypt.hashSync(password, 10);
-    const result = db.prepare(`
-      INSERT INTO users (name, email, password_hash, date_of_birth, country_code, privacy_consent, privacy_consent_at)
-      VALUES (?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
-    `).run(name, email, hash, date_of_birth || null, country_code || null);
+    const verifyToken  = crypto.randomBytes(32).toString('hex');
+    const verifyExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
-    // Send welcome email (non-blocking)
+    const result = db.prepare(`
+      INSERT INTO users (name, email, password_hash, date_of_birth, country_code, privacy_consent, privacy_consent_at,
+                         email_verified, email_verification_token, email_verification_expires_at)
+      VALUES (?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, 0, ?, ?)
+    `).run(name, email, hash, date_of_birth || null, country_code || null, verifyToken, verifyExpiry);
+
+    // Send verification email (non-blocking)
+    const clientUrl  = process.env.CLIENT_URL || 'http://localhost:5173';
+    const verifyLink = `${clientUrl}/verify-email?token=${verifyToken}`;
     sendEmail({
       to:      email,
-      subject: `Welcome to In Good Hands`,
-      html:    welcomeEmail({ name }),
-    }).catch(err => console.error('Welcome email failed:', err.message));
+      subject: 'Please verify your email address — In Good Hands',
+      html:    emailVerificationEmail({ name, verifyLink }),
+    }).catch(err => console.error('[auth] Verification email failed:', err.message));
 
     auditLog(result.lastInsertRowid, 'register', req);
     res.status(201).json({ id: result.lastInsertRowid });
@@ -116,12 +122,13 @@ router.post('/login', loginRules, validate, (req, res) => {
   res.json({
     token,
     user: {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      is_admin: user.is_admin,
-      songs_enabled: user.songs_enabled,
-      bucket_list_enabled: user.bucket_list_enabled
+      id:                  user.id,
+      name:                user.name,
+      email:               user.email,
+      is_admin:            user.is_admin,
+      email_verified:      user.email_verified ?? 1,
+      songs_enabled:       user.songs_enabled,
+      bucket_list_enabled: user.bucket_list_enabled,
     }
   });
 });
@@ -204,9 +211,56 @@ router.post('/reset-password', resetRules, validate, (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// Email verification
+// ---------------------------------------------------------------------------
+router.get('/verify-email/:token', (req, res) => {
+  const { token } = req.params;
+  const user = db.prepare('SELECT * FROM users WHERE email_verification_token = ?').get(token);
+  if (!user) return res.status(400).json({ error: 'Invalid or expired verification link.' });
+  if (user.email_verified) return res.json({ success: true, already: true });
+  if (user.email_verification_expires_at && new Date(user.email_verification_expires_at) < new Date()) {
+    return res.status(400).json({ error: 'This verification link has expired. Please request a new one from inside your account.' });
+  }
+  db.prepare('UPDATE users SET email_verified = 1, email_verification_token = NULL, email_verification_expires_at = NULL WHERE id = ?').run(user.id);
+  // Send welcome email now that we know the address is real
+  sendEmail({
+    to:      user.email,
+    subject: 'Welcome to In Good Hands',
+    html:    welcomeEmail({ name: user.name }),
+  }).catch(err => console.error('[auth] Welcome email failed:', err.message));
+  auditLog(user.id, 'email_verified', req);
+  res.json({ success: true });
+});
+
+// Resend verification email — requires auth (user is logged in but unverified)
+const auth = require('../middleware/auth');
+router.post('/resend-verification', auth, async (req, res) => {
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found.' });
+  if (user.email_verified) return res.json({ success: true, already: true });
+
+  const token  = crypto.randomBytes(32).toString('hex');
+  const expiry = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+  db.prepare('UPDATE users SET email_verification_token = ?, email_verification_expires_at = ? WHERE id = ?').run(token, expiry, user.id);
+
+  const clientUrl  = process.env.CLIENT_URL || 'http://localhost:5173';
+  const verifyLink = `${clientUrl}/verify-email?token=${token}`;
+  try {
+    await sendEmail({
+      to:      user.email,
+      subject: 'Verify your email address — In Good Hands',
+      html:    emailVerificationEmail({ name: user.name, verifyLink }),
+    });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[auth] Resend verification email failed:', err.message);
+    res.status(500).json({ error: 'Could not send verification email. Please try again shortly.' });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Logout — client drops the JWT; we log the event for audit trail
 // ---------------------------------------------------------------------------
-const auth = require('../middleware/auth');
 router.post('/logout', auth, (req, res) => {
   auditLog(req.user.id, 'logout', req);
   res.json({ success: true });

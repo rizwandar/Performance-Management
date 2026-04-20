@@ -76,7 +76,31 @@ function button(text, url) {
 }
 
 // ---------------------------------------------------------------------------
-// Welcome email — sent on registration
+// Email verification — sent on registration
+// ---------------------------------------------------------------------------
+function emailVerificationEmail({ name, verifyLink }) {
+  return layout(`
+    <p>Dear ${name},</p>
+    <p>
+      Thank you for creating your account on <strong>${APP_NAME}</strong>.
+    </p>
+    <p>
+      To complete your registration, please verify your email address by clicking the button below.
+      This link is valid for <strong>24 hours</strong>.
+    </p>
+    ${button('Verify my email address', verifyLink)}
+    <p style="color:#6B7280; font-size:14px;">
+      If you did not create an account with us, you can safely ignore this email.
+    </p>
+    <p style="color:#6B7280; font-size:14px;">
+      With care,<br/>
+      The ${APP_NAME} team
+    </p>
+  `);
+}
+
+// ---------------------------------------------------------------------------
+// Welcome email — sent after email is verified
 // ---------------------------------------------------------------------------
 function welcomeEmail({ name }) {
   return layout(`
@@ -331,6 +355,7 @@ function inactivityContactNotificationEmail({ recipientName, ownerName, accessLi
 }
 
 module.exports = {
+  emailVerificationEmail,
   welcomeEmail,
   passwordResetEmail,
   inactivityReminderEmail,

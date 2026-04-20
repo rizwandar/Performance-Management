@@ -43,7 +43,12 @@ export default function LoginPage() {
       <Card style={{ width: '100%', maxWidth: 420 }}>
         <Card.Header><h5 className="mb-0">Welcome back</h5></Card.Header>
         <Card.Body>
-          {registered && <Alert variant="success">Your account is ready. Please sign in to continue.</Alert>}
+          {registered && (
+            <Alert variant="success">
+              <strong>Account created.</strong> Please check your email for a verification link before signing in.
+              Once verified, you can sign in here.
+            </Alert>
+          )}
           {error && <Alert variant="danger">{error}</Alert>}
           <Form onSubmit={handleSubmit}>
             <Form.Group className="mb-3">

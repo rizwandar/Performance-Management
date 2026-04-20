@@ -6,6 +6,7 @@ import { AuthProvider, useAuth } from './context/AuthContext'
 import { BrandingProvider, useBranding } from './context/BrandingContext'
 
 import AccessPage             from './pages/AccessPage'
+import VerifyEmailPage        from './pages/VerifyEmailPage'
 import LandingPage            from './pages/LandingPage'
 import LoginPage              from './pages/LoginPage'
 import RegisterPage           from './pages/RegisterPage'
@@ -363,6 +364,56 @@ function NavBar() {
   )
 }
 
+// ---------------------------------------------------------------------------
+// Unverified email banner — shown to logged-in users who haven't verified yet
+// ---------------------------------------------------------------------------
+function UnverifiedEmailBanner() {
+  const { user, login, token } = useAuth()
+  const [sending, setSending] = useState(false)
+  const [sent, setSent]       = useState(false)
+  const [resendError, setResendError] = useState('')
+
+  if (!user || user.is_admin || user.email_verified !== 0) return null
+
+  const handleResend = async () => {
+    setSending(true)
+    setResendError('')
+    try {
+      await axios.post(`${API}/auth/resend-verification`)
+      setSent(true)
+    } catch (err) {
+      setResendError(err.response?.data?.error || 'Could not resend. Please try again shortly.')
+    }
+    setSending(false)
+  }
+
+  return (
+    <div style={{
+      background: '#FFF7ED', borderBottom: '1px solid #FED7AA',
+      padding: '10px 0', fontSize: '0.88rem',
+    }}>
+      <div className="container" style={{ maxWidth: 960, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <span style={{ color: '#92400E' }}>
+          📧 Please verify your email address <strong>({user.email})</strong> to fully activate your account.
+        </span>
+        {sent ? (
+          <span style={{ color: '#065F46', fontWeight: 600 }}>Verification email sent. Please check your inbox.</span>
+        ) : (
+          <button
+            className="btn btn-sm"
+            style={{ background: '#C9904A', color: '#fff', border: 'none', padding: '3px 12px', fontSize: '0.82rem' }}
+            onClick={handleResend}
+            disabled={sending}
+          >
+            {sending ? 'Sending…' : 'Resend verification email'}
+          </button>
+        )}
+        {resendError && <span style={{ color: '#991B1B', fontSize: '0.82rem' }}>{resendError}</span>}
+      </div>
+    </div>
+  )
+}
+
 function AppContent() {
   const { setBranding } = useBranding()
   const [maintenance, setMaintenance] = useState(false)
@@ -435,6 +486,7 @@ function AppContent() {
         Skip to main content
       </a>
       <NavBar />
+      <UnverifiedEmailBanner />
       <Container id="main-content" className="py-4" style={{ flex: 1 }}>
         <Routes>
           <Route path="/"                  element={<LandingPage />} />
@@ -444,6 +496,7 @@ function AppContent() {
           <Route path="/register"          element={<RegisterPage />} />
           <Route path="/forgot-password"   element={<ForgotPasswordPage />} />
           <Route path="/reset-password"    element={<ResetPasswordPage />} />
+          <Route path="/verify-email"      element={<VerifyEmailPage />} />
 
           {/* Dashboard */}
           <Route path="/profile" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
