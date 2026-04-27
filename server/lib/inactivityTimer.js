@@ -3,6 +3,19 @@ const db = require('../db/database');
 const { sendEmail } = require('./sendEmail');
 const { inactivityReminderEmail, inactivityContactNotificationEmail } = require('./emailTemplates');
 
+async function sendPushNotification(expoPushToken, title, body) {
+  if (!expoPushToken) return;
+  try {
+    await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ to: expoPushToken, title, body, sound: 'default' }),
+    });
+  } catch (err) {
+    console.error('[push] Failed to send push notification:', err.message);
+  }
+}
+
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
 const EXPIRES_HOURS = 72;
 const RENOTIFY_DAYS = 30; // re-notify trusted contacts every 30 days if owner still inactive
@@ -80,7 +93,7 @@ async function checkInactivity() {
 
   const users = db.prepare(`
     SELECT id, name, email, last_active_at, inactivity_period_months,
-           last_reminder_sent_at, inactivity_contacts_notified_at
+           last_reminder_sent_at, inactivity_contacts_notified_at, expo_push_token
     FROM users
     WHERE is_admin = 0
       AND inactivity_period_months IS NOT NULL
@@ -127,6 +140,14 @@ async function checkInactivity() {
           inactivityPeriodMonths: user.inactivity_period_months,
         }),
       });
+
+      await sendPushNotification(
+        user.expo_push_token,
+        'A gentle reminder from In Good Hands',
+        daysLeft <= 1
+          ? 'Please open the app to confirm you\'re still with us and reset your timer.'
+          : `Your inactivity timer has ${daysLeft} days remaining. Open the app to reset it.`
+      );
 
       db.prepare('UPDATE users SET last_reminder_sent_at = ? WHERE id = ?')
         .run(now.toISOString(), user.id);

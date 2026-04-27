@@ -204,4 +204,11 @@ router.delete('/me', auth, async (req, res) => {
   res.json({ success: true });
 });
 
+// Register or remove a mobile push token
+router.post('/me/device-token', auth, (req, res) => {
+  const { token } = req.body;
+  db.prepare('UPDATE users SET expo_push_token = ? WHERE id = ?').run(token || null, req.user.id);
+  res.json({ success: true });
+});
+
 module.exports = router;

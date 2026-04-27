@@ -370,6 +370,8 @@ const migrations = [
   'ALTER TABLE users ADD COLUMN email_verified INTEGER DEFAULT 0',
   'ALTER TABLE users ADD COLUMN email_verification_token TEXT',
   'ALTER TABLE users ADD COLUMN email_verification_expires_at DATETIME',
+  // v8 — mobile push notifications
+  'ALTER TABLE users ADD COLUMN expo_push_token TEXT',
 ];
 
 for (const sql of migrations) {
