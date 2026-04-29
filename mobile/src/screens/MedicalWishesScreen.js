@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native'
+import { useRouter } from 'expo-router'
 import { medicalApi } from '../lib/api'
 import { THEME } from '../lib/theme'
 import FormModal from '../components/FormModal'
@@ -33,11 +34,13 @@ const FIELDS = [
 const EMPTY = { organ_donation: '', organ_donation_details: '', dnr_preference: '', gp_name: '', gp_phone: '', hospital_preference: '', current_medications: '', medical_conditions: '', directive_location: '', notes: '' }
 
 export default function MedicalWishesScreen() {
+  const router = useRouter()
   const [data, setData]       = useState(EMPTY)
   const [loading, setLoading] = useState(true)
   const [modal, setModal]     = useState(false)
   const [form, setForm]       = useState(EMPTY)
   const [saving, setSaving]   = useState(false)
+  const [saved, setSaved]     = useState(false)
 
   const load = useCallback(async () => {
     try { setData(await medicalApi.get()) } catch {}
@@ -47,13 +50,14 @@ export default function MedicalWishesScreen() {
   useEffect(() => { load() }, [load])
 
   function openEdit() {
+    setSaved(false)
     setForm({ organ_donation: data.organ_donation || '', organ_donation_details: data.organ_donation_details || '', dnr_preference: data.dnr_preference || '', gp_name: data.gp_name || '', gp_phone: data.gp_phone || '', hospital_preference: data.hospital_preference || '', current_medications: data.current_medications || '', medical_conditions: data.medical_conditions || '', directive_location: data.directive_location || '', notes: data.notes || '' })
     setModal(true)
   }
 
   async function save() {
     setSaving(true)
-    try { await medicalApi.save(form); setModal(false); load() }
+    try { await medicalApi.save(form); setSaved(true); setModal(false); load() }
     catch (err) { Alert.alert('Save failed', err.response?.data?.error || 'Please try again.') }
     setSaving(false)
   }
@@ -81,6 +85,14 @@ export default function MedicalWishesScreen() {
             {data.medical_conditions  ? <Row label="Conditions"         value={data.medical_conditions} /> : null}
             {data.directive_location  ? <Row label="Directive location" value={data.directive_location} /> : null}
             {data.notes               ? <Row label="Notes"              value={data.notes} /> : null}
+          </View>
+        )}
+        {saved && (
+          <View style={styles.savedBanner}>
+            <Text style={styles.savedText}>Changes saved.</Text>
+            <TouchableOpacity onPress={() => router.back()}>
+              <Text style={styles.savedLink}>Back to Dashboard</Text>
+            </TouchableOpacity>
           </View>
         )}
       </ScrollView>
@@ -112,4 +124,7 @@ const styles = StyleSheet.create({
   rowValue: { fontSize: 14, color: THEME.text, lineHeight: 20 },
   fab: { position: 'absolute', bottom: 24, left: 16, right: 16, backgroundColor: THEME.primary, borderRadius: 12, padding: 15, alignItems: 'center' },
   fabText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  savedBanner: { backgroundColor: '#F0FDF4', borderRadius: 10, borderWidth: 1, borderColor: '#BBF7D0', padding: 14, marginTop: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  savedText: { fontSize: 14, fontWeight: '600', color: '#166534' },
+  savedLink: { fontSize: 14, fontWeight: '600', color: THEME.primary },
 })

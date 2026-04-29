@@ -1,0 +1,16 @@
+{
+  "name": "in-good-hands",
+  "version": "2.0.0",
+  "private": true,
+  "workspaces": [
+    "shared",
+    "client",
+    "server",
+    "mobile"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev --workspace=client",
+    "dev:server": "npm run dev --workspace=server",
+    "dev:mobile": "npm run start --workspace=mobile"
+  }
+}

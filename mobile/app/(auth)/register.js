@@ -10,6 +10,7 @@ import { THEME } from '../../src/lib/theme'
 export default function RegisterScreen() {
   const { register } = useAuth()
   const [form, setForm] = useState({ name: '', email: '', date_of_birth: '', password: '', confirm: '' })
+  const [privacyConsent, setPrivacyConsent] = useState(false)
   const [loading, setLoading] = useState(false)
 
   function set(field) {
@@ -25,6 +26,10 @@ export default function RegisterScreen() {
       Alert.alert('Passwords do not match.')
       return
     }
+    if (!privacyConsent) {
+      Alert.alert('Please agree to the Privacy Policy and Terms of Service to continue.')
+      return
+    }
     setLoading(true)
     try {
       await register({
@@ -32,9 +37,12 @@ export default function RegisterScreen() {
         email: form.email.trim().toLowerCase(),
         date_of_birth: form.date_of_birth.trim(),
         password: form.password,
+        privacy_consent: true,
       })
     } catch (err) {
-      Alert.alert('Registration failed', err.response?.data?.error || 'Please try again.')
+      const msg = err.response?.data?.error
+        || (err.response ? `Server error (${err.response.status})` : 'Could not reach the server. Check your connection.')
+      Alert.alert('Registration failed', msg)
     } finally {
       setLoading(false)
     }
@@ -77,10 +85,30 @@ export default function RegisterScreen() {
             Your date of birth is used to recover your account if you forget your password.
           </Text>
 
+          <Text style={styles.passwordHint}>
+            Password must be at least 8 characters and include one uppercase letter and one number.
+          </Text>
+
           <TouchableOpacity
-            style={[styles.button, loading && styles.buttonDisabled]}
+            style={styles.consentRow}
+            onPress={() => setPrivacyConsent(v => !v)}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.checkbox, privacyConsent && styles.checkboxChecked]}>
+              {privacyConsent && <Text style={styles.checkmark}>✓</Text>}
+            </View>
+            <Text style={styles.consentText}>
+              I agree to the{' '}
+              <Text style={styles.consentLink}>Privacy Policy</Text>
+              {' '}and{' '}
+              <Text style={styles.consentLink}>Terms of Service</Text>
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.button, (!privacyConsent || loading) && styles.buttonDisabled]}
             onPress={handleRegister}
-            disabled={loading}
+            disabled={loading || !privacyConsent}
           >
             <Text style={styles.buttonText}>{loading ? 'Creating account...' : 'Create Account'}</Text>
           </TouchableOpacity>
@@ -127,6 +155,31 @@ const styles = StyleSheet.create({
     backgroundColor: THEME.background,
   },
   hint: { fontSize: 12, color: THEME.textMuted, marginTop: 12, lineHeight: 18 },
+  passwordHint: { fontSize: 12, color: THEME.textMuted, marginTop: 10, lineHeight: 18, fontStyle: 'italic' },
+  consentRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginTop: 20,
+    gap: 10,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 5,
+    borderWidth: 2,
+    borderColor: THEME.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
+    flexShrink: 0,
+  },
+  checkboxChecked: {
+    backgroundColor: THEME.primary,
+    borderColor: THEME.primary,
+  },
+  checkmark: { color: '#fff', fontSize: 13, fontWeight: '700', lineHeight: 16 },
+  consentText: { fontSize: 13, color: THEME.textMuted, flex: 1, lineHeight: 20 },
+  consentLink: { color: THEME.primary, fontWeight: '600' },
   button: {
     backgroundColor: THEME.primary,
     borderRadius: 10,

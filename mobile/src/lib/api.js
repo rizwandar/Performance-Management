@@ -45,7 +45,12 @@ client.interceptors.response.use(
 export const authApi = {
   login:          (email, password) => client.post('/auth/login', { email, password }).then(r => r.data),
   register:       (data)            => client.post('/auth/register', data).then(r => r.data),
-  forgotPassword: (email, dob)      => client.post('/auth/forgot-password', { email, date_of_birth: dob }).then(r => r.data),
+  forgotPassword: (email, dob)      => client.post('/auth/forgot-password', { email, ...(dob ? { date_of_birth: dob } : {}) }).then(r => r.data),
+  resetPassword:  (token, password) => client.post('/auth/reset-password', { token, password }).then(r => r.data),
+}
+
+export const settingsApi = {
+  getPublic: () => client.get('/settings').then(r => r.data),
 }
 
 export const userApi = {
@@ -75,6 +80,12 @@ export const messagesApi = {
   add:    (data)     => client.post('/sections/messages', data).then(r => r.data),
   update: (id, data) => client.put(`/sections/messages/${id}`, data).then(r => r.data),
   remove: (id)       => client.delete(`/sections/messages/${id}`).then(r => r.data),
+}
+
+// Deezer search (proxied through server)
+export const deezerApi = {
+  searchArtists:   (q)  => client.get(`/deezer/artists?q=${encodeURIComponent(q)}`).then(r => r.data),
+  getArtistTracks: (id) => client.get(`/deezer/artist/${id}/tracks`).then(r => r.data),
 }
 
 // Songs That Define Me

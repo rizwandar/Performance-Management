@@ -70,8 +70,13 @@ export default function KeyContactsScreen() {
     if (!form.name?.trim() || !form.email?.trim()) { Alert.alert('Name and email are required.'); return }
     setSaving(true)
     try {
-      if (editing) await keyContactsApi.updateTrusted(editing.id, form)
-      else         await keyContactsApi.addTrusted(form)
+      if (editing) {
+        await keyContactsApi.updateTrusted(editing.id, form)
+      } else {
+        const usedSeqs = trusted.map(tc => tc.sequence)
+        const nextSeq  = [1, 2, 3].find(n => !usedSeqs.includes(n))
+        await keyContactsApi.addTrusted({ sequence: nextSeq, ...form })
+      }
       setTrustedModal(false); load()
     } catch (err) { Alert.alert('Save failed', err.response?.data?.error || 'Please try again.') }
     setSaving(false)

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, TextInput } from 'react-native'
+import { useRouter } from 'expo-router'
 import { rememberedApi } from '../lib/api'
 import { THEME } from '../lib/theme'
 
@@ -11,9 +12,11 @@ const FIELDS = [
 ]
 
 export default function RememberedScreen() {
+  const router = useRouter()
   const [form, setForm]     = useState({ about_me: '', remembered_for: '', legacy_message: '', life_story: '' })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving]   = useState(false)
+  const [saved, setSaved]     = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -25,12 +28,19 @@ export default function RememberedScreen() {
 
   useEffect(() => { load() }, [load])
 
+  function updateField(field, value) {
+    setForm(f => ({ ...f, [field]: value }))
+    setSaved(false)
+  }
+
   async function save() {
     setSaving(true)
     try {
       await rememberedApi.save(form)
-      Alert.alert('Saved.')
-    } catch (err) { Alert.alert('Save failed', err.response?.data?.error || 'Please try again.') }
+      setSaved(true)
+    } catch (err) {
+      Alert.alert('Save failed', err.response?.data?.error || 'Please try again.')
+    }
     setSaving(false)
   }
 
@@ -45,7 +55,7 @@ export default function RememberedScreen() {
           <TextInput
             style={[styles.input, styles.inputMulti]}
             value={form[field.key]}
-            onChangeText={v => setForm(f => ({ ...f, [field.key]: v }))}
+            onChangeText={v => updateField(field.key, v)}
             placeholder={field.placeholder}
             placeholderTextColor={THEME.textMuted}
             multiline
@@ -54,6 +64,16 @@ export default function RememberedScreen() {
           />
         </View>
       ))}
+
+      {saved && (
+        <View style={styles.savedBanner}>
+          <Text style={styles.savedText}>Changes saved.</Text>
+          <TouchableOpacity onPress={() => router.back()}>
+            <Text style={styles.savedLink}>Back to Dashboard</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       <TouchableOpacity style={[styles.button, saving && styles.buttonDisabled]} onPress={save} disabled={saving}>
         <Text style={styles.buttonText}>{saving ? 'Saving...' : 'Save Changes'}</Text>
       </TouchableOpacity>
@@ -69,6 +89,19 @@ const styles = StyleSheet.create({
   label: { fontSize: 13, fontWeight: '600', color: THEME.textMuted, marginBottom: 6 },
   input: { backgroundColor: THEME.surface, borderWidth: 1, borderColor: THEME.border, borderRadius: 10, padding: 12, fontSize: 15, color: THEME.text },
   inputMulti: { minHeight: 110, textAlignVertical: 'top' },
+  savedBanner: {
+    backgroundColor: '#F0FDF4',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    padding: 14,
+    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  savedText: { fontSize: 14, fontWeight: '600', color: '#166534' },
+  savedLink: { fontSize: 14, fontWeight: '600', color: THEME.primary },
   button: { backgroundColor: THEME.primary, borderRadius: 10, padding: 14, alignItems: 'center', marginTop: 8 },
   buttonDisabled: { opacity: 0.6 },
   buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },

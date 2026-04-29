@@ -41,7 +41,6 @@ export default function HowToBeRememberedPage() {
     try {
       await axios.put(`${API}/users/me`, form)
       setSuccess('Saved.')
-      setTimeout(() => setSuccess(''), 3000)
     } catch (err) {
       setError(err.response?.data?.error || "We couldn't save your changes. Please try again.")
     }

@@ -77,7 +77,24 @@ router.post('/register', registerRules, validate, (req, res) => {
     }).catch(err => console.error('[auth] Verification email failed:', err.message));
 
     auditLog(result.lastInsertRowid, 'register', req);
-    res.status(201).json({ id: result.lastInsertRowid });
+    const token = jwt.sign(
+      { id: result.lastInsertRowid, email, is_admin: 0 },
+      JWT_SECRET,
+      { expiresIn: '8h' }
+    );
+    res.status(201).json({
+      id: result.lastInsertRowid,
+      token,
+      user: {
+        id:                  result.lastInsertRowid,
+        name,
+        email,
+        is_admin:            0,
+        email_verified:      0,
+        songs_enabled:       0,
+        bucket_list_enabled: 0,
+      },
+    });
   } catch (err) {
     if (err.message.includes('UNIQUE')) {
       return res.status(409).json({ error: 'Email already registered' });

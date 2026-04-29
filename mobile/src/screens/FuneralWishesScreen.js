@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, TextInput } from 'react-native'
+import { useRouter } from 'expo-router'
 import { funeralApi } from '../lib/api'
 import { THEME } from '../lib/theme'
 import FormModal from '../components/FormModal'
@@ -27,11 +28,13 @@ const FIELDS = [
 const EMPTY = { burial_preference: '', ceremony_type: '', ceremony_location: '', funeral_home: '', music_preferences: '', readings: '', flowers_preference: '', donation_charity: '', special_requests: '', notes: '' }
 
 export default function FuneralWishesScreen() {
+  const router = useRouter()
   const [data, setData]         = useState(EMPTY)
   const [loading, setLoading]   = useState(true)
   const [modal, setModal]       = useState(false)
   const [form, setForm]         = useState(EMPTY)
   const [saving, setSaving]     = useState(false)
+  const [saved, setSaved]       = useState(false)
 
   const load = useCallback(async () => {
     try { setData(await funeralApi.get()) } catch {}
@@ -41,13 +44,14 @@ export default function FuneralWishesScreen() {
   useEffect(() => { load() }, [load])
 
   function openEdit() {
+    setSaved(false)
     setForm({ burial_preference: data.burial_preference || '', ceremony_type: data.ceremony_type || '', ceremony_location: data.ceremony_location || '', funeral_home: data.funeral_home || '', music_preferences: data.music_preferences || '', readings: data.readings || '', flowers_preference: data.flowers_preference || '', donation_charity: data.donation_charity || '', special_requests: data.special_requests || '', notes: data.notes || '' })
     setModal(true)
   }
 
   async function save() {
     setSaving(true)
-    try { await funeralApi.save(form); setModal(false); load() }
+    try { await funeralApi.save(form); setSaved(true); setModal(false); load() }
     catch (err) { Alert.alert('Save failed', err.response?.data?.error || 'Please try again.') }
     setSaving(false)
   }
@@ -80,6 +84,14 @@ export default function FuneralWishesScreen() {
             {data.notes             ? <Row label="Notes"             value={data.notes} /> : null}
           </View>
         )}
+        {saved && (
+          <View style={styles.savedBanner}>
+            <Text style={styles.savedText}>Changes saved.</Text>
+            <TouchableOpacity onPress={() => router.back()}>
+              <Text style={styles.savedLink}>Back to Dashboard</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </ScrollView>
       <TouchableOpacity style={styles.fab} onPress={openEdit}>
         <Text style={styles.fabText}>{hasData ? 'Edit Wishes' : '+ Add Wishes'}</Text>
@@ -109,4 +121,7 @@ const styles = StyleSheet.create({
   rowValue: { fontSize: 14, color: THEME.text, lineHeight: 20 },
   fab: { position: 'absolute', bottom: 24, left: 16, right: 16, backgroundColor: THEME.primary, borderRadius: 12, padding: 15, alignItems: 'center' },
   fabText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  savedBanner: { backgroundColor: '#F0FDF4', borderRadius: 10, borderWidth: 1, borderColor: '#BBF7D0', padding: 14, marginTop: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  savedText: { fontSize: 14, fontWeight: '600', color: '#166534' },
+  savedLink: { fontSize: 14, fontWeight: '600', color: THEME.primary },
 })
