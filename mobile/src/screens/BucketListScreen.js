@@ -6,23 +6,21 @@ import ItemCard from '../components/ItemCard'
 import EmptyState from '../components/EmptyState'
 import FormModal from '../components/FormModal'
 
-const EMPTY = { title: '', description: '', category: '', status: 'dream', notes: '' }
+const EMPTY = { title: '', description: '', status: 'dream' }
 
 const STATUS_OPTIONS = [
-  { label: 'Dream',       value: 'dream' },
-  { label: 'In Progress', value: 'in_progress' },
-  { label: 'Done',        value: 'done' },
+  { label: 'Dream',    value: 'dream' },
+  { label: 'Planning', value: 'planning' },
+  { label: 'Done',     value: 'completed' },
 ]
 
 const FIELDS = [
-  { key: 'title',       label: 'Title',              placeholder: 'What do you want to do?' },
-  { key: 'description', label: 'Description',         placeholder: 'Describe this wish...', multiline: true },
-  { key: 'category',    label: 'Category (optional)', placeholder: 'e.g. travel, family, adventure' },
-  { key: 'status',      label: 'Status',              options: STATUS_OPTIONS },
-  { key: 'notes',       label: 'Notes (optional)',    placeholder: 'Any other details', multiline: true },
+  { key: 'title',       label: 'Title',               placeholder: 'What do you want to do?' },
+  { key: 'description', label: 'Description / Notes',  placeholder: 'A bit more about this wish: where, with whom, why it matters...', multiline: true },
+  { key: 'status',      label: 'Status',               options: STATUS_OPTIONS },
 ]
 
-const STATUS_LABEL = { dream: 'Dream', in_progress: 'In Progress', done: 'Done' }
+const STATUS_LABEL = { dream: 'Dream', planning: 'Planning', completed: 'Done' }
 
 export default function BucketListScreen() {
   const [items, setItems]       = useState([])
@@ -41,7 +39,7 @@ export default function BucketListScreen() {
   useEffect(() => { load() }, [load])
 
   function openAdd()      { setEditing(null); setForm(EMPTY); setModal(true) }
-  function openEdit(item) { setEditing(item); setForm({ title: item.title || '', description: item.description || '', category: item.category || '', status: item.status || 'dream', notes: item.notes || '' }); setModal(true) }
+  function openEdit(item) { setEditing(item); setForm({ title: item.title || '', description: item.description || '', status: item.status || 'dream' }); setModal(true) }
   function change(k, v)   { setForm(f => ({ ...f, [k]: v })) }
 
   async function save() {
@@ -71,7 +69,7 @@ export default function BucketListScreen() {
               <ItemCard
                 key={item.id}
                 title={item.title}
-                subtitle={[item.category, STATUS_LABEL[item.status]].filter(Boolean).join(' · ')}
+                subtitle={STATUS_LABEL[item.status] || 'Dream'}
                 detail={item.description}
                 onEdit={() => openEdit(item)}
                 onDelete={() => remove(item.id)}
