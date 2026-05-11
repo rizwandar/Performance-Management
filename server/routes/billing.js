@@ -1,14 +1,15 @@
-/**
- * Billing & Subscription routes — stub implementation
- *
- * These endpoints define the API surface for the payment system.
- * Actual payment processing (Stripe) will be wired up in a future phase.
- * Schema tables (subscriptions, payment_methods) are already created in database.js.
- */
 const express = require('express');
 const router  = express.Router();
 const db      = require('../db/database');
 const auth    = require('../middleware/auth');
+const { getUserPlan } = require('../lib/subscription');
+
+const FREE_SECTION_IDS = new Set([
+  'messages',
+  'songs-that-define-me',
+  'lifes-wishes',
+  'how-to-be-remembered',
+]);
 
 // ---------------------------------------------------------------------------
 // GET /api/billing/subscription — get current user's subscription status
@@ -37,6 +38,14 @@ router.get('/subscription', auth, (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// GET /api/billing/access — sections the current user can access
+// ---------------------------------------------------------------------------
+router.get('/access', auth, (req, res) => {
+  const plan = getUserPlan(req.user.id);
+  res.json({ plan, is_premium: plan === 'premium' });
+});
+
+// ---------------------------------------------------------------------------
 // GET /api/billing/plans — available subscription plans
 // ---------------------------------------------------------------------------
 router.get('/plans', (req, res) => {
@@ -45,38 +54,43 @@ router.get('/plans', (req, res) => {
       {
         id:          'free',
         name:        'Free',
-        description: 'Essential end-of-life planning tools',
+        description: 'Start your end-of-life planning at no cost',
         price_monthly: 0,
         price_annual:  0,
         features: [
-          'Up to 3 sections',
-          'Basic PDF export',
+          'Your Legacy sections (4 sections)',
+          'Messages to Loved Ones',
+          'Songs That Define Me',
+          'My Bucket List',
+          'How I\'d Like to Be Remembered',
         ],
       },
       {
         id:          'monthly',
-        name:        'Monthly',
-        description: 'Full access, billed monthly',
-        price_monthly: 9.99,
+        name:        'Premium Monthly',
+        description: 'Full access to all 14 sections, billed monthly',
+        price_monthly: 4.99,
         price_annual:  null,
         features: [
-          'All 12 sections',
-          'Trusted contacts',
+          'All 14 planning sections',
+          'Vault-encrypted Digital Life',
+          'Personal & Legal Documents',
+          'Trusted contacts with access permissions',
           'Document uploads',
-          'Full PDF export',
+          'Full PDF export with vault',
           'Inactivity timer',
         ],
         coming_soon: true,
       },
       {
         id:          'annual',
-        name:        'Annual',
-        description: 'Full access, billed annually (save 20%)',
+        name:        'Premium Annual',
+        description: 'Full access, billed annually (save $30)',
         price_monthly: null,
-        price_annual:  95.88,
+        price_annual:  29.99,
         features: [
-          'Everything in Monthly',
-          '2 months free',
+          'Everything in Premium Monthly',
+          'Save $30 vs monthly',
         ],
         coming_soon: true,
       },

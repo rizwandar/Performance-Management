@@ -1,15 +1,19 @@
 import { useEffect, useState, useCallback } from 'react'
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, RefreshControl, ActivityIndicator
+  StyleSheet, RefreshControl, ActivityIndicator, Alert
 } from 'react-native'
 import { useRouter, useFocusEffect } from 'expo-router'
 import { useAuth } from '../../src/context/AuthContext'
+import { useSubscription } from '../../src/context/SubscriptionContext'
 import { sectionsApi } from '../../src/lib/api'
 import { THEME, SECTIONS, GROUPS } from '../../src/lib/theme'
 
+const FREE_SECTION_IDS = new Set(['how_to_be_remembered', 'personal_messages', 'songs_that_define_me', 'life_wishes'])
+
 export default function DashboardScreen() {
   const { user } = useAuth()
+  const { isPremium } = useSubscription()
   const router = useRouter()
   const [counts, setCounts] = useState({})
   const [loading, setLoading] = useState(true)
@@ -73,19 +77,32 @@ export default function DashboardScreen() {
               {groupSections.map(section => {
                 const count = counts[section.id] || 0
                 const started = count > 0
+                const locked = !isPremium && !FREE_SECTION_IDS.has(section.id)
                 return (
                   <TouchableOpacity
                     key={section.id}
-                    style={styles.card}
-                    onPress={() => router.push(`/section/${section.id}`)}
+                    style={[styles.card, locked && styles.cardLocked]}
+                    onPress={() => {
+                      if (locked) {
+                        Alert.alert(
+                          'Premium Section',
+                          `${section.name} is part of the Premium plan. Visit the Upgrade tab to learn more.`,
+                          [{ text: 'OK' }, { text: 'See plans', onPress: () => router.push('/(tabs)/upgrade') }]
+                        )
+                      } else {
+                        router.push(`/section/${section.id}`)
+                      }
+                    }}
                     activeOpacity={0.75}
                   >
                     <View style={styles.cardContent}>
-                      <Text style={styles.cardTitle}>{section.name}</Text>
+                      <Text style={[styles.cardTitle, locked && { color: THEME.textMuted }]}>
+                        {locked ? '🔒 ' : ''}{section.name}
+                      </Text>
                     </View>
-                    <View style={[styles.badge, started ? styles.badgeStarted : styles.badgeEmpty]}>
-                      <Text style={[styles.badgeText, started ? styles.badgeTextStarted : styles.badgeTextEmpty]}>
-                        {started ? `${count} item${count !== 1 ? 's' : ''}` : 'Not started'}
+                    <View style={[styles.badge, locked ? styles.badgeLocked : started ? styles.badgeStarted : styles.badgeEmpty]}>
+                      <Text style={[styles.badgeText, started && !locked ? styles.badgeTextStarted : styles.badgeTextEmpty]}>
+                        {locked ? 'Premium' : started ? `${count} item${count !== 1 ? 's' : ''}` : 'Not started'}
                       </Text>
                     </View>
                   </TouchableOpacity>
@@ -142,6 +159,8 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 1,
   },
+  cardLocked: { opacity: 0.75 },
+  badgeLocked: { backgroundColor: '#8A7A6A' },
   cardContent: { flex: 1, paddingRight: 12 },
   cardTitle: { fontSize: 15, fontWeight: '600', color: THEME.text },
   badge: { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },

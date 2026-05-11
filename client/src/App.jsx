@@ -4,6 +4,7 @@ import { Navbar, Container, Nav, Button } from 'react-bootstrap'
 import axios from 'axios'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { BrandingProvider, useBranding } from './context/BrandingContext'
+import { SubscriptionProvider, useSubscription } from './context/SubscriptionContext'
 
 import AccessPage             from './pages/AccessPage'
 import VerifyEmailPage        from './pages/VerifyEmailPage'
@@ -34,6 +35,7 @@ import HouseholdInfoPage          from './pages/sections/HouseholdInfoPage'
 import ChildrenDependantsPage     from './pages/sections/ChildrenDependantsPage'
 import HowToBeRememberedPage      from './pages/sections/HowToBeRememberedPage'
 import KeyContactsPage            from './pages/sections/KeyContactsPage'
+import UpgradePage                from './pages/UpgradePage'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -305,6 +307,7 @@ function ProtectedRoute({ children, adminOnly = false }) {
 function NavBar() {
   const { user, isTokenValid, logout } = useAuth()
   const { siteName, logoUrl } = useBranding()
+  const { isPremium } = useSubscription()
   const navigate = useNavigate()
 
   const handleLogout = () => {
@@ -329,6 +332,11 @@ function NavBar() {
                   <>
                     <Nav.Link as={Link} to="/profile">My Plans</Nav.Link>
                     <Nav.Link as={Link} to="/profile/settings">My Profile</Nav.Link>
+                    {!isPremium && (
+                      <Nav.Link as={Link} to="/upgrade" style={{ fontWeight: 600, color: 'var(--gold)' }}>
+                        Upgrade
+                      </Nav.Link>
+                    )}
                     <Nav.Link
                       as={Link}
                       to="/export"
@@ -526,6 +534,9 @@ function AppContent() {
           {/* Export */}
           <Route path="/export" element={<ProtectedRoute><ExportPage /></ProtectedRoute>} />
 
+          {/* Upgrade */}
+          <Route path="/upgrade" element={<ProtectedRoute><UpgradePage /></ProtectedRoute>} />
+
           {/* Admin */}
           <Route path="/admin" element={<ProtectedRoute adminOnly><AdminPage /></ProtectedRoute>} />
 
@@ -541,7 +552,9 @@ export default function App() {
   return (
     <BrandingProvider>
       <AuthProvider>
-        <AppContent />
+        <SubscriptionProvider>
+          <AppContent />
+        </SubscriptionProvider>
       </AuthProvider>
     </BrandingProvider>
   )

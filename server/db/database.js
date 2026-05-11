@@ -384,6 +384,17 @@ try {
   db.prepare('UPDATE users SET email_verified = 1 WHERE email_verification_token IS NULL AND email_verified = 0').run();
 } catch (_) {}
 
+// Backfill: give all users registered before freemium launch a premium subscription
+// so their existing data remains fully accessible
+try {
+  const existingUsers = db.prepare('SELECT id FROM users').all();
+  const insertSub = db.prepare(`
+    INSERT OR IGNORE INTO subscriptions (user_id, plan, status)
+    VALUES (?, 'premium', 'active')
+  `);
+  for (const u of existingUsers) insertSub.run(u.id);
+} catch (_) {}
+
 // v1 tables — keep so existing data is not lost
 db.exec(`
   CREATE TABLE IF NOT EXISTS favourite_songs (

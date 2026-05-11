@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { Row, Col, Card, Badge, Spinner } from 'react-bootstrap'
 import axios from 'axios'
 import { useAuth } from '../context/AuthContext'
+import { useSubscription } from '../context/SubscriptionContext'
+import UpgradeModal from '../components/UpgradeModal'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -102,6 +104,13 @@ const GROUPS = [
   },
 ]
 
+const FREE_ROUTES = new Set([
+  '/sections/how-to-be-remembered',
+  '/sections/messages',
+  '/sections/songs-that-define-me',
+  '/sections/lifes-wishes',
+])
+
 // ---------------------------------------------------------------------------
 // Sections — each assigned to a group, with a warm description
 // ---------------------------------------------------------------------------
@@ -189,11 +198,13 @@ const SECTIONS = [
 // Component
 // ---------------------------------------------------------------------------
 export default function DashboardPage() {
-  const { user }   = useAuth()
-  const navigate   = useNavigate()
-  const [completion, setCompletion] = useState({})
-  const [loading, setLoading]       = useState(true)
-  const [iconSet, setIconSet]       = useState('classic')
+  const { user }       = useAuth()
+  const { isPremium }  = useSubscription()
+  const navigate       = useNavigate()
+  const [completion, setCompletion]   = useState({})
+  const [loading, setLoading]         = useState(true)
+  const [iconSet, setIconSet]         = useState('classic')
+  const [upgradeModal, setUpgradeModal] = useState(null)
 
   useEffect(() => {
     axios.get(`${API}/sections/completion`)
@@ -330,24 +341,30 @@ export default function DashboardPage() {
             {/* Cards */}
             <Row className="g-3">
               {groupSections.map(section => {
-                const started = isStarted(section)
-                const cnt     = count(section)
+                const started  = isStarted(section)
+                const cnt      = count(section)
+                const locked   = !isPremium && !FREE_ROUTES.has(section.route)
+                const handleClick = () => {
+                  if (locked) setUpgradeModal(section)
+                  else navigate(section.route)
+                }
                 return (
                   <Col key={section.id} xs={12} sm={6} lg={4}>
                     <Card
                       className="h-100"
                       role="button"
                       tabIndex={0}
-                      aria-label={`${section.label}${started ? `, ${count(section)} items recorded` : ', not started'}`}
+                      aria-label={`${section.label}${locked ? ', Premium section' : started ? `, ${count(section)} items recorded` : ', not started'}`}
                       style={{
                         cursor: 'pointer',
                         background: group.cardBg,
-                        border: `1px solid ${group.cardBorder}`,
+                        border: locked ? `1px solid ${group.cardBorder}` : `1px solid ${group.cardBorder}`,
                         transition: 'box-shadow 0.15s, transform 0.1s',
                         boxShadow: 'none',
+                        opacity: locked ? 0.8 : 1,
                       }}
-                      onClick={() => navigate(section.route)}
-                      onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && navigate(section.route)}
+                      onClick={handleClick}
+                      onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && handleClick()}
                       onMouseEnter={e => {
                         e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.10)'
                         e.currentTarget.style.transform = 'translateY(-1px)'
@@ -384,7 +401,15 @@ export default function DashboardPage() {
                         {/* Bottom: status left, icon right */}
                         <div className="d-flex justify-content-between align-items-end mt-3">
                           <div>
-                            {!started && (
+                            {locked && (
+                              <Badge style={{
+                                fontSize: '0.67rem', background: '#8A7A6A',
+                                color: '#ffffff', fontWeight: 600, border: 'none', padding: '3px 8px',
+                              }}>
+                                🔒 Premium
+                              </Badge>
+                            )}
+                            {!locked && !started && (
                               <Badge style={{
                                 fontSize: '0.67rem',
                                 background: group.startedBorder,
@@ -396,13 +421,18 @@ export default function DashboardPage() {
                                 Not started
                               </Badge>
                             )}
-                            {cnt !== null && cnt > 0 && (
+                            {!locked && cnt !== null && cnt > 0 && (
                               <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--green-800)' }}>
                                 {cnt} {cnt === 1 ? 'item' : 'items'}
                               </span>
                             )}
                           </div>
-                          <span style={{ fontSize: '2rem', lineHeight: 1, flexShrink: 0 }}>
+                          <span style={{
+                            fontSize: '2.6rem', lineHeight: 1, flexShrink: 0,
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            width: '3.2rem', height: '3.2rem', borderRadius: '50%',
+                            background: group.iconBg,
+                          }}>
                             {icons[section.id] || section.icon}
                           </span>
                         </div>
@@ -417,6 +447,11 @@ export default function DashboardPage() {
         )
       })}
 
+      <UpgradeModal
+        show={!!upgradeModal}
+        onHide={() => setUpgradeModal(null)}
+        sectionName={upgradeModal?.label || ''}
+      />
     </div>
   )
 }

@@ -193,3 +193,9 @@ export const digitalApi = {
   update:      (id, data) => client.put(`/sections/digital-life/${id}`, data).then(r => r.data),
   remove:      (id, pw) => client.delete(`/sections/digital-life/${id}`, { data: { vault_password: pw } }).then(r => r.data),
 }
+
+// Billing / Subscription
+export const billingApi = {
+  getAccess: () => client.get('/billing/access').then(r => r.data),
+  getPlans:  () => client.get('/billing/plans').then(r => r.data),
+}

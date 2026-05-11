@@ -1,7 +1,8 @@
 const express = require('express');
 const router  = express.Router();
 const db      = require('../db/database');
-const requireAuth = require('../middleware/auth');
+const requireAuth    = require('../middleware/auth');
+const requirePremium = require('../middleware/requiresPremium');
 const { deriveKey, encryptField, decryptField, createVaultCheck, verifyVaultPassword } = require('../lib/vault');
 const { recordVaultAttempt } = require('../lib/vaultAttempts');
 
@@ -110,7 +111,7 @@ router.get('/legal-documents', requireAuth, (req, res) => {
   res.json(items);
 });
 
-router.post('/legal-documents', requireAuth, (req, res) => {
+router.post('/legal-documents', requireAuth, requirePremium, (req, res) => {
   const { vault_password, document_type, title, held_by, location, notes } = req.body;
   if (!checkVault(vault_password, req.user.id, res, req)) return;
   if (!title) return res.status(400).json({ error: 'A title or description is required.' });
@@ -121,7 +122,7 @@ router.post('/legal-documents', requireAuth, (req, res) => {
   res.status(201).json({ id: result.lastInsertRowid });
 });
 
-router.put('/legal-documents/:id', requireAuth, (req, res) => {
+router.put('/legal-documents/:id', requireAuth, requirePremium, (req, res) => {
   const item = db.prepare('SELECT * FROM legal_documents WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
   const { vault_password, document_type, title, held_by, location, notes } = req.body;
@@ -133,7 +134,7 @@ router.put('/legal-documents/:id', requireAuth, (req, res) => {
   res.json({ success: true });
 });
 
-router.delete('/legal-documents/:id', requireAuth, (req, res) => {
+router.delete('/legal-documents/:id', requireAuth, requirePremium, (req, res) => {
   const item = db.prepare('SELECT * FROM legal_documents WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
   // Also delete associated uploaded documents
@@ -151,7 +152,7 @@ router.get('/financial-affairs', requireAuth, (req, res) => {
   res.json(items);
 });
 
-router.post('/financial-affairs', requireAuth, (req, res) => {
+router.post('/financial-affairs', requireAuth, requirePremium, (req, res) => {
   const { category, institution, account_type, account_reference, contact_name, contact_phone, notes } = req.body;
   if (!institution && !category) return res.status(400).json({ error: 'Please provide at least an institution or category.' });
   const result = db.prepare(`
@@ -162,7 +163,7 @@ router.post('/financial-affairs', requireAuth, (req, res) => {
   res.status(201).json({ id: result.lastInsertRowid });
 });
 
-router.put('/financial-affairs/:id', requireAuth, (req, res) => {
+router.put('/financial-affairs/:id', requireAuth, requirePremium, (req, res) => {
   const item = db.prepare('SELECT * FROM financial_items WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
   const { category, institution, account_type, account_reference, contact_name, contact_phone, notes } = req.body;
@@ -175,7 +176,7 @@ router.put('/financial-affairs/:id', requireAuth, (req, res) => {
   res.json({ success: true });
 });
 
-router.delete('/financial-affairs/:id', requireAuth, (req, res) => {
+router.delete('/financial-affairs/:id', requireAuth, requirePremium, (req, res) => {
   const item = db.prepare('SELECT * FROM financial_items WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
   db.prepare('DELETE FROM financial_items WHERE id = ?').run(item.id);
@@ -190,7 +191,7 @@ router.get('/funeral-wishes', requireAuth, (req, res) => {
   res.json(record || {});
 });
 
-router.put('/funeral-wishes', requireAuth, (req, res) => {
+router.put('/funeral-wishes', requireAuth, requirePremium, (req, res) => {
   const { burial_preference, ceremony_type, ceremony_location, funeral_home, pre_paid_plan,
           pre_paid_details, music_preferences, readings, flowers_preference,
           donation_charity, special_requests, notes } = req.body;
@@ -225,7 +226,7 @@ router.get('/medical-wishes', requireAuth, (req, res) => {
   res.json(record || {});
 });
 
-router.put('/medical-wishes', requireAuth, (req, res) => {
+router.put('/medical-wishes', requireAuth, requirePremium, (req, res) => {
   const { organ_donation, organ_donation_details, advance_care_directive, directive_location,
           dnr_preference, gp_name, gp_phone, hospital_preference,
           current_medications, medical_conditions, notes } = req.body;
@@ -259,7 +260,7 @@ router.get('/people-to-notify', requireAuth, (req, res) => {
   res.json(items);
 });
 
-router.post('/people-to-notify', requireAuth, (req, res) => {
+router.post('/people-to-notify', requireAuth, requirePremium, (req, res) => {
   const { name, relationship, email, phone, notified_by, notes } = req.body;
   if (!name) return res.status(400).json({ error: 'A name is required.' });
   const result = db.prepare(`
@@ -269,7 +270,7 @@ router.post('/people-to-notify', requireAuth, (req, res) => {
   res.status(201).json({ id: result.lastInsertRowid });
 });
 
-router.put('/people-to-notify/:id', requireAuth, (req, res) => {
+router.put('/people-to-notify/:id', requireAuth, requirePremium, (req, res) => {
   const item = db.prepare('SELECT * FROM people_to_notify WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
   const { name, relationship, email, phone, notified_by, notes } = req.body;
@@ -280,7 +281,7 @@ router.put('/people-to-notify/:id', requireAuth, (req, res) => {
   res.json({ success: true });
 });
 
-router.delete('/people-to-notify/:id', requireAuth, (req, res) => {
+router.delete('/people-to-notify/:id', requireAuth, requirePremium, (req, res) => {
   const item = db.prepare('SELECT * FROM people_to_notify WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
   db.prepare('DELETE FROM people_to_notify WHERE id = ?').run(item.id);
@@ -295,7 +296,7 @@ router.get('/property-possessions', requireAuth, (req, res) => {
   res.json(items);
 });
 
-router.post('/property-possessions', requireAuth, (req, res) => {
+router.post('/property-possessions', requireAuth, requirePremium, (req, res) => {
   const { category, title, description, location, intended_recipient, notes } = req.body;
   if (!title) return res.status(400).json({ error: 'A title is required.' });
   const result = db.prepare(`
@@ -305,7 +306,7 @@ router.post('/property-possessions', requireAuth, (req, res) => {
   res.status(201).json({ id: result.lastInsertRowid });
 });
 
-router.put('/property-possessions/:id', requireAuth, (req, res) => {
+router.put('/property-possessions/:id', requireAuth, requirePremium, (req, res) => {
   const item = db.prepare('SELECT * FROM property_items WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
   const { category, title, description, location, intended_recipient, notes } = req.body;
@@ -316,7 +317,7 @@ router.put('/property-possessions/:id', requireAuth, (req, res) => {
   res.json({ success: true });
 });
 
-router.delete('/property-possessions/:id', requireAuth, (req, res) => {
+router.delete('/property-possessions/:id', requireAuth, requirePremium, (req, res) => {
   const item = db.prepare('SELECT * FROM property_items WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
   db.prepare('DELETE FROM property_items WHERE id = ?').run(item.id);
@@ -439,7 +440,7 @@ router.get('/household-info', requireAuth, (req, res) => {
   res.json(items);
 });
 
-router.post('/household-info', requireAuth, (req, res) => {
+router.post('/household-info', requireAuth, requirePremium, (req, res) => {
   const { category, title, provider, account_reference, contact, notes } = req.body;
   if (!title) return res.status(400).json({ error: 'A title is required.' });
   const result = db.prepare(`
@@ -449,7 +450,7 @@ router.post('/household-info', requireAuth, (req, res) => {
   res.status(201).json({ id: result.lastInsertRowid });
 });
 
-router.put('/household-info/:id', requireAuth, (req, res) => {
+router.put('/household-info/:id', requireAuth, requirePremium, (req, res) => {
   const item = db.prepare('SELECT * FROM household_info WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
   const { category, title, provider, account_reference, contact, notes } = req.body;
@@ -467,7 +468,7 @@ router.put('/household-info/:id', requireAuth, (req, res) => {
   res.json({ success: true });
 });
 
-router.delete('/household-info/:id', requireAuth, (req, res) => {
+router.delete('/household-info/:id', requireAuth, requirePremium, (req, res) => {
   const item = db.prepare('SELECT id FROM household_info WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
   db.prepare('DELETE FROM household_info WHERE id = ?').run(item.id);
@@ -482,7 +483,7 @@ router.get('/children-dependants', requireAuth, (req, res) => {
   res.json(items);
 });
 
-router.post('/children-dependants', requireAuth, (req, res) => {
+router.post('/children-dependants', requireAuth, requirePremium, (req, res) => {
   const { name, type, date_of_birth, special_needs, preferred_guardian, guardian_contact, alternate_guardian, alternate_contact, notes } = req.body;
   if (!name) return res.status(400).json({ error: 'A name is required.' });
   const result = db.prepare(`
@@ -497,7 +498,7 @@ router.post('/children-dependants', requireAuth, (req, res) => {
   res.status(201).json({ id: result.lastInsertRowid });
 });
 
-router.put('/children-dependants/:id', requireAuth, (req, res) => {
+router.put('/children-dependants/:id', requireAuth, requirePremium, (req, res) => {
   const item = db.prepare('SELECT * FROM children_dependants WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
   const { name, type, date_of_birth, special_needs, preferred_guardian, guardian_contact, alternate_guardian, alternate_contact, notes } = req.body;
@@ -521,7 +522,7 @@ router.put('/children-dependants/:id', requireAuth, (req, res) => {
   res.json({ success: true });
 });
 
-router.delete('/children-dependants/:id', requireAuth, (req, res) => {
+router.delete('/children-dependants/:id', requireAuth, requirePremium, (req, res) => {
   const item = db.prepare('SELECT id FROM children_dependants WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
   db.prepare('DELETE FROM children_dependants WHERE id = ?').run(item.id);
@@ -539,7 +540,7 @@ router.get('/digital-life/vault', requireAuth, (req, res) => {
 });
 
 // Set up vault — creates the check entry (first time only)
-router.post('/digital-life/vault', requireAuth, (req, res) => {
+router.post('/digital-life/vault', requireAuth, requirePremium, (req, res) => {
   const { vault_password } = req.body;
   if (!vault_password || vault_password.length < 8) {
     return res.status(400).json({ error: 'Vault password must be at least 8 characters.' });
@@ -677,7 +678,7 @@ router.post('/digital-life/list', requireAuth, (req, res) => {
 });
 
 // Add a credential
-router.post('/digital-life', requireAuth, (req, res) => {
+router.post('/digital-life', requireAuth, requirePremium, (req, res) => {
   const { vault_password, service, service_url, username, password, notes } = req.body;
   if (!vault_password) return res.status(400).json({ error: 'vault_password is required.' });
   if (!service)        return res.status(400).json({ error: 'Service name is required.' });
@@ -705,7 +706,7 @@ router.post('/digital-life', requireAuth, (req, res) => {
 });
 
 // Update a credential
-router.put('/digital-life/:id', requireAuth, (req, res) => {
+router.put('/digital-life/:id', requireAuth, requirePremium, (req, res) => {
   const { vault_password, service, service_url, username, password, notes } = req.body;
   if (!vault_password) return res.status(400).json({ error: 'vault_password is required.' });
 
@@ -733,7 +734,7 @@ router.put('/digital-life/:id', requireAuth, (req, res) => {
 });
 
 // Delete a credential — vault password required to maintain security boundary
-router.delete('/digital-life/:id', requireAuth, (req, res) => {
+router.delete('/digital-life/:id', requireAuth, requirePremium, (req, res) => {
   if (!checkVault(req.body.vault_password, req.user.id, res, req)) return;
   const item = db.prepare('SELECT id FROM digital_credentials WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
   if (!item) return res.status(404).json({ error: 'Credential not found.' });

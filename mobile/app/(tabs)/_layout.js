@@ -40,6 +40,16 @@ export default function TabsLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="upgrade"
+        options={{
+          title: 'Upgrade',
+          tabBarLabel: 'Upgrade',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="star-outline" size={size} color={color} />
+          ),
+        }}
+      />
     </Tabs>
   )
 }

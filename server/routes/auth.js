@@ -76,6 +76,7 @@ router.post('/register', registerRules, validate, (req, res) => {
       html:    emailVerificationEmail({ name, verifyLink }),
     }).catch(err => console.error('[auth] Verification email failed:', err.message));
 
+    db.prepare("INSERT OR IGNORE INTO subscriptions (user_id, plan, status) VALUES (?, 'free', 'active')").run(result.lastInsertRowid);
     auditLog(result.lastInsertRowid, 'register', req);
     const token = jwt.sign(
       { id: result.lastInsertRowid, email, is_admin: 0 },

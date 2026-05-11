@@ -2,6 +2,7 @@ import { Stack, useRouter, useSegments } from 'expo-router'
 import { useEffect } from 'react'
 import { StatusBar } from 'expo-status-bar'
 import { AuthProvider, useAuth } from '../src/context/AuthContext'
+import { SubscriptionProvider } from '../src/context/SubscriptionContext'
 import { View, ActivityIndicator } from 'react-native'
 import { THEME } from '../src/lib/theme'
 
@@ -40,8 +41,10 @@ function RootGuard() {
 export default function RootLayout() {
   return (
     <AuthProvider>
-      <StatusBar style="dark" backgroundColor={THEME.background} />
-      <RootGuard />
+      <SubscriptionProvider>
+        <StatusBar style="dark" backgroundColor={THEME.background} />
+        <RootGuard />
+      </SubscriptionProvider>
     </AuthProvider>
   )
 }
