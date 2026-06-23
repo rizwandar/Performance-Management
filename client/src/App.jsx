@@ -19,6 +19,7 @@ import AdminPage              from './pages/AdminPage'
 import ExportPage             from './pages/ExportPage'
 
 import PrivacyPage            from './pages/PrivacyPage'
+import DeleteAccountPage      from './pages/DeleteAccountPage'
 import TermsPage              from './pages/TermsPage'
 import NotFoundPage           from './pages/NotFoundPage'
 import LegalDocumentsPage     from './pages/sections/LegalDocumentsPage'
@@ -499,6 +500,7 @@ function AppContent() {
         <Routes>
           <Route path="/"                  element={<LandingPage />} />
           <Route path="/privacy"           element={<PrivacyPage />} />
+          <Route path="/delete-account"    element={<DeleteAccountPage />} />
           <Route path="/terms"             element={<TermsPage />} />
           <Route path="/login"             element={<LoginPage />} />
           <Route path="/register"          element={<RegisterPage />} />
