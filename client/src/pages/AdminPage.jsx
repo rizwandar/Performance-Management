@@ -1887,6 +1887,17 @@ export default function AdminPage() {
               onClick={() => { setResetPwUser(selectedUser); setResetPwValue(''); setResetPwConfirm(''); setResetPwError('') }}>
               Reset password
             </Button>
+            <Button variant="outline-success" size="sm"
+              onClick={async () => {
+                try {
+                  await axios.post(`${API}/admin/users/${selectedUser.id}/verify-email`)
+                  showAlert('success', `Email verified for ${selectedUser.name}.`)
+                } catch {
+                  showAlert('danger', 'Could not verify email.')
+                }
+              }}>
+              Verify email
+            </Button>
             <Button variant="outline-secondary" onClick={() => setSelectedUser(null)}>Close</Button>
           </Modal.Footer>
         )}

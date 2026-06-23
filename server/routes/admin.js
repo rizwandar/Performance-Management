@@ -135,6 +135,16 @@ router.get('/users/:id/activity', auth, adminOnly, (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// Verify a user's email (admin-initiated)
+// ---------------------------------------------------------------------------
+router.post('/users/:id/verify-email', auth, adminOnly, (req, res) => {
+  const user = db.prepare('SELECT id FROM users WHERE id = ? AND is_admin = 0').get(req.params.id);
+  if (!user) return res.status(404).json({ error: 'User not found.' });
+  db.prepare('UPDATE users SET email_verified = 1, email_verification_token = NULL, email_verification_expires_at = NULL WHERE id = ?').run(user.id);
+  res.json({ success: true });
+});
+
+// ---------------------------------------------------------------------------
 // Reset a user's password (admin-initiated)
 // ---------------------------------------------------------------------------
 router.post('/users/:id/reset-password', auth, adminOnly, (req, res) => {
