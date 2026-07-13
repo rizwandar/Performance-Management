@@ -1,4 +1,6 @@
 require('dotenv').config();
+require('./instrument');
+const Sentry = require('@sentry/node');
 const express = require('express');
 const helmet  = require('helmet');
 const rateLimit = require('express-rate-limit');
@@ -85,6 +87,8 @@ app.get('/', (req, res) => res.json({ status: 'API running' }));
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
+
+Sentry.setupExpressErrorHandler(app);
 
 app.use((err, req, res, next) => {
   console.error('[error]', err.message, err.stack);
