@@ -88,6 +88,10 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+app.get('/api/_debug-sentry', () => {
+  throw new Error('Sentry verification test - temporary debug route, safe to ignore');
+});
+
 Sentry.setupExpressErrorHandler(app);
 
 app.use((err, req, res, next) => {
