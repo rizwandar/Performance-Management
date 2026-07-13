@@ -1,4 +1,4 @@
-const { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } = require('@aws-sdk/client-s3');
+const { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand, ListObjectsV2Command } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
 const client = new S3Client({
@@ -54,4 +54,24 @@ async function getFileBuffer(key) {
   return Buffer.concat(chunks);
 }
 
-module.exports = { uploadFile, getDownloadUrl, deleteFile, getFileBuffer };
+/**
+ * List object keys in the bucket under a given prefix.
+ */
+async function listKeys(prefix) {
+  const keys = [];
+  let continuationToken;
+  do {
+    const response = await client.send(new ListObjectsV2Command({
+      Bucket: BUCKET,
+      Prefix: prefix,
+      ContinuationToken: continuationToken,
+    }));
+    for (const obj of response.Contents || []) {
+      keys.push(obj.Key);
+    }
+    continuationToken = response.IsTruncated ? response.NextContinuationToken : undefined;
+  } while (continuationToken);
+  return keys;
+}
+
+module.exports = { uploadFile, getDownloadUrl, deleteFile, getFileBuffer, listKeys };

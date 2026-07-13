@@ -103,6 +103,12 @@ cron.schedule('0 8 * * *', () => {
   cleanupExpiredTokens().catch(err => console.error('[cleanup] Failed:', err.message));
 });
 
+const { runBackup } = require('./lib/backup');
+cron.schedule('0 3 * * *', () => {
+  console.log('[backup] Running daily database backup...');
+  runBackup().catch(err => console.error('[backup] Daily backup failed:', err.message));
+});
+
 initDb()
   .then(() => {
     const PORT = process.env.PORT || 3001;

@@ -4,6 +4,7 @@ const { queryOne, queryAll, query } = require('../db/database');
 const auth    = require('../middleware/auth');
 const multer  = require('multer');
 const { uploadFile, getDownloadUrl, deleteFile } = require('../lib/r2');
+const { runBackup, listBackups } = require('../lib/backup');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } });
 
@@ -215,6 +216,26 @@ router.post('/branding/logo', auth, adminOnly, upload.single('logo'), async (req
 
   const logoUrl = await getDownloadUrl(key);
   res.json({ success: true, logo_url: logoUrl });
+});
+
+router.get('/backups', auth, adminOnly, async (req, res) => {
+  try {
+    const keys = await listBackups();
+    res.json({ backups: keys });
+  } catch (err) {
+    console.error('[backup] List failed:', err.message);
+    res.status(500).json({ error: "We couldn't list backups. Please try again." });
+  }
+});
+
+router.post('/backups/run', auth, adminOnly, async (req, res) => {
+  try {
+    const result = await runBackup();
+    res.json({ success: true, ...result });
+  } catch (err) {
+    console.error('[backup] Manual run failed:', err.message);
+    res.status(500).json({ error: "Backup failed. Check server logs for details." });
+  }
 });
 
 module.exports = router;
