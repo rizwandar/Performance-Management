@@ -1,446 +1,429 @@
-const Database = require('better-sqlite3');
-const path = require('path');
+const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 
-const dbPath = process.env.DB_PATH || path.join(__dirname, 'performance.db');
-const db = new Database(dbPath);
+const url = process.env.DATABASE_URL || '';
+const ssl = url && !url.includes('localhost') && !url.includes('127.0.0.1')
+  ? { rejectUnauthorized: false }
+  : false;
 
-// ---------------------------------------------------------------------------
-// Core tables (safe to run on existing DB — IF NOT EXISTS)
-// ---------------------------------------------------------------------------
-db.exec(`
-  -- -------------------------------------------------------------------------
-  -- Users
-  -- -------------------------------------------------------------------------
-  CREATE TABLE IF NOT EXISTS users (
-    id                        INTEGER PRIMARY KEY AUTOINCREMENT,
-    name                      TEXT NOT NULL,
-    email                     TEXT UNIQUE NOT NULL,
-    password_hash             TEXT NOT NULL,
-    date_of_birth             TEXT,
-    is_admin                  INTEGER DEFAULT 0,
-    reset_token               TEXT,
-    reset_token_expiry        TEXT,
-    last_active_at            DATETIME DEFAULT CURRENT_TIMESTAMP,
-    inactivity_period_months  INTEGER DEFAULT 12,
-    created_at                DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
+const pool = new Pool({ connectionString: url || undefined, ssl });
 
-  -- -------------------------------------------------------------------------
-  -- Trusted contacts (up to 3 per user)
-  -- -------------------------------------------------------------------------
-  CREATE TABLE IF NOT EXISTS trusted_contacts (
-    id           INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    sequence     INTEGER NOT NULL CHECK (sequence IN (1,2,3)),
-    name         TEXT NOT NULL,
-    relationship TEXT,
-    email        TEXT,
-    phone        TEXT,
-    created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (user_id, sequence)
-  );
-
-  -- Which sections each trusted contact can see
-  -- section_id matches the id strings in shared/constants.js SECTIONS
-  CREATE TABLE IF NOT EXISTS trusted_contact_permissions (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    contact_id INTEGER NOT NULL REFERENCES trusted_contacts(id) ON DELETE CASCADE,
-    section_id TEXT NOT NULL,
-    UNIQUE (contact_id, section_id)
-  );
-
-  -- -------------------------------------------------------------------------
-  -- Section 1 — Personal & Legal Documents
-  -- -------------------------------------------------------------------------
-  CREATE TABLE IF NOT EXISTS legal_documents (
-    id            INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    document_type TEXT,   -- e.g. 'will', 'power_of_attorney', 'birth_certificate'
-    title         TEXT NOT NULL,
-    held_by       TEXT,   -- person or organisation holding the document
-    location      TEXT,   -- where the physical copy is kept
-    notes         TEXT,
-    created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-
-  -- -------------------------------------------------------------------------
-  -- Section 2 — Financial Affairs
-  -- -------------------------------------------------------------------------
-  CREATE TABLE IF NOT EXISTS financial_items (
-    id                INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id           INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    category          TEXT,   -- 'bank_account', 'investment', 'insurance', 'debt', 'crypto', 'pension', 'other'
-    institution       TEXT,
-    account_type      TEXT,
-    account_reference TEXT,   -- partial number or reference, not full account number
-    contact_name      TEXT,
-    contact_phone     TEXT,
-    notes             TEXT,
-    created_at        DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-
-  -- -------------------------------------------------------------------------
-  -- Section 4 — Funeral & End-of-Life Wishes (single record per user)
-  -- -------------------------------------------------------------------------
-  CREATE TABLE IF NOT EXISTS funeral_wishes (
-    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id             INTEGER UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    burial_preference   TEXT,   -- 'burial', 'cremation', 'other'
-    ceremony_type       TEXT,   -- 'religious', 'secular', 'none', 'other'
-    ceremony_location   TEXT,
-    funeral_home        TEXT,
-    pre_paid_plan       INTEGER DEFAULT 0,
-    pre_paid_details    TEXT,
-    music_preferences   TEXT,
-    readings            TEXT,
-    flowers_preference  TEXT,   -- 'flowers', 'donations', 'both', 'none'
-    donation_charity    TEXT,
-    special_requests    TEXT,
-    notes               TEXT,
-    updated_at          DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-
-  -- -------------------------------------------------------------------------
-  -- Section 5 — Medical & Care Wishes (single record per user)
-  -- -------------------------------------------------------------------------
-  CREATE TABLE IF NOT EXISTS medical_wishes (
-    id                       INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id                  INTEGER UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    organ_donation           TEXT,   -- 'yes', 'no', 'some', 'unsure'
-    organ_donation_details   TEXT,
-    advance_care_directive   INTEGER DEFAULT 0,
-    directive_location       TEXT,
-    dnr_preference           TEXT,   -- 'yes', 'no', 'discuss'
-    gp_name                  TEXT,
-    gp_phone                 TEXT,
-    hospital_preference      TEXT,
-    current_medications      TEXT,
-    medical_conditions       TEXT,
-    notes                    TEXT,
-    updated_at               DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-
-  -- -------------------------------------------------------------------------
-  -- Section 6 — People to Notify
-  -- -------------------------------------------------------------------------
-  CREATE TABLE IF NOT EXISTS people_to_notify (
-    id           INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    name         TEXT NOT NULL,
-    relationship TEXT,
-    email        TEXT,
-    phone        TEXT,
-    notified_by  TEXT,   -- who is responsible for telling this person
-    notes        TEXT,
-    created_at   DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-
-  -- -------------------------------------------------------------------------
-  -- Section 7 — Property & Possessions
-  -- -------------------------------------------------------------------------
-  CREATE TABLE IF NOT EXISTS property_items (
-    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id            INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    category           TEXT,   -- 'real_estate', 'vehicle', 'sentimental', 'pet', 'other'
-    title              TEXT NOT NULL,
-    description        TEXT,
-    location           TEXT,
-    intended_recipient TEXT,
-    notes              TEXT,
-    created_at         DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-
-  -- -------------------------------------------------------------------------
-  -- Section 8 — Messages to Loved Ones
-  -- -------------------------------------------------------------------------
-  CREATE TABLE IF NOT EXISTS personal_messages (
-    id             INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    recipient_name TEXT NOT NULL,
-    relationship   TEXT,
-    message        TEXT,
-    notes          TEXT,
-    created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at     DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-
-  -- -------------------------------------------------------------------------
-  -- Section 11 — Songs That Define Me
-  -- -------------------------------------------------------------------------
-  CREATE TABLE IF NOT EXISTS songs_that_define_me (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    deezer_id       TEXT,
-    title           TEXT NOT NULL,
-    artist          TEXT NOT NULL,
-    album           TEXT,
-    why_meaningful  TEXT,
-    added_at        DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-
-  -- -------------------------------------------------------------------------
-  -- Section 12 — Life's Wishes
-  -- -------------------------------------------------------------------------
-  CREATE TABLE IF NOT EXISTS life_wishes (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    title       TEXT NOT NULL,
-    description TEXT,
-    category    TEXT,   -- 'travel', 'experience', 'achievement', 'relationship', 'other'
-    status      TEXT DEFAULT 'dream',  -- 'dream', 'planning', 'completed'
-    notes       TEXT,
-    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-
-  -- -------------------------------------------------------------------------
-  -- Section 13 — Practical Household Information
-  -- -------------------------------------------------------------------------
-  CREATE TABLE IF NOT EXISTS household_info (
-    id                INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id           INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    category          TEXT,   -- 'utility', 'insurance', 'subscription', 'access_code', 'regular_bill', 'other'
-    title             TEXT NOT NULL,
-    provider          TEXT,   -- company/provider name
-    account_reference TEXT,   -- account number, policy number, access code, etc.
-    contact           TEXT,   -- phone or email for the provider
-    notes             TEXT,
-    created_at        DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-
-  -- -------------------------------------------------------------------------
-  -- Section 14 — Children & Dependants
-  -- -------------------------------------------------------------------------
-  CREATE TABLE IF NOT EXISTS children_dependants (
-    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id             INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    name                TEXT NOT NULL,
-    type                TEXT,   -- 'child', 'pet', 'elderly_parent', 'other'
-    date_of_birth       TEXT,
-    special_needs       TEXT,   -- medical, dietary, or care requirements
-    preferred_guardian  TEXT,
-    guardian_contact    TEXT,
-    alternate_guardian  TEXT,
-    alternate_contact   TEXT,
-    notes               TEXT,
-    created_at          DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-
-  -- -------------------------------------------------------------------------
-  -- Document uploads (Cloudflare R2)
-  -- section_id matches SECTIONS ids in shared/constants.js
-  -- item_id is the row id in the section's table (nullable for section-level docs)
-  -- -------------------------------------------------------------------------
-  CREATE TABLE IF NOT EXISTS uploaded_documents (
-    id            INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    section_id    TEXT NOT NULL,
-    item_id       INTEGER,
-    original_name TEXT NOT NULL,
-    r2_key        TEXT NOT NULL UNIQUE,
-    size_bytes    INTEGER,
-    mime_type     TEXT,
-    uploaded_at   DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-
-  -- -------------------------------------------------------------------------
-  -- App settings (key/value store)
-  -- -------------------------------------------------------------------------
-  CREATE TABLE IF NOT EXISTS app_settings (
-    id    INTEGER PRIMARY KEY AUTOINCREMENT,
-    key   TEXT UNIQUE NOT NULL,
-    value TEXT NOT NULL
-  );
-
-  -- -------------------------------------------------------------------------
-  -- Section 3 — Digital Life
-  -- Credentials encrypted at rest with AES-256-GCM (see server/lib/vault.js)
-  -- -------------------------------------------------------------------------
-  CREATE TABLE IF NOT EXISTS digital_vault (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id    INTEGER UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    check_enc  TEXT NOT NULL,   -- JSON {ciphertext,iv,tag} of known constant — used to verify vault password
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-
-  CREATE TABLE IF NOT EXISTS digital_credentials (
-    id           INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    service      TEXT NOT NULL,    -- plaintext: 'Gmail', 'Netflix', etc.
-    service_url  TEXT,             -- plaintext: optional URL
-    username_enc TEXT,             -- JSON {ciphertext,iv,tag} — AES-256-GCM
-    password_enc TEXT,             -- JSON {ciphertext,iv,tag} — AES-256-GCM
-    notes_enc    TEXT,             -- JSON {ciphertext,iv,tag} — AES-256-GCM (security Q&A, PINs, etc.)
-    created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-
-  -- -------------------------------------------------------------------------
-  -- Trusted contact access tokens — time-limited read-only access links
-  -- -------------------------------------------------------------------------
-  CREATE TABLE IF NOT EXISTS trusted_contact_tokens (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    contact_id  INTEGER NOT NULL REFERENCES trusted_contacts(id) ON DELETE CASCADE,
-    token       TEXT NOT NULL UNIQUE,
-    expires_at  DATETIME NOT NULL,
-    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-
-  -- -------------------------------------------------------------------------
-  -- User audit log — login/logout events and security activity
-  -- -------------------------------------------------------------------------
-  CREATE TABLE IF NOT EXISTS user_audit_logs (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id    INTEGER REFERENCES users(id) ON DELETE SET NULL,
-    action     TEXT NOT NULL,        -- 'login_success', 'login_failed', 'logout', 'password_reset', 'password_changed'
-    ip_address TEXT,
-    user_agent TEXT,
-    metadata   TEXT,                 -- JSON string for any extra context (e.g. failure reason)
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-
-  -- -------------------------------------------------------------------------
-  -- Subscriptions — billing stub (payment processing added later)
-  -- -------------------------------------------------------------------------
-  CREATE TABLE IF NOT EXISTS subscriptions (
-    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id             INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    plan                TEXT NOT NULL DEFAULT 'free',   -- 'free', 'monthly', 'annual'
-    status              TEXT NOT NULL DEFAULT 'active', -- 'active', 'cancelled', 'past_due', 'trialing'
-    trial_ends_at       DATETIME,
-    current_period_start DATETIME,
-    current_period_end  DATETIME,
-    cancelled_at        DATETIME,
-    -- Payment provider references (populated when payment is live)
-    provider            TEXT,        -- 'stripe' (future)
-    provider_customer_id TEXT,
-    provider_subscription_id TEXT,
-    created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (user_id)
-  );
-
-  -- -------------------------------------------------------------------------
-  -- Payment methods — stub (no card data stored here; provider tokenises it)
-  -- -------------------------------------------------------------------------
-  CREATE TABLE IF NOT EXISTS payment_methods (
-    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id             INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    provider            TEXT NOT NULL DEFAULT 'stripe',
-    provider_method_id  TEXT NOT NULL,   -- Stripe PaymentMethod ID (pm_xxx)
-    card_brand          TEXT,            -- 'visa', 'mastercard', etc.
-    card_last4          TEXT,            -- last 4 digits only — never store full PAN
-    card_exp_month      INTEGER,
-    card_exp_year       INTEGER,
-    is_default          INTEGER DEFAULT 0,
-    created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (provider, provider_method_id)
-  );
-`);
-
-// ---------------------------------------------------------------------------
-// Migrations — safe to run on existing DB (ALTER TABLE catches errors silently)
-// ---------------------------------------------------------------------------
-const migrations = [
-  // v1 columns kept for backwards compat (may still exist on live DB)
-  'ALTER TABLE users ADD COLUMN about_me TEXT',
-  'ALTER TABLE users ADD COLUMN legacy_message TEXT',
-  'ALTER TABLE users ADD COLUMN songs_enabled INTEGER DEFAULT 1',
-  'ALTER TABLE users ADD COLUMN bucket_list_enabled INTEGER DEFAULT 1',
-  'ALTER TABLE users ADD COLUMN emergency_contact_name TEXT',
-  'ALTER TABLE users ADD COLUMN emergency_contact_phone TEXT',
-  'ALTER TABLE users ADD COLUMN emergency_contact_email TEXT',
-  // v2 columns — note: SQLite does not allow CURRENT_TIMESTAMP as ALTER TABLE default
-  'ALTER TABLE users ADD COLUMN last_active_at DATETIME',
-  'ALTER TABLE users ADD COLUMN inactivity_period_months INTEGER DEFAULT 12',
-  'ALTER TABLE users ADD COLUMN last_reminder_sent_at DATETIME',
-  // v3 — photo role for uploaded documents (null = document, 'funeral_main' / 'funeral_gallery')
-  'ALTER TABLE uploaded_documents ADD COLUMN photo_role TEXT',
-  // v4 — "How I'd Like to Be Remembered" fields
-  'ALTER TABLE users ADD COLUMN life_story TEXT',
-  'ALTER TABLE users ADD COLUMN remembered_for TEXT',
-  // v5 — compliance and security
-  'ALTER TABLE users ADD COLUMN country_code TEXT',
-  'ALTER TABLE users ADD COLUMN privacy_consent INTEGER DEFAULT 0',
-  'ALTER TABLE users ADD COLUMN privacy_consent_at DATETIME',
-  'ALTER TABLE users ADD COLUMN vault_attempts INTEGER DEFAULT 0',
-  // v6 — inactivity: track when trusted contacts were last notified on expiry
-  'ALTER TABLE users ADD COLUMN inactivity_contacts_notified_at DATETIME',
-  // v7 — email verification
-  'ALTER TABLE users ADD COLUMN email_verified INTEGER DEFAULT 0',
-  'ALTER TABLE users ADD COLUMN email_verification_token TEXT',
-  'ALTER TABLE users ADD COLUMN email_verification_expires_at DATETIME',
-  // v8 — mobile push notifications
-  'ALTER TABLE users ADD COLUMN expo_push_token TEXT',
-];
-
-for (const sql of migrations) {
-  try { db.exec(sql); } catch (_) {}
+async function queryAll(sql, params = []) {
+  const result = await pool.query(sql, params);
+  return result.rows;
 }
 
-// Mark users who existed before email verification was introduced as verified
-// (they have no token set, so this is safe to run on every boot)
-try {
-  db.prepare('UPDATE users SET email_verified = 1 WHERE email_verification_token IS NULL AND email_verified = 0').run();
-} catch (_) {}
+async function queryOne(sql, params = []) {
+  const result = await pool.query(sql, params);
+  return result.rows[0] ?? null;
+}
 
-// Backfill: give all users registered before freemium launch a premium subscription
-// so their existing data remains fully accessible
-try {
-  const existingUsers = db.prepare('SELECT id FROM users').all();
-  const insertSub = db.prepare(`
-    INSERT OR IGNORE INTO subscriptions (user_id, plan, status)
-    VALUES (?, 'premium', 'active')
+async function query(sql, params = []) {
+  return pool.query(sql, params);
+}
+
+async function transaction(fn) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await fn(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+async function init() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id                              SERIAL PRIMARY KEY,
+      name                            TEXT NOT NULL,
+      email                           TEXT UNIQUE NOT NULL,
+      password_hash                   TEXT NOT NULL,
+      date_of_birth                   TEXT,
+      is_admin                        INTEGER DEFAULT 0,
+      reset_token                     TEXT,
+      reset_token_expiry              TEXT,
+      last_active_at                  TIMESTAMPTZ DEFAULT NOW(),
+      inactivity_period_months        INTEGER DEFAULT 12,
+      created_at                      TIMESTAMPTZ DEFAULT NOW(),
+      about_me                        TEXT,
+      legacy_message                  TEXT,
+      songs_enabled                   INTEGER DEFAULT 1,
+      bucket_list_enabled             INTEGER DEFAULT 1,
+      emergency_contact_name          TEXT,
+      emergency_contact_phone         TEXT,
+      emergency_contact_email         TEXT,
+      last_reminder_sent_at           TIMESTAMPTZ,
+      life_story                      TEXT,
+      remembered_for                  TEXT,
+      country_code                    TEXT,
+      privacy_consent                 INTEGER DEFAULT 0,
+      privacy_consent_at              TIMESTAMPTZ,
+      vault_attempts                  INTEGER DEFAULT 0,
+      inactivity_contacts_notified_at TIMESTAMPTZ,
+      email_verified                  INTEGER DEFAULT 0,
+      email_verification_token        TEXT,
+      email_verification_expires_at   TIMESTAMPTZ,
+      expo_push_token                 TEXT
+    )
   `);
-  for (const u of existingUsers) insertSub.run(u.id);
-} catch (_) {}
 
-// v1 tables — keep so existing data is not lost
-db.exec(`
-  CREATE TABLE IF NOT EXISTS favourite_songs (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id    INTEGER NOT NULL REFERENCES users(id),
-    deezer_id  TEXT,
-    title      TEXT NOT NULL,
-    artist     TEXT NOT NULL,
-    album      TEXT,
-    added_at   DATETIME DEFAULT CURRENT_TIMESTAMP
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS trusted_contacts (
+      id           SERIAL PRIMARY KEY,
+      user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      sequence     INTEGER NOT NULL CHECK (sequence IN (1,2,3)),
+      name         TEXT NOT NULL,
+      relationship TEXT,
+      email        TEXT,
+      phone        TEXT,
+      created_at   TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE (user_id, sequence)
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS trusted_contact_permissions (
+      id         SERIAL PRIMARY KEY,
+      contact_id INTEGER NOT NULL REFERENCES trusted_contacts(id) ON DELETE CASCADE,
+      section_id TEXT NOT NULL,
+      UNIQUE (contact_id, section_id)
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS legal_documents (
+      id            SERIAL PRIMARY KEY,
+      user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      document_type TEXT,
+      title         TEXT NOT NULL,
+      held_by       TEXT,
+      location      TEXT,
+      notes         TEXT,
+      created_at    TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS financial_items (
+      id                SERIAL PRIMARY KEY,
+      user_id           INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      category          TEXT,
+      institution       TEXT,
+      account_type      TEXT,
+      account_reference TEXT,
+      contact_name      TEXT,
+      contact_phone     TEXT,
+      notes             TEXT,
+      created_at        TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS funeral_wishes (
+      id                  SERIAL PRIMARY KEY,
+      user_id             INTEGER UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      burial_preference   TEXT,
+      ceremony_type       TEXT,
+      ceremony_location   TEXT,
+      funeral_home        TEXT,
+      pre_paid_plan       INTEGER DEFAULT 0,
+      pre_paid_details    TEXT,
+      music_preferences   TEXT,
+      readings            TEXT,
+      flowers_preference  TEXT,
+      donation_charity    TEXT,
+      special_requests    TEXT,
+      notes               TEXT,
+      updated_at          TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS medical_wishes (
+      id                       SERIAL PRIMARY KEY,
+      user_id                  INTEGER UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      organ_donation           TEXT,
+      organ_donation_details   TEXT,
+      advance_care_directive   INTEGER DEFAULT 0,
+      directive_location       TEXT,
+      dnr_preference           TEXT,
+      gp_name                  TEXT,
+      gp_phone                 TEXT,
+      hospital_preference      TEXT,
+      current_medications      TEXT,
+      medical_conditions       TEXT,
+      notes                    TEXT,
+      updated_at               TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS people_to_notify (
+      id           SERIAL PRIMARY KEY,
+      user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      name         TEXT NOT NULL,
+      relationship TEXT,
+      email        TEXT,
+      phone        TEXT,
+      notified_by  TEXT,
+      notes        TEXT,
+      created_at   TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS property_items (
+      id                 SERIAL PRIMARY KEY,
+      user_id            INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      category           TEXT,
+      title              TEXT NOT NULL,
+      description        TEXT,
+      location           TEXT,
+      intended_recipient TEXT,
+      notes              TEXT,
+      created_at         TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS personal_messages (
+      id             SERIAL PRIMARY KEY,
+      user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      recipient_name TEXT NOT NULL,
+      relationship   TEXT,
+      message        TEXT,
+      notes          TEXT,
+      created_at     TIMESTAMPTZ DEFAULT NOW(),
+      updated_at     TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS songs_that_define_me (
+      id             SERIAL PRIMARY KEY,
+      user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      deezer_id      TEXT,
+      title          TEXT NOT NULL,
+      artist         TEXT NOT NULL,
+      album          TEXT,
+      why_meaningful TEXT,
+      added_at       TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS life_wishes (
+      id          SERIAL PRIMARY KEY,
+      user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      title       TEXT NOT NULL,
+      description TEXT,
+      category    TEXT,
+      status      TEXT DEFAULT 'dream',
+      notes       TEXT,
+      created_at  TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS household_info (
+      id                SERIAL PRIMARY KEY,
+      user_id           INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      category          TEXT,
+      title             TEXT NOT NULL,
+      provider          TEXT,
+      account_reference TEXT,
+      contact           TEXT,
+      notes             TEXT,
+      created_at        TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS children_dependants (
+      id                 SERIAL PRIMARY KEY,
+      user_id            INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      name               TEXT NOT NULL,
+      type               TEXT,
+      date_of_birth      TEXT,
+      special_needs      TEXT,
+      preferred_guardian TEXT,
+      guardian_contact   TEXT,
+      alternate_guardian TEXT,
+      alternate_contact  TEXT,
+      notes              TEXT,
+      created_at         TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS uploaded_documents (
+      id            SERIAL PRIMARY KEY,
+      user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      section_id    TEXT NOT NULL,
+      item_id       INTEGER,
+      original_name TEXT NOT NULL,
+      r2_key        TEXT NOT NULL UNIQUE,
+      size_bytes    INTEGER,
+      mime_type     TEXT,
+      uploaded_at   TIMESTAMPTZ DEFAULT NOW(),
+      photo_role    TEXT
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS app_settings (
+      id    SERIAL PRIMARY KEY,
+      key   TEXT UNIQUE NOT NULL,
+      value TEXT NOT NULL
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS digital_vault (
+      id         SERIAL PRIMARY KEY,
+      user_id    INTEGER UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      check_enc  TEXT NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS digital_credentials (
+      id           SERIAL PRIMARY KEY,
+      user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      service      TEXT NOT NULL,
+      service_url  TEXT,
+      username_enc TEXT,
+      password_enc TEXT,
+      notes_enc    TEXT,
+      created_at   TIMESTAMPTZ DEFAULT NOW(),
+      updated_at   TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS trusted_contact_tokens (
+      id         SERIAL PRIMARY KEY,
+      contact_id INTEGER NOT NULL REFERENCES trusted_contacts(id) ON DELETE CASCADE,
+      token      TEXT NOT NULL UNIQUE,
+      expires_at TIMESTAMPTZ NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS user_audit_logs (
+      id         SERIAL PRIMARY KEY,
+      user_id    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      action     TEXT NOT NULL,
+      ip_address TEXT,
+      user_agent TEXT,
+      metadata   TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS subscriptions (
+      id                       SERIAL PRIMARY KEY,
+      user_id                  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      plan                     TEXT NOT NULL DEFAULT 'free',
+      status                   TEXT NOT NULL DEFAULT 'active',
+      trial_ends_at            TIMESTAMPTZ,
+      current_period_start     TIMESTAMPTZ,
+      current_period_end       TIMESTAMPTZ,
+      cancelled_at             TIMESTAMPTZ,
+      provider                 TEXT,
+      provider_customer_id     TEXT,
+      provider_subscription_id TEXT,
+      created_at               TIMESTAMPTZ DEFAULT NOW(),
+      updated_at               TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE (user_id)
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS payment_methods (
+      id                 SERIAL PRIMARY KEY,
+      user_id            INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      provider           TEXT NOT NULL DEFAULT 'stripe',
+      provider_method_id TEXT NOT NULL,
+      card_brand         TEXT,
+      card_last4         TEXT,
+      card_exp_month     INTEGER,
+      card_exp_year      INTEGER,
+      is_default         INTEGER DEFAULT 0,
+      created_at         TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE (provider, provider_method_id)
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS favourite_songs (
+      id        SERIAL PRIMARY KEY,
+      user_id   INTEGER NOT NULL REFERENCES users(id),
+      deezer_id TEXT,
+      title     TEXT NOT NULL,
+      artist    TEXT NOT NULL,
+      album     TEXT,
+      added_at  TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS bucket_list_items (
+      id          SERIAL PRIMARY KEY,
+      user_id     INTEGER NOT NULL REFERENCES users(id),
+      title       TEXT NOT NULL,
+      description TEXT,
+      planning    TEXT,
+      added_at    TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  // Seed default settings
+  for (const [key, value] of [
+    ['password_reset_method', 'email'],
+    ['site_theme',            'forest'],
+    ['site_font',             'georgia'],
+    ['site_logo',             ''],
+  ]) {
+    await pool.query(
+      'INSERT INTO app_settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING',
+      [key, value]
+    );
+  }
+
+  // Seed admin user
+  const adminUser = await queryOne('SELECT id FROM users WHERE email = $1', ['admin@igh.local']);
+  if (!adminUser) {
+    const hash = bcrypt.hashSync('Admin1234', 10);
+    await pool.query(
+      `INSERT INTO users (name, email, password_hash, is_admin, email_verified)
+       VALUES ($1, $2, $3, 1, 1)`,
+      ['Administrator', 'admin@igh.local', hash]
+    );
+  }
+
+  // Backfill: mark users without a verification token as verified
+  await pool.query(
+    'UPDATE users SET email_verified = 1 WHERE email_verification_token IS NULL AND email_verified = 0'
   );
 
-  CREATE TABLE IF NOT EXISTS bucket_list_items (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id     INTEGER NOT NULL REFERENCES users(id),
-    title       TEXT NOT NULL,
-    description TEXT,
-    planning    TEXT,
-    added_at    DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-`);
+  // Backfill: grant existing users a premium subscription
+  await pool.query(`
+    INSERT INTO subscriptions (user_id, plan, status)
+    SELECT id, 'premium', 'active' FROM users
+    ON CONFLICT (user_id) DO NOTHING
+  `);
 
-// ---------------------------------------------------------------------------
-// Seed default settings
-// ---------------------------------------------------------------------------
-const defaults = [
-  ['password_reset_method', 'email'],
-  ['site_theme', 'forest'],
-  ['site_font',  'georgia'],
-  ['site_logo',  ''],
-];
-for (const [key, value] of defaults) {
-  const exists = db.prepare('SELECT id FROM app_settings WHERE key = ?').get(key);
-  if (!exists) db.prepare('INSERT INTO app_settings (key, value) VALUES (?, ?)').run(key, value);
+  console.log('[db] PostgreSQL schema ready');
 }
 
-// ---------------------------------------------------------------------------
-// Seed admin user
-// ---------------------------------------------------------------------------
-const adminUser = db.prepare('SELECT * FROM users WHERE email = ?').get('admin@igh.local');
-if (!adminUser) {
-  const hash = bcrypt.hashSync('Admin1234', 10);
-  db.prepare(`
-    INSERT INTO users (name, email, password_hash, is_admin)
-    VALUES (?, ?, ?, 1)
-  `).run('Administrator', 'admin@igh.local', hash);
-}
-
-module.exports = db;
+module.exports = { pool, query, queryOne, queryAll, transaction, init };

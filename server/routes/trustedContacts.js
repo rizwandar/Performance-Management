@@ -1,7 +1,7 @@
 const express = require('express');
 const router  = express.Router();
 const crypto  = require('crypto');
-const db      = require('../db/database');
+const { queryOne, queryAll, query, transaction } = require('../db/database');
 const requireAuth = require('../middleware/auth');
 const { sendEmail } = require('../lib/sendEmail');
 const { contactAccessEmail } = require('../lib/emailTemplates');
@@ -12,105 +12,88 @@ const VALID_SECTIONS = new Set([
   'life_wishes',
 ]);
 
-// ---------------------------------------------------------------------------
-// GET /api/trusted-contacts
-// Returns all trusted contacts for the current user, with their permissions
-// ---------------------------------------------------------------------------
-router.get('/', requireAuth, (req, res) => {
-  const contacts = db.prepare(`
-    SELECT * FROM trusted_contacts
-    WHERE user_id = ?
-    ORDER BY sequence ASC
-  `).all(req.user.id);
-
-  // Attach section permissions to each contact
-  const result = contacts.map(contact => {
-    const permissions = db.prepare(`
-      SELECT section_id FROM trusted_contact_permissions WHERE contact_id = ?
-    `).all(contact.id).map(p => p.section_id);
+router.get('/', requireAuth, async (req, res) => {
+  const contacts = await queryAll(
+    'SELECT * FROM trusted_contacts WHERE user_id = $1 ORDER BY sequence ASC',
+    [req.user.id]
+  );
+  const result = await Promise.all(contacts.map(async contact => {
+    const permissions = (await queryAll(
+      'SELECT section_id FROM trusted_contact_permissions WHERE contact_id = $1',
+      [contact.id]
+    )).map(p => p.section_id);
     return { ...contact, visible_sections: permissions };
-  });
-
+  }));
   res.json(result);
 });
 
-// ---------------------------------------------------------------------------
-// POST /api/trusted-contacts
-// Add a trusted contact (max 3 per user)
-// Body: { sequence, name, relationship, email, phone, visible_sections[] }
-// ---------------------------------------------------------------------------
-router.post('/', requireAuth, (req, res) => {
+router.post('/', requireAuth, async (req, res) => {
   const { sequence, name, relationship, email, phone, visible_sections = [] } = req.body;
 
   if (!name)     return res.status(400).json({ error: 'Name is required.' });
   if (!sequence) return res.status(400).json({ error: 'Sequence (1, 2, or 3) is required.' });
 
-  const count = db.prepare('SELECT COUNT(*) as c FROM trusted_contacts WHERE user_id = ?').get(req.user.id).c;
-  if (count >= 3) return res.status(400).json({ error: 'You can add up to 3 trusted contacts.' });
+  const count = await queryOne('SELECT COUNT(*)::int as c FROM trusted_contacts WHERE user_id = $1', [req.user.id]);
+  if (count.c >= 3) return res.status(400).json({ error: 'You can add up to 3 trusted contacts.' });
 
-  // Check sequence slot is not already taken
-  const existing = db.prepare('SELECT id FROM trusted_contacts WHERE user_id = ? AND sequence = ?').get(req.user.id, sequence);
+  const existing = await queryOne(
+    'SELECT id FROM trusted_contacts WHERE user_id = $1 AND sequence = $2',
+    [req.user.id, sequence]
+  );
   if (existing) return res.status(400).json({ error: `Position ${sequence} is already taken.` });
 
-  const insertContact = db.transaction(() => {
-    const result = db.prepare(`
+  const contactId = await transaction(async (client) => {
+    const r = await client.query(`
       INSERT INTO trusted_contacts (user_id, sequence, name, relationship, email, phone)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(req.user.id, sequence, name, relationship || null, email || null, phone || null);
-
-    const contactId = result.lastInsertRowid;
-
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING id
+    `, [req.user.id, sequence, name, relationship || null, email || null, phone || null]);
+    const cid = r.rows[0].id;
     for (const sectionId of visible_sections) {
-      db.prepare(`
-        INSERT OR IGNORE INTO trusted_contact_permissions (contact_id, section_id) VALUES (?, ?)
-      `).run(contactId, sectionId);
+      await client.query(
+        'INSERT INTO trusted_contact_permissions (contact_id, section_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+        [cid, sectionId]
+      );
     }
-
-    return contactId;
+    return cid;
   });
 
-  const contactId = insertContact();
-  const contact = db.prepare('SELECT * FROM trusted_contacts WHERE id = ?').get(contactId);
+  const contact = await queryOne('SELECT * FROM trusted_contacts WHERE id = $1', [contactId]);
   res.status(201).json({ ...contact, visible_sections });
 });
 
-// ---------------------------------------------------------------------------
-// PUT /api/trusted-contacts/:id
-// Update a trusted contact's details
-// Body: { name, relationship, email, phone }
-// ---------------------------------------------------------------------------
-router.put('/:id', requireAuth, (req, res) => {
-  const contact = db.prepare('SELECT * FROM trusted_contacts WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
+router.put('/:id', requireAuth, async (req, res) => {
+  const contact = await queryOne(
+    'SELECT * FROM trusted_contacts WHERE id = $1 AND user_id = $2',
+    [req.params.id, req.user.id]
+  );
   if (!contact) return res.status(404).json({ error: 'Contact not found.' });
 
   const { name, relationship, email, phone } = req.body;
-
-  db.prepare(`
-    UPDATE trusted_contacts
-    SET name = ?, relationship = ?, email = ?, phone = ?
-    WHERE id = ?
-  `).run(
-    name        ?? contact.name,
+  await query(`
+    UPDATE trusted_contacts SET name = $1, relationship = $2, email = $3, phone = $4 WHERE id = $5
+  `, [
+    name         ?? contact.name,
     relationship ?? contact.relationship,
     email        ?? contact.email,
     phone        ?? contact.phone,
-    contact.id
-  );
+    contact.id,
+  ]);
 
-  const updated = db.prepare('SELECT * FROM trusted_contacts WHERE id = ?').get(contact.id);
-  const permissions = db.prepare('SELECT section_id FROM trusted_contact_permissions WHERE contact_id = ?')
-    .all(contact.id).map(p => p.section_id);
+  const updated     = await queryOne('SELECT * FROM trusted_contacts WHERE id = $1', [contact.id]);
+  const permissions = (await queryAll(
+    'SELECT section_id FROM trusted_contact_permissions WHERE contact_id = $1',
+    [contact.id]
+  )).map(p => p.section_id);
 
   res.json({ ...updated, visible_sections: permissions });
 });
 
-// ---------------------------------------------------------------------------
-// PUT /api/trusted-contacts/:id/permissions
-// Replace all section permissions for a contact
-// Body: { visible_sections: ['legal_documents', 'financial_items', ...] }
-// ---------------------------------------------------------------------------
-router.put('/:id/permissions', requireAuth, (req, res) => {
-  const contact = db.prepare('SELECT * FROM trusted_contacts WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
+router.put('/:id/permissions', requireAuth, async (req, res) => {
+  const contact = await queryOne(
+    'SELECT * FROM trusted_contacts WHERE id = $1 AND user_id = $2',
+    [req.params.id, req.user.id]
+  );
   if (!contact) return res.status(404).json({ error: 'Contact not found.' });
 
   const { visible_sections = [] } = req.body;
@@ -119,60 +102,58 @@ router.put('/:id/permissions', requireAuth, (req, res) => {
     return res.status(400).json({ error: `Invalid section(s): ${invalid.join(', ')}` });
   }
 
-  const updatePermissions = db.transaction(() => {
-    db.prepare('DELETE FROM trusted_contact_permissions WHERE contact_id = ?').run(contact.id);
+  await transaction(async (client) => {
+    await client.query('DELETE FROM trusted_contact_permissions WHERE contact_id = $1', [contact.id]);
     for (const sectionId of visible_sections) {
-      db.prepare(`
-        INSERT INTO trusted_contact_permissions (contact_id, section_id) VALUES (?, ?)
-      `).run(contact.id, sectionId);
+      await client.query(
+        'INSERT INTO trusted_contact_permissions (contact_id, section_id) VALUES ($1, $2)',
+        [contact.id, sectionId]
+      );
     }
   });
 
-  updatePermissions();
   res.json({ contact_id: contact.id, visible_sections });
 });
 
-// ---------------------------------------------------------------------------
-// DELETE /api/trusted-contacts/:id
-// ---------------------------------------------------------------------------
-router.delete('/:id', requireAuth, (req, res) => {
-  const contact = db.prepare('SELECT * FROM trusted_contacts WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
+router.delete('/:id', requireAuth, async (req, res) => {
+  const contact = await queryOne(
+    'SELECT * FROM trusted_contacts WHERE id = $1 AND user_id = $2',
+    [req.params.id, req.user.id]
+  );
   if (!contact) return res.status(404).json({ error: 'Contact not found.' });
-
-  // Permissions are deleted automatically via ON DELETE CASCADE
-  db.prepare('DELETE FROM trusted_contacts WHERE id = ?').run(contact.id);
+  await query('DELETE FROM trusted_contacts WHERE id = $1', [contact.id]);
   res.json({ success: true });
 });
 
-// ---------------------------------------------------------------------------
-// POST /api/trusted-contacts/:id/access-link
-// Generate a 72-hour access token and email it to the contact
-// ---------------------------------------------------------------------------
 router.post('/:id/access-link', requireAuth, async (req, res) => {
-  const contact = db.prepare('SELECT * FROM trusted_contacts WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
+  const contact = await queryOne(
+    'SELECT * FROM trusted_contacts WHERE id = $1 AND user_id = $2',
+    [req.params.id, req.user.id]
+  );
   if (!contact) return res.status(404).json({ error: 'Contact not found.' });
   if (!contact.email) return res.status(400).json({ error: 'This contact has no email address. Please add one first.' });
   if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(contact.email)) {
     return res.status(400).json({ error: 'This contact has an invalid email address. Please update it before sending a link.' });
   }
 
-  // Check this contact has at least one permitted section
-  const permissions = db.prepare('SELECT section_id FROM trusted_contact_permissions WHERE contact_id = ?').all(contact.id);
+  const permissions = await queryAll(
+    'SELECT section_id FROM trusted_contact_permissions WHERE contact_id = $1',
+    [contact.id]
+  );
   if (permissions.length === 0) return res.status(400).json({ error: 'Please grant this contact access to at least one section before sending a link.' });
 
   const EXPIRES_HOURS = 72;
   const token     = crypto.randomBytes(32).toString('hex');
   const expiresAt = new Date(Date.now() + EXPIRES_HOURS * 60 * 60 * 1000).toISOString();
 
-  // Replace any existing token for this contact
-  db.prepare('DELETE FROM trusted_contact_tokens WHERE contact_id = ?').run(contact.id);
-  db.prepare(`
-    INSERT INTO trusted_contact_tokens (contact_id, token, expires_at)
-    VALUES (?, ?, ?)
-  `).run(contact.id, token, expiresAt);
+  await query('DELETE FROM trusted_contact_tokens WHERE contact_id = $1', [contact.id]);
+  await query(
+    'INSERT INTO trusted_contact_tokens (contact_id, token, expires_at) VALUES ($1, $2, $3)',
+    [contact.id, token, expiresAt]
+  );
 
   const accessLink = `${process.env.CLIENT_URL || 'http://localhost:5173'}/access/${token}`;
-  const owner = db.prepare('SELECT name FROM users WHERE id = ?').get(req.user.id);
+  const owner = await queryOne('SELECT name FROM users WHERE id = $1', [req.user.id]);
 
   try {
     await sendEmail({
@@ -187,7 +168,6 @@ router.post('/:id/access-link', requireAuth, async (req, res) => {
     });
   } catch (err) {
     console.error('[trusted-contacts] Email send failed:', err.message);
-    // Token is still valid — return it even if email fails
   }
 
   res.json({ success: true, token, expires_at: expiresAt, access_link: accessLink });

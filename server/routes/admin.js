@@ -1,197 +1,195 @@
 const express = require('express');
 const router  = express.Router();
-const db      = require('../db/database');
+const { queryOne, queryAll, query } = require('../db/database');
 const auth    = require('../middleware/auth');
 const multer  = require('multer');
 const { uploadFile, getDownloadUrl, deleteFile } = require('../lib/r2');
 
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 2 * 1024 * 1024 }, // 2 MB max
-});
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } });
 
 const adminOnly = (req, res, next) => {
   if (!req.user.is_admin) return res.status(403).json({ error: 'Admin access required' });
   next();
 };
 
-// ---------------------------------------------------------------------------
-// Stats overview
-// ---------------------------------------------------------------------------
-router.get('/stats', auth, adminOnly, (req, res) => {
-  const totalUsers    = db.prepare('SELECT COUNT(*) as c FROM users WHERE is_admin = 0').get().c;
-  const newThisMonth  = db.prepare(`SELECT COUNT(*) as c FROM users WHERE is_admin = 0 AND created_at >= date('now','start of month')`).get().c;
-  const recentLogins  = db.prepare(`SELECT COUNT(*) as c FROM user_audit_logs WHERE action = 'login_success' AND created_at >= date('now','-7 days')`).get().c;
-  const totalSections = db.prepare(`
-    SELECT
-      (SELECT COUNT(*) FROM legal_documents)   +
-      (SELECT COUNT(*) FROM financial_items)   +
-      (SELECT COUNT(*) FROM digital_credentials) +
-      (SELECT COUNT(*) FROM funeral_wishes)    +
-      (SELECT COUNT(*) FROM medical_wishes)    +
-      (SELECT COUNT(*) FROM people_to_notify)  +
-      (SELECT COUNT(*) FROM property_items)    +
-      (SELECT COUNT(*) FROM personal_messages) +
-      (SELECT COUNT(*) FROM songs_that_define_me) +
-      (SELECT COUNT(*) FROM life_wishes) as c
-  `).get().c;
-
-  res.json({ total_users: totalUsers, new_this_month: newThisMonth, recent_logins: recentLogins, total_entries: totalSections });
+router.get('/stats', auth, adminOnly, async (req, res) => {
+  const totalUsers   = await queryOne('SELECT COUNT(*)::int as c FROM users WHERE is_admin = 0');
+  const newThisMonth = await queryOne(`SELECT COUNT(*)::int as c FROM users WHERE is_admin = 0 AND created_at >= date_trunc('month', NOW())`);
+  const recentLogins = await queryOne(`SELECT COUNT(*)::int as c FROM user_audit_logs WHERE action = 'login_success' AND created_at >= NOW() - INTERVAL '7 days'`);
+  const totalSections = await queryOne(`
+    SELECT (
+      (SELECT COUNT(*) FROM legal_documents)    +
+      (SELECT COUNT(*) FROM financial_items)    +
+      (SELECT COUNT(*) FROM digital_credentials)+
+      (SELECT COUNT(*) FROM funeral_wishes)     +
+      (SELECT COUNT(*) FROM medical_wishes)     +
+      (SELECT COUNT(*) FROM people_to_notify)   +
+      (SELECT COUNT(*) FROM property_items)     +
+      (SELECT COUNT(*) FROM personal_messages)  +
+      (SELECT COUNT(*) FROM songs_that_define_me)+
+      (SELECT COUNT(*) FROM life_wishes)
+    )::int as c
+  `);
+  res.json({
+    total_users:   totalUsers.c,
+    new_this_month: newThisMonth.c,
+    recent_logins: recentLogins.c,
+    total_entries: totalSections.c,
+  });
 });
 
-// ---------------------------------------------------------------------------
-// User list
-// ---------------------------------------------------------------------------
-router.get('/users', auth, adminOnly, (req, res) => {
+router.get('/users', auth, adminOnly, async (req, res) => {
   const { q } = req.query;
-  const where = q ? `AND (u.name LIKE ? OR u.email LIKE ?)` : '';
-  const args  = q ? [`%${q}%`, `%${q}%`] : [];
-
-  const users = db.prepare(`
+  let sql = `
     SELECT u.id, u.name, u.email, u.date_of_birth, u.created_at, u.last_active_at,
            u.inactivity_period_months,
            (SELECT MAX(created_at) FROM user_audit_logs WHERE user_id = u.id AND action = 'login_success') as last_login,
            (
-             (SELECT COUNT(*) FROM legal_documents    WHERE user_id = u.id) +
-             (SELECT COUNT(*) FROM financial_items    WHERE user_id = u.id) +
+             (SELECT COUNT(*) FROM legal_documents     WHERE user_id = u.id) +
+             (SELECT COUNT(*) FROM financial_items     WHERE user_id = u.id) +
              (SELECT COUNT(*) FROM digital_credentials WHERE user_id = u.id) +
-             (SELECT COUNT(*) FROM funeral_wishes     WHERE user_id = u.id) +
-             (SELECT COUNT(*) FROM medical_wishes     WHERE user_id = u.id) +
-             (SELECT COUNT(*) FROM people_to_notify   WHERE user_id = u.id) +
-             (SELECT COUNT(*) FROM property_items     WHERE user_id = u.id) +
-             (SELECT COUNT(*) FROM personal_messages  WHERE user_id = u.id) +
+             (SELECT COUNT(*) FROM funeral_wishes      WHERE user_id = u.id) +
+             (SELECT COUNT(*) FROM medical_wishes      WHERE user_id = u.id) +
+             (SELECT COUNT(*) FROM people_to_notify    WHERE user_id = u.id) +
+             (SELECT COUNT(*) FROM property_items      WHERE user_id = u.id) +
+             (SELECT COUNT(*) FROM personal_messages   WHERE user_id = u.id) +
              (SELECT COUNT(*) FROM songs_that_define_me WHERE user_id = u.id) +
-             (SELECT COUNT(*) FROM life_wishes        WHERE user_id = u.id)
-           ) as total_entries
+             (SELECT COUNT(*) FROM life_wishes         WHERE user_id = u.id)
+           )::int as total_entries
     FROM users u
-    WHERE u.is_admin = 0 ${where}
-    ORDER BY u.name
-  `).all(...args);
-
+    WHERE u.is_admin = 0
+  `;
+  const args = [];
+  if (q) {
+    args.push(`%${q}%`);
+    sql += ` AND (u.name ILIKE $1 OR u.email ILIKE $1)`;
+  }
+  sql += ' ORDER BY u.name';
+  const users = await queryAll(sql, args);
   res.json(users);
 });
 
-// ---------------------------------------------------------------------------
-// Single user detail
-// ---------------------------------------------------------------------------
-router.get('/users/:id', auth, adminOnly, (req, res) => {
-  const user = db.prepare(`
+router.get('/users/:id', auth, adminOnly, async (req, res) => {
+  const user = await queryOne(`
     SELECT id, name, email, date_of_birth, about_me, legacy_message,
            emergency_contact_name, emergency_contact_phone, emergency_contact_email,
            last_active_at, inactivity_period_months, created_at
-    FROM users WHERE id = ? AND is_admin = 0
-  `).get(req.params.id);
+    FROM users WHERE id = $1 AND is_admin = 0
+  `, [req.params.id]);
   if (!user) return res.status(404).json({ error: 'User not found' });
 
+  const [
+    ld, fi, dc, fw, mw, ptn, pi, pm, stm, lw
+  ] = await Promise.all([
+    queryOne('SELECT COUNT(*)::int as c FROM legal_documents     WHERE user_id = $1', [user.id]),
+    queryOne('SELECT COUNT(*)::int as c FROM financial_items     WHERE user_id = $1', [user.id]),
+    queryOne('SELECT COUNT(*)::int as c FROM digital_credentials WHERE user_id = $1', [user.id]),
+    queryOne('SELECT COUNT(*)::int as c FROM funeral_wishes      WHERE user_id = $1', [user.id]),
+    queryOne('SELECT COUNT(*)::int as c FROM medical_wishes      WHERE user_id = $1', [user.id]),
+    queryOne('SELECT COUNT(*)::int as c FROM people_to_notify    WHERE user_id = $1', [user.id]),
+    queryOne('SELECT COUNT(*)::int as c FROM property_items      WHERE user_id = $1', [user.id]),
+    queryOne('SELECT COUNT(*)::int as c FROM personal_messages   WHERE user_id = $1', [user.id]),
+    queryOne('SELECT COUNT(*)::int as c FROM songs_that_define_me WHERE user_id = $1', [user.id]),
+    queryOne('SELECT COUNT(*)::int as c FROM life_wishes         WHERE user_id = $1', [user.id]),
+  ]);
+
   const completion = {
-    legal_documents:    db.prepare('SELECT COUNT(*) as c FROM legal_documents    WHERE user_id = ?').get(user.id).c,
-    financial_items:    db.prepare('SELECT COUNT(*) as c FROM financial_items    WHERE user_id = ?').get(user.id).c,
-    digital_credentials:db.prepare('SELECT COUNT(*) as c FROM digital_credentials WHERE user_id = ?').get(user.id).c,
-    funeral_wishes:     db.prepare('SELECT COUNT(*) as c FROM funeral_wishes     WHERE user_id = ?').get(user.id).c,
-    medical_wishes:     db.prepare('SELECT COUNT(*) as c FROM medical_wishes     WHERE user_id = ?').get(user.id).c,
-    people_to_notify:   db.prepare('SELECT COUNT(*) as c FROM people_to_notify   WHERE user_id = ?').get(user.id).c,
-    property_items:     db.prepare('SELECT COUNT(*) as c FROM property_items     WHERE user_id = ?').get(user.id).c,
-    personal_messages:  db.prepare('SELECT COUNT(*) as c FROM personal_messages  WHERE user_id = ?').get(user.id).c,
-    songs_that_define_me: db.prepare('SELECT COUNT(*) as c FROM songs_that_define_me WHERE user_id = ?').get(user.id).c,
-    life_wishes:        db.prepare('SELECT COUNT(*) as c FROM life_wishes        WHERE user_id = ?').get(user.id).c,
+    legal_documents:     ld.c,
+    financial_items:     fi.c,
+    digital_credentials: dc.c,
+    funeral_wishes:      fw.c,
+    medical_wishes:      mw.c,
+    people_to_notify:    ptn.c,
+    property_items:      pi.c,
+    personal_messages:   pm.c,
+    songs_that_define_me: stm.c,
+    life_wishes:         lw.c,
   };
 
-  const recentAudit = db.prepare(`
+  const recentAudit = await queryAll(`
     SELECT action, ip_address, created_at FROM user_audit_logs
-    WHERE user_id = ? ORDER BY created_at DESC LIMIT 10
-  `).all(user.id);
+    WHERE user_id = $1 ORDER BY created_at DESC LIMIT 10
+  `, [user.id]);
 
   res.json({ ...user, completion, recent_audit: recentAudit });
 });
 
-// ---------------------------------------------------------------------------
-// User activity log — full audit history with optional action filter
-// GET /admin/users/:id/activity?limit=50&offset=0&action=login_success
-// ---------------------------------------------------------------------------
-router.get('/users/:id/activity', auth, adminOnly, (req, res) => {
-  const user = db.prepare('SELECT id, name, email FROM users WHERE id = ? AND is_admin = 0').get(req.params.id);
+router.get('/users/:id/activity', auth, adminOnly, async (req, res) => {
+  const user = await queryOne('SELECT id, name, email FROM users WHERE id = $1 AND is_admin = 0', [req.params.id]);
   if (!user) return res.status(404).json({ error: 'User not found' });
 
   const limit  = Math.min(Number(req.query.limit)  || 50, 200);
   const offset = Number(req.query.offset) || 0;
   const action = req.query.action || null;
 
-  const where  = action ? 'AND action = ?' : '';
-  const args   = action ? [user.id, action, limit, offset] : [user.id, limit, offset];
+  let rowsSql, totalSql, rowsArgs, totalArgs;
+  if (action) {
+    rowsSql   = `SELECT action, ip_address, user_agent, metadata, created_at FROM user_audit_logs WHERE user_id = $1 AND action = $2 ORDER BY created_at DESC LIMIT $3 OFFSET $4`;
+    rowsArgs  = [user.id, action, limit, offset];
+    totalSql  = `SELECT COUNT(*)::int as c FROM user_audit_logs WHERE user_id = $1 AND action = $2`;
+    totalArgs = [user.id, action];
+  } else {
+    rowsSql   = `SELECT action, ip_address, user_agent, metadata, created_at FROM user_audit_logs WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`;
+    rowsArgs  = [user.id, limit, offset];
+    totalSql  = `SELECT COUNT(*)::int as c FROM user_audit_logs WHERE user_id = $1`;
+    totalArgs = [user.id];
+  }
 
-  const rows = db.prepare(`
-    SELECT action, ip_address, user_agent, metadata, created_at
-    FROM user_audit_logs
-    WHERE user_id = ? ${where}
-    ORDER BY created_at DESC
-    LIMIT ? OFFSET ?
-  `).all(...args);
+  const [rows, totalRow] = await Promise.all([
+    queryAll(rowsSql, rowsArgs),
+    queryOne(totalSql, totalArgs),
+  ]);
 
-  const total = db.prepare(
-    `SELECT COUNT(*) as c FROM user_audit_logs WHERE user_id = ? ${where}`
-  ).get(...(action ? [user.id, action] : [user.id])).c;
-
-  res.json({ user: { id: user.id, name: user.name, email: user.email }, rows, total, limit, offset });
+  res.json({ user: { id: user.id, name: user.name, email: user.email }, rows, total: totalRow.c, limit, offset });
 });
 
-// ---------------------------------------------------------------------------
-// Verify a user's email (admin-initiated)
-// ---------------------------------------------------------------------------
-router.post('/users/:id/verify-email', auth, adminOnly, (req, res) => {
-  const user = db.prepare('SELECT id FROM users WHERE id = ? AND is_admin = 0').get(req.params.id);
+router.post('/users/:id/verify-email', auth, adminOnly, async (req, res) => {
+  const user = await queryOne('SELECT id FROM users WHERE id = $1 AND is_admin = 0', [req.params.id]);
   if (!user) return res.status(404).json({ error: 'User not found.' });
-  db.prepare('UPDATE users SET email_verified = 1, email_verification_token = NULL, email_verification_expires_at = NULL WHERE id = ?').run(user.id);
+  await query(
+    'UPDATE users SET email_verified = 1, email_verification_token = NULL, email_verification_expires_at = NULL WHERE id = $1',
+    [user.id]
+  );
   res.json({ success: true });
 });
 
-// ---------------------------------------------------------------------------
-// Reset a user's password (admin-initiated)
-// ---------------------------------------------------------------------------
-router.post('/users/:id/reset-password', auth, adminOnly, (req, res) => {
+router.post('/users/:id/reset-password', auth, adminOnly, async (req, res) => {
   const { new_password } = req.body;
   if (!new_password || new_password.length < 8) {
     return res.status(400).json({ error: 'Password must be at least 8 characters.' });
   }
-  const user = db.prepare('SELECT id FROM users WHERE id = ? AND is_admin = 0').get(req.params.id);
+  const user = await queryOne('SELECT id FROM users WHERE id = $1 AND is_admin = 0', [req.params.id]);
   if (!user) return res.status(404).json({ error: 'User not found.' });
 
   const bcrypt = require('bcryptjs');
   const hash   = bcrypt.hashSync(new_password, 10);
-  db.prepare('UPDATE users SET password_hash = ?, reset_token = NULL, reset_token_expiry = NULL WHERE id = ?').run(hash, user.id);
-
-  // Log it
-  db.prepare(`INSERT INTO user_audit_logs (user_id, action, metadata) VALUES (?, 'password_reset', ?)`).run(
-    user.id, JSON.stringify({ reset_by: 'admin', admin_id: req.user.id })
+  await query('UPDATE users SET password_hash = $1, reset_token = NULL, reset_token_expiry = NULL WHERE id = $2', [hash, user.id]);
+  await query(
+    `INSERT INTO user_audit_logs (user_id, action, metadata) VALUES ($1, 'password_reset', $2)`,
+    [user.id, JSON.stringify({ reset_by: 'admin', admin_id: req.user.id })]
   );
-
   res.json({ success: true });
 });
 
-// ---------------------------------------------------------------------------
-// Delete user
-// ---------------------------------------------------------------------------
-router.delete('/users/:id', auth, adminOnly, (req, res) => {
-  const user = db.prepare('SELECT id FROM users WHERE id = ? AND is_admin = 0').get(req.params.id);
+router.delete('/users/:id', auth, adminOnly, async (req, res) => {
+  const user = await queryOne('SELECT id FROM users WHERE id = $1 AND is_admin = 0', [req.params.id]);
   if (!user) return res.status(404).json({ error: 'User not found' });
-  db.prepare('DELETE FROM users WHERE id = ?').run(req.params.id);
+  await query('DELETE FROM users WHERE id = $1', [req.params.id]);
   res.json({ success: true });
 });
 
-// ---------------------------------------------------------------------------
-// Branding — save site name and logo preset
-// ---------------------------------------------------------------------------
-router.post('/branding', auth, adminOnly, (req, res) => {
+router.post('/branding', auth, adminOnly, async (req, res) => {
   const { site_name, site_logo_type, site_logo_preset } = req.body;
-  const upsert = db.prepare('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)');
-  if (site_name      !== undefined) upsert.run('site_name',      site_name);
-  if (site_logo_type !== undefined) upsert.run('site_logo_type', site_logo_type);
-  if (site_logo_preset !== undefined) upsert.run('site_logo_preset', site_logo_preset);
+  const upsert = (k, v) => query(
+    'INSERT INTO app_settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value',
+    [k, v]
+  );
+  if (site_name        !== undefined) await upsert('site_name',        site_name);
+  if (site_logo_type   !== undefined) await upsert('site_logo_type',   site_logo_type);
+  if (site_logo_preset !== undefined) await upsert('site_logo_preset', site_logo_preset);
   res.json({ success: true });
 });
 
-// ---------------------------------------------------------------------------
-// Branding — upload custom logo to R2
-// ---------------------------------------------------------------------------
 router.post('/branding/logo', auth, adminOnly, upload.single('logo'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
 
@@ -200,18 +198,20 @@ router.post('/branding/logo', auth, adminOnly, upload.single('logo'), async (req
   const ext = ALLOWED[mime];
   if (!ext) return res.status(400).json({ error: 'Only SVG, PNG, JPEG, or WebP logos are accepted.' });
 
-  // Delete previous custom logo if one exists
-  const existing = db.prepare("SELECT value FROM app_settings WHERE key = 'site_logo_custom_key'").get();
+  const existing = await queryOne("SELECT value FROM app_settings WHERE key = 'site_logo_custom_key'");
   if (existing?.value) {
-    try { await deleteFile(existing.value); } catch { /* ignore missing file */ }
+    try { await deleteFile(existing.value); } catch { /* ignore */ }
   }
 
   const key = `branding/logo-${Date.now()}.${ext}`;
   await uploadFile({ key, buffer: req.file.buffer, mimeType: mime });
 
-  const upsert = db.prepare('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)');
-  upsert.run('site_logo_custom_key', key);
-  upsert.run('site_logo_type', 'custom');
+  const upsert = (k, v) => query(
+    'INSERT INTO app_settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value',
+    [k, v]
+  );
+  await upsert('site_logo_custom_key', key);
+  await upsert('site_logo_type', 'custom');
 
   const logoUrl = await getDownloadUrl(key);
   res.json({ success: true, logo_url: logoUrl });

@@ -2,20 +2,13 @@ require('dotenv').config();
 const express = require('express');
 const helmet  = require('helmet');
 const rateLimit = require('express-rate-limit');
+const { init: initDb, queryOne } = require('./db/database');
 const app = express();
 
-// ---------------------------------------------------------------------------
-// Security headers
-// ---------------------------------------------------------------------------
 app.use(helmet({
-  crossOriginResourcePolicy: { policy: 'cross-origin' }, // allow R2 signed URLs
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
 
-// ---------------------------------------------------------------------------
-// CORS — manual implementation, runs before everything else
-// Sets headers on every response including errors and preflight
-// Restricts to CLIENT_URL in production; allows any origin in development
-// ---------------------------------------------------------------------------
 const ALLOWED_ORIGIN = process.env.CLIENT_URL || null;
 app.use((req, res, next) => {
   const origin = req.headers.origin;
@@ -24,7 +17,6 @@ app.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Credentials', 'true');
   } else if (!ALLOWED_ORIGIN && origin) {
-    // Development fallback: allow all origins
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Credentials', 'true');
   }
@@ -34,22 +26,16 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json({ limit: '10kb' })); // prevent large payload attacks
+app.use(express.json({ limit: '10kb' }));
 
-// ---------------------------------------------------------------------------
-// Rate limiting
-// ---------------------------------------------------------------------------
-
-// Strict limit on auth endpoints — prevents brute force
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000,
   max: 20,
   message: { error: 'Too many attempts. Please wait a moment and try again.' },
   standardHeaders: true,
   legacyHeaders: false,
 });
 
-// General API limit
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 200,
@@ -61,37 +47,38 @@ const apiLimiter = rateLimit({
 app.use('/api/', apiLimiter);
 app.use('/api/auth/', authLimiter);
 
-// Maintenance mode — blocks all non-admin requests except health + login
-app.use((req, res, next) => {
+app.use(async (req, res, next) => {
   const exemptPaths = ['/api/health', '/api/auth/login', '/api/auth/logout'];
   if (exemptPaths.includes(req.path)) return next();
-  const db = require('./db/database');
-  const setting = db.prepare("SELECT value FROM app_settings WHERE key = 'maintenance_mode'").get();
-  if (setting?.value !== '1') return next();
-  // Allow admins through during maintenance
-  const jwt = require('jsonwebtoken');
-  const token = req.headers.authorization?.split(' ')[1];
-  if (token) {
-    try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      if (decoded.is_admin) return next();
-    } catch {}
+  try {
+    const setting = await queryOne("SELECT value FROM app_settings WHERE key = 'maintenance_mode'");
+    if (setting?.value !== '1') return next();
+    const jwt = require('jsonwebtoken');
+    const token = req.headers.authorization?.split(' ')[1];
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        if (decoded.is_admin) return next();
+      } catch {}
+    }
+    res.status(503).json({ maintenance: true, error: 'The site is temporarily offline for maintenance. Please check back shortly.' });
+  } catch {
+    next();
   }
-  res.status(503).json({ maintenance: true, error: 'The site is temporarily offline for maintenance. Please check back shortly.' });
 });
 
-app.use('/api/auth', require('./routes/auth'));
-app.use('/api/users', require('./routes/users'));
-app.use('/api/admin', require('./routes/admin'));
-app.use('/api/settings', require('./routes/settings'));
-app.use('/api/deezer', require('./routes/deezer'));
-app.use('/api/documents', require('./routes/documents'));
-app.use('/api/trusted-contacts', require('./routes/trustedContacts'));
-app.use('/api/sections', require('./routes/sections'));
-app.use('/api/export', require('./routes/export'));
-app.use('/api/billing', require('./routes/billing'));
-app.use('/api/access', require('./routes/access'));
-app.use('/api/contact', require('./routes/contact'));
+app.use('/api/auth',            require('./routes/auth'));
+app.use('/api/users',           require('./routes/users'));
+app.use('/api/admin',           require('./routes/admin'));
+app.use('/api/settings',        require('./routes/settings'));
+app.use('/api/deezer',          require('./routes/deezer'));
+app.use('/api/documents',       require('./routes/documents'));
+app.use('/api/trusted-contacts',require('./routes/trustedContacts'));
+app.use('/api/sections',        require('./routes/sections'));
+app.use('/api/export',          require('./routes/export'));
+app.use('/api/billing',         require('./routes/billing'));
+app.use('/api/access',          require('./routes/access'));
+app.use('/api/contact',         require('./routes/contact'));
 
 app.get('/', (req, res) => res.json({ status: 'API running' }));
 
@@ -99,20 +86,25 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Global error handler — logs and returns JSON with CORS headers already set above
 app.use((err, req, res, next) => {
   console.error('[error]', err.message, err.stack);
   res.status(err.status || 500).json({ error: err.message || 'Internal server error' });
 });
 
-// Inactivity timer — runs daily at 8am
 const cron = require('node-cron');
 const { checkInactivity, cleanupExpiredTokens } = require('./lib/inactivityTimer');
 cron.schedule('0 8 * * *', () => {
   console.log('[inactivity] Running daily check...');
   checkInactivity().catch(err => console.error('[inactivity] Check failed:', err.message));
-  cleanupExpiredTokens();
+  cleanupExpiredTokens().catch(err => console.error('[cleanup] Failed:', err.message));
 });
 
-const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+initDb()
+  .then(() => {
+    const PORT = process.env.PORT || 3001;
+    app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+  })
+  .catch(err => {
+    console.error('[db] Failed to initialize database:', err);
+    process.exit(1);
+  });
