@@ -412,16 +412,18 @@ function AppBlueprint() {
 Before you start building anything, please confirm or adjust the following default stack choices. These are the defaults I used previously. Tell me if you would like to use alternatives, and I will decide which to keep.
 
 DEFAULT STACK CHOICES (confirm or change each one before proceeding):
-1. Frontend: React 19 + Vite (port 5174 in dev)
+1. Frontend: React 19 + Vite (port 5173 in dev)
 2. Backend: Express 5 + Node.js (port 3001 in dev)
-3. Database: SQLite via better-sqlite3. Stored on a Render.com persistent disk. No ORM.
-4. File storage: Cloudflare R2 (S3-compatible, no egress fees). Used for uploaded documents, photos, and logo.
+3. Database: PostgreSQL via pg (node-postgres). Hosted on Render's managed Postgres (paid plan). No ORM.
+4. File storage: Cloudflare R2 (S3-compatible, no egress fees). Used for uploaded documents, photos, logo, and database backups.
 5. Authentication: JWT in localStorage (8-hour expiry) + bcryptjs for password hashing. No third-party auth provider.
 6. Email: Resend API via native fetch (no SDK). Transactional emails only.
 7. PDF generation: PDFKit, server-side, streamed to the client.
-8. Deployment: Render.com. Frontend as a Static Site. Backend as a Web Service. Persistent disk for SQLite.
+8. Deployment: Render.com. Frontend as a Static Site (with a Redirects/Rewrites rule: /* to /index.html, Rewrite action, so client-side routing works on direct navigation). Backend as a Web Service.
 9. Mobile: Not included in this rebuild. Web only.
 10. CSS framework: React Bootstrap (react-bootstrap) + custom CSS variables in index.css.
+11. Error monitoring: Sentry. @sentry/node on the backend (instrument.js loaded first, plus the Express error handler), @sentry/react on the frontend (ErrorBoundary with a friendly fallback UI).
+12. Database backups: a daily cron job dumps every table to a gzipped JSON snapshot in R2, retaining the last 14 backups.
 
 Once you have confirmed the stack, here is the full specification for what to build:
 
@@ -503,8 +505,8 @@ ADMIN PANEL:
 
 AUTH SYSTEM:
 - JWT in localStorage, 8-hour expiry, signed with JWT_SECRET env var.
-- bcryptjs for password hashing, salt rounds = 12.
-- Rate limiting: 20 requests per 15 minutes on /api/auth routes.
+- bcryptjs for password hashing, salt rounds = 10.
+- Rate limiting: 20 requests per 15 minutes on /api/auth routes, 200 requests per 15 minutes on general /api/ routes.
 - Password reset: two methods (admin-configurable): email link (Resend API) or date-of-birth verification.
 - Audit log: every login_success, login_failed, logout, register, password_changed, password_reset stored in user_audit_logs table.
 - Vault failure audit: every failed vault attempt logged with attempt count.
@@ -547,7 +549,7 @@ KEY CONSTRAINTS AND DECISIONS:
 - No admin panel on mobile (mobile app is user-facing only, not yet built in this version).
 - Deezer search proxied through backend to avoid CORS.
 - PDFKit pipes directly to HTTP response. No temp files.
-- SQLite is synchronous (better-sqlite3). No connection pooling needed.
+- PostgreSQL access goes through a pg.Pool connection pool (server/db/database.js). SSL required for any non-localhost connection.
 - Bootstrap --bs-primary overridden per theme so all Bootstrap components match the chosen palette.
 - The site name ("${appName}") is stored in app_settings and displayed via BrandingContext throughout the app.
 
@@ -555,11 +557,11 @@ KEY CONSTRAINTS AND DECISIONS:
 
 ENVIRONMENT VARIABLES NEEDED:
 Server (Render Web Service):
-  PORT, DB_PATH, JWT_SECRET, CLIENT_URL, RESEND_API_KEY,
-  R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET, R2_ENDPOINT
+  PORT, DATABASE_URL, JWT_SECRET, CLIENT_URL, RESEND_API_KEY, FROM_EMAIL (optional but important, see Email System),
+  R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME, R2_ENDPOINT, SENTRY_DSN (optional, enables error monitoring)
 
-Client (Render Static Site):
-  VITE_API_URL
+Client (Render Static Site, baked in at build time):
+  VITE_API_URL, VITE_SENTRY_DSN (optional, enables error monitoring)
 
 ---
 
@@ -598,7 +600,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
           <div>
             <h5 style={{ color: '#fff', marginBottom: 4, fontFamily: 'Georgia, serif' }}>{appName}: Application Blueprint</h5>
             <p style={{ color: '#A8C5B0', fontSize: '0.85rem', marginBottom: 0 }}>
-              Complete specification for rebuilding or handing off this application. Last updated: April 2026.
+              Complete specification for rebuilding or handing off this application. Last updated: July 2026.
             </p>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
@@ -863,15 +865,17 @@ Please confirm the stack choices above (or tell me which to change), and then we
       <div style={card}>
         <BpSection title="2. Technology Stack">
           <BpTable rows={[
-            ['Frontend', 'React 19 + Vite (client/), port 5174 in dev'],
+            ['Frontend', 'React 19 + Vite (client/), port 5173 in dev'],
             ['Backend', 'Express 5 + Node.js (server/), port 3001 in dev'],
-            ['Database', 'SQLite via better-sqlite3. File: /data/sqlite-data/app_v2.db on Render, local in dev'],
-            ['File storage', 'Cloudflare R2 (S3-compatible). No egress fees. Keys in R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET env vars.'],
-            ['Auth', 'JWT (jsonwebtoken) stored in localStorage. 24h expiry. bcryptjs for password hashing. 15-min rate limit on auth routes.'],
+            ['Database', 'PostgreSQL via pg (node-postgres). Render managed Postgres, paid Basic plan. Connection string in DATABASE_URL, SSL required outside localhost.'],
+            ['File storage', 'Cloudflare R2 (S3-compatible). No egress fees. Keys in R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME, R2_ENDPOINT env vars. Also stores nightly database backups.'],
+            ['Auth', 'JWT (jsonwebtoken) stored in localStorage. 8h expiry. bcryptjs for password hashing (10 salt rounds). Rate limited: 20 req/15min on auth routes, 200 req/15min on general API routes.'],
             ['Email', 'Resend API via native fetch (no SDK). Key in RESEND_API_KEY env var.'],
             ['PDF generation', 'PDFKit 0.18. Two-column A4 layout. Generated server-side and streamed to client.'],
-            ['Deployment', 'Render.com. Frontend: Static Site. Backend: Web Service (Starter $7/mo). Persistent disk for SQLite.'],
-            ['Mobile', 'Expo / React Native (deferred, not yet built).'],
+            ['Error monitoring', 'Sentry. @sentry/node on the server (instrument.js + Express error handler), @sentry/react on the client (ErrorBoundary with fallback UI). DSNs in SENTRY_DSN / VITE_SENTRY_DSN.'],
+            ['Backups', 'Daily cron (3am) dumps every table to a gzipped JSON snapshot in R2 (server/lib/backup.js). Retains the last 14 backups. Admin-only endpoints to list/trigger manually.'],
+            ['Deployment', 'Render.com. Frontend: Static Site (needs a Redirects/Rewrites rule: /* to /index.html, action Rewrite, for client-side routing to work on direct navigation). Backend: Web Service.'],
+            ['Mobile', 'Expo / React Native (built, app store submission in progress).'],
             ['CSS framework', 'React Bootstrap (react-bootstrap) + custom CSS variables in index.css'],
           ]} />
         </BpSection>
@@ -902,27 +906,29 @@ Please confirm the stack choices above (or tell me which to change), and then we
         VaultGate.jsx        # Shared VaultSetupScreen + VaultLockScreen
 
   server/                    # Express 5 backend
+    instrument.js            # Sentry init, required first (before any other import)
     index.js                 # App entry, CORS, routes, error handler, cron
-    db/database.js           # SQLite init + all schema migrations
+    db/database.js           # PostgreSQL pool (pg) + all schema migrations
     middleware/auth.js       # requireAuth JWT middleware
     lib/
       vault.js               # AES-256-GCM encryption helpers
-      r2.js                  # Cloudflare R2 client (upload/download/delete/buffer)
+      r2.js                  # Cloudflare R2 client (upload/download/delete/buffer/listKeys)
+      backup.js              # Nightly cron: dumps all tables to gzipped JSON in R2, prunes old backups
       generatePdf.js         # Two-column PDFKit generator
       emailTemplates.js      # HTML email templates (welcome, reset, inactivity, access)
       sendEmail.js           # Resend API wrapper
-      inactivityTimer.js     # Daily cron: checks last_active, sends reminder emails
+      inactivityTimer.js     # Daily cron: checks last_active_at, sends reminder emails
     routes/
       auth.js                # /api/auth: login, register, logout, forgot/reset password
       users.js               # /api/users/me: profile, timer, emergency contact
       sections.js            # /api/sections: all 14 sections + vault endpoints + completion
       documents.js           # /api/documents: file upload/download/delete + photos
       export.js              # /api/export: GET (standard) + POST (with vault)
-      admin.js               # /api/admin: stats, users, activity log
+      admin.js               # /api/admin: stats, users, activity log, backups list/trigger
       settings.js            # /api/settings: app_settings key-value store
       trustedContacts.js     # /api/trusted-contacts: CRUD + send access link
       access.js              # /api/access/:token: public read-only trusted contact view
-      billing.js             # /api/billing: stub (not yet implemented)
+      billing.js             # /api/billing: freemium plans, subscription status, upgrade access
       contact.js             # /api/contact: user feedback form`}
           </BpCode>
         </BpSection>
@@ -930,12 +936,12 @@ Please confirm the stack choices above (or tell me which to change), and then we
 
       {/* 4. Database schema */}
       <div style={card}>
-        <BpSection title="4. Database Schema (SQLite)">
-          <p className="text-muted small mb-3">All tables use INTEGER PRIMARY KEY autoincrement unless noted. created_at defaults to CURRENT_TIMESTAMP.</p>
+        <BpSection title="4. Database Schema (PostgreSQL)">
+          <p className="text-muted small mb-3">All tables use SERIAL PRIMARY KEY unless noted. created_at defaults to NOW() (TIMESTAMPTZ).</p>
           {[
             {
               table: 'users',
-              fields: 'id, name, email (unique), password_hash, date_of_birth, life_story, about_me, remembered_for, legacy_message, emergency_contact_name, emergency_contact_phone, emergency_contact_email, is_admin (0/1), inactivity_period_months (default 6), last_active, reset_token, reset_token_expiry, created_at',
+              fields: 'id, name, email (unique), password_hash, date_of_birth, life_story, about_me, remembered_for, legacy_message, emergency_contact_name, emergency_contact_phone, emergency_contact_email, is_admin (0/1), inactivity_period_months (default 12), last_active_at, reset_token, reset_token_expiry, created_at, plus email verification, privacy consent, and vault attempt tracking fields',
             },
             {
               table: 'legal_documents',
@@ -998,12 +1004,16 @@ Please confirm the stack choices above (or tell me which to change), and then we
               fields: 'id, user_id, section_id, item_id (nullable), original_name, r2_key, size_bytes, mime_type, photo_role (null/funeral_main/funeral_gallery), uploaded_at',
             },
             {
-              table: 'user_audit_log',
+              table: 'user_audit_logs',
               fields: 'id, user_id, action (login_success/login_failed/logout/register/password_changed/password_reset), ip_address, created_at',
             },
             {
               table: 'app_settings',
               fields: 'id, key (unique), value. Keys: site_theme, site_font, site_icon_set, site_logo (R2 key), password_reset_method (email/dob)',
+            },
+            {
+              table: 'subscriptions',
+              fields: 'id, user_id (unique), plan (free/premium), status. Backs the freemium billing system (server/routes/billing.js).',
             },
           ].map(t => (
             <div key={t.table} style={{ marginBottom: 12 }}>
@@ -1083,12 +1093,13 @@ Please confirm the stack choices above (or tell me which to change), and then we
         <BpSection title="7. Authentication & Security">
           <BpTable rows={[
             ['Auth method', 'JWT in localStorage. 8-hour expiry. Signed with JWT_SECRET env var.'],
-            ['Password hashing', 'bcryptjs, salt rounds = 12'],
-            ['Rate limiting', '15 requests per 15 minutes on /api/auth routes (express-rate-limit)'],
+            ['Password hashing', 'bcryptjs, salt rounds = 10'],
+            ['Rate limiting', '20 requests per 15 minutes on /api/auth routes, 200 per 15 minutes on general /api/ routes (express-rate-limit)'],
             ['CORS', 'Manual CORS implementation in server/index.js. Allows CLIENT_URL env var + localhost origins.'],
-            ['Admin account', 'Seeded on startup: email="admin", password="admin". is_admin=1 flag on users table.'],
+            ['Admin account', 'Seeded on startup: email="admin@igh.local", password="Admin1234". is_admin=1 flag on users table.'],
             ['Protected routes', 'requireAuth middleware in server/middleware/auth.js. Decodes JWT, attaches req.user.'],
-            ['Audit log', 'user_audit_log table. Logs: login_success, login_failed, logout, register, password_changed, password_reset.'],
+            ['Audit log', 'user_audit_logs table. Logs: login_success, login_failed, logout, register, password_changed, password_reset.'],
+            ['Error monitoring', 'Sentry (@sentry/node), initialised in instrument.js before any other import. Server errors reported automatically via the Express error handler.'],
             ['Password reset', 'Two methods (admin-configurable): email link (via Resend) or date-of-birth verification. Token stored in users.reset_token + reset_token_expiry (1 hour).'],
           ]} />
         </BpSection>
@@ -1099,7 +1110,8 @@ Please confirm the stack choices above (or tell me which to change), and then we
         <BpSection title="8. File Storage (Cloudflare R2)">
           <BpTable rows={[
             ['Library', '@aws-sdk/client-s3 + @aws-sdk/s3-request-presigner. R2 is S3-compatible.'],
-            ['Helper', 'server/lib/r2.js exports: uploadFile({key, buffer, mimeType}), getDownloadUrl(key), deleteFile(key), getFileBuffer(key)'],
+            ['Helper', 'server/lib/r2.js exports: uploadFile({key, buffer, mimeType}), getDownloadUrl(key), deleteFile(key), getFileBuffer(key), listKeys(prefix)'],
+            ['Backups', 'server/lib/backup.js uses listKeys("backups/") to enumerate and prune old database backups stored in the same bucket.'],
             ['Key format', '{userId}/{sectionId}/{uuid}.{ext} for documents. {userId}/{sectionId}/photos/{uuid}.{ext} for photos.'],
             ['Signed URLs', '1-hour expiry. Generated fresh on each GET request. Never stored.'],
             ['File types', 'Documents: PDF, JPEG, PNG, HEIC, WebP, DOC, DOCX (max 20MB). Photos: JPEG, PNG, HEIC, WebP (max 15MB).'],
@@ -1137,8 +1149,8 @@ Please confirm the stack choices above (or tell me which to change), and then we
             ['Access link', 'POST /api/trusted-contacts/:id/send-access sends a 72-hour signed link via Resend email. access_token and token_expiry stored on record.'],
             ['Access page', 'GET /access/:token (public, no auth). Renders read-only view of permitted sections. Uses AccessPage.jsx.'],
             ['Digital credentials', 'Always excluded from trusted contact access (encrypted, no server-side key).'],
-            ['Inactivity timer', 'Users set inactivity_period_months (2/3/6/12/18/24). Last login stored in users.last_active.'],
-            ['Daily check', 'server/lib/inactivityTimer.js runs daily at 8am (node-cron). Checks days since last_active against period.'],
+            ['Inactivity timer', 'Users set inactivity_period_months (2/3/6/12/18/24). Last login stored in users.last_active_at.'],
+            ['Daily check', 'server/lib/inactivityTimer.js runs daily at 8am (node-cron). Checks days since last_active_at against period.'],
             ['Reminder emails', 'Sent when 30 days, 14 days, 7 days, 3 days, and 1 day remain. Uses inactivityReminderEmail template.'],
             ['On expiry', 'When daysLeft < 0, notifyTrustedContacts(user) is called. Emails all eligible contacts with 72-hour access links. inactivity_contacts_notified_at updated. Re-notification cooldown: 30 days. Reset on next login.'],
           ]} />
@@ -1217,6 +1229,8 @@ ADMIN         GET  /api/admin/stats
               GET  /api/admin/activity
               PUT  /api/admin/users/:id/password
               DELETE /api/admin/users/:id
+              GET  /api/admin/backups (list database backups in R2)
+              POST /api/admin/backups/run (manually trigger a backup)
 
 SETTINGS      GET  /api/settings (public)
               PUT  /api/settings (admin only)
@@ -1230,7 +1244,7 @@ CONTACT       POST /api/contact (footer feedback form)`}
       <div style={card}>
         <BpSection title="13. Email System">
           <BpTable rows={[
-            ['Provider', 'Resend API. Key in RESEND_API_KEY env var. From address: hello@ingoodhands.com.au'],
+            ['Provider', 'Resend API. Key in RESEND_API_KEY env var. From address: FROM_EMAIL env var. Known issue: if FROM_EMAIL is unset, it falls back to Resend\'s shared sandbox address, which only delivers to the Resend account owner\'s own inbox, silently dropping delivery to everyone else. A verified custom domain must be set up in Resend and FROM_EMAIL configured before email delivery works for real users.'],
             ['Helper', 'server/lib/sendEmail.js. Silently skips if RESEND_API_KEY not set (dev mode).'],
             ['Templates', 'server/lib/emailTemplates.js. All HTML with inline styles.'],
             ['welcomeEmail', 'Sent on registration. Warm welcome, link to log in.'],
@@ -1249,18 +1263,22 @@ CONTACT       POST /api/contact (footer feedback form)`}
         <BpSection title="14. Environment Variables">
           <BpCode>{`SERVER (Render Web Service)
   PORT               3001 (default)
-  DB_PATH            /data/sqlite-data/app_v2.db
+  DATABASE_URL       PostgreSQL connection string (Render managed Postgres)
   JWT_SECRET         [set in Render dashboard]
   CLIENT_URL         https://performance-client.onrender.com
   RESEND_API_KEY     [set in Render dashboard]
-  R2_ACCOUNT_ID      Cloudflare account ID
+  FROM_EMAIL         Verified sender address, e.g. "In Good Hands <noreply@yourdomain.com>"
+                     (optional but important: falls back to a Resend sandbox address
+                     that only delivers to the account owner if unset)
   R2_ACCESS_KEY_ID   R2 API key
   R2_SECRET_ACCESS_KEY R2 API secret
-  R2_BUCKET          Bucket name
+  R2_BUCKET_NAME     Bucket name
   R2_ENDPOINT        https://{account_id}.r2.cloudflarestorage.com
+  SENTRY_DSN         [optional] Sentry project DSN, enables server error monitoring
 
-CLIENT (Render Static Site)
-  VITE_API_URL       https://performance-api-djuk.onrender.com/api`}
+CLIENT (Render Static Site, baked in at build time)
+  VITE_API_URL       https://performance-api-djuk.onrender.com/api
+  VITE_SENTRY_DSN    [optional] Sentry project DSN, enables client error monitoring`}
           </BpCode>
         </BpSection>
       </div>
@@ -1274,8 +1292,11 @@ CLIENT (Render Static Site)
             ['Shared vault', 'Legal Documents and Digital Life use one vault. One password protects both. Set up via the Digital Life section or Legal Documents section; managed in My Profile.'],
             ['Trusted contact access', 'Only a 72-hour one-time signed link is used. No separate trusted contact login credentials. Trusted contacts cannot access digital credentials (vault) ever.'],
             ['PDF streaming', 'PDFKit pipes directly to the HTTP response stream. No temp files. Vault password for full export comes as POST body, never in URL.'],
-            ['SQLite on Render', 'Render persistent disk required for SQLite. No connection pooling needed (better-sqlite3 is synchronous).'],
-            ['No admin panel in mobile', 'Admin features are web-only. Mobile app (Expo, not yet built) is user-facing only.'],
+            ['PostgreSQL on Render', 'Managed Postgres, paid Basic plan, connected via a pg.Pool connection pool. SSL required for any non-localhost connection.'],
+            ['Database backups', 'Nightly cron (3am) dumps every table to a gzipped JSON snapshot in R2, retaining the last 14 backups. Manual trigger and listing available via admin-only endpoints.'],
+            ['Error monitoring', 'Sentry on both server (@sentry/node) and client (@sentry/react with an ErrorBoundary). Optional: the app runs fine without SENTRY_DSN/VITE_SENTRY_DSN set, it just means errors go unreported.'],
+            ['Static site direct navigation', 'Render static sites need an explicit Redirects/Rewrites rule (/* to /index.html, action Rewrite) in the dashboard. A _redirects file alone is not sufficient; without the dashboard rule, direct navigation to any client route 404s.'],
+            ['No admin panel in mobile', 'Admin features are web-only. Mobile app (Expo) is user-facing only.'],
             ['Deezer music search', 'Proxied via /api/deezer to avoid CORS and hide any future API keys. Songs used for "Songs That Define Me" section, not funeral songs (different section).'],
             ['Australian English', 'All copy uses Australian spelling and date formats. Dates formatted with toLocaleDateString("en-AU").'],
             ['Bootstrap primary', '--bs-primary and --bs-primary-rgb CSS vars overridden per theme so Bootstrap components (buttons, links) match the chosen palette.'],
