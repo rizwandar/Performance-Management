@@ -24,6 +24,7 @@ import TermsPage              from './pages/TermsPage'
 import AccessibilityPage      from './pages/AccessibilityPage'
 import SecurityPage           from './pages/SecurityPage'
 import NotFoundPage           from './pages/NotFoundPage'
+import DebugSentryPage        from './pages/DebugSentryPage'
 import LegalDocumentsPage     from './pages/sections/LegalDocumentsPage'
 import FinancialAffairsPage   from './pages/sections/FinancialAffairsPage'
 import DigitalLifePage        from './pages/sections/DigitalLifePage'
@@ -506,6 +507,7 @@ function AppContent() {
           <Route path="/terms"             element={<TermsPage />} />
           <Route path="/accessibility"     element={<AccessibilityPage />} />
           <Route path="/security"          element={<SecurityPage />} />
+          <Route path="/_debug-sentry"     element={<DebugSentryPage />} />
           <Route path="/login"             element={<LoginPage />} />
           <Route path="/register"          element={<RegisterPage />} />
           <Route path="/forgot-password"   element={<ForgotPasswordPage />} />
