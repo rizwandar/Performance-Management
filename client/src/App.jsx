@@ -21,6 +21,8 @@ import ExportPage             from './pages/ExportPage'
 import PrivacyPage            from './pages/PrivacyPage'
 import DeleteAccountPage      from './pages/DeleteAccountPage'
 import TermsPage              from './pages/TermsPage'
+import AccessibilityPage      from './pages/AccessibilityPage'
+import SecurityPage           from './pages/SecurityPage'
 import NotFoundPage           from './pages/NotFoundPage'
 import LegalDocumentsPage     from './pages/sections/LegalDocumentsPage'
 import FinancialAffairsPage   from './pages/sections/FinancialAffairsPage'
@@ -200,9 +202,9 @@ function SiteFooter() {
             <div className="d-flex flex-wrap gap-3">
               {[
                 { label: 'Privacy Policy',    href: '/privacy', internal: true },
-                { label: 'Terms of Service',  href: '/terms' },
-                { label: 'Accessibility',     href: '/accessibility' },
-                { label: 'Security',          href: '/security' },
+                { label: 'Terms of Service',  href: '/terms', internal: true },
+                { label: 'Accessibility',     href: '/accessibility', internal: true },
+                { label: 'Security',          href: '/security', internal: true },
               ].map(link => (
                 link.internal
                   ? <Link key={link.href} to={link.href}
@@ -502,6 +504,8 @@ function AppContent() {
           <Route path="/privacy"           element={<PrivacyPage />} />
           <Route path="/delete-account"    element={<DeleteAccountPage />} />
           <Route path="/terms"             element={<TermsPage />} />
+          <Route path="/accessibility"     element={<AccessibilityPage />} />
+          <Route path="/security"          element={<SecurityPage />} />
           <Route path="/login"             element={<LoginPage />} />
           <Route path="/register"          element={<RegisterPage />} />
           <Route path="/forgot-password"   element={<ForgotPasswordPage />} />
