@@ -348,6 +348,11 @@ async function init() {
     )
   `);
 
+  // Migration: track which admin (if any) granted an honorary premium subscription.
+  await pool.query(`
+    ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS granted_by_admin_id INTEGER REFERENCES users(id)
+  `);
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS payment_methods (
       id                 SERIAL PRIMARY KEY,

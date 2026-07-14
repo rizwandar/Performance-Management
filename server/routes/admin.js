@@ -56,8 +56,13 @@ router.get('/users', auth, adminOnly, async (req, res) => {
              (SELECT COUNT(*) FROM personal_messages   WHERE user_id = u.id) +
              (SELECT COUNT(*) FROM songs_that_define_me WHERE user_id = u.id) +
              (SELECT COUNT(*) FROM life_wishes         WHERE user_id = u.id)
-           )::int as total_entries
+           )::int as total_entries,
+           COALESCE(s.plan, 'free') as plan,
+           (s.provider = 'admin_grant') as is_honorary,
+           granter.name as granted_by_admin_name
     FROM users u
+    LEFT JOIN subscriptions s      ON s.user_id = u.id
+    LEFT JOIN users granter        ON granter.id = s.granted_by_admin_id
     WHERE u.is_admin = 0
   `;
   const args = [];
@@ -72,10 +77,17 @@ router.get('/users', auth, adminOnly, async (req, res) => {
 
 router.get('/users/:id', auth, adminOnly, async (req, res) => {
   const user = await queryOne(`
-    SELECT id, name, email, date_of_birth, about_me, legacy_message,
-           emergency_contact_name, emergency_contact_phone, emergency_contact_email,
-           last_active_at, inactivity_period_months, created_at
-    FROM users WHERE id = $1 AND is_admin = 0
+    SELECT u.id, u.name, u.email, u.date_of_birth, u.about_me, u.legacy_message,
+           u.emergency_contact_name, u.emergency_contact_phone, u.emergency_contact_email,
+           u.last_active_at, u.inactivity_period_months, u.created_at,
+           COALESCE(s.plan, 'free') as plan,
+           (s.provider = 'admin_grant') as is_honorary,
+           s.updated_at as plan_updated_at,
+           granter.name as granted_by_admin_name
+    FROM users u
+    LEFT JOIN subscriptions s ON s.user_id = u.id
+    LEFT JOIN users granter   ON granter.id = s.granted_by_admin_id
+    WHERE u.id = $1 AND u.is_admin = 0
   `, [req.params.id]);
   if (!user) return res.status(404).json({ error: 'User not found' });
 
@@ -169,6 +181,45 @@ router.post('/users/:id/reset-password', auth, adminOnly, async (req, res) => {
     `INSERT INTO user_audit_logs (user_id, action, metadata) VALUES ($1, 'password_reset', $2)`,
     [user.id, JSON.stringify({ reset_by: 'admin', admin_id: req.user.id })]
   );
+  res.json({ success: true });
+});
+
+router.post('/users/:id/grant-premium', auth, adminOnly, async (req, res) => {
+  const user = await queryOne('SELECT id FROM users WHERE id = $1 AND is_admin = 0', [req.params.id]);
+  if (!user) return res.status(404).json({ error: 'User not found.' });
+
+  await query(`
+    INSERT INTO subscriptions (user_id, plan, status, provider, granted_by_admin_id, updated_at)
+    VALUES ($1, 'premium', 'active', 'admin_grant', $2, NOW())
+    ON CONFLICT (user_id) DO UPDATE SET
+      plan = 'premium', status = 'active', provider = 'admin_grant',
+      granted_by_admin_id = $2, updated_at = NOW()
+  `, [user.id, req.user.id]);
+
+  await query(
+    `INSERT INTO user_audit_logs (user_id, action, metadata) VALUES ($1, 'premium_granted', $2)`,
+    [user.id, JSON.stringify({ granted_by_admin_id: req.user.id })]
+  );
+
+  res.json({ success: true });
+});
+
+router.post('/users/:id/revoke-premium', auth, adminOnly, async (req, res) => {
+  const user = await queryOne('SELECT id FROM users WHERE id = $1 AND is_admin = 0', [req.params.id]);
+  if (!user) return res.status(404).json({ error: 'User not found.' });
+
+  await query(`
+    INSERT INTO subscriptions (user_id, plan, status, provider, granted_by_admin_id, updated_at)
+    VALUES ($1, 'free', 'active', NULL, NULL, NOW())
+    ON CONFLICT (user_id) DO UPDATE SET
+      plan = 'free', provider = NULL, granted_by_admin_id = NULL, updated_at = NOW()
+  `, [user.id]);
+
+  await query(
+    `INSERT INTO user_audit_logs (user_id, action, metadata) VALUES ($1, 'premium_revoked', $2)`,
+    [user.id, JSON.stringify({ revoked_by_admin_id: req.user.id })]
+  );
+
   res.json({ success: true });
 });
 

@@ -1226,8 +1226,11 @@ ACCESS        GET  /api/access/:token (public)
 
 ADMIN         GET  /api/admin/stats
               GET  /api/admin/users, GET /api/admin/users/:id
-              GET  /api/admin/activity
-              PUT  /api/admin/users/:id/password
+              GET  /api/admin/users/:id/activity
+              POST /api/admin/users/:id/verify-email
+              POST /api/admin/users/:id/reset-password
+              POST /api/admin/users/:id/grant-premium (honorary premium, tagged provider='admin_grant')
+              POST /api/admin/users/:id/revoke-premium
               DELETE /api/admin/users/:id
               GET  /api/admin/backups (list database backups in R2)
               POST /api/admin/backups/run (manually trigger a backup)
@@ -1329,6 +1332,7 @@ export default function AdminPage() {
   const [resetPwConfirm, setResetPwConfirm]   = useState('')
   const [resetPwSaving, setResetPwSaving]     = useState(false)
   const [resetPwError, setResetPwError]       = useState('')
+  const [premiumSaving, setPremiumSaving]     = useState(false)
 
   // Activity tab state
   const [activityQuery, setActivityQuery]   = useState('')
@@ -1390,6 +1394,34 @@ export default function AdminPage() {
     } catch {
       showAlert('danger', "Couldn't delete user.")
     }
+  }
+
+  const grantPremium = async (id) => {
+    setPremiumSaving(true)
+    try {
+      await axios.post(`${API}/admin/users/${id}/grant-premium`)
+      const r = await axios.get(`${API}/admin/users/${id}`)
+      setSelectedUser(r.data)
+      setUsers(u => u.map(x => x.id === id ? { ...x, plan: 'premium', is_honorary: true } : x))
+      showAlert('success', 'Honorary premium granted.')
+    } catch {
+      showAlert('danger', "Couldn't grant premium.")
+    }
+    setPremiumSaving(false)
+  }
+
+  const revokePremium = async (id) => {
+    setPremiumSaving(true)
+    try {
+      await axios.post(`${API}/admin/users/${id}/revoke-premium`)
+      const r = await axios.get(`${API}/admin/users/${id}`)
+      setSelectedUser(r.data)
+      setUsers(u => u.map(x => x.id === id ? { ...x, plan: 'free', is_honorary: false } : x))
+      showAlert('success', 'Premium revoked.')
+    } catch {
+      showAlert('danger', "Couldn't revoke premium.")
+    }
+    setPremiumSaving(false)
   }
 
   const saveSetting = async (key, value) => {
@@ -1539,6 +1571,16 @@ export default function AdminPage() {
                     <div>
                       <span style={{ fontWeight: 600, color: 'var(--green-900)' }}>{u.name}</span>
                       <span className="text-muted small ms-2">{u.email}</span>
+                      {u.plan === 'premium' && (
+                        <span className="ms-2" style={{
+                          fontSize: '0.68rem', fontWeight: 700, padding: '2px 8px', borderRadius: 10,
+                          background: u.is_honorary ? 'var(--gold-50, #FBF3E4)' : 'var(--green-50)',
+                          border: `1px solid ${u.is_honorary ? 'var(--gold-light, #E8D8A8)' : 'var(--green-100)'}`,
+                          color: u.is_honorary ? 'var(--gold-dark, #8A6A2A)' : 'var(--green-800)',
+                        }}>
+                          {u.is_honorary ? 'HONORARY PREMIUM' : 'PREMIUM'}
+                        </span>
+                      )}
                     </div>
                     <div className="d-flex align-items-center gap-3">
                       <span className="text-muted small">{u.total_entries} entries</span>
@@ -1850,6 +1892,35 @@ export default function AdminPage() {
                 </Col>
               </Row>
 
+              {/* Subscription */}
+              <div className="mb-4">
+                <h6 style={{ color: 'var(--green-900)', marginBottom: 8 }}>Subscription</h6>
+                <div className="d-flex align-items-center gap-2 flex-wrap">
+                  <span style={{
+                    fontSize: '0.78rem', fontWeight: 700, padding: '3px 10px', borderRadius: 12,
+                    background: selectedUser.plan === 'premium'
+                      ? (selectedUser.is_honorary ? 'var(--gold-50, #FBF3E4)' : 'var(--green-50)')
+                      : 'var(--parchment)',
+                    border: `1px solid ${selectedUser.plan === 'premium'
+                      ? (selectedUser.is_honorary ? 'var(--gold-light, #E8D8A8)' : 'var(--green-100)')
+                      : 'var(--border)'}`,
+                    color: selectedUser.plan === 'premium'
+                      ? (selectedUser.is_honorary ? 'var(--gold-dark, #8A6A2A)' : 'var(--green-800)')
+                      : 'var(--text-muted)',
+                  }}>
+                    {selectedUser.plan === 'premium'
+                      ? (selectedUser.is_honorary ? 'Honorary Premium' : 'Premium')
+                      : 'Free'}
+                  </span>
+                  {selectedUser.plan === 'premium' && selectedUser.is_honorary && selectedUser.granted_by_admin_name && (
+                    <span className="text-muted small">
+                      Granted by {selectedUser.granted_by_admin_name}
+                      {selectedUser.plan_updated_at && ` on ${formatDate(selectedUser.plan_updated_at)}`}
+                    </span>
+                  )}
+                </div>
+              </div>
+
               {/* Section completion */}
               <h6 style={{ color: 'var(--green-900)', marginBottom: 12 }}>Section Completion</h6>
               <div className="d-flex flex-wrap gap-2 mb-4">
@@ -1919,6 +1990,17 @@ export default function AdminPage() {
               }}>
               Verify email
             </Button>
+            {selectedUser.plan === 'premium' && selectedUser.is_honorary ? (
+              <Button variant="outline-warning" size="sm" disabled={premiumSaving}
+                onClick={() => revokePremium(selectedUser.id)}>
+                {premiumSaving ? 'Revoking…' : 'Revoke honorary premium'}
+              </Button>
+            ) : (
+              <Button variant="outline-primary" size="sm" disabled={premiumSaving}
+                onClick={() => grantPremium(selectedUser.id)}>
+                {premiumSaving ? 'Granting…' : 'Grant honorary premium'}
+              </Button>
+            )}
             <Button variant="outline-secondary" onClick={() => setSelectedUser(null)}>Close</Button>
           </Modal.Footer>
         )}
