@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Routes, Route, Link, useNavigate } from 'react-router-dom'
+import { Routes, Route, Link, useNavigate, Navigate } from 'react-router-dom'
 import { Navbar, Container, Nav, Button } from 'react-bootstrap'
 import axios from 'axios'
 import { AuthProvider, useAuth } from './context/AuthContext'
