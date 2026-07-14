@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
+import { useAuth } from './AuthContext'
 
 const API = import.meta.env.VITE_API_URL || '/api'
 
@@ -13,11 +14,11 @@ const FREE_SECTION_ROUTES = new Set([
 const SubscriptionContext = createContext({ isPremium: true, plan: 'premium', loading: false, refresh: () => {} })
 
 export function SubscriptionProvider({ children }) {
+  const { token }              = useAuth()
   const [plan, setPlan]       = useState('premium')
   const [loading, setLoading] = useState(false)
 
   const refresh = useCallback(async () => {
-    const token = localStorage.getItem('token')
     if (!token) { setPlan('free'); return }
     setLoading(true)
     try {
@@ -27,7 +28,7 @@ export function SubscriptionProvider({ children }) {
       setPlan('premium') // fail open so existing users are not locked out
     }
     setLoading(false)
-  }, [])
+  }, [token])
 
   useEffect(() => { refresh() }, [refresh])
 

@@ -340,6 +340,19 @@ function NavBar() {
                         Upgrade
                       </Nav.Link>
                     )}
+                    {isPremium && (
+                      <span
+                        title="You have full access to every section"
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 5,
+                          fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.03em',
+                          color: 'var(--green-900)', background: 'var(--gold-light, #E8B97A)',
+                          borderRadius: 12, padding: '4px 11px', marginRight: 4,
+                        }}
+                      >
+                        ✨ PREMIUM
+                      </span>
+                    )}
                     <Nav.Link
                       as={Link}
                       to="/export"

@@ -242,9 +242,21 @@ export default function DashboardPage() {
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="mb-4">
-        <h2 style={{ color: 'var(--green-900)', fontFamily: 'Georgia, serif' }}>
-          {isNewUser ? `Welcome, ${user?.name?.split(' ')[0]}` : `Welcome back, ${user?.name?.split(' ')[0]}`}
-        </h2>
+        <div className="d-flex align-items-center gap-2 flex-wrap">
+          <h2 style={{ color: 'var(--green-900)', fontFamily: 'Georgia, serif', marginBottom: 0 }}>
+            {isNewUser ? `Welcome, ${user?.name?.split(' ')[0]}` : `Welcome back, ${user?.name?.split(' ')[0]}`}
+          </h2>
+          {isPremium && (
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5,
+              fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.03em',
+              color: 'var(--green-900)', background: 'var(--gold-light, #E8B97A)',
+              borderRadius: 12, padding: '4px 11px',
+            }}>
+              ✨ PREMIUM
+            </span>
+          )}
+        </div>
         <p className="text-muted mb-0">
           Everything you record here will one day give your loved ones clarity and comfort.
         </p>
