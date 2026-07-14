@@ -189,7 +189,7 @@ router.get('/funeral-wishes', requireAuth, async (req, res) => {
   res.json(await queryOne('SELECT * FROM funeral_wishes WHERE user_id = $1', [req.user.id]) || {});
 });
 
-router.put('/funeral-wishes', requireAuth, requirePremium, async (req, res) => {
+router.put('/funeral-wishes', requireAuth, async (req, res) => {
   const { burial_preference, ceremony_type, ceremony_location, funeral_home, pre_paid_plan,
           pre_paid_details, music_preferences, readings, flowers_preference,
           donation_charity, special_requests, notes } = req.body;
@@ -223,7 +223,7 @@ router.get('/medical-wishes', requireAuth, async (req, res) => {
   res.json(await queryOne('SELECT * FROM medical_wishes WHERE user_id = $1', [req.user.id]) || {});
 });
 
-router.put('/medical-wishes', requireAuth, requirePremium, async (req, res) => {
+router.put('/medical-wishes', requireAuth, async (req, res) => {
   const { organ_donation, organ_donation_details, advance_care_directive, directive_location,
           dnr_preference, gp_name, gp_phone, hospital_preference,
           current_medications, medical_conditions, notes } = req.body;
@@ -256,7 +256,7 @@ router.get('/people-to-notify', requireAuth, async (req, res) => {
   res.json(await queryAll('SELECT * FROM people_to_notify WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]));
 });
 
-router.post('/people-to-notify', requireAuth, requirePremium, async (req, res) => {
+router.post('/people-to-notify', requireAuth, async (req, res) => {
   const { name, relationship, email, phone, notified_by, notes } = req.body;
   if (!name) return res.status(400).json({ error: 'A name is required.' });
   const result = await query(`
@@ -266,7 +266,7 @@ router.post('/people-to-notify', requireAuth, requirePremium, async (req, res) =
   res.status(201).json({ id: result.rows[0].id });
 });
 
-router.put('/people-to-notify/:id', requireAuth, requirePremium, async (req, res) => {
+router.put('/people-to-notify/:id', requireAuth, async (req, res) => {
   const item = await queryOne('SELECT * FROM people_to_notify WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
   const { name, relationship, email, phone, notified_by, notes } = req.body;
@@ -277,7 +277,7 @@ router.put('/people-to-notify/:id', requireAuth, requirePremium, async (req, res
   res.json({ success: true });
 });
 
-router.delete('/people-to-notify/:id', requireAuth, requirePremium, async (req, res) => {
+router.delete('/people-to-notify/:id', requireAuth, async (req, res) => {
   const item = await queryOne('SELECT * FROM people_to_notify WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
   await query('DELETE FROM people_to_notify WHERE id = $1', [item.id]);
@@ -465,7 +465,7 @@ router.get('/children-dependants', requireAuth, async (req, res) => {
   res.json(await queryAll('SELECT * FROM children_dependants WHERE user_id = $1 ORDER BY type, name', [req.user.id]));
 });
 
-router.post('/children-dependants', requireAuth, requirePremium, async (req, res) => {
+router.post('/children-dependants', requireAuth, async (req, res) => {
   const { name, type, date_of_birth, special_needs, preferred_guardian, guardian_contact, alternate_guardian, alternate_contact, notes } = req.body;
   if (!name) return res.status(400).json({ error: 'A name is required.' });
   const result = await query(`
@@ -478,7 +478,7 @@ router.post('/children-dependants', requireAuth, requirePremium, async (req, res
   res.status(201).json({ id: result.rows[0].id });
 });
 
-router.put('/children-dependants/:id', requireAuth, requirePremium, async (req, res) => {
+router.put('/children-dependants/:id', requireAuth, async (req, res) => {
   const item = await queryOne('SELECT * FROM children_dependants WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
   const { name, type, date_of_birth, special_needs, preferred_guardian, guardian_contact, alternate_guardian, alternate_contact, notes } = req.body;
@@ -494,7 +494,7 @@ router.put('/children-dependants/:id', requireAuth, requirePremium, async (req, 
   res.json({ success: true });
 });
 
-router.delete('/children-dependants/:id', requireAuth, requirePremium, async (req, res) => {
+router.delete('/children-dependants/:id', requireAuth, async (req, res) => {
   const item = await queryOne('SELECT id FROM children_dependants WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
   await query('DELETE FROM children_dependants WHERE id = $1', [item.id]);

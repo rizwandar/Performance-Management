@@ -109,7 +109,15 @@ const FREE_ROUTES = new Set([
   '/sections/messages',
   '/sections/songs-that-define-me',
   '/sections/lifes-wishes',
+  '/sections/funeral-wishes',
+  '/sections/medical-wishes',
+  '/sections/key-contacts',
+  '/sections/people-to-notify',
+  '/sections/children-dependants',
 ])
+
+// First group id after which all remaining sections are premium-only.
+const PREMIUM_BOUNDARY_GROUP = 'affairs'
 
 // ---------------------------------------------------------------------------
 // Sections — each assigned to a group, with a warm description
@@ -320,6 +328,52 @@ export default function DashboardPage() {
 
         return (
           <div key={group.id} style={{ marginBottom: gi < GROUPS.length - 1 ? 36 : 0 }}>
+
+            {/* Premium boundary divider */}
+            {group.id === PREMIUM_BOUNDARY_GROUP && (
+              <div style={{
+                margin: '4px 0 28px',
+                padding: '20px 24px',
+                background: 'linear-gradient(135deg, var(--gold-50, #FBF3E4), var(--green-50, #EEF4EE))',
+                border: '1px solid var(--gold-light, #E8D8A8)',
+                borderRadius: 12,
+                textAlign: 'center',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+                  <div style={{ flex: 1, height: 1, background: 'var(--gold-light, #E8D8A8)' }} />
+                  <span style={{
+                    fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.08em',
+                    color: 'var(--green-800)', textTransform: 'uppercase', whiteSpace: 'nowrap',
+                  }}>
+                    🔒 Premium sections
+                  </span>
+                  <div style={{ flex: 1, height: 1, background: 'var(--gold-light, #E8D8A8)' }} />
+                </div>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', lineHeight: 1.6, maxWidth: 540, margin: '0 auto' }}>
+                  {isPremium
+                    ? 'The sections below are part of your Premium plan: your legal, financial, property, digital, and household records.'
+                    : 'Everything above is free, forever. The sections below, your legal, financial, property, digital, and household records, require a Premium plan to add or edit.'}
+                </p>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.78rem', lineHeight: 1.6, maxWidth: 540, margin: '8px auto 0', fontStyle: 'italic' }}>
+                  🔐 Your Personal &amp; Legal Documents and Digital Life sections hold your most sensitive
+                  information, so they're protected by a separate vault password, on top of your regular
+                  sign-in, that only you know and that is never stored on our servers.
+                </p>
+                {!isPremium && (
+                  <button
+                    onClick={() => navigate('/upgrade')}
+                    style={{
+                      marginTop: 14, background: 'var(--green-800)', color: '#fff', border: 'none',
+                      borderRadius: 8, padding: '8px 20px', fontSize: '0.85rem', fontWeight: 600,
+                      cursor: 'pointer', fontFamily: 'inherit',
+                    }}
+                  >
+                    See Premium plans
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* Group heading */}
             <div style={{ marginBottom: 14 }}>
               <div className="d-flex align-items-baseline gap-2 flex-wrap">

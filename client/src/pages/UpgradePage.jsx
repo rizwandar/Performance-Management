@@ -5,21 +5,21 @@ const FREE_FEATURES = [
   'Messages to Loved Ones',
   'Songs That Define Me',
   'My Bucket List',
-]
-
-const PREMIUM_FEATURES = [
-  'All 4 free sections',
   'Funeral and End-of-Life Wishes',
   'Medical and Care Wishes',
   'Key Contacts',
   'People to Notify',
   'Children and Dependants',
+  'Trusted contact access permissions',
+]
+
+const PREMIUM_FEATURES = [
+  'All free sections',
   'Personal and Legal Documents',
   'Property and Possessions',
   'Financial Affairs',
   'Digital Life (vault-encrypted)',
   'Practical Household Information',
-  'Trusted contact access permissions',
   'Document and photo uploads',
   'Full PDF export (including vault)',
   'Inactivity timer and notifications',
