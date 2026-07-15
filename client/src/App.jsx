@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Routes, Route, Link, useNavigate, Navigate } from 'react-router-dom'
 import { Navbar, Container, Nav, Button } from 'react-bootstrap'
 import axios from 'axios'
-import { AuthProvider, useAuth } from './context/AuthContext'
+import { AuthProvider, useAuth, parseJwt } from './context/AuthContext'
 import { BrandingProvider, useBranding } from './context/BrandingContext'
 import { SubscriptionProvider, useSubscription } from './context/SubscriptionContext'
 
@@ -28,6 +28,7 @@ import OrgCustomersPage       from './pages/org/OrgCustomersPage'
 import OrgStaffPage           from './pages/org/OrgStaffPage'
 import OrgSettingsPage        from './pages/org/OrgSettingsPage'
 import OrgTokenPage           from './pages/org/OrgTokenPage'
+import ViewAsBanner           from './components/ViewAsBanner'
 import SecurityPage           from './pages/SecurityPage'
 import NotFoundPage           from './pages/NotFoundPage'
 import LegalDocumentsPage     from './pages/sections/LegalDocumentsPage'
@@ -315,10 +316,11 @@ function ProtectedRoute({ children, adminOnly = false, allowRoles = null }) {
 }
 
 function NavBar() {
-  const { user, isTokenValid, logout } = useAuth()
+  const { user, token, isTokenValid, logout } = useAuth()
   const { siteName, logoUrl } = useBranding()
   const { isPremium } = useSubscription()
   const navigate = useNavigate()
+  const isViewAs = !!(token && parseJwt(token)?.viewAs)
 
   const handleLogout = () => {
     logout()
@@ -341,13 +343,13 @@ function NavBar() {
                 {!user?.is_admin && !user?.org_role && (
                   <>
                     <Nav.Link as={Link} to="/profile">My Plans</Nav.Link>
-                    <Nav.Link as={Link} to="/profile/settings">My Profile</Nav.Link>
-                    {!isPremium && (
+                    {!isViewAs && <Nav.Link as={Link} to="/profile/settings">My Profile</Nav.Link>}
+                    {!isViewAs && !isPremium && (
                       <Nav.Link as={Link} to="/upgrade" style={{ fontWeight: 600, color: 'var(--gold)' }}>
                         Upgrade
                       </Nav.Link>
                     )}
-                    {isPremium && (
+                    {!isViewAs && isPremium && (
                       <span
                         title="You have full access to every section"
                         style={{
@@ -360,6 +362,7 @@ function NavBar() {
                         ✨ PREMIUM
                       </span>
                     )}
+                    {!isViewAs && (
                     <Nav.Link
                       as={Link}
                       to="/export"
@@ -374,6 +377,7 @@ function NavBar() {
                       </svg>
                       Export PDF
                     </Nav.Link>
+                    )}
                   </>
                 )}
                 {!!user?.org_role && !user?.is_admin && (
@@ -525,6 +529,7 @@ function AppContent() {
         Skip to main content
       </a>
       <NavBar />
+      <ViewAsBanner />
       <UnverifiedEmailBanner />
       <Container id="main-content" className="py-4" style={{ flex: 1 }}>
         <Routes>

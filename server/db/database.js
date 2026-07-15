@@ -512,6 +512,75 @@ async function init() {
     );
   }
 
+  // Seed a demo organization with sample customers across every lifecycle status,
+  // so the org portal can be showcased in sales meetings without exposing real
+  // customer data (org portal spec, section 13).
+  const demoOrg = await queryOne("SELECT id FROM organizations WHERE name = 'Demo Funeral Home'");
+  if (!demoOrg) {
+    const orgResult = await pool.query(
+      `INSERT INTO organizations (name, business_categories, about, plan_tier)
+       VALUES ($1, $2, $3, 'professional') RETURNING id`,
+      ['Demo Funeral Home', JSON.stringify(['Funeral Home', 'Cremation Services']),
+       'A demonstration organization used to showcase the In Good Hands organization portal. No real customer data is stored here.']
+    );
+    const orgId = orgResult.rows[0].id;
+
+    const loc1 = await pool.query(
+      "INSERT INTO organization_locations (organization_id, name, address, phone) VALUES ($1, 'Downtown Chapel', '100 Main St', '555-0100') RETURNING id",
+      [orgId]
+    );
+    const loc2 = await pool.query(
+      "INSERT INTO organization_locations (organization_id, name, address, phone) VALUES ($1, 'Riverside Chapel', '200 River Rd', '555-0200') RETURNING id",
+      [orgId]
+    );
+
+    await pool.query(
+      `INSERT INTO organization_contacts (organization_id, name, designation, email, phone, is_billing_contact)
+       VALUES ($1, 'Pat Reynolds', 'Office Manager', 'demo.contact@igh.local', '555-0150', 1)`,
+      [orgId]
+    );
+
+    const demoAdminHash = bcrypt.hashSync('DemoOrgAdmin1234', 10);
+    await pool.query(
+      `INSERT INTO users (name, email, password_hash, is_admin, email_verified, org_role, organization_id)
+       VALUES ('Demo Org Admin', 'demo.orgadmin@igh.local', $1, 0, 1, 'org_admin', $2)`,
+      [demoAdminHash, orgId]
+    );
+
+    const demoCustomerHash = bcrypt.hashSync('DemoCustomer1234', 10);
+    async function seedDemoCustomer({ name, email, status, locationId, viewConsent, editConsent, deceased, archived }) {
+      let userId = null;
+      if (email) {
+        const userResult = await pool.query(
+          `INSERT INTO users (name, email, password_hash, email_verified) VALUES ($1, $2, $3, 1) RETURNING id`,
+          [name, email, demoCustomerHash]
+        );
+        userId = userResult.rows[0].id;
+        await pool.query(
+          "INSERT INTO subscriptions (user_id, plan, status, provider, organization_id) VALUES ($1, 'premium', 'active', 'org_grant', $2) ON CONFLICT (user_id) DO NOTHING",
+          [userId, orgId]
+        );
+      }
+      await pool.query(
+        `INSERT INTO organization_customers
+           (organization_id, user_id, invited_name, invited_email, location_id, lifecycle_status,
+            view_consent, view_consent_at, edit_consent, edit_consent_at, deceased_at, archived_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, CASE WHEN $7 = 1 THEN NOW() ELSE NULL END,
+                 $8, CASE WHEN $8 = 1 THEN NOW() ELSE NULL END,
+                 CASE WHEN $9 THEN NOW() ELSE NULL END, CASE WHEN $10 THEN NOW() ELSE NULL END)`,
+        [orgId, userId, name, email || `${name.toLowerCase().replace(/\s+/g, '.')}@example-invited.igh.local`,
+         locationId, status, viewConsent ? 1 : 0, editConsent ? 1 : 0, !!deceased, !!archived]
+      );
+    }
+
+    await seedDemoCustomer({ name: 'Sarah Mitchell', email: null, status: 'invited', locationId: loc1.rows[0].id });
+    await seedDemoCustomer({ name: 'James Chen', email: 'demo.james.chen@igh.local', status: 'signed_up', locationId: loc1.rows[0].id, viewConsent: true });
+    await seedDemoCustomer({ name: 'Maria Garcia', email: 'demo.maria.garcia@igh.local', status: 'plan_in_progress', locationId: loc2.rows[0].id, viewConsent: true, editConsent: true });
+    await seedDemoCustomer({ name: 'Robert Taylor', email: 'demo.robert.taylor@igh.local', status: 'plan_completed', locationId: loc1.rows[0].id, viewConsent: true });
+    await seedDemoCustomer({ name: 'Eleanor Brooks', email: 'demo.eleanor.brooks@igh.local', status: 'deceased', locationId: loc2.rows[0].id, viewConsent: true, deceased: true });
+    await seedDemoCustomer({ name: 'David Kim', email: 'demo.david.kim@igh.local', status: 'archived', locationId: loc1.rows[0].id, viewConsent: true, archived: true });
+  }
+
   // Backfill: mark users without a verification token as verified
   await pool.query(
     'UPDATE users SET email_verified = 1 WHERE email_verification_token IS NULL AND email_verified = 0'

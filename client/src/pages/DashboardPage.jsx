@@ -5,6 +5,7 @@ import axios from 'axios'
 import { useAuth } from '../context/AuthContext'
 import { useSubscription } from '../context/SubscriptionContext'
 import UpgradeModal from '../components/UpgradeModal'
+import OrgBrandingBanner from '../components/OrgBrandingBanner'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -261,6 +262,8 @@ export default function DashboardPage() {
           Everything you record here will one day give your loved ones clarity and comfort.
         </p>
       </div>
+
+      <OrgBrandingBanner />
 
       {/* ── Onboarding welcome (shown only when no sections started) ───────── */}
       {isNewUser && (

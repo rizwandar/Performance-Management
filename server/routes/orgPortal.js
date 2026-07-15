@@ -6,7 +6,7 @@ const { queryOne, queryAll, query } = require('../db/database');
 const auth    = require('../middleware/auth');
 const { requireOrgUser, requireOrgAdmin } = require('../middleware/orgAuth');
 const { sendEmail } = require('../lib/sendEmail');
-const { orgInviteEmail, orgLinkRequestEmail, executorNotificationEmail } = require('../lib/emailTemplates');
+const { orgInviteEmail, orgLinkRequestEmail, orgEditConsentRequestEmail, executorNotificationEmail } = require('../lib/emailTemplates');
 
 const LIFECYCLE_STATUSES = ['invited', 'signed_up', 'plan_in_progress', 'plan_completed', 'deceased', 'archived'];
 
@@ -196,6 +196,81 @@ router.post('/customers/:id/deceased', auth, requireOrgUser, async (req, res) =>
 
   const fresh = await queryOne('SELECT * FROM organization_customers WHERE id = $1', [customer.id]);
   res.json(fresh);
+});
+
+// Edit consent is requested any time, separately from view consent, and the
+// customer approves via a one-click emailed link (org portal spec, section 10).
+router.post('/customers/:id/request-edit-consent', auth, requireOrgUser, async (req, res) => {
+  const customer = await queryOne(
+    `SELECT oc.*, u.name as user_name, u.email as user_email
+     FROM organization_customers oc JOIN users u ON u.id = oc.user_id
+     WHERE oc.id = $1 AND oc.organization_id = $2`,
+    [req.params.id, req.user.organization_id]
+  );
+  if (!customer) return res.status(404).json({ error: 'Customer not found or has not completed signup yet.' });
+  if (customer.edit_consent) return res.status(400).json({ error: 'This customer has already granted edit consent.' });
+
+  const org = await queryOne('SELECT name FROM organizations WHERE id = $1', [req.user.organization_id]);
+
+  const token     = crypto.randomBytes(32).toString('hex');
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  await query(
+    'INSERT INTO organization_customer_tokens (organization_customer_id, token_type, token, expires_at) VALUES ($1, $2, $3, $4)',
+    [customer.id, 'edit_consent', token, expiresAt]
+  );
+
+  const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+  const link = `${clientUrl}/org/link/${token}`;
+  try {
+    await sendEmail({
+      to: customer.user_email,
+      subject: `${org.name} is requesting edit access on In Good Hands`,
+      html: orgEditConsentRequestEmail({ name: customer.user_name, orgName: org.name, consentLink: link }),
+    });
+  } catch (err) {
+    console.error('[org-portal] Edit-consent request email failed:', err.message);
+  }
+
+  auditLog(req.user.id, 'edit_consent_requested', { organization_customer_id: customer.id });
+  res.json({ success: true });
+});
+
+// ---------------------------------------------------------------------------
+// View-as: org staff/admin view (and, with consent, edit) a customer's plan.
+// Minting re-checks consent and issues a separate, short-lived token scoped to
+// this customer, kept independent of the org user's normal session (org portal
+// spec, sections 10-11).
+// ---------------------------------------------------------------------------
+router.post('/customers/:id/view-as', auth, requireOrgUser, async (req, res) => {
+  const customer = await queryOne(
+    'SELECT * FROM organization_customers WHERE id = $1 AND organization_id = $2',
+    [req.params.id, req.user.organization_id]
+  );
+  if (!customer) return res.status(404).json({ error: 'Customer not found.' });
+  if (!customer.user_id) return res.status(400).json({ error: 'This customer has not completed signup yet.' });
+  if (!customer.view_consent) return res.status(403).json({ error: 'This customer has not granted view consent.' });
+
+  const customerUser = await queryOne('SELECT name FROM users WHERE id = $1', [customer.user_id]);
+
+  const jwt = require('jsonwebtoken');
+  const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
+  const viewAsToken = jwt.sign(
+    {
+      id: req.user.id, email: req.user.email, is_admin: false,
+      viewAs: { customerId: customer.user_id, organizationCustomerId: customer.id, editAllowed: !!customer.edit_consent },
+    },
+    JWT_SECRET,
+    { expiresIn: '45m' }
+  );
+
+  auditLog(req.user.id, 'view_as_start', { organization_customer_id: customer.id, customer_id: customer.user_id });
+  res.json({ token: viewAsToken, customer_name: customerUser?.name, edit_allowed: !!customer.edit_consent });
+});
+
+router.post('/view-as/end', auth, async (req, res) => {
+  if (!req.isViewAs || !req.actingUser) return res.status(400).json({ error: 'No active view-as session.' });
+  auditLog(req.actingUser.id, 'view_as_end', { customer_id: req.user.id });
+  res.json({ success: true });
 });
 
 // ---------------------------------------------------------------------------

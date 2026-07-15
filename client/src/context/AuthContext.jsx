@@ -3,7 +3,7 @@ import axios from 'axios'
 
 const AuthContext = createContext(null)
 
-const parseJwt = (token) => {
+export const parseJwt = (token) => {
   try {
     return JSON.parse(atob(token.split('.')[1]))
   } catch {
@@ -24,6 +24,21 @@ export function AuthProvider({ children }) {
       if (t) {
         const decoded = parseJwt(t)
         if (decoded && decoded.exp * 1000 < Date.now()) {
+          // A view-as session expiring should fall back to the org user's own
+          // session, not force a full logout — they were never signed out.
+          const realToken = decoded.viewAs && localStorage.getItem('realToken')
+          if (realToken) {
+            const realUser = localStorage.getItem('realUser')
+            localStorage.removeItem('realToken')
+            localStorage.removeItem('realUser')
+            localStorage.removeItem('viewAsCustomerName')
+            localStorage.setItem('token', realToken)
+            if (realUser) localStorage.setItem('user', realUser)
+            setToken(realToken)
+            setUser(realUser ? JSON.parse(realUser) : null)
+            config.headers.Authorization = `Bearer ${realToken}`
+            return config
+          }
           logout()
           return Promise.reject(new Error('Session expired'))
         }
@@ -53,6 +68,42 @@ export function AuthProvider({ children }) {
     setUser(userData)
   }
 
+  // Stashes the org user's real session and swaps in a short-lived, scoped
+  // view-as token. The view-as token's own JWT payload carries a `viewAs`
+  // claim, which is how the rest of the app (ViewAsBanner, NavBar) detects
+  // that a view-as session is active, without needing a separate flag.
+  const startViewAs = (viewAsToken, customerName) => {
+    localStorage.setItem('realToken', localStorage.getItem('token'))
+    localStorage.setItem('realUser', localStorage.getItem('user'))
+    localStorage.setItem('viewAsCustomerName', customerName || 'this customer')
+    const viewAsUser = { id: null, name: customerName, is_admin: 0 }
+    localStorage.setItem('token', viewAsToken)
+    localStorage.setItem('user', JSON.stringify(viewAsUser))
+    setToken(viewAsToken)
+    setUser(viewAsUser)
+  }
+
+  const exitViewAs = async () => {
+    try {
+      await axios.post(`${import.meta.env.VITE_API_URL}/org-portal/view-as/end`)
+    } catch {
+      // best-effort — the view-as token also just expires on its own after 45 minutes
+    }
+    const realToken = localStorage.getItem('realToken')
+    const realUser  = localStorage.getItem('realUser')
+    localStorage.removeItem('realToken')
+    localStorage.removeItem('realUser')
+    localStorage.removeItem('viewAsCustomerName')
+    if (realToken) {
+      localStorage.setItem('token', realToken)
+      if (realUser) localStorage.setItem('user', realUser)
+      setToken(realToken)
+      setUser(realUser ? JSON.parse(realUser) : null)
+    } else {
+      logout()
+    }
+  }
+
   const logout = () => {
     // Fire-and-forget: tell the server so the logout is audit-logged.
     // Do this before clearing state so the interceptor can still attach the token.
@@ -75,7 +126,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ token, user, login, logout, isTokenValid }}>
+    <AuthContext.Provider value={{ token, user, login, logout, isTokenValid, startViewAs, exitViewAs }}>
       {children}
     </AuthContext.Provider>
   )

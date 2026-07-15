@@ -1,10 +1,28 @@
 const express = require('express');
 const router  = express.Router();
+const jwt     = require('jsonwebtoken');
 const { queryOne, queryAll, query } = require('../db/database');
 const auth    = require('../middleware/auth');
+const requirePremium = require('../middleware/requiresPremium');
 const { generatePdf } = require('../lib/generatePdf');
 const { deriveKey, decryptField, verifyVaultPassword } = require('../lib/vault');
 const { recordVaultAttempt } = require('../lib/vaultAttempts');
+
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
+
+// Bulk PDF export is a much wider data-egress action than the section-by-section
+// browsing view-as mode is meant to grant, so it's blocked entirely during a
+// view-as session (same self-contained decode pattern used for the vault block
+// in sections.js, since requireAuth's view-as handling only runs per-route).
+router.use((req, res, next) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) return next();
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    if (decoded.viewAs) return res.status(403).json({ error: 'Export is not available in view-as mode.' });
+  } catch { /* an invalid token is left for the route's own requireAuth to reject */ }
+  next();
+});
 
 async function buildBaseData(uid) {
   const user = await queryOne(`
@@ -78,7 +96,7 @@ router.get('/', auth, async (req, res) => {
   streamPdf(data, res);
 });
 
-router.post('/', auth, async (req, res) => {
+router.post('/', auth, requirePremium, async (req, res) => {
   const uid = req.user.id;
   const { vault_password } = req.body;
 

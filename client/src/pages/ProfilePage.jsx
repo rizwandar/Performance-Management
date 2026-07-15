@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Button, Form, Row, Col, Alert, Spinner, InputGroup } from 'react-bootstrap'
 import axios from 'axios'
 import { useAuth } from '../context/AuthContext'
+import OrgConsentPanel from '../components/OrgConsentPanel'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -297,6 +298,8 @@ export default function ProfilePage() {
           </Button>
         </div>
       </div>
+
+      <OrgConsentPanel />
 
       {/* ── Change Password ───────────────────────────────────────────────── */}
       <div style={{ background: 'var(--parchment)', borderRadius: 12, padding: '24px', marginBottom: 24, border: '1px solid var(--border)' }}>

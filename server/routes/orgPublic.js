@@ -98,6 +98,20 @@ router.post('/:token/complete-invite', async (req, res) => {
 router.post('/:token/approve', async (req, res) => {
   const { error, row } = await loadToken(req.params.token);
   if (error) return res.status(400).json({ error });
+
+  if (row.token_type === 'edit_consent') {
+    await query(
+      `UPDATE organization_customers SET edit_consent = 1, edit_consent_at = NOW() WHERE id = $1`,
+      [row.organization_customer_id]
+    );
+    await query('DELETE FROM organization_customer_tokens WHERE id = $1', [row.id]);
+    await query(
+      'INSERT INTO user_audit_logs (user_id, action, metadata) VALUES ($1, $2, $3)',
+      [row.user_id, 'edit_consent_granted', JSON.stringify({ organization_id: row.organization_id })]
+    );
+    return res.json({ success: true });
+  }
+
   if (row.token_type !== 'link_request') return res.status(400).json({ error: 'This link is not a connection request.' });
 
   const user = await queryOne('SELECT id FROM users WHERE email = $1', [row.invited_email]);

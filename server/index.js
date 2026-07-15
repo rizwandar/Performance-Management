@@ -101,10 +101,12 @@ app.use((err, req, res, next) => {
 
 const cron = require('node-cron');
 const { checkInactivity, cleanupExpiredTokens } = require('./lib/inactivityTimer');
+const { expireOrgPremiumGrants } = require('./lib/orgPremiumExpiry');
 cron.schedule('0 8 * * *', () => {
   console.log('[inactivity] Running daily check...');
   checkInactivity().catch(err => console.error('[inactivity] Check failed:', err.message));
   cleanupExpiredTokens().catch(err => console.error('[cleanup] Failed:', err.message));
+  expireOrgPremiumGrants().catch(err => console.error('[org-premium] Expiry sweep failed:', err.message));
 });
 
 const { runBackup } = require('./lib/backup');

@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Form, Button, Modal, Spinner, Badge, Alert } from 'react-bootstrap'
 import axios from 'axios'
+import { useAuth } from '../../context/AuthContext'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -140,12 +142,40 @@ function AddCustomerModal({ show, onHide, locations, onAdded, showAlert }) {
 }
 
 function CustomerDetailModal({ customer, onHide, showAlert }) {
+  const { startViewAs } = useAuth()
+  const navigate = useNavigate()
+
   const [status, setStatus]           = useState(customer.lifecycle_status)
   const [saving, setSaving]           = useState(false)
   const [confirmingDeceased, setConfirmingDeceased] = useState(false)
   const [markingDeceased, setMarkingDeceased]       = useState(false)
+  const [requestingConsent, setRequestingConsent]   = useState(false)
+  const [startingViewAs, setStartingViewAs]         = useState(false)
+
+  const viewAs = async () => {
+    setStartingViewAs(true)
+    try {
+      const r = await axios.post(`${API}/org-portal/customers/${customer.id}/view-as`)
+      startViewAs(r.data.token, r.data.customer_name)
+      navigate('/profile')
+    } catch (err) {
+      showAlert('danger', err.response?.data?.error || 'Could not start view-as.')
+      setStartingViewAs(false)
+    }
+  }
 
   const canChangeStatus = !['deceased', 'archived'].includes(customer.lifecycle_status) && customer.lifecycle_status !== 'invited'
+
+  const requestEditConsent = async () => {
+    setRequestingConsent(true)
+    try {
+      await axios.post(`${API}/org-portal/customers/${customer.id}/request-edit-consent`)
+      showAlert('success', 'Edit consent request sent.')
+    } catch (err) {
+      showAlert('danger', err.response?.data?.error || 'Could not send request.')
+    }
+    setRequestingConsent(false)
+  }
 
   const updateStatus = async () => {
     setSaving(true)
@@ -192,6 +222,27 @@ function CustomerDetailModal({ customer, onHide, showAlert }) {
       <Modal.Body>
         <p className="small text-muted">{customer.user_email || customer.invited_email}</p>
         <p className="small">Current status: <strong>{STATUS_LABELS[customer.lifecycle_status]}</strong></p>
+
+        {customer.user_id && (
+          <div className="d-flex gap-2 align-items-center mb-3 flex-wrap">
+            <Badge bg={customer.view_consent ? 'success' : 'secondary'}>
+              {customer.view_consent ? 'View consent granted' : 'No view consent'}
+            </Badge>
+            <Badge bg={customer.edit_consent ? 'success' : 'secondary'}>
+              {customer.edit_consent ? 'Edit consent granted' : 'No edit consent'}
+            </Badge>
+            {customer.view_consent && !customer.edit_consent && (
+              <Button size="sm" variant="outline-secondary" disabled={requestingConsent} onClick={requestEditConsent}>
+                {requestingConsent ? 'Sending…' : 'Request edit consent'}
+              </Button>
+            )}
+            {customer.view_consent && customer.lifecycle_status !== 'deceased' && (
+              <Button size="sm" disabled={startingViewAs} onClick={viewAs} style={{ background: 'var(--green-800)', border: 'none' }}>
+                {startingViewAs ? 'Opening…' : 'View plan'}
+              </Button>
+            )}
+          </div>
+        )}
 
         {customer.lifecycle_status === 'deceased' && (
           <Alert variant="secondary" className="small">

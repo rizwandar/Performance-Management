@@ -19,14 +19,30 @@ async function checkPlanLock(req, res, next) {
   if (!token) return next();
   let decoded;
   try { decoded = jwt.verify(token, JWT_SECRET); } catch { return next(); }
+  const effectiveId = decoded.viewAs ? decoded.viewAs.customerId : decoded.id;
   const locked = await queryOne(
     `SELECT id FROM organization_customers WHERE user_id = $1 AND lifecycle_status = 'deceased'`,
-    [decoded.id]
+    [effectiveId]
   );
   if (locked) return res.status(403).json({ error: 'This plan has been locked and can no longer be edited.' });
   next();
 }
 router.use(checkPlanLock);
+
+// The vault is never visible in view-as mode, without exception (org portal
+// spec, section 11). This is a single central check rather than trusting it to
+// be remembered in every individual vault route handler below. It decodes the
+// token itself, the same way checkPlanLock does above, since requireAuth (which
+// would otherwise expose this via req.isViewAs) is applied per-route, after this.
+router.use('/digital-life/vault', (req, res, next) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) return next();
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    if (decoded.viewAs) return res.status(403).json({ error: 'The vault is not accessible in view-as mode.' });
+  } catch { /* an invalid token is left for the route's own requireAuth to reject */ }
+  next();
+});
 
 // ---------------------------------------------------------------------------
 // Completion counts for all sections

@@ -67,26 +67,34 @@ export default function OrgTokenPage() {
     )
   }
 
-  if (info.token_type === 'link_request') {
+  if (info.token_type === 'link_request' || info.token_type === 'edit_consent') {
+    const isEdit = info.token_type === 'edit_consent'
     return (
       <div className="d-flex justify-content-center pt-4">
         <Card style={{ width: '100%', maxWidth: 480 }}>
-          <Card.Header><h5 className="mb-0">Connect with {info.org_name}</h5></Card.Header>
+          <Card.Header><h5 className="mb-0">{isEdit ? `Edit access request from ${info.org_name}` : `Connect with ${info.org_name}`}</h5></Card.Header>
           <Card.Body>
             {error && <Alert variant="danger">{error}</Alert>}
             {approved ? (
               <>
-                <Alert variant="success">You're connected. {info.org_name} staff can now view your plan to help you complete it.</Alert>
+                <Alert variant="success">
+                  {isEdit
+                    ? `${info.org_name} can now make edits to your plan on your behalf.`
+                    : `You're connected. ${info.org_name} staff can now view your plan to help you complete it.`}
+                </Alert>
                 <Link to="/login" className="btn btn-sm" style={{ background: 'var(--green-800)', color: '#fff', border: 'none' }}>Sign in</Link>
               </>
             ) : (
               <>
                 <p>
-                  <strong>{info.org_name}</strong> would like to connect to your In Good Hands account to assist with your planning.
-                  Approving this lets their staff view your plan. No data moves and nothing changes until you approve.
+                  {isEdit ? (
+                    <><strong>{info.org_name}</strong> is requesting permission to make edits to your plan on your behalf, to help you complete it. You can revoke this at any time from your account settings.</>
+                  ) : (
+                    <><strong>{info.org_name}</strong> would like to connect to your In Good Hands account to assist with your planning. Approving this lets their staff view your plan. No data moves and nothing changes until you approve.</>
+                  )}
                 </p>
                 <Button disabled={submitting} onClick={approveLink} style={{ background: 'var(--green-800)', border: 'none' }}>
-                  {submitting ? 'Approving…' : 'Approve connection'}
+                  {submitting ? 'Approving…' : isEdit ? 'Grant edit access' : 'Approve connection'}
                 </Button>
               </>
             )}

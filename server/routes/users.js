@@ -1,12 +1,29 @@
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
+const jwt    = require('jsonwebtoken');
 const { queryOne, queryAll, query } = require('../db/database');
 const auth = require('../middleware/auth');
 const { deriveKey, verifyVaultPassword } = require('../lib/vault');
-const { deleteFile } = require('../lib/r2');
+const { deleteFile, getDownloadUrl } = require('../lib/r2');
 const { sendEmail } = require('../lib/sendEmail');
 const { accountDeletionConfirmEmail } = require('../lib/emailTemplates');
+
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
+
+// Account-level changes (password, profile fields, account deletion) are out of
+// scope for view-as, which only grants access to the plan's sections. GET /me is
+// still allowed since it's used for read-only profile display.
+router.use((req, res, next) => {
+  if (req.method === 'GET') return next();
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) return next();
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    if (decoded.viewAs) return res.status(403).json({ error: 'Account changes are not available in view-as mode.' });
+  } catch { /* an invalid token is left for the route's own requireAuth to reject */ }
+  next();
+});
 
 router.get('/me', auth, async (req, res) => {
   const user = await queryOne(`
@@ -70,6 +87,62 @@ router.post('/me/change-password', auth, async (req, res) => {
   const hash = bcrypt.hashSync(new_password, 10);
   await query('UPDATE users SET password_hash = $1 WHERE id = $2', [hash, req.user.id]);
   res.json({ success: true });
+});
+
+// A customer can view and revoke their view/edit consent for the organization
+// they're linked to at any time (org portal spec, section 10). One org per
+// customer at a time, so this is at most a single row.
+router.get('/me/org-consent', auth, async (req, res) => {
+  const row = await queryOne(
+    `SELECT oc.view_consent, oc.view_consent_at, oc.edit_consent, oc.edit_consent_at, o.name as organization_name
+     FROM organization_customers oc JOIN organizations o ON o.id = oc.organization_id
+     WHERE oc.user_id = $1`,
+    [req.user.id]
+  );
+  res.json(row || null);
+});
+
+router.put('/me/org-consent/revoke-view', auth, async (req, res) => {
+  const row = await queryOne('SELECT id FROM organization_customers WHERE user_id = $1', [req.user.id]);
+  if (!row) return res.status(404).json({ error: 'No organization association found.' });
+  await query(
+    `UPDATE organization_customers SET view_consent = 0, edit_consent = 0 WHERE id = $1`,
+    [row.id]
+  );
+  await query(
+    'INSERT INTO user_audit_logs (user_id, action, metadata) VALUES ($1, $2, $3)',
+    [req.user.id, 'org_view_consent_revoked', JSON.stringify({ organization_customer_id: row.id })]
+  );
+  res.json({ success: true });
+});
+
+router.put('/me/org-consent/revoke-edit', auth, async (req, res) => {
+  const row = await queryOne('SELECT id FROM organization_customers WHERE user_id = $1', [req.user.id]);
+  if (!row) return res.status(404).json({ error: 'No organization association found.' });
+  await query(`UPDATE organization_customers SET edit_consent = 0 WHERE id = $1`, [row.id]);
+  await query(
+    'INSERT INTO user_audit_logs (user_id, action, metadata) VALUES ($1, $2, $3)',
+    [req.user.id, 'org_edit_consent_revoked', JSON.stringify({ organization_customer_id: row.id })]
+  );
+  res.json({ success: true });
+});
+
+// Logo-in-interface branding (org portal spec, section 12): a customer linked to
+// an organization sees that organization's logo and about text, in addition to
+// the site's own branding, not in place of it.
+router.get('/me/org-branding', auth, async (req, res) => {
+  const org = await queryOne(
+    `SELECT o.name, o.about, o.logo_url
+     FROM organization_customers oc JOIN organizations o ON o.id = oc.organization_id
+     WHERE oc.user_id = $1`,
+    [req.user.id]
+  );
+  if (!org) return res.json(null);
+  res.json({
+    name: org.name,
+    about: org.about,
+    logo_url: org.logo_url ? await getDownloadUrl(org.logo_url) : null,
+  });
 });
 
 router.get('/me/timer', auth, async (req, res) => {

@@ -409,6 +409,32 @@ function orgLinkRequestEmail({ name, orgName, linkRequestLink }) {
 }
 
 // ---------------------------------------------------------------------------
+// Organization portal — request permission to edit a customer's plan on their behalf
+// ---------------------------------------------------------------------------
+function orgEditConsentRequestEmail({ name, orgName, consentLink }) {
+  return layout(`
+    <p>Dear ${name},</p>
+    <p>
+      <strong>${orgName}</strong> is requesting permission to make edits to your plan on your
+      behalf, to help you complete it.
+    </p>
+    <p>
+      Approving this only allows edits, on top of the viewing access you've already granted. You
+      can revoke this at any time from your account settings. This link is valid for
+      <strong>7 days</strong>.
+    </p>
+    ${button('Review this request', consentLink)}
+    <p style="color:#6B7280; font-size:14px;">
+      If you do not wish to grant this, simply ignore this email and nothing will change.
+    </p>
+    <p style="color:#6B7280; font-size:14px;">
+      With care,<br/>
+      The ${APP_NAME} team
+    </p>
+  `);
+}
+
+// ---------------------------------------------------------------------------
 // Organization portal — notify a designated executor after a customer is marked deceased
 // ---------------------------------------------------------------------------
 function executorNotificationEmail({ executorName, ownerName }) {
@@ -446,5 +472,6 @@ module.exports = {
   accountDeletionConfirmEmail,
   orgInviteEmail,
   orgLinkRequestEmail,
+  orgEditConsentRequestEmail,
   executorNotificationEmail,
 };
