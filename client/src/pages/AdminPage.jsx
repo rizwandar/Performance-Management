@@ -3,6 +3,7 @@ import { Form, Button, Alert, Spinner, Badge, Row, Col, Modal } from 'react-boot
 import axios from 'axios'
 import { applyTheme, applyFont } from '../App'
 import { useBranding } from '../context/BrandingContext'
+import OrganizationsPanel from './admin/OrganizationsPanel'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -66,7 +67,7 @@ const SECTION_LABELS = {
 // ---------------------------------------------------------------------------
 // Tab navigation
 // ---------------------------------------------------------------------------
-const TABS = ['Overview', 'Users', 'Activity', 'Appearance', 'Branding', 'Settings', 'App Blueprint']
+const TABS = ['Overview', 'Users', 'Activity', 'Appearance', 'Branding', 'Organizations', 'Settings', 'App Blueprint']
 
 const ACTION_LABELS = {
   login_success:   { label: 'Login',           color: 'var(--green-800)' },
@@ -2038,6 +2039,9 @@ export default function AdminPage() {
 
       {/* ── Branding ───────────────────────────────────────────────────────── */}
       {tab === 'Branding' && <BrandingPanel showAlert={showAlert} />}
+
+      {/* ── Organizations ──────────────────────────────────────────────────── */}
+      {tab === 'Organizations' && <OrganizationsPanel showAlert={showAlert} />}
 
       {/* ── App Blueprint ──────────────────────────────────────────────────── */}
       {tab === 'App Blueprint' && <AppBlueprint />}

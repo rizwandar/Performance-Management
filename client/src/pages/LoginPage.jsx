@@ -23,7 +23,7 @@ export default function LoginPage() {
     try {
       const res = await axios.post(`${API}/auth/login`, form)
       login(res.data.token, res.data.user)
-      navigate(res.data.user.is_admin ? '/admin' : '/profile')
+      navigate(res.data.user.is_admin ? '/admin' : res.data.user.org_role ? '/org' : '/profile')
     } catch (err) {
       if (!err.response) {
         setError("We couldn't reach the server. Please check your connection and try again.")

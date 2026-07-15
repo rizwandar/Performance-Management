@@ -1,10 +1,32 @@
 const express = require('express');
 const router  = express.Router();
+const jwt     = require('jsonwebtoken');
 const { queryOne, queryAll, query, transaction } = require('../db/database');
 const requireAuth    = require('../middleware/auth');
 const requirePremium = require('../middleware/requiresPremium');
 const { deriveKey, encryptField, decryptField, createVaultCheck, verifyVaultPassword } = require('../lib/vault');
 const { recordVaultAttempt } = require('../lib/vaultAttempts');
+
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
+
+// Once an organization marks a customer deceased, their plan is locked from all
+// edits (org portal spec, section 9). This runs before every route on this router;
+// it decodes the token itself (rather than relying on req.user) since requireAuth
+// is applied per-route below, not globally.
+async function checkPlanLock(req, res, next) {
+  if (req.method === 'GET') return next();
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) return next();
+  let decoded;
+  try { decoded = jwt.verify(token, JWT_SECRET); } catch { return next(); }
+  const locked = await queryOne(
+    `SELECT id FROM organization_customers WHERE user_id = $1 AND lifecycle_status = 'deceased'`,
+    [decoded.id]
+  );
+  if (locked) return res.status(403).json({ error: 'This plan has been locked and can no longer be edited.' });
+  next();
+}
+router.use(checkPlanLock);
 
 // ---------------------------------------------------------------------------
 // Completion counts for all sections

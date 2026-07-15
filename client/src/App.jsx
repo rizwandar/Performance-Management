@@ -22,6 +22,12 @@ import PrivacyPage            from './pages/PrivacyPage'
 import DeleteAccountPage      from './pages/DeleteAccountPage'
 import TermsPage              from './pages/TermsPage'
 import AccessibilityPage      from './pages/AccessibilityPage'
+import PricingPage            from './pages/PricingPage'
+import OrgDashboardPage       from './pages/org/OrgDashboardPage'
+import OrgCustomersPage       from './pages/org/OrgCustomersPage'
+import OrgStaffPage           from './pages/org/OrgStaffPage'
+import OrgSettingsPage        from './pages/org/OrgSettingsPage'
+import OrgTokenPage           from './pages/org/OrgTokenPage'
 import SecurityPage           from './pages/SecurityPage'
 import NotFoundPage           from './pages/NotFoundPage'
 import LegalDocumentsPage     from './pages/sections/LegalDocumentsPage'
@@ -300,10 +306,11 @@ function SiteFooter() {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-function ProtectedRoute({ children, adminOnly = false }) {
+function ProtectedRoute({ children, adminOnly = false, allowRoles = null }) {
   const { user, isTokenValid } = useAuth()
   if (!isTokenValid()) return <Navigate to="/login" replace />
   if (adminOnly && !user?.is_admin) return <Navigate to="/profile" replace />
+  if (allowRoles && !allowRoles.includes(user?.org_role)) return <Navigate to="/profile" replace />
   return children
 }
 
@@ -331,7 +338,7 @@ function NavBar() {
           <Nav className="ms-auto align-items-center">
             {isTokenValid() ? (
               <>
-                {!user?.is_admin && (
+                {!user?.is_admin && !user?.org_role && (
                   <>
                     <Nav.Link as={Link} to="/profile">My Plans</Nav.Link>
                     <Nav.Link as={Link} to="/profile/settings">My Profile</Nav.Link>
@@ -367,6 +374,14 @@ function NavBar() {
                       </svg>
                       Export PDF
                     </Nav.Link>
+                  </>
+                )}
+                {!!user?.org_role && !user?.is_admin && (
+                  <>
+                    <Nav.Link as={Link} to="/org">Dashboard</Nav.Link>
+                    <Nav.Link as={Link} to="/org/customers">Customers</Nav.Link>
+                    {user.org_role === 'org_admin' && <Nav.Link as={Link} to="/org/staff">Staff</Nav.Link>}
+                    <Nav.Link as={Link} to="/org/settings">Settings</Nav.Link>
                   </>
                 )}
                 {!!user?.is_admin && <Nav.Link as={Link} to="/admin">Admin</Nav.Link>}
@@ -519,6 +534,7 @@ function AppContent() {
           <Route path="/terms"             element={<TermsPage />} />
           <Route path="/accessibility"     element={<AccessibilityPage />} />
           <Route path="/security"          element={<SecurityPage />} />
+          <Route path="/pricing"           element={<PricingPage />} />
           <Route path="/login"             element={<LoginPage />} />
           <Route path="/register"          element={<RegisterPage />} />
           <Route path="/forgot-password"   element={<ForgotPasswordPage />} />
@@ -558,6 +574,13 @@ function AppContent() {
 
           {/* Admin */}
           <Route path="/admin" element={<ProtectedRoute adminOnly><AdminPage /></ProtectedRoute>} />
+
+          {/* Organization portal */}
+          <Route path="/org"           element={<ProtectedRoute allowRoles={['org_admin', 'org_staff']}><OrgDashboardPage /></ProtectedRoute>} />
+          <Route path="/org/customers" element={<ProtectedRoute allowRoles={['org_admin', 'org_staff']}><OrgCustomersPage /></ProtectedRoute>} />
+          <Route path="/org/staff"     element={<ProtectedRoute allowRoles={['org_admin']}><OrgStaffPage /></ProtectedRoute>} />
+          <Route path="/org/settings"  element={<ProtectedRoute allowRoles={['org_admin', 'org_staff']}><OrgSettingsPage /></ProtectedRoute>} />
+          <Route path="/org/link/:token" element={<OrgTokenPage />} />
 
           <Route path="*" element={<NotFoundPage />} />
         </Routes>

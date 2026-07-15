@@ -105,6 +105,10 @@ router.post('/login', loginRules, validate, async (req, res) => {
     auditLog(user?.id || null, 'login_failed', req, { email });
     return res.status(401).json({ error: 'Invalid email or password' });
   }
+  if (user.org_role && user.is_active === 0) {
+    auditLog(user.id, 'login_failed', req, { email, reason: 'deactivated' });
+    return res.status(403).json({ error: 'This account has been deactivated. Contact your organization administrator.' });
+  }
   await query(`
     UPDATE users
     SET last_active_at = NOW(),
@@ -116,7 +120,11 @@ router.post('/login', loginRules, validate, async (req, res) => {
   auditLog(user.id, 'login_success', req);
 
   const token = jwt.sign(
-    { id: user.id, email: user.email, is_admin: user.is_admin },
+    {
+      id: user.id, email: user.email, is_admin: user.is_admin,
+      org_role: user.org_role || undefined, organization_id: user.organization_id || undefined,
+      organization_location_id: user.organization_location_id || undefined,
+    },
     JWT_SECRET,
     { expiresIn: '8h' }
   );
@@ -130,6 +138,9 @@ router.post('/login', loginRules, validate, async (req, res) => {
       email_verified:      user.email_verified ?? 1,
       songs_enabled:       user.songs_enabled,
       bucket_list_enabled: user.bucket_list_enabled,
+      org_role:            user.org_role || null,
+      organization_id:     user.organization_id || null,
+      organization_location_id: user.organization_location_id || null,
     },
   });
 });

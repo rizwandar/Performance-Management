@@ -48,6 +48,7 @@ const apiLimiter = rateLimit({
 
 app.use('/api/', apiLimiter);
 app.use('/api/auth/', authLimiter);
+app.use('/api/org-links/', authLimiter);
 
 app.use(async (req, res, next) => {
   const exemptPaths = ['/api/health', '/api/auth/login', '/api/auth/logout'];
@@ -71,6 +72,9 @@ app.use(async (req, res, next) => {
 
 app.use('/api/auth',            require('./routes/auth'));
 app.use('/api/users',           require('./routes/users'));
+app.use('/api/admin/organizations', require('./routes/organizations'));
+app.use('/api/org-portal',      require('./routes/orgPortal'));
+app.use('/api/org-links',       require('./routes/orgPublic'));
 app.use('/api/admin',           require('./routes/admin'));
 app.use('/api/settings',        require('./routes/settings'));
 app.use('/api/deezer',          require('./routes/deezer'));

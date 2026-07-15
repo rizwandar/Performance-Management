@@ -354,6 +354,86 @@ function inactivityContactNotificationEmail({ recipientName, ownerName, accessLi
   `);
 }
 
+// ---------------------------------------------------------------------------
+// Organization portal — invite a brand-new customer to sign up
+// ---------------------------------------------------------------------------
+function orgInviteEmail({ name, orgName, inviteLink }) {
+  return layout(`
+    <p>Dear ${name},</p>
+    <p>
+      <strong>${orgName}</strong> has invited you to complete an end-of-life plan on
+      <strong>${APP_NAME}</strong>. This is a secure, private place to record your wishes, legal
+      documents, financial details, and more, so the people who matter to you have clarity when
+      it counts.
+    </p>
+    <p>
+      To get started, create your account using the button below. This link is valid for
+      <strong>7 days</strong>. ${orgName} will never see or set your password.
+    </p>
+    ${button('Complete my signup', inviteLink)}
+    <p style="color:#6B7280; font-size:14px;">
+      If you were not expecting this invitation, you can safely ignore this email.
+    </p>
+    <p style="color:#6B7280; font-size:14px;">
+      With care,<br/>
+      The ${APP_NAME} team
+    </p>
+  `);
+}
+
+// ---------------------------------------------------------------------------
+// Organization portal — link request for a customer who already has an account
+// ---------------------------------------------------------------------------
+function orgLinkRequestEmail({ name, orgName, linkRequestLink }) {
+  return layout(`
+    <p>Dear ${name},</p>
+    <p>
+      <strong>${orgName}</strong> would like to connect to your ${APP_NAME} account to assist
+      with your planning.
+    </p>
+    <p>
+      Approving this request lets ${orgName} staff view your plan to help you complete it. No
+      data moves and nothing changes until you approve. This link is valid for
+      <strong>7 days</strong>.
+    </p>
+    ${button('Review this request', linkRequestLink)}
+    <p style="color:#6B7280; font-size:14px;">
+      If you do not recognize ${orgName} or do not wish to connect, simply ignore this email and
+      nothing will change.
+    </p>
+    <p style="color:#6B7280; font-size:14px;">
+      With care,<br/>
+      The ${APP_NAME} team
+    </p>
+  `);
+}
+
+// ---------------------------------------------------------------------------
+// Organization portal — notify a designated executor after a customer is marked deceased
+// ---------------------------------------------------------------------------
+function executorNotificationEmail({ executorName, ownerName }) {
+  return layout(`
+    <p>Dear ${executorName},</p>
+    <p>
+      We are writing to let you know that ${ownerName} has been recorded as deceased by their
+      organization, and that ${ownerName} named you as their executor on ${APP_NAME}.
+    </p>
+    <p>
+      ${ownerName}'s plan exists and is now locked from further edits. Access to their private
+      vault (passwords and sensitive credentials) is not released automatically. It requires the
+      credentials ${ownerName} arranged with you privately during their lifetime.
+    </p>
+    <p style="color:#6B7280; font-size:14px;">
+      If you are not sure what this means or believe this message reached you in error, please
+      contact us using the form at the bottom of the site.
+    </p>
+    <p style="color:#6B7280; font-size:14px;">
+      With care,<br/>
+      The ${APP_NAME} team
+    </p>
+  `);
+}
+
 module.exports = {
   emailVerificationEmail,
   welcomeEmail,
@@ -364,4 +444,7 @@ module.exports = {
   vaultAttemptEmail,
   vaultDestroyedEmail,
   accountDeletionConfirmEmail,
+  orgInviteEmail,
+  orgLinkRequestEmail,
+  executorNotificationEmail,
 };

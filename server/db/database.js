@@ -392,6 +392,102 @@ async function init() {
     )
   `);
 
+  // Organization portal (funeral home white label)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS organizations (
+      id                        SERIAL PRIMARY KEY,
+      name                      TEXT NOT NULL,
+      business_categories       TEXT,
+      logo_url                  TEXT,
+      about                     TEXT,
+      plan_tier                 TEXT NOT NULL DEFAULT 'starter',
+      location_visibility_policy TEXT NOT NULL DEFAULT 'all_locations',
+      created_at                TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS organization_locations (
+      id              SERIAL PRIMARY KEY,
+      organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+      name            TEXT NOT NULL,
+      address         TEXT,
+      phone           TEXT,
+      created_at      TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS organization_contacts (
+      id                 SERIAL PRIMARY KEY,
+      organization_id    INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+      name               TEXT NOT NULL,
+      designation        TEXT,
+      email              TEXT,
+      phone              TEXT,
+      is_billing_contact INTEGER DEFAULT 0,
+      created_at         TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  // Migration: org staff accounts (Org Admin / Org Staff). Regular customers and
+  // the IGHP Administrator leave these columns null; is_admin is unrelated and untouched.
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS org_role TEXT`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS organization_id INTEGER REFERENCES organizations(id)`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS organization_location_id INTEGER REFERENCES organization_locations(id)`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active INTEGER DEFAULT 1`);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS organization_customers (
+      id                 SERIAL PRIMARY KEY,
+      organization_id    INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+      user_id            INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      invited_name       TEXT,
+      invited_email      TEXT NOT NULL,
+      location_id        INTEGER REFERENCES organization_locations(id),
+      lifecycle_status   TEXT NOT NULL DEFAULT 'invited',
+      view_consent       INTEGER DEFAULT 0,
+      view_consent_at    TIMESTAMPTZ,
+      edit_consent       INTEGER DEFAULT 0,
+      edit_consent_at    TIMESTAMPTZ,
+      premium_granted_at TIMESTAMPTZ,
+      premium_expires_at TIMESTAMPTZ,
+      deceased_at        TIMESTAMPTZ,
+      archived_at        TIMESTAMPTZ,
+      created_at         TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  // One organization per customer at a time: enforced once linked (user_id set).
+  // Multiple still-invited rows (user_id IS NULL) are unaffected by this index.
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS organization_customers_one_org_per_user
+    ON organization_customers (user_id) WHERE user_id IS NOT NULL
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS organization_customer_tokens (
+      id                       SERIAL PRIMARY KEY,
+      organization_customer_id INTEGER NOT NULL REFERENCES organization_customers(id) ON DELETE CASCADE,
+      token_type               TEXT NOT NULL,
+      token                    TEXT NOT NULL UNIQUE,
+      expires_at               TIMESTAMPTZ NOT NULL,
+      created_at               TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  // Migration: executor designation on an existing trusted contact (section 9 of the
+  // org portal spec). A customer may have at most one executor among their 3 contacts.
+  await pool.query(`ALTER TABLE trusted_contacts ADD COLUMN IF NOT EXISTS is_executor INTEGER DEFAULT 0`);
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS trusted_contacts_one_executor
+    ON trusted_contacts (user_id) WHERE is_executor = 1
+  `);
+
+  // Migration: track org-sponsored premium grants (1 year free on customer association),
+  // parallel to the existing admin honorary-premium grant (granted_by_admin_id above).
+  await pool.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS organization_id INTEGER REFERENCES organizations(id)`);
+
   // Seed default settings
   for (const [key, value] of [
     ['password_reset_method', 'email'],
