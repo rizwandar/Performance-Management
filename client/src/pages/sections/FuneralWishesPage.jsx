@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { Button, Form, Row, Col, Alert, Spinner } from 'react-bootstrap'
 import axios from 'axios'
 
@@ -7,7 +7,7 @@ const API = import.meta.env.VITE_API_URL
 
 const empty = {
   burial_preference: '', ceremony_type: '', ceremony_location: '', funeral_home: '',
-  pre_paid_plan: false, pre_paid_details: '', music_preferences: '', readings: '',
+  pre_paid_plan: false, pre_paid_details: '', readings: '',
   flowers_preference: '', donation_charity: '', special_requests: '', notes: '',
 }
 
@@ -79,7 +79,6 @@ export default function FuneralWishesPage() {
             funeral_home:       r.data.funeral_home        || '',
             pre_paid_plan:      !!r.data.pre_paid_plan,
             pre_paid_details:   r.data.pre_paid_details   || '',
-            music_preferences:  r.data.music_preferences  || '',
             readings:           r.data.readings            || '',
             flowers_preference: r.data.flowers_preference || '',
             donation_charity:   r.data.donation_charity   || '',
@@ -269,10 +268,11 @@ export default function FuneralWishesPage() {
 
         {/* Personal Wishes */}
         <SectionCard title="Personal Wishes">
-          <FieldRow label="Music preferences">
-            <Form.Control as="textarea" rows={2} value={form.music_preferences} onChange={set('music_preferences')}
-              placeholder="Songs or music you'd like played at your service..." />
-          </FieldRow>
+          <p className="text-muted small mb-4" style={{ marginTop: -8 }}>
+            Looking to note music for your service? Add it to your{' '}
+            <Link to="/sections/songs-that-define-me">Songs That Define Me</Link> list, where it'll be kept
+            alongside the rest of the music that matters to you.
+          </p>
 
           <FieldRow label="Readings or poems">
             <Form.Control as="textarea" rows={2} value={form.readings} onChange={set('readings')}

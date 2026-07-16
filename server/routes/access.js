@@ -45,7 +45,7 @@ router.get('/:token', async (req, res) => {
         break;
       case 'funeral_wishes':
         data.funeral_wishes = await queryOne(
-          'SELECT burial_preference, ceremony_type, ceremony_location, funeral_home, pre_paid_plan, pre_paid_details, music_preferences, readings, flowers_preference, donation_charity, special_requests, notes FROM funeral_wishes WHERE user_id = $1',
+          'SELECT burial_preference, ceremony_type, ceremony_location, funeral_home, pre_paid_plan, pre_paid_details, readings, flowers_preference, donation_charity, special_requests, notes FROM funeral_wishes WHERE user_id = $1',
           [tokenRow.user_id]
         );
         break;

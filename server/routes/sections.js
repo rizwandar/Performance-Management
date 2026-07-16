@@ -229,26 +229,26 @@ router.get('/funeral-wishes', requireAuth, async (req, res) => {
 
 router.put('/funeral-wishes', requireAuth, async (req, res) => {
   const { burial_preference, ceremony_type, ceremony_location, funeral_home, pre_paid_plan,
-          pre_paid_details, music_preferences, readings, flowers_preference,
+          pre_paid_details, readings, flowers_preference,
           donation_charity, special_requests, notes } = req.body;
   const existing = await queryOne('SELECT id FROM funeral_wishes WHERE user_id = $1', [req.user.id]);
   if (existing) {
     await query(`
       UPDATE funeral_wishes SET burial_preference=$1, ceremony_type=$2, ceremony_location=$3,
-      funeral_home=$4, pre_paid_plan=$5, pre_paid_details=$6, music_preferences=$7, readings=$8,
-      flowers_preference=$9, donation_charity=$10, special_requests=$11, notes=$12, updated_at=NOW()
-      WHERE user_id=$13
+      funeral_home=$4, pre_paid_plan=$5, pre_paid_details=$6, readings=$7,
+      flowers_preference=$8, donation_charity=$9, special_requests=$10, notes=$11, updated_at=NOW()
+      WHERE user_id=$12
     `, [burial_preference, ceremony_type, ceremony_location, funeral_home, pre_paid_plan ? 1 : 0,
-        pre_paid_details, music_preferences, readings, flowers_preference,
+        pre_paid_details, readings, flowers_preference,
         donation_charity, special_requests, notes, req.user.id]);
   } else {
     await query(`
       INSERT INTO funeral_wishes (user_id, burial_preference, ceremony_type, ceremony_location,
-      funeral_home, pre_paid_plan, pre_paid_details, music_preferences, readings,
+      funeral_home, pre_paid_plan, pre_paid_details, readings,
       flowers_preference, donation_charity, special_requests, notes)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
     `, [req.user.id, burial_preference, ceremony_type, ceremony_location, funeral_home,
-        pre_paid_plan ? 1 : 0, pre_paid_details, music_preferences, readings,
+        pre_paid_plan ? 1 : 0, pre_paid_details, readings,
         flowers_preference, donation_charity, special_requests, notes]);
   }
   res.json({ success: true });

@@ -17,7 +17,6 @@ const FIELDS = [
   { key: 'ceremony_type',      label: 'Ceremony type',             placeholder: 'e.g. religious, secular, celebration of life' },
   { key: 'ceremony_location',  label: 'Ceremony location',         placeholder: 'Where you\'d like it held' },
   { key: 'funeral_home',       label: 'Preferred funeral home',    placeholder: 'Name of the funeral home (optional)' },
-  { key: 'music_preferences',  label: 'Music preferences',         placeholder: 'Songs or style of music', multiline: true },
   { key: 'readings',           label: 'Readings or prayers',       placeholder: 'Any specific readings', multiline: true },
   { key: 'flowers_preference', label: 'Flowers',                   placeholder: 'Favourite flowers or no flowers' },
   { key: 'donation_charity',   label: 'Donation charity',          placeholder: 'In lieu of flowers, donate to...' },
@@ -25,7 +24,7 @@ const FIELDS = [
   { key: 'notes',              label: 'Additional notes',          placeholder: 'Any other wishes', multiline: true },
 ]
 
-const EMPTY = { burial_preference: '', ceremony_type: '', ceremony_location: '', funeral_home: '', music_preferences: '', readings: '', flowers_preference: '', donation_charity: '', special_requests: '', notes: '' }
+const EMPTY = { burial_preference: '', ceremony_type: '', ceremony_location: '', funeral_home: '', readings: '', flowers_preference: '', donation_charity: '', special_requests: '', notes: '' }
 
 export default function FuneralWishesScreen() {
   const router = useRouter()
@@ -45,7 +44,7 @@ export default function FuneralWishesScreen() {
 
   function openEdit() {
     setSaved(false)
-    setForm({ burial_preference: data.burial_preference || '', ceremony_type: data.ceremony_type || '', ceremony_location: data.ceremony_location || '', funeral_home: data.funeral_home || '', music_preferences: data.music_preferences || '', readings: data.readings || '', flowers_preference: data.flowers_preference || '', donation_charity: data.donation_charity || '', special_requests: data.special_requests || '', notes: data.notes || '' })
+    setForm({ burial_preference: data.burial_preference || '', ceremony_type: data.ceremony_type || '', ceremony_location: data.ceremony_location || '', funeral_home: data.funeral_home || '', readings: data.readings || '', flowers_preference: data.flowers_preference || '', donation_charity: data.donation_charity || '', special_requests: data.special_requests || '', notes: data.notes || '' })
     setModal(true)
   }
 
@@ -76,7 +75,6 @@ export default function FuneralWishesScreen() {
             {data.ceremony_type     ? <Row label="Ceremony type"     value={data.ceremony_type} /> : null}
             {data.ceremony_location ? <Row label="Location"          value={data.ceremony_location} /> : null}
             {data.funeral_home      ? <Row label="Funeral home"      value={data.funeral_home} /> : null}
-            {data.music_preferences ? <Row label="Music"             value={data.music_preferences} /> : null}
             {data.readings          ? <Row label="Readings"          value={data.readings} /> : null}
             {data.flowers_preference? <Row label="Flowers"           value={data.flowers_preference} /> : null}
             {data.donation_charity  ? <Row label="Donation"          value={data.donation_charity} /> : null}

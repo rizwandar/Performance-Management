@@ -954,7 +954,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
             },
             {
               table: 'funeral_wishes',
-              fields: 'id, user_id, burial_preference, ceremony_type, ceremony_location, funeral_home, pre_paid_plan (0/1), pre_paid_details, music_preferences, readings, flowers_preference, donation_charity, special_requests, notes. Single record per user (upsert).',
+              fields: 'id, user_id, burial_preference, ceremony_type, ceremony_location, funeral_home, pre_paid_plan (0/1), pre_paid_details, readings, flowers_preference, donation_charity, special_requests, notes. Single record per user (upsert). music_preferences column still exists but is no longer read or written by the UI, superseded by Songs That Define Me.',
             },
             {
               table: 'medical_wishes',

@@ -398,7 +398,6 @@ function generatePdf(data, outputStream) {
       ['Funeral home',       funeralWishes.funeral_home],
       ['Pre-paid plan',      funeralWishes.pre_paid_plan ? 'Yes' : null],
       ['Pre-paid details',   funeralWishes.pre_paid_details],
-      ['Music preferences',  funeralWishes.music_preferences],
       ['Readings',           funeralWishes.readings],
       ['Flowers preference', funeralWishes.flowers_preference],
       ['Donation charity',   funeralWishes.donation_charity],

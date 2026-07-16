@@ -80,7 +80,6 @@ function FuneralWishes({ data }) {
       <FieldRow label="Funeral home"       value={data.funeral_home} />
       <FieldRow label="Pre-paid plan"      value={data.pre_paid_plan ? 'Yes' : 'No'} />
       <FieldRow label="Pre-paid details"   value={data.pre_paid_details} />
-      <FieldRow label="Music preferences"  value={data.music_preferences} />
       <FieldRow label="Readings"           value={data.readings} />
       <FieldRow label="Flowers / donations" value={data.flowers_preference} />
       <FieldRow label="Donation charity"   value={data.donation_charity} />
