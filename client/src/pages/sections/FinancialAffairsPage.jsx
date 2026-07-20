@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Form, Row, Col, Alert, Modal, Spinner } from 'react-bootstrap'
 import axios from 'axios'
+import { VaultSetupScreen, VaultLockScreen } from '../../components/VaultGate'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -24,8 +25,13 @@ const empty = {
 
 export default function FinancialAffairsPage() {
   const navigate = useNavigate()
+
+  // Vault state: 'loading' | 'no-vault' | 'locked' | 'unlocked'
+  const [vaultState, setVaultState]       = useState('loading')
+  const [vaultPassword, setVaultPassword] = useState('')
+
   const [items, setItems]         = useState([])
-  const [loading, setLoading]     = useState(true)
+  const [loading, setLoading]     = useState(false)
   const [saving, setSaving]       = useState(false)
   const [error, setError]         = useState('')
   const [success, setSuccess]     = useState('')
@@ -33,15 +39,31 @@ export default function FinancialAffairsPage() {
   const [editing, setEditing]     = useState(null)
   const [form, setForm]           = useState(empty)
 
-  const load = () => {
+  useEffect(() => {
+    axios.get(`${API}/sections/digital-life/vault`)
+      .then(r => setVaultState(r.data.exists ? 'locked' : 'no-vault'))
+      .catch(() => setVaultState('locked'))
+  }, [])
+
+  const loadItems = useCallback((pw) => {
     setLoading(true)
-    axios.get(`${API}/sections/financial-affairs`)
+    axios.post(`${API}/sections/financial-affairs/list`, { vault_password: pw })
       .then(r => setItems(r.data))
-      .catch(() => setError("We couldn't load your financial records. Please try again."))
+      .catch(() => setError("We couldn't load your financial records. Please try locking and unlocking again."))
       .finally(() => setLoading(false))
+  }, [])
+
+  const handleUnlock = (pw) => {
+    setVaultPassword(pw)
+    setVaultState('unlocked')
+    loadItems(pw)
   }
 
-  useEffect(() => { load() }, [])
+  const handleVaultReset = () => {
+    setVaultState('no-vault')
+    setVaultPassword('')
+    setItems([])
+  }
 
   const openAdd = () => { setEditing(null); setForm(empty); setError(''); setShowModal(true) }
   const openEdit = (item) => {
@@ -64,14 +86,15 @@ export default function FinancialAffairsPage() {
     setError('')
     setSaving(true)
     try {
+      const payload = { ...form, vault_password: vaultPassword }
       if (editing) {
-        await axios.put(`${API}/sections/financial-affairs/${editing.id}`, form)
+        await axios.put(`${API}/sections/financial-affairs/${editing.id}`, payload)
       } else {
-        await axios.post(`${API}/sections/financial-affairs`, form)
+        await axios.post(`${API}/sections/financial-affairs`, payload)
       }
       setShowModal(false)
       setSuccess(editing ? 'Record updated.' : 'Record added.')
-      load()
+      loadItems(vaultPassword)
       setTimeout(() => setSuccess(''), 3000)
     } catch (err) {
       setError(err.response?.data?.error || "We couldn't save this. Please try again.")
@@ -83,25 +106,73 @@ export default function FinancialAffairsPage() {
     if (!window.confirm('Remove this financial record?')) return
     try {
       await axios.delete(`${API}/sections/financial-affairs/${id}`)
-      load()
+      setItems(prev => prev.filter(i => i.id !== id))
     } catch {
       setError("We couldn't remove this item. Please try again.")
     }
   }
 
+  const backLink = (
+    <div className="mb-4">
+      <button className="btn btn-link p-0 mb-2"
+        style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '0.9rem' }}
+        onClick={() => navigate('/profile')}>
+        ← Back to my plans
+      </button>
+      <h3 style={{ color: 'var(--green-900)' }}>💼 Financial Affairs</h3>
+      <p className="text-muted">
+        Record your bank accounts, investments, insurance, debts, and other financial interests.
+        This section is vault-protected. Only you can access it with your vault password.
+      </p>
+    </div>
+  )
+
+  if (vaultState === 'loading') {
+    return (
+      <div style={{ maxWidth: 800, margin: '0 auto' }}>
+        {backLink}
+        <div className="text-center py-5">
+          <Spinner animation="border" style={{ color: 'var(--green-800)' }} />
+        </div>
+      </div>
+    )
+  }
+
+  if (vaultState === 'no-vault') {
+    return (
+      <div style={{ maxWidth: 800, margin: '0 auto' }}>
+        {backLink}
+        <VaultSetupScreen onSetup={() => setVaultState('locked')} />
+      </div>
+    )
+  }
+
+  if (vaultState === 'locked') {
+    return (
+      <div style={{ maxWidth: 800, margin: '0 auto' }}>
+        {backLink}
+        <VaultLockScreen onUnlock={handleUnlock} onReset={handleVaultReset} />
+      </div>
+    )
+  }
+
   return (
     <div style={{ maxWidth: 800, margin: '0 auto' }}>
-      <div className="mb-4">
-        <button className="btn btn-link p-0 mb-2"
-          style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '0.9rem' }}
-          onClick={() => navigate('/profile')}>
-          ← Back to my plans
+      {backLink}
+
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        background: 'var(--green-50)', border: '1px solid var(--green-100)',
+        borderRadius: 8, padding: '10px 16px', marginBottom: 24,
+      }}>
+        <span style={{ color: 'var(--green-800)', fontSize: '0.9rem' }}>
+          🔓 Vault unlocked. Records are visible in this session only.
+        </span>
+        <button className="btn btn-link p-0"
+          style={{ color: 'var(--green-800)', fontSize: '0.85rem', textDecoration: 'none' }}
+          onClick={() => { setVaultPassword(''); setItems([]); setVaultState('locked') }}>
+          Lock vault
         </button>
-        <h3 style={{ color: 'var(--green-900)' }}>💼 Financial Affairs</h3>
-        <p className="text-muted">
-          Record your bank accounts, investments, insurance, debts, and other financial interests.
-          Your loved ones won't need to piece this together under pressure.
-        </p>
       </div>
 
       {success && <Alert variant="success">{success}</Alert>}

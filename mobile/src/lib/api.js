@@ -124,28 +124,28 @@ export const notifyApi = {
   remove: (id)       => client.delete(`/sections/people-to-notify/${id}`).then(r => r.data),
 }
 
-// Property & Possessions
+// Property & Possessions (vault-protected)
 export const propertyApi = {
-  getAll: ()         => client.get('/sections/property-possessions').then(r => r.data),
-  add:    (data)     => client.post('/sections/property-possessions', data).then(r => r.data),
-  update: (id, data) => client.put(`/sections/property-possessions/${id}`, data).then(r => r.data),
-  remove: (id)       => client.delete(`/sections/property-possessions/${id}`).then(r => r.data),
+  list:   (vault_password) => client.post('/sections/property-possessions/list', { vault_password }).then(r => r.data),
+  add:    (data)           => client.post('/sections/property-possessions', data).then(r => r.data),
+  update: (id, data)       => client.put(`/sections/property-possessions/${id}`, data).then(r => r.data),
+  remove: (id)             => client.delete(`/sections/property-possessions/${id}`).then(r => r.data),
 }
 
-// Financial Affairs
+// Financial Affairs (vault-protected)
 export const financialApi = {
-  getAll: ()         => client.get('/sections/financial-affairs').then(r => r.data),
-  add:    (data)     => client.post('/sections/financial-affairs', data).then(r => r.data),
-  update: (id, data) => client.put(`/sections/financial-affairs/${id}`, data).then(r => r.data),
-  remove: (id)       => client.delete(`/sections/financial-affairs/${id}`).then(r => r.data),
+  list:   (vault_password) => client.post('/sections/financial-affairs/list', { vault_password }).then(r => r.data),
+  add:    (data)           => client.post('/sections/financial-affairs', data).then(r => r.data),
+  update: (id, data)       => client.put(`/sections/financial-affairs/${id}`, data).then(r => r.data),
+  remove: (id)             => client.delete(`/sections/financial-affairs/${id}`).then(r => r.data),
 }
 
-// Household Info
+// Household Info (vault-protected)
 export const householdApi = {
-  getAll: ()         => client.get('/sections/household-info').then(r => r.data),
-  add:    (data)     => client.post('/sections/household-info', data).then(r => r.data),
-  update: (id, data) => client.put(`/sections/household-info/${id}`, data).then(r => r.data),
-  remove: (id)       => client.delete(`/sections/household-info/${id}`).then(r => r.data),
+  list:   (vault_password) => client.post('/sections/household-info/list', { vault_password }).then(r => r.data),
+  add:    (data)           => client.post('/sections/household-info', data).then(r => r.data),
+  update: (id, data)       => client.put(`/sections/household-info/${id}`, data).then(r => r.data),
+  remove: (id)             => client.delete(`/sections/household-info/${id}`).then(r => r.data),
 }
 
 // Children & Dependants

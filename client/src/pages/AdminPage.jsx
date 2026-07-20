@@ -457,11 +457,11 @@ YOUR PEOPLE:
 - Children and Dependants: children_dependants table. Name, type (child/pet/other), DOB, special needs, preferred guardian, alternate guardian, notes.
 
 YOUR AFFAIRS:
-- Personal and Legal Documents: vault-protected (same vault as Digital Life). legal_documents table: document_type, title, held_by, location, notes. Up to 2 file attachments per item via R2.
-- Property and Possessions: property_items table. Title, category, description, location, intended_recipient, notes.
-- Financial Affairs: financial_items table. Category, institution, account_type, account_reference, contact_name, contact_phone, notes.
-- Digital Life: vault-protected. digital_credentials table with AES-256-GCM encrypted fields (service, service_url, username, password, notes). Shares one vault password with Legal Documents.
-- Practical Household Information: household_info table. Title, category, provider, account_reference, contact, notes.
+- Personal and Legal Documents: vault-protected (shared vault). legal_documents table: document_type, title, held_by, location, notes. Up to 2 file attachments per item via R2.
+- Property and Possessions: vault-protected (shared vault). property_items table. Title, category, description, location, intended_recipient, notes.
+- Financial Affairs: vault-protected (shared vault). financial_items table. Category, institution, account_type, account_reference, contact_name, contact_phone, notes.
+- Digital Life: vault-protected (shared vault). digital_credentials table with AES-256-GCM encrypted fields (service, service_url, username, password, notes).
+- Practical Household Information: vault-protected (shared vault). household_info table. Title, category, provider, account_reference, contact, notes.
 
 ---
 
@@ -470,7 +470,7 @@ VAULT ENCRYPTION:
 - Key derivation: scrypt (N=16384, r=8, p=1) from vault_password + userId. Salt = "igh-vault-v1-" + userId.
 - Password NEVER stored: verified by decrypting a known constant ("in-good-hands-vault-verified") stored as check_enc in the digital_vault table.
 - Each encrypted field stored as JSON: {ciphertext, iv, tag} all hex-encoded. Fresh random IV per field.
-- Legal Documents and Digital Life share ONE vault and ONE password.
+- Legal Documents, Digital Life, Financial Affairs, Property & Possessions, and Practical Household Information share ONE vault and ONE password.
 - Vault reset: requires account password. Permanently deletes all vault data. Irreversible.
 - After 3 failed vault unlock attempts: force logout. After 5 failed attempts: permanent vault deletion. Each outcome sends a notification email.
 
@@ -1049,10 +1049,10 @@ Please confirm the stack choices above (or tell me which to change), and then we
             ]},
             { group: 'Your Affairs', color: '#8A7A6A', sections: [
               { id: 'legal_documents', label: 'Personal & Legal Documents', route: '/sections/legal-documents', note: 'Vault-protected. Uses shared vault (digital_vault). Fields not encrypted. Up to 2 file attachments per item via uploaded_documents.' },
-              { id: 'property_items', label: 'Property & Possessions', route: '/sections/property-possessions', note: 'property_items table.' },
-              { id: 'financial_items', label: 'Financial Affairs', route: '/sections/financial-affairs', note: 'financial_items table.' },
-              { id: 'digital_credentials', label: 'Digital Life', route: '/sections/digital-life', note: 'Vault-protected. digital_credentials table. Fields AES-256-GCM encrypted. Shares vault with Legal Documents.' },
-              { id: 'household-info', label: 'Practical Household Information', route: '/sections/household-info', note: 'household_info table.' },
+              { id: 'property_items', label: 'Property & Possessions', route: '/sections/property-possessions', note: 'Vault-protected. Uses shared vault (digital_vault). Fields not encrypted. property_items table.' },
+              { id: 'financial_items', label: 'Financial Affairs', route: '/sections/financial-affairs', note: 'Vault-protected. Uses shared vault (digital_vault). Fields not encrypted. financial_items table.' },
+              { id: 'digital_credentials', label: 'Digital Life', route: '/sections/digital-life', note: 'Vault-protected. digital_credentials table. Fields AES-256-GCM encrypted. Shares vault with the other Your Affairs sections.' },
+              { id: 'household-info', label: 'Practical Household Information', route: '/sections/household-info', note: 'Vault-protected. Uses shared vault (digital_vault). Fields not encrypted. household_info table.' },
             ]},
           ].map(group => (
             <div key={group.group} style={{ marginBottom: 18 }}>
@@ -1191,15 +1191,18 @@ USERS         GET/PUT /api/users/me (profile)
 SECTIONS      GET /api/sections/completion (counts per section)
               GET/POST/PUT/DELETE /api/sections/legal-documents
               POST /api/sections/legal-documents/list (vault auth)
-              GET/POST/PUT/DELETE /api/sections/financial-items
+              GET/POST/PUT/DELETE /api/sections/financial-affairs
+              POST /api/sections/financial-affairs/list (vault auth)
               GET/PUT /api/sections/funeral-wishes
               GET/PUT /api/sections/medical-wishes
               GET/POST/PUT/DELETE /api/sections/people-to-notify
-              GET/POST/PUT/DELETE /api/sections/property-items
+              GET/POST/PUT/DELETE /api/sections/property-possessions
+              POST /api/sections/property-possessions/list (vault auth)
               GET/POST/PUT/DELETE /api/sections/personal-messages
               GET/POST/PUT/DELETE /api/sections/songs-that-define-me
               GET/POST/PUT/DELETE /api/sections/life-wishes
               GET/POST/PUT/DELETE /api/sections/household-info
+              POST /api/sections/household-info/list (vault auth)
               GET/POST/PUT/DELETE /api/sections/children-dependants
               GET/POST/DELETE     /api/sections/key-contacts (trusted contacts)
 

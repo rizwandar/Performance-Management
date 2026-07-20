@@ -185,12 +185,19 @@ router.delete('/legal-documents/:id', requireAuth, requirePremium, async (req, r
 // ---------------------------------------------------------------------------
 // Section 2 — Financial Affairs
 // ---------------------------------------------------------------------------
+router.post('/financial-affairs/list', requireAuth, async (req, res) => {
+  if (!await checkVault(req.body.vault_password, req.user.id, res, req)) return;
+  const items = await queryAll('SELECT * FROM financial_items WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]);
+  res.json(items);
+});
+
 router.get('/financial-affairs', requireAuth, async (req, res) => {
   res.json(await queryAll('SELECT * FROM financial_items WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]));
 });
 
 router.post('/financial-affairs', requireAuth, requirePremium, async (req, res) => {
-  const { category, institution, account_type, account_reference, contact_name, contact_phone, notes } = req.body;
+  const { vault_password, category, institution, account_type, account_reference, contact_name, contact_phone, notes } = req.body;
+  if (!await checkVault(vault_password, req.user.id, res, req)) return;
   if (!institution && !category) return res.status(400).json({ error: 'Please provide at least an institution or category.' });
   const result = await query(`
     INSERT INTO financial_items (user_id, category, institution, account_type, account_reference, contact_name, contact_phone, notes)
@@ -203,7 +210,8 @@ router.post('/financial-affairs', requireAuth, requirePremium, async (req, res) 
 router.put('/financial-affairs/:id', requireAuth, requirePremium, async (req, res) => {
   const item = await queryOne('SELECT * FROM financial_items WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
-  const { category, institution, account_type, account_reference, contact_name, contact_phone, notes } = req.body;
+  const { vault_password, category, institution, account_type, account_reference, contact_name, contact_phone, notes } = req.body;
+  if (!await checkVault(vault_password, req.user.id, res, req)) return;
   await query(`
     UPDATE financial_items SET category=$1, institution=$2, account_type=$3, account_reference=$4,
     contact_name=$5, contact_phone=$6, notes=$7 WHERE id=$8
@@ -325,12 +333,19 @@ router.delete('/people-to-notify/:id', requireAuth, async (req, res) => {
 // ---------------------------------------------------------------------------
 // Section 7 — Property & Possessions
 // ---------------------------------------------------------------------------
+router.post('/property-possessions/list', requireAuth, async (req, res) => {
+  if (!await checkVault(req.body.vault_password, req.user.id, res, req)) return;
+  const items = await queryAll('SELECT * FROM property_items WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]);
+  res.json(items);
+});
+
 router.get('/property-possessions', requireAuth, async (req, res) => {
   res.json(await queryAll('SELECT * FROM property_items WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]));
 });
 
 router.post('/property-possessions', requireAuth, requirePremium, async (req, res) => {
-  const { category, title, description, location, intended_recipient, notes } = req.body;
+  const { vault_password, category, title, description, location, intended_recipient, notes } = req.body;
+  if (!await checkVault(vault_password, req.user.id, res, req)) return;
   if (!title) return res.status(400).json({ error: 'A title is required.' });
   const result = await query(`
     INSERT INTO property_items (user_id, category, title, description, location, intended_recipient, notes)
@@ -342,7 +357,8 @@ router.post('/property-possessions', requireAuth, requirePremium, async (req, re
 router.put('/property-possessions/:id', requireAuth, requirePremium, async (req, res) => {
   const item = await queryOne('SELECT * FROM property_items WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
-  const { category, title, description, location, intended_recipient, notes } = req.body;
+  const { vault_password, category, title, description, location, intended_recipient, notes } = req.body;
+  if (!await checkVault(vault_password, req.user.id, res, req)) return;
   await query(`
     UPDATE property_items SET category=$1, title=$2, description=$3, location=$4, intended_recipient=$5, notes=$6 WHERE id=$7
   `, [category ?? item.category, title ?? item.title, description ?? item.description,
@@ -464,12 +480,19 @@ router.delete('/lifes-wishes/:id', requireAuth, async (req, res) => {
 // ---------------------------------------------------------------------------
 // Section 13 — Practical Household Information
 // ---------------------------------------------------------------------------
+router.post('/household-info/list', requireAuth, async (req, res) => {
+  if (!await checkVault(req.body.vault_password, req.user.id, res, req)) return;
+  const items = await queryAll('SELECT * FROM household_info WHERE user_id = $1 ORDER BY category, title', [req.user.id]);
+  res.json(items);
+});
+
 router.get('/household-info', requireAuth, async (req, res) => {
   res.json(await queryAll('SELECT * FROM household_info WHERE user_id = $1 ORDER BY category, title', [req.user.id]));
 });
 
 router.post('/household-info', requireAuth, requirePremium, async (req, res) => {
-  const { category, title, provider, account_reference, contact, notes } = req.body;
+  const { vault_password, category, title, provider, account_reference, contact, notes } = req.body;
+  if (!await checkVault(vault_password, req.user.id, res, req)) return;
   if (!title) return res.status(400).json({ error: 'A title is required.' });
   const result = await query(`
     INSERT INTO household_info (user_id, category, title, provider, account_reference, contact, notes)
@@ -481,7 +504,8 @@ router.post('/household-info', requireAuth, requirePremium, async (req, res) => 
 router.put('/household-info/:id', requireAuth, requirePremium, async (req, res) => {
   const item = await queryOne('SELECT * FROM household_info WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
-  const { category, title, provider, account_reference, contact, notes } = req.body;
+  const { vault_password, category, title, provider, account_reference, contact, notes } = req.body;
+  if (!await checkVault(vault_password, req.user.id, res, req)) return;
   await query(`
     UPDATE household_info SET category=$1, title=$2, provider=$3, account_reference=$4, contact=$5, notes=$6 WHERE id=$7
   `, [category ?? item.category, title ?? item.title, provider ?? item.provider,

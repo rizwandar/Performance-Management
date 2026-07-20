@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { Button, Form, Spinner, Card } from 'react-bootstrap'
 import axios from 'axios'
 import { useAuth } from '../context/AuthContext'
+import { useSubscription } from '../context/SubscriptionContext'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -19,6 +20,7 @@ function downloadBlob(blob, filename) {
 
 export default function ExportPage() {
   const { user, logout } = useAuth()
+  const { isPremium } = useSubscription()
   const navigate = useNavigate()
 
   const [exporting,     setExporting]     = useState(false)
@@ -77,7 +79,9 @@ export default function ExportPage() {
         navigate('/login', { state: { vaultLockout: true } })
       } else if (status === 401) {
         setVaultError(message)
-      } else if (status === 403 && !parsedJson?.force_logout) {
+      } else if (parsedJson?.error === 'upgrade_required') {
+        setVaultError('This requires a vault password, available only to Premium members. Please upgrade to continue.')
+      } else if (status === 403) {
         setVaultError(
           "You haven't set up a vault yet. Visit the Digital Life or Legal Documents section to create your vault first."
         )
@@ -197,54 +201,77 @@ export default function ExportPage() {
           </p>
         </div>
 
-        {/* Vault password input */}
-        <Form.Group style={{ marginBottom: 16 }}>
-          <Form.Label style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--green-900)', marginBottom: 6 }}>
-            Your vault password
-          </Form.Label>
-          <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 8 }}>
-            This is the password you created when you first set up your vault in Digital Life
-            or Legal Documents.
-          </p>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', maxWidth: 360 }}>
-            <Form.Control
-              type={showPassword ? 'text' : 'password'}
-              placeholder="Enter your vault password"
-              value={vaultPassword}
-              onChange={e => { setVaultPassword(e.target.value); setVaultError('') }}
-              onKeyDown={e => e.key === 'Enter' && handleFullExport()}
-              isInvalid={!!vaultError}
-              style={{ fontSize: '0.9rem' }}
-            />
-            <Button
-              variant="outline-secondary"
-              size="sm"
-              style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
-              onClick={() => setShowPassword(p => !p)}
-            >
-              {showPassword ? 'Hide' : 'Show'}
-            </Button>
+        {!isPremium ? (
+          <div style={{
+            background: 'var(--gold-50, #FBF3E4)', border: '1px solid var(--gold-light, #E8D8A8)',
+            borderRadius: 8, padding: '16px 18px',
+          }}>
+            <p style={{ fontSize: '0.88rem', color: 'var(--green-900)', fontWeight: 600, marginBottom: 6 }}>
+              🔒 This requires a vault password, available only to Premium members
+            </p>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: 14, lineHeight: 1.6 }}>
+              Your vault protects your most sensitive information (legal documents and digital
+              credentials). Setting up a vault, and exporting it, is part of the Premium plan.
+            </p>
+            <Link to="/upgrade" className="btn btn-sm" style={{
+              background: 'var(--green-800)', color: '#fff', border: 'none',
+              padding: '8px 20px', fontSize: '0.85rem', fontWeight: 600, borderRadius: 8,
+            }}>
+              See Premium plans
+            </Link>
           </div>
-          {vaultError && (
-            <div style={{ color: '#B94040', fontSize: '0.83rem', marginTop: 6 }}>
-              {vaultError}
-            </div>
-          )}
-        </Form.Group>
+        ) : (
+          <>
+            {/* Vault password input */}
+            <Form.Group style={{ marginBottom: 16 }}>
+              <Form.Label style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--green-900)', marginBottom: 6 }}>
+                Your vault password
+              </Form.Label>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 8 }}>
+                This is the password you created when you first set up your vault in Digital Life
+                or Legal Documents.
+              </p>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', maxWidth: 360 }}>
+                <Form.Control
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Enter your vault password"
+                  value={vaultPassword}
+                  onChange={e => { setVaultPassword(e.target.value); setVaultError('') }}
+                  onKeyDown={e => e.key === 'Enter' && handleFullExport()}
+                  isInvalid={!!vaultError}
+                  style={{ fontSize: '0.9rem' }}
+                />
+                <Button
+                  variant="outline-secondary"
+                  size="sm"
+                  style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
+                  onClick={() => setShowPassword(p => !p)}
+                >
+                  {showPassword ? 'Hide' : 'Show'}
+                </Button>
+              </div>
+              {vaultError && (
+                <div style={{ color: '#B94040', fontSize: '0.83rem', marginTop: 6 }}>
+                  {vaultError}
+                </div>
+              )}
+            </Form.Group>
 
-        <Button
-          onClick={handleFullExport}
-          disabled={exportingFull}
-          style={{
-            background: '#8A6020', border: 'none',
-            padding: '9px 24px', fontSize: '0.9rem', borderRadius: 8,
-          }}
-        >
-          {exportingFull
-            ? <><Spinner size="sm" animation="border" className="me-2" />Generating…</>
-            : '⬇  Download Complete PDF'
-          }
-        </Button>
+            <Button
+              onClick={handleFullExport}
+              disabled={exportingFull}
+              style={{
+                background: '#8A6020', border: 'none',
+                padding: '9px 24px', fontSize: '0.9rem', borderRadius: 8,
+              }}
+            >
+              {exportingFull
+                ? <><Spinner size="sm" animation="border" className="me-2" />Generating…</>
+                : '⬇  Download Complete PDF'
+              }
+            </Button>
+          </>
+        )}
       </div>
 
       {/* ── General note ─────────────────────────────────────────────────── */}
