@@ -1361,6 +1361,18 @@ export default function AdminPage() {
   const [newVersion, setNewVersion]       = useState({ module: 'client', version: '', summary: '' })
   const [versionSaving, setVersionSaving] = useState(false)
   const [versionError, setVersionError]   = useState('')
+  const [runningInactivityCheck, setRunningInactivityCheck] = useState(false)
+
+  const runInactivityCheckNow = async () => {
+    setRunningInactivityCheck(true)
+    try {
+      await axios.post(`${API}/admin/inactivity-check/run`)
+      showAlert('success', 'Inactivity check complete. Any lapsed timers have been processed.')
+    } catch {
+      showAlert('danger', "Couldn't run the inactivity check.")
+    }
+    setRunningInactivityCheck(false)
+  }
 
   const showAlert = (type, msg) => {
     setAlert({ type, msg })
@@ -1898,6 +1910,22 @@ export default function AdminPage() {
               Site is currently in maintenance mode. Regular users will see a maintenance message.
             </div>
           )}
+        </div>
+
+        {/* Inactivity check */}
+        <div style={{ background: 'var(--parchment)', borderRadius: 12, padding: '24px', border: '1px solid var(--border)', marginTop: 24 }}>
+          <div className="d-flex justify-content-between align-items-start flex-wrap gap-3">
+            <div>
+              <h6 style={{ color: 'var(--green-900)', marginBottom: 4 }}>Inactivity Check</h6>
+              <p className="text-muted small mb-0">
+                Normally runs automatically every day at 8am. Use this to run it immediately,
+                for example to test the executor/demise-confirmation flow without waiting.
+              </p>
+            </div>
+            <Button variant="outline-primary" onClick={runInactivityCheckNow} disabled={runningInactivityCheck}>
+              {runningInactivityCheck ? 'Running…' : 'Run inactivity check now'}
+            </Button>
+          </div>
         </div>
 
         {/* Password Reset Method */}

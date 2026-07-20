@@ -5,6 +5,7 @@ const auth    = require('../middleware/auth');
 const multer  = require('multer');
 const { uploadFile, getDownloadUrl, deleteFile } = require('../lib/r2');
 const { runBackup, listBackups } = require('../lib/backup');
+const { checkInactivity } = require('../lib/inactivityTimer');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } });
 
@@ -328,6 +329,21 @@ router.get('/backups', auth, adminOnly, async (req, res) => {
   } catch (err) {
     console.error('[backup] List failed:', err.message);
     res.status(500).json({ error: "We couldn't list backups. Please try again." });
+  }
+});
+
+// Manually runs the same daily inactivity check the 8am cron runs (see index.js),
+// so the executor/demise-confirmation flow can be exercised on demand rather than
+// waiting for the next real cron tick. Mirrors the existing POST /backups/run
+// pattern above. Safe to run anytime: it only acts on users whose timer has
+// actually lapsed or is within its reminder window.
+router.post('/inactivity-check/run', auth, adminOnly, async (req, res) => {
+  try {
+    await checkInactivity();
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[inactivity] Manual run failed:', err.message);
+    res.status(500).json({ error: "We couldn't run the inactivity check. Please try again." });
   }
 });
 
