@@ -148,6 +148,37 @@ router.post('/users/:id/revert-deceased', auth, adminOnly, async (req, res) => {
   res.json({ success: true });
 });
 
+// Version log: client, admin panel, and org/funeral-home portal are tracked as
+// three independently-versioned areas even though they ship in one deploy (see
+// app_versions in db/database.js). Displayed in the admin panel's Versions tab.
+const VERSION_MODULES = ['client', 'admin', 'org_portal'];
+const SEMVER_RE = /^\d+\.\d+\.\d+$/;
+
+router.get('/versions', auth, adminOnly, async (req, res) => {
+  const rows = await queryAll(
+    'SELECT module, version, summary, released_at FROM app_versions ORDER BY module, released_at DESC'
+  );
+  res.json(rows);
+});
+
+router.post('/versions', auth, adminOnly, async (req, res) => {
+  const { module, version, summary } = req.body;
+  if (!VERSION_MODULES.includes(module)) {
+    return res.status(400).json({ error: 'module must be one of: ' + VERSION_MODULES.join(', ') });
+  }
+  if (!SEMVER_RE.test(version || '')) {
+    return res.status(400).json({ error: 'version must be in MAJOR.MINOR.PATCH format, e.g. 1.4.2' });
+  }
+  if (!summary || !summary.trim()) {
+    return res.status(400).json({ error: 'A short summary of the change is required.' });
+  }
+  await query(
+    'INSERT INTO app_versions (module, version, summary) VALUES ($1, $2, $3)',
+    [module, version, summary.trim()]
+  );
+  res.status(201).json({ success: true });
+});
+
 router.get('/users/:id/activity', auth, adminOnly, async (req, res) => {
   const user = await queryOne('SELECT id, name, email FROM users WHERE id = $1 AND is_admin = 0', [req.params.id]);
   if (!user) return res.status(404).json({ error: 'User not found' });

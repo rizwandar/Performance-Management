@@ -108,3 +108,17 @@ VAULT_KEY=
 - The `shared/` package exports are imported as `@in-good-hands/shared/api`, etc. Do not use relative paths to reach shared code from client or mobile.
 - Database schema changes must be backwards-compatible. Add columns with `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` in `database.js`; never drop or rename existing columns.
 - Section data endpoints follow the pattern `GET/POST/PUT/DELETE /api/sections/:sectionName`.
+
+### Version tracking
+
+The client app, admin panel, and org/funeral-home portal are tracked as three independently-versioned areas (semver `MAJOR.MINOR.PATCH`), even though all three ship in the same deploy. History lives in the `app_versions` table and is visible in the admin panel's **Versions** tab (`GET/POST /api/admin/versions`).
+
+Whenever a change is pushed that touches one of these areas, add a version entry for it (bump only the area(s) actually touched):
+
+| Module    | Covers                                                                 |
+|-----------|-------------------------------------------------------------------------|
+| `client`  | Anything in `client/src` outside `pages/AdminPage.jsx` and the org portal pages |
+| `admin`   | `client/src/pages/AdminPage.jsx` and `server/routes/admin.js`          |
+| `org_portal` | Org/funeral-home portal pages, `server/routes/orgPortal.js`, `server/routes/organizations.js` |
+
+Bump PATCH for fixes, MINOR for new backwards-compatible features, MAJOR for breaking changes. Insert via a one-off script (`query('INSERT INTO app_versions (module, version, summary) VALUES ($1, $2, $3)', [...])`) or the admin UI form.

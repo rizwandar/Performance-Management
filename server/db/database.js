@@ -494,6 +494,20 @@ async function init() {
   // inactivity_period_months, expressed in minutes. Never exposed via PUT /me/timer.
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS inactivity_test_override_minutes INTEGER`);
 
+  // Version log: tracks the client app, admin panel, and org/funeral-home portal
+  // as three independently-versioned areas (semver), even though all three ship
+  // in the same deploy. A row is added whenever a change to that area is pushed.
+  // Displayed in the admin panel's Versions tab.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS app_versions (
+      id          SERIAL PRIMARY KEY,
+      module      TEXT NOT NULL CHECK (module IN ('client', 'admin', 'org_portal')),
+      version     TEXT NOT NULL,
+      summary     TEXT NOT NULL,
+      released_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
   // Migration: track org-sponsored premium grants (1 year free on customer association),
   // parallel to the existing admin honorary-premium grant (granted_by_admin_id above).
   await pool.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS organization_id INTEGER REFERENCES organizations(id)`);

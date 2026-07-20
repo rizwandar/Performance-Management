@@ -67,7 +67,13 @@ const SECTION_LABELS = {
 // ---------------------------------------------------------------------------
 // Tab navigation
 // ---------------------------------------------------------------------------
-const TABS = ['Overview', 'Users', 'Activity', 'Appearance', 'Branding', 'Organizations', 'Settings', 'App Blueprint']
+const TABS = ['Overview', 'Users', 'Activity', 'Appearance', 'Branding', 'Organizations', 'Settings', 'Versions', 'App Blueprint']
+
+const VERSION_MODULES = [
+  { id: 'client',     label: 'Client App' },
+  { id: 'admin',      label: 'Admin Panel' },
+  { id: 'org_portal', label: 'Org / Funeral Home Portal' },
+]
 
 const ACTION_LABELS = {
   login_success:   { label: 'Login',           color: 'var(--green-800)' },
@@ -1349,6 +1355,13 @@ export default function AdminPage() {
   const [activityTotal, setActivityTotal]   = useState(0)
   const activityTimeout = useRef(null)
 
+  // Versions tab state
+  const [versions, setVersions]           = useState([])
+  const [loadingVersions, setLoadingVersions] = useState(false)
+  const [newVersion, setNewVersion]       = useState({ module: 'client', version: '', summary: '' })
+  const [versionSaving, setVersionSaving] = useState(false)
+  const [versionError, setVersionError]   = useState('')
+
   const showAlert = (type, msg) => {
     setAlert({ type, msg })
     setTimeout(() => setAlert(null), 4000)
@@ -1374,6 +1387,41 @@ export default function AdminPage() {
       .catch(() => showAlert('danger', "Couldn't load users."))
       .finally(() => setLoadingUsers(false))
   }, [tab, query])
+
+  // Load version log when switching to Versions tab
+  useEffect(() => {
+    if (tab !== 'Versions') return
+    setLoadingVersions(true)
+    axios.get(`${API}/admin/versions`)
+      .then(r => setVersions(r.data))
+      .catch(() => showAlert('danger', "Couldn't load version history."))
+      .finally(() => setLoadingVersions(false))
+  }, [tab])
+
+  const addVersion = async () => {
+    setVersionError('')
+    if (!/^\d+\.\d+\.\d+$/.test(newVersion.version.trim())) {
+      return setVersionError('Version must be in MAJOR.MINOR.PATCH format, e.g. 1.4.2.')
+    }
+    if (!newVersion.summary.trim()) {
+      return setVersionError('A short summary of the change is required.')
+    }
+    setVersionSaving(true)
+    try {
+      await axios.post(`${API}/admin/versions`, {
+        module:  newVersion.module,
+        version: newVersion.version.trim(),
+        summary: newVersion.summary.trim(),
+      })
+      setNewVersion({ module: newVersion.module, version: '', summary: '' })
+      const r = await axios.get(`${API}/admin/versions`)
+      setVersions(r.data)
+      showAlert('success', 'Version logged.')
+    } catch (err) {
+      setVersionError(err.response?.data?.error || "Couldn't save this version entry.")
+    }
+    setVersionSaving(false)
+  }
 
   const openUser = async (id) => {
     setLoadingUser(true)
@@ -2076,6 +2124,76 @@ export default function AdminPage() {
 
       {/* ── Organizations ──────────────────────────────────────────────────── */}
       {tab === 'Organizations' && <OrganizationsPanel showAlert={showAlert} />}
+
+      {/* ── Versions ───────────────────────────────────────────────────────── */}
+      {tab === 'Versions' && (
+        <div>
+          <p className="text-muted small mb-4">
+            The client app, admin panel, and org/funeral-home portal are tracked as three
+            separate areas, each on its own semantic version (MAJOR.MINOR.PATCH). A new entry
+            is added whenever a change is shipped to that area.
+          </p>
+
+          <Row className="g-3 mb-4">
+            {VERSION_MODULES.map(m => {
+              const history = versions.filter(v => v.module === m.id)
+              const current = history[0]
+              return (
+                <Col key={m.id} xs={12} md={4}>
+                  <div style={{ background: 'var(--parchment)', border: '1px solid var(--border)', borderRadius: 12, padding: '18px 20px', height: '100%' }}>
+                    <p className="text-muted small mb-1">{m.label}</p>
+                    <p style={{ fontSize: '1.6rem', fontWeight: 700, color: 'var(--green-900)', marginBottom: 4 }}>
+                      {current ? `v${current.version}` : '—'}
+                    </p>
+                    {current && (
+                      <p className="text-muted small mb-3">{formatDate(current.released_at)}</p>
+                    )}
+                    <div style={{ maxHeight: 180, overflowY: 'auto' }}>
+                      {history.length === 0 ? (
+                        <p className="text-muted small mb-0">No versions logged yet.</p>
+                      ) : history.map((v, i) => (
+                        <div key={i} className="mb-2 pb-2" style={{ borderBottom: i < history.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                          <div className="d-flex justify-content-between">
+                            <span style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--green-900)' }}>v{v.version}</span>
+                            <span className="text-muted" style={{ fontSize: '0.78rem' }}>{formatDate(v.released_at)}</span>
+                          </div>
+                          <p className="text-muted small mb-0">{v.summary}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </Col>
+              )
+            })}
+          </Row>
+
+          {loadingVersions && <Spinner animation="border" size="sm" style={{ color: 'var(--green-800)' }} />}
+
+          <div style={{ background: 'var(--parchment)', border: '1px solid var(--border)', borderRadius: 12, padding: '20px 24px', maxWidth: 560 }}>
+            <h6 style={{ color: 'var(--green-900)', marginBottom: 12 }}>Log a new version</h6>
+            {versionError && <Alert variant="danger" className="py-2">{versionError}</Alert>}
+            <Row className="g-2 mb-2">
+              <Col xs={6}>
+                <Form.Select size="sm" value={newVersion.module}
+                  onChange={e => setNewVersion(v => ({ ...v, module: e.target.value }))}>
+                  {VERSION_MODULES.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+                </Form.Select>
+              </Col>
+              <Col xs={6}>
+                <Form.Control size="sm" placeholder="1.4.2" value={newVersion.version}
+                  onChange={e => setNewVersion(v => ({ ...v, version: e.target.value }))} />
+              </Col>
+            </Row>
+            <Form.Control as="textarea" rows={2} size="sm" className="mb-2"
+              placeholder="What changed in this version..."
+              value={newVersion.summary}
+              onChange={e => setNewVersion(v => ({ ...v, summary: e.target.value }))} />
+            <Button size="sm" variant="primary" onClick={addVersion} disabled={versionSaving}>
+              {versionSaving ? 'Saving…' : 'Add entry'}
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* ── App Blueprint ──────────────────────────────────────────────────── */}
       {tab === 'App Blueprint' && <AppBlueprint />}
