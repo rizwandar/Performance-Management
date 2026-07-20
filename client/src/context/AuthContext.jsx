@@ -50,7 +50,12 @@ export function AuthProvider({ children }) {
     const resInterceptor = axios.interceptors.response.use(
       res => res,
       err => {
-        if (err.response?.status === 401) logout()
+        // Only a genuinely invalid/missing/expired JWT should force a logout.
+        // Plenty of authenticated routes also return 401 for "you typed the
+        // wrong password" (vault unlock, vault password change, account
+        // deletion confirmation, etc.) — those must NOT log the user out,
+        // the calling component shows its own inline error instead.
+        if (err.response?.status === 401 && err.response?.data?.session_expired) logout()
         return Promise.reject(err)
       }
     )

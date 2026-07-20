@@ -44,14 +44,14 @@ async function applyViewAs(req, decoded) {
 module.exports = async (req, res, next) => {
   const header = req.headers.authorization;
   if (!header || !header.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Unauthorized' });
+    return res.status(401).json({ error: 'Unauthorized', session_expired: true });
   }
   const token = header.split(' ')[1];
   let decoded;
   try {
     decoded = jwt.verify(token, JWT_SECRET);
   } catch {
-    return res.status(401).json({ error: 'Invalid or expired token' });
+    return res.status(401).json({ error: 'Invalid or expired token', session_expired: true });
   }
 
   if (decoded.viewAs) {
