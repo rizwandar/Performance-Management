@@ -488,6 +488,50 @@ async function init() {
   // parallel to the existing admin honorary-premium grant (granted_by_admin_id above).
   await pool.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS organization_id INTEGER REFERENCES organizations(id)`);
 
+  // Organization self-registration: the invite token an applicant uses to become
+  // the org's first Org Admin. Structurally parallel to organization_customer_tokens,
+  // but scoped to the org directly since there's no customer involved here.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS organization_admin_invites (
+      id              SERIAL PRIMARY KEY,
+      organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+      name            TEXT NOT NULL,
+      email           TEXT NOT NULL,
+      token           TEXT NOT NULL UNIQUE,
+      expires_at      TIMESTAMPTZ NOT NULL,
+      created_at      TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  // Billing event log: a simple record of plan changes (self-service upgrades or
+  // the initial plan chosen at self-registration) so there's a paper trail of what
+  // an org owes once real payments are switched on. No accruing balance math.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS organization_billing_events (
+      id                  SERIAL PRIMARY KEY,
+      organization_id     INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+      old_plan_tier       TEXT,
+      new_plan_tier       TEXT NOT NULL,
+      rate_snapshot       TEXT,
+      changed_by_user_id  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at          TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  // Migration: the FK above originally had no ON DELETE action, which blocked
+  // account deletion for anyone who ever triggered a billing event (the delete
+  // would fail after their uploaded files were already removed). Widen it to
+  // SET NULL, the ledger entry itself is still meaningful without the actor.
+  await pool.query(`
+    ALTER TABLE organization_billing_events
+    DROP CONSTRAINT IF EXISTS organization_billing_events_changed_by_user_id_fkey
+  `);
+  await pool.query(`
+    ALTER TABLE organization_billing_events
+    ADD CONSTRAINT organization_billing_events_changed_by_user_id_fkey
+    FOREIGN KEY (changed_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+  `);
+
   // Seed default settings
   for (const [key, value] of [
     ['password_reset_method', 'email'],

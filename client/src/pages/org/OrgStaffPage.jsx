@@ -6,44 +6,94 @@ const API = import.meta.env.VITE_API_URL
 
 const card = { background: 'var(--parchment)', border: '1px solid var(--border)', borderRadius: 12, padding: '20px', marginBottom: 16 }
 
+const TIER_LABELS = { starter: 'Starter', professional: 'Professional', growth: 'Growth' }
+
 export default function OrgStaffPage() {
   const [staff, setStaff]         = useState([])
   const [locations, setLocations] = useState([])
+  const [settings, setSettings]   = useState(null)
   const [loading, setLoading]     = useState(true)
   const [showAdd, setShowAdd]     = useState(false)
   const [alert, setAlert]         = useState(null)
+  const [requesting, setRequesting] = useState(null)
 
   const showAlert = (type, msg) => { setAlert({ type, msg }); setTimeout(() => setAlert(null), 4000) }
 
+  // Promise.allSettled (not Promise.all) so a single failed request doesn't
+  // prevent the other two from updating state, and doesn't leave the page
+  // stuck on a spinner forever, settings only stays null if its own fetch
+  // failed, in which case loadError drives a visible retry instead.
   const load = () => {
     setLoading(true)
-    Promise.all([
+    Promise.allSettled([
       axios.get(`${API}/org-portal/staff`),
       axios.get(`${API}/org-portal/locations`),
-    ]).then(([s, l]) => { setStaff(s.data); setLocations(l.data) })
-      .catch(() => showAlert('danger', 'Could not load staff.'))
-      .finally(() => setLoading(false))
+      axios.get(`${API}/org-portal/settings`),
+    ]).then(([s, l, set]) => {
+      if (s.status === 'fulfilled') setStaff(s.value.data)
+      if (l.status === 'fulfilled') setLocations(l.value.data)
+      if (set.status === 'fulfilled') setSettings(set.value.data)
+      if (s.status === 'rejected' || l.status === 'rejected' || set.status === 'rejected') {
+        showAlert('danger', 'Could not load all staff data.')
+      }
+    }).finally(() => setLoading(false))
   }
   useEffect(load, [])
 
-  const toggleActive = async (member) => {
+  const deactivate = async (member) => {
     try {
-      await axios.put(`${API}/org-portal/staff/${member.id}`, { is_active: member.is_active ? 0 : 1 })
+      await axios.put(`${API}/org-portal/staff/${member.id}`, { is_active: 0 })
       load()
     } catch (err) {
-      showAlert('danger', err.response?.data?.error || 'Could not update staff member.')
+      showAlert('danger', err.response?.data?.error || 'Could not deactivate this staff member.')
     }
   }
 
+  const requestReactivation = async (member) => {
+    setRequesting(member.id)
+    try {
+      await axios.post(`${API}/org-portal/staff/${member.id}/request-reactivation`)
+      showAlert('success', 'Reactivation request sent to In Good Hands. We will follow up by email.')
+    } catch (err) {
+      showAlert('danger', err.response?.data?.error || 'Could not send the request.')
+    }
+    setRequesting(null)
+  }
+
   if (loading) return <div className="text-center py-5"><Spinner animation="border" style={{ color: 'var(--green-800)' }} /></div>
+
+  if (!settings) {
+    return (
+      <div style={card} className="text-center">
+        <p className="text-muted small mb-2">Couldn't load plan and staff limits.</p>
+        <Button size="sm" variant="outline-secondary" onClick={load}>Retry</Button>
+      </div>
+    )
+  }
+
+  const atCap = settings.counts.orgAdmins >= settings.limits.orgAdmins && settings.counts.orgStaff >= settings.limits.orgStaff
 
   return (
     <div>
       <div className="d-flex justify-content-between align-items-center mb-3">
         <h2 style={{ color: 'var(--green-900)', fontFamily: 'Georgia, serif', margin: 0 }}>Staff</h2>
-        <Button size="sm" onClick={() => setShowAdd(true)} style={{ background: 'var(--green-800)', border: 'none' }}>
-          + Add Staff
-        </Button>
+        {!atCap && (
+          <Button size="sm" onClick={() => setShowAdd(true)} style={{ background: 'var(--green-800)', border: 'none' }}>
+            + Add Staff
+          </Button>
+        )}
+      </div>
+
+      <div style={{ ...card, padding: '14px 20px' }} className="small text-muted d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span>
+          <strong>{TIER_LABELS[settings.plan_tier] || settings.plan_tier}</strong> plan:{' '}
+          {settings.counts.orgAdmins}/{settings.limits.orgAdmins} Org Admins, {settings.counts.orgStaff}/{settings.limits.orgStaff} Org Staff
+        </span>
+        {atCap && (
+          <span>
+            At your plan's limit. <a href="/pricing" target="_blank" rel="noopener noreferrer">See plans to upgrade</a>
+          </span>
+        )}
       </div>
 
       {alert && <Alert variant={alert.type}>{alert.msg}</Alert>}
@@ -63,25 +113,43 @@ export default function OrgStaffPage() {
                 {locations.find(l => l.id === s.organization_location_id) && ` · ${locations.find(l => l.id === s.organization_location_id).name}`}
               </div>
             </div>
-            <Button size="sm" variant={s.is_active ? 'outline-danger' : 'outline-success'} onClick={() => toggleActive(s)}>
-              {s.is_active ? 'Deactivate' : 'Reactivate'}
-            </Button>
+            {s.is_active ? (
+              <Button size="sm" variant="outline-danger" onClick={() => deactivate(s)}>Deactivate</Button>
+            ) : (
+              <Button size="sm" variant="outline-secondary" disabled={requesting === s.id} onClick={() => requestReactivation(s)}>
+                {requesting === s.id ? 'Sending…' : 'Request Reactivation'}
+              </Button>
+            )}
           </div>
         </div>
       ))}
 
-      <AddStaffModal show={showAdd} onHide={() => setShowAdd(false)} locations={locations} onAdded={() => { setShowAdd(false); load() }} showAlert={showAlert} />
+      <AddStaffModal
+        show={showAdd} onHide={() => setShowAdd(false)} locations={locations}
+        counts={settings.counts} limits={settings.limits}
+        onAdded={() => { setShowAdd(false); load() }} showAlert={showAlert}
+      />
     </div>
   )
 }
 
-function AddStaffModal({ show, onHide, locations, onAdded, showAlert }) {
+function AddStaffModal({ show, onHide, locations, counts, limits, onAdded, showAlert }) {
+  const adminAtCap = counts.orgAdmins >= limits.orgAdmins
+  const staffAtCap = counts.orgStaff >= limits.orgStaff
+
   const [name, setName]         = useState('')
   const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
-  const [orgRole, setOrgRole]   = useState('org_staff')
+  const [orgRole, setOrgRole]   = useState(staffAtCap ? 'org_admin' : 'org_staff')
   const [locationId, setLocationId] = useState('')
   const [saving, setSaving]     = useState(false)
+
+  // Resync the default role every time the modal opens (not just once at
+  // mount), the modal stays mounted across opens, so a prior session's choice
+  // (e.g. forced to org_admin because staff was at cap) would otherwise stick.
+  useEffect(() => {
+    if (show) setOrgRole(staffAtCap ? 'org_admin' : 'org_staff')
+  }, [show, staffAtCap])
 
   const handleAdd = async () => {
     if (!name.trim() || !email.trim() || password.length < 8) {
@@ -92,7 +160,7 @@ function AddStaffModal({ show, onHide, locations, onAdded, showAlert }) {
     try {
       await axios.post(`${API}/org-portal/staff`, { name, email, password, org_role: orgRole, location_id: locationId || null })
       showAlert('success', 'Staff account created. Share these credentials with them securely.')
-      setName(''); setEmail(''); setPassword(''); setOrgRole('org_staff'); setLocationId('')
+      setName(''); setEmail(''); setPassword(''); setLocationId('')
       onAdded()
     } catch (err) {
       showAlert('danger', err.response?.data?.error || 'Could not create staff account.')
@@ -121,8 +189,8 @@ function AddStaffModal({ show, onHide, locations, onAdded, showAlert }) {
         <Form.Group className="mb-3">
           <Form.Label className="small fw-bold">Role</Form.Label>
           <Form.Select value={orgRole} onChange={e => setOrgRole(e.target.value)}>
-            <option value="org_staff">Org Staff</option>
-            <option value="org_admin">Org Admin</option>
+            <option value="org_staff" disabled={staffAtCap}>Org Staff{staffAtCap ? ' (plan limit reached)' : ''}</option>
+            <option value="org_admin" disabled={adminAtCap}>Org Admin{adminAtCap ? ' (plan limit reached)' : ''}</option>
           </Form.Select>
         </Form.Group>
         {locations.length > 0 && (
@@ -137,7 +205,7 @@ function AddStaffModal({ show, onHide, locations, onAdded, showAlert }) {
       </Modal.Body>
       <Modal.Footer>
         <Button variant="outline-secondary" size="sm" onClick={onHide}>Cancel</Button>
-        <Button size="sm" style={{ background: 'var(--green-800)', border: 'none' }} disabled={saving} onClick={handleAdd}>
+        <Button size="sm" style={{ background: 'var(--green-800)', border: 'none' }} disabled={saving || (adminAtCap && staffAtCap)} onClick={handleAdd}>
           {saving ? 'Creating…' : 'Create Staff Account'}
         </Button>
       </Modal.Footer>

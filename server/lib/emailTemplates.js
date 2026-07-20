@@ -460,6 +460,50 @@ function executorNotificationEmail({ executorName, ownerName }) {
   `);
 }
 
+// ---------------------------------------------------------------------------
+// Organization self-registration: invite the applicant to complete their own
+// account setup and choose a plan
+// ---------------------------------------------------------------------------
+function orgAdminInviteEmail({ name, orgName, completeLink }) {
+  return layout(`
+    <p>Dear ${name},</p>
+    <p>
+      Thank you for registering <strong>${orgName}</strong> with <strong>${APP_NAME}</strong>. You're
+      almost set up.
+    </p>
+    <p>
+      Use the button below to choose your plan and create your password. This link is valid for
+      <strong>7 days</strong>.
+    </p>
+    ${button('Complete my organization setup', completeLink)}
+    <p style="color:#6B7280; font-size:14px;">
+      If you did not request this, you can safely ignore this email.
+    </p>
+    <p style="color:#6B7280; font-size:14px;">
+      With care,<br/>
+      The ${APP_NAME} team
+    </p>
+  `);
+}
+
+// ---------------------------------------------------------------------------
+// Organization portal: notify IGHP that an org wants a deactivated staff
+// account reactivated. Internal email, not sent to the org or the staff member.
+// ---------------------------------------------------------------------------
+function orgReactivationRequestEmail({ orgName, staffName, staffEmail, staffRole, requestedByName, requestedByEmail }) {
+  return layout(`
+    <p>A reactivation request has been submitted.</p>
+    <table style="width:100%; border-collapse:collapse; margin:16px 0;">
+      <tr><td style="padding:6px 0; font-weight:600; color:#555; width:160px;">Organization</td><td style="padding:6px 0;">${orgName}</td></tr>
+      <tr><td style="padding:6px 0; font-weight:600; color:#555;">Account to reactivate</td><td style="padding:6px 0;">${staffName} (${staffEmail}), ${staffRole}</td></tr>
+      <tr><td style="padding:6px 0; font-weight:600; color:#555;">Requested by</td><td style="padding:6px 0;">${requestedByName} (${requestedByEmail})</td></tr>
+    </table>
+    <p style="color:#6B7280; font-size:14px;">
+      Reactivate from the Admin panel's Organizations tab once you've verified the request.
+    </p>
+  `);
+}
+
 module.exports = {
   emailVerificationEmail,
   welcomeEmail,
@@ -467,6 +511,8 @@ module.exports = {
   inactivityReminderEmail,
   inactivityContactNotificationEmail,
   contactAccessEmail,
+  orgReactivationRequestEmail,
+  orgAdminInviteEmail,
   vaultAttemptEmail,
   vaultDestroyedEmail,
   accountDeletionConfirmEmail,

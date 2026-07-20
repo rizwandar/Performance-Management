@@ -2,11 +2,18 @@ const express = require('express');
 const router  = express.Router();
 const bcrypt  = require('bcryptjs');
 const crypto  = require('crypto');
+const multer  = require('multer');
 const { queryOne, queryAll, query } = require('../db/database');
 const auth    = require('../middleware/auth');
 const { requireOrgUser, requireOrgAdmin } = require('../middleware/orgAuth');
 const { sendEmail } = require('../lib/sendEmail');
-const { orgInviteEmail, orgLinkRequestEmail, orgEditConsentRequestEmail, executorNotificationEmail } = require('../lib/emailTemplates');
+const { orgInviteEmail, orgLinkRequestEmail, orgEditConsentRequestEmail, executorNotificationEmail, orgReactivationRequestEmail } = require('../lib/emailTemplates');
+const { PLAN_LIMITS, PLAN_TIERS, PLAN_RATES, getActiveRoleCounts, checkRoleQuota } = require('../lib/orgPlanLimits');
+const { uploadFile, getDownloadUrl, deleteFile } = require('../lib/r2');
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } });
+
+const IGHP_SUPPORT_EMAIL = 'info@ingoodhandsplan.com';
 
 const LIFECYCLE_STATUSES = ['invited', 'signed_up', 'plan_in_progress', 'plan_completed', 'deceased', 'archived'];
 
@@ -293,6 +300,10 @@ router.post('/staff', auth, requireOrgAdmin, async (req, res) => {
   if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters.' });
   const role = org_role === 'org_admin' ? 'org_admin' : 'org_staff';
 
+  const org = await queryOne('SELECT plan_tier FROM organizations WHERE id = $1', [req.user.organization_id]);
+  const quotaError = await checkRoleQuota(req.user.organization_id, org.plan_tier, role);
+  if (quotaError) return res.status(403).json({ error: quotaError });
+
   const existing = await queryOne('SELECT id FROM users WHERE email = $1', [email.toLowerCase()]);
   if (existing) return res.status(409).json({ error: 'A user with that email already exists.' });
 
@@ -314,8 +325,29 @@ router.put('/staff/:id', auth, requireOrgAdmin, async (req, res) => {
   if (!staffMember) return res.status(404).json({ error: 'Staff member not found.' });
 
   const { org_role, location_id, is_active } = req.body;
-  const newRole   = org_role === 'org_admin' || org_role === 'org_staff' ? org_role : staffMember.org_role;
-  const newActive = is_active !== undefined ? (is_active ? 1 : 0) : staffMember.is_active;
+  const wantsActive = is_active !== undefined ? !!is_active : null;
+
+  // Reactivating a deactivated account is not self-service (org portal spec,
+  // consent/quota decisions): only the IGHP Administrator can do it, so that a
+  // deactivated slot reliably frees up room until IGHP explicitly restores it.
+  if (wantsActive === true && staffMember.is_active === 0) {
+    return res.status(400).json({
+      error: 'Reactivation must be requested from the IGHP Administrator. Use the "Request Reactivation" button.',
+    });
+  }
+
+  const newRole = org_role === 'org_admin' || org_role === 'org_staff' ? org_role : staffMember.org_role;
+
+  // Promoting an active member to a different role (e.g. org_staff -> org_admin)
+  // is functionally the same as creating a new member in that role, so it must
+  // respect the same plan-tier quota POST /staff enforces.
+  if (newRole !== staffMember.org_role && staffMember.is_active === 1) {
+    const org = await queryOne('SELECT plan_tier FROM organizations WHERE id = $1', [req.user.organization_id]);
+    const quotaError = await checkRoleQuota(req.user.organization_id, org.plan_tier, newRole);
+    if (quotaError) return res.status(403).json({ error: quotaError });
+  }
+
+  const newActive = wantsActive === false ? 0 : staffMember.is_active;
   const newLoc    = location_id !== undefined ? (location_id || null) : staffMember.organization_location_id;
 
   await query(
@@ -323,6 +355,43 @@ router.put('/staff/:id', auth, requireOrgAdmin, async (req, res) => {
     [newRole, newLoc, newActive, staffMember.id]
   );
   auditLog(req.user.id, 'org_staff_updated', { staff_id: staffMember.id, is_active: newActive });
+  res.json({ success: true });
+});
+
+router.post('/staff/:id/request-reactivation', auth, requireOrgAdmin, async (req, res) => {
+  const staffMember = await queryOne(
+    'SELECT * FROM users WHERE id = $1 AND organization_id = $2 AND org_role IS NOT NULL',
+    [req.params.id, req.user.organization_id]
+  );
+  if (!staffMember) return res.status(404).json({ error: 'Staff member not found.' });
+  if (staffMember.is_active) return res.status(400).json({ error: 'This account is already active.' });
+
+  const org = await queryOne('SELECT name FROM organizations WHERE id = $1', [req.user.organization_id]);
+  const requester = await queryOne('SELECT name, email FROM users WHERE id = $1', [req.user.id]);
+
+  try {
+    await sendEmail({
+      to: IGHP_SUPPORT_EMAIL,
+      subject: `Reactivation request: ${staffMember.name} at ${org.name}`,
+      html: orgReactivationRequestEmail({
+        orgName: org.name,
+        staffName: staffMember.name,
+        staffEmail: staffMember.email,
+        staffRole: staffMember.org_role === 'org_admin' ? 'Org Admin' : 'Org Staff',
+        requestedByName: requester.name,
+        requestedByEmail: requester.email,
+      }),
+    });
+  } catch (err) {
+    console.error('[org-portal] Reactivation request email failed:', err.message);
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn('[org-portal] Non-prod: acknowledging the request despite email delivery failure.');
+      return res.json({ success: true, warning: 'Request logged but email not delivered (email not configured for this recipient in dev).' });
+    }
+    return res.status(500).json({ error: 'Could not send the reactivation request. Please try again shortly.' });
+  }
+
+  auditLog(req.user.id, 'org_staff_reactivation_requested', { staff_id: staffMember.id });
   res.json({ success: true });
 });
 
@@ -395,18 +464,103 @@ router.post('/contacts', auth, requireOrgAdmin, async (req, res) => {
 // Settings
 // ---------------------------------------------------------------------------
 router.get('/settings', auth, requireOrgUser, async (req, res) => {
-  const org = await queryOne('SELECT id, name, location_visibility_policy FROM organizations WHERE id = $1', [req.user.organization_id]);
+  const org = await queryOne('SELECT * FROM organizations WHERE id = $1', [req.user.organization_id]);
   const locations = await queryAll('SELECT * FROM organization_locations WHERE organization_id = $1 ORDER BY name', [req.user.organization_id]);
-  res.json({ ...org, locations });
+  const counts = await getActiveRoleCounts(req.user.organization_id);
+  const limits = PLAN_LIMITS[org.plan_tier] || PLAN_LIMITS.starter;
+  const rate = PLAN_RATES[org.plan_tier] || null;
+
+  res.json({
+    ...org,
+    business_categories: org.business_categories ? JSON.parse(org.business_categories) : [],
+    logo_url: org.logo_url ? await getDownloadUrl(org.logo_url) : null,
+    locations,
+    limits,
+    counts,
+    rate,
+  });
 });
 
+// Patch-style: only fields present in the body are updated. A self-registered
+// org has no IGHP admin to lean on, so this is how it manages its own profile
+// (previously an IGHP-admin-only action via /api/admin/organizations).
 router.put('/settings', auth, requireOrgAdmin, async (req, res) => {
-  const { location_visibility_policy } = req.body;
-  if (!['all_locations', 'own_location'].includes(location_visibility_policy)) {
+  const org = await queryOne('SELECT * FROM organizations WHERE id = $1', [req.user.organization_id]);
+  const { location_visibility_policy, name, about, business_categories } = req.body;
+
+  if (location_visibility_policy !== undefined && !['all_locations', 'own_location'].includes(location_visibility_policy)) {
     return res.status(400).json({ error: 'Invalid location visibility policy.' });
   }
-  await query('UPDATE organizations SET location_visibility_policy = $1 WHERE id = $2', [location_visibility_policy, req.user.organization_id]);
+  if (name !== undefined && !name.trim()) {
+    return res.status(400).json({ error: 'Organization name cannot be empty.' });
+  }
+
+  const updated = {
+    location_visibility_policy: location_visibility_policy !== undefined ? location_visibility_policy : org.location_visibility_policy,
+    name: name !== undefined ? name.trim() : org.name,
+    about: about !== undefined ? about : org.about,
+    business_categories: business_categories !== undefined
+      ? JSON.stringify(Array.isArray(business_categories) ? business_categories : [])
+      : org.business_categories,
+  };
+
+  await query(
+    'UPDATE organizations SET location_visibility_policy = $1, name = $2, about = $3, business_categories = $4 WHERE id = $5',
+    [updated.location_visibility_policy, updated.name, updated.about, updated.business_categories, req.user.organization_id]
+  );
   res.json({ success: true });
+});
+
+router.post('/logo', auth, requireOrgAdmin, upload.single('logo'), async (req, res) => {
+  const org = await queryOne('SELECT * FROM organizations WHERE id = $1', [req.user.organization_id]);
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
+
+  const mime = req.file.mimetype;
+  const ALLOWED = { 'image/svg+xml': 'svg', 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' };
+  const ext = ALLOWED[mime];
+  if (!ext) return res.status(400).json({ error: 'Only SVG, PNG, JPEG, or WebP logos are accepted.' });
+
+  if (org.logo_url) {
+    try { await deleteFile(org.logo_url); } catch { /* ignore */ }
+  }
+
+  const key = `organizations/${org.id}/logo-${Date.now()}.${ext}`;
+  await uploadFile({ key, buffer: req.file.buffer, mimeType: mime });
+  await query('UPDATE organizations SET logo_url = $1 WHERE id = $2', [key, org.id]);
+
+  const logoUrl = await getDownloadUrl(key);
+  res.json({ success: true, logo_url: logoUrl });
+});
+
+// Self-service plan changes (upgrade or downgrade); lateral moves are allowed
+// too. A downgrade is blocked if current active admin/staff counts exceed the
+// new tier's limits, so the org is never left in a state that violates its own
+// plan. No payment is collected, this just records the choice for the ledger.
+router.post('/settings/upgrade-plan', auth, requireOrgAdmin, async (req, res) => {
+  const { plan_tier } = req.body;
+  if (!PLAN_TIERS.includes(plan_tier)) return res.status(400).json({ error: 'Please choose a valid plan.' });
+
+  const org = await queryOne('SELECT * FROM organizations WHERE id = $1', [req.user.organization_id]);
+  if (plan_tier === org.plan_tier) return res.status(400).json({ error: 'You are already on this plan.' });
+
+  const newLimits = PLAN_LIMITS[plan_tier];
+  const counts = await getActiveRoleCounts(req.user.organization_id);
+
+  if (counts.orgAdmins > newLimits.orgAdmins || counts.orgStaff > newLimits.orgStaff) {
+    return res.status(400).json({
+      error: `You currently have ${counts.orgAdmins} Org Admin(s) and ${counts.orgStaff} Org Staff, which exceeds the ${plan_tier} plan's limits (${newLimits.orgAdmins} / ${newLimits.orgStaff}). Deactivate accounts down to the new limit before switching.`,
+    });
+  }
+
+  await query('UPDATE organizations SET plan_tier = $1 WHERE id = $2', [plan_tier, org.id]);
+  await query(
+    `INSERT INTO organization_billing_events (organization_id, old_plan_tier, new_plan_tier, rate_snapshot, changed_by_user_id)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [org.id, org.plan_tier, plan_tier, PLAN_RATES[plan_tier], req.user.id]
+  );
+  auditLog(req.user.id, 'org_plan_changed', { organization_id: org.id, old_plan_tier: org.plan_tier, new_plan_tier: plan_tier });
+
+  res.json({ success: true, plan_tier });
 });
 
 module.exports = router;

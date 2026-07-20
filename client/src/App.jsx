@@ -11,6 +11,8 @@ import VerifyEmailPage        from './pages/VerifyEmailPage'
 import LandingPage            from './pages/LandingPage'
 import LoginPage              from './pages/LoginPage'
 import RegisterPage           from './pages/RegisterPage'
+import RegisterOrganizationPage from './pages/RegisterOrganizationPage'
+import OrgAdminInviteCompletePage from './pages/OrgAdminInviteCompletePage'
 import ForgotPasswordPage     from './pages/ForgotPasswordPage'
 import ResetPasswordPage      from './pages/ResetPasswordPage'
 import DashboardPage          from './pages/DashboardPage'
@@ -345,6 +347,19 @@ function NavBar() {
                     <Nav.Link as={Link} to="/profile">My Plans</Nav.Link>
                     {!isViewAs && <Nav.Link as={Link} to="/profile/settings">My Profile</Nav.Link>}
                     {!isViewAs && !isPremium && (
+                      <span
+                        title="You're on the free plan, upgrade for full access to every section"
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 5,
+                          fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.03em',
+                          color: '#fff', background: 'rgba(255,255,255,0.18)',
+                          borderRadius: 12, padding: '4px 11px', marginRight: 4,
+                        }}
+                      >
+                        FREE PLAN
+                      </span>
+                    )}
+                    {!isViewAs && !isPremium && (
                       <Nav.Link as={Link} to="/upgrade" style={{ fontWeight: 600, color: 'var(--gold)' }}>
                         Upgrade
                       </Nav.Link>
@@ -542,6 +557,8 @@ function AppContent() {
           <Route path="/pricing"           element={<PricingPage />} />
           <Route path="/login"             element={<LoginPage />} />
           <Route path="/register"          element={<RegisterPage />} />
+          <Route path="/register/organization" element={<RegisterOrganizationPage />} />
+          <Route path="/register/organization/complete/:token" element={<OrgAdminInviteCompletePage />} />
           <Route path="/forgot-password"   element={<ForgotPasswordPage />} />
           <Route path="/reset-password"    element={<ResetPasswordPage />} />
           <Route path="/verify-email"      element={<VerifyEmailPage />} />

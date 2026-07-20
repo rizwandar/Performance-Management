@@ -200,6 +200,16 @@ function OrgDetailModal({ orgId, onHide, showAlert }) {
     setSavingAdmin(false)
   }
 
+  const reactivateStaff = async (staffId) => {
+    try {
+      await axios.put(`${API}/admin/organizations/${orgId}/staff/${staffId}/reactivate`)
+      showAlert('success', 'Staff account reactivated.')
+      load()
+    } catch (err) {
+      showAlert('danger', err.response?.data?.error || 'Could not reactivate this account.')
+    }
+  }
+
   const handleLogoUpload = async (e) => {
     const file = e.target.files[0]
     if (!file) return
@@ -240,7 +250,7 @@ function OrgDetailModal({ orgId, onHide, showAlert }) {
               <div className="fw-bold small mb-2" style={{ color: 'var(--green-900)' }}>Locations ({org.locations.length})</div>
               {org.locations.map(l => (
                 <div key={l.id} className="small mb-1">
-                  {l.name}{l.address ? ` — ${l.address}` : ''}{l.phone ? ` — ${l.phone}` : ''}
+                  {l.name}{l.address ? `, ${l.address}` : ''}{l.phone ? `, ${l.phone}` : ''}
                 </div>
               ))}
               <Row className="g-2 mt-1">
@@ -278,11 +288,19 @@ function OrgDetailModal({ orgId, onHide, showAlert }) {
             <div style={sectionStyle}>
               <div className="fw-bold small mb-2" style={{ color: 'var(--green-900)' }}>Staff ({org.staff.length})</div>
               {org.staff.map(s => (
-                <div key={s.id} className="small mb-1">
-                  {s.name} — {s.email}
-                  <Badge className="ms-1" style={{ background: s.org_role === 'org_admin' ? 'var(--green-800)' : 'var(--text-muted)' }}>
+                <div key={s.id} className="small mb-1 d-flex align-items-center gap-2">
+                  <span>{s.name}, {s.email}</span>
+                  <Badge style={{ background: s.org_role === 'org_admin' ? 'var(--green-800)' : 'var(--text-muted)' }}>
                     {s.org_role === 'org_admin' ? 'Org Admin' : 'Org Staff'}
                   </Badge>
+                  {!s.is_active && (
+                    <>
+                      <Badge bg="secondary">Deactivated</Badge>
+                      <Button size="sm" variant="outline-success" onClick={() => reactivateStaff(s.id)} style={{ padding: '0px 8px', fontSize: '0.75rem' }}>
+                        Reactivate
+                      </Button>
+                    </>
+                  )}
                 </div>
               ))}
               {org.staff.filter(s => s.org_role === 'org_admin').length === 0 && (
@@ -300,6 +318,20 @@ function OrgDetailModal({ orgId, onHide, showAlert }) {
                   </Row>
                 </>
               )}
+            </div>
+
+            <div style={sectionStyle}>
+              <div className="fw-bold small mb-2" style={{ color: 'var(--green-900)' }}>Billing History ({org.billingEvents?.length || 0})</div>
+              {(!org.billingEvents || org.billingEvents.length === 0) && (
+                <div className="small text-muted">No plan changes recorded yet.</div>
+              )}
+              {org.billingEvents?.map(ev => (
+                <div key={ev.id} className="small mb-1">
+                  {new Date(ev.created_at).toLocaleDateString()}: {ev.old_plan_tier ? `${ev.old_plan_tier} → ` : ''}{ev.new_plan_tier}
+                  {ev.rate_snapshot ? ` (${ev.rate_snapshot})` : ''}
+                  {ev.changed_by_name ? `, by ${ev.changed_by_name}` : ''}
+                </div>
+              ))}
             </div>
           </>
         )}

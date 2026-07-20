@@ -5,6 +5,7 @@ const multer  = require('multer');
 const { queryOne, queryAll, query } = require('../db/database');
 const auth    = require('../middleware/auth');
 const { uploadFile, getDownloadUrl, deleteFile } = require('../lib/r2');
+const { checkRoleQuota } = require('../lib/orgPlanLimits');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } });
 
@@ -47,17 +48,23 @@ router.get('/:id', auth, adminOnly, async (req, res) => {
   const org = await queryOne('SELECT * FROM organizations WHERE id = $1', [req.params.id]);
   if (!org) return res.status(404).json({ error: 'Organization not found.' });
 
-  const [locations, contacts, staff] = await Promise.all([
+  const [locations, contacts, staff, billingEvents] = await Promise.all([
     queryAll('SELECT * FROM organization_locations WHERE organization_id = $1 ORDER BY name', [org.id]),
     queryAll('SELECT * FROM organization_contacts WHERE organization_id = $1 ORDER BY name', [org.id]),
     queryAll(
-      `SELECT id, name, email, org_role, organization_location_id, created_at
+      `SELECT id, name, email, org_role, organization_location_id, is_active, created_at
        FROM users WHERE organization_id = $1 AND org_role IS NOT NULL ORDER BY name`,
+      [org.id]
+    ),
+    queryAll(
+      `SELECT be.*, u.name as changed_by_name
+       FROM organization_billing_events be LEFT JOIN users u ON u.id = be.changed_by_user_id
+       WHERE be.organization_id = $1 ORDER BY be.created_at DESC`,
       [org.id]
     ),
   ]);
 
-  res.json({ ...serializeOrg(org), locations, contacts, staff });
+  res.json({ ...serializeOrg(org), locations, contacts, staff, billingEvents });
 });
 
 router.post('/', auth, adminOnly, async (req, res) => {
@@ -139,6 +146,9 @@ router.post('/:id/admins', auth, adminOnly, async (req, res) => {
   if (password.length < 8) {
     return res.status(400).json({ error: 'Password must be at least 8 characters.' });
   }
+
+  const quotaError = await checkRoleQuota(org.id, org.plan_tier, 'org_admin');
+  if (quotaError) return res.status(403).json({ error: quotaError });
 
   const existing = await queryOne('SELECT id FROM users WHERE email = $1', [email.toLowerCase()]);
   if (existing) return res.status(409).json({ error: 'A user with that email already exists.' });
@@ -282,6 +292,28 @@ router.post('/:id/customers/:customerId/revert-deceased', auth, adminOnly, async
 
   const fresh = await queryOne('SELECT * FROM organization_customers WHERE id = $1', [customer.id]);
   res.json(fresh);
+});
+
+// The other half of the reactivation-request loop: an Org Admin can only request
+// reactivation (org-portal spec), the IGHP Administrator is the one who actually
+// flips it back on, after verifying the emailed request.
+router.put('/:id/staff/:staffId/reactivate', auth, adminOnly, async (req, res) => {
+  const staffMember = await queryOne(
+    'SELECT * FROM users WHERE id = $1 AND organization_id = $2 AND org_role IS NOT NULL',
+    [req.params.staffId, req.params.id]
+  );
+  if (!staffMember) return res.status(404).json({ error: 'Staff member not found.' });
+  if (staffMember.is_active) return res.status(400).json({ error: 'This account is already active.' });
+
+  const org = await queryOne('SELECT plan_tier FROM organizations WHERE id = $1', [req.params.id]);
+  const quotaError = await checkRoleQuota(req.params.id, org.plan_tier, staffMember.org_role);
+  if (quotaError) {
+    return res.status(400).json({ error: `Cannot reactivate: ${quotaError} Ask the organization to upgrade its plan first, or deactivate another account in the same role.` });
+  }
+
+  await query('UPDATE users SET is_active = 1 WHERE id = $1', [staffMember.id]);
+  auditLog(req.user.id, 'org_staff_reactivated', req, { staff_id: staffMember.id, organization_id: req.params.id });
+  res.json({ success: true });
 });
 
 module.exports = router;

@@ -176,6 +176,14 @@ export default function RegisterPage() {
       <Card style={{ width: '100%', maxWidth: 540 }}>
         <Card.Header><h5 className="mb-0">Begin your journey</h5></Card.Header>
         <Card.Body>
+          <div className="d-flex gap-2 mb-3" role="tablist">
+            <Button variant="primary" size="sm" disabled style={{ pointerEvents: 'none' }}>
+              I'm signing up for myself
+            </Button>
+            <Button as={Link} to="/register/organization" variant="outline-secondary" size="sm">
+              I'm registering my organization
+            </Button>
+          </div>
           <p className="text-muted small mb-3">
             Create your account to start gathering everything your loved ones will need.
           </p>
