@@ -4,7 +4,9 @@ const crypto  = require('crypto');
 const { queryOne, queryAll, query, transaction } = require('../db/database');
 const requireAuth = require('../middleware/auth');
 const { sendEmail } = require('../lib/sendEmail');
-const { contactAccessEmail } = require('../lib/emailTemplates');
+const { contactAccessEmail, executorDesignatedEmail } = require('../lib/emailTemplates');
+
+const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
 
 const VALID_SECTIONS = new Set([
   'legal_documents', 'financial_items', 'funeral_wishes', 'medical_wishes',
@@ -136,6 +138,29 @@ router.put('/:id/executor', requireAuth, async (req, res) => {
   });
 
   const updated = await queryOne('SELECT * FROM trusted_contacts WHERE id = $1', [contact.id]);
+
+  // Let the new executor know right away what the role means, rather than them
+  // finding out only if/when the inactivity timer eventually lapses (see
+  // executorDesignatedEmail for why this matters: funerals often happen within
+  // days, so they're also told about the "Report a passing" page).
+  if (is_executor && updated.email) {
+    const owner = await queryOne('SELECT name, inactivity_period_months FROM users WHERE id = $1', [req.user.id]);
+    try {
+      await sendEmail({
+        to:      updated.email,
+        subject: `You have been named ${owner.name}'s executor on In Good Hands`,
+        html:    executorDesignatedEmail({
+          recipientName:          updated.name,
+          ownerName:              owner.name,
+          inactivityPeriodMonths: owner.inactivity_period_months || 12,
+          reportDeathLink:        `${CLIENT_URL}/report-passing`,
+        }),
+      });
+    } catch (err) {
+      console.error('[trusted-contacts] Executor designation email failed:', err.message);
+    }
+  }
+
   res.json({ id: updated.id, is_executor: !!updated.is_executor });
 });
 

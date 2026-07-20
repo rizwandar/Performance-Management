@@ -87,6 +87,7 @@ app.use('/api/export',          require('./routes/export'));
 app.use('/api/billing',         require('./routes/billing'));
 app.use('/api/access',          require('./routes/access'));
 app.use('/api/contact',         require('./routes/contact'));
+app.use('/api/report-death',    require('./routes/reportDeath'));
 
 app.get('/', (req, res) => res.json({ status: 'API running' }));
 

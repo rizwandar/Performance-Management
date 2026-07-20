@@ -165,7 +165,7 @@ export default function KeyContactsPage() {
     setExecutorSaving(true)
     try {
       await axios.put(`${API}/trusted-contacts/${contact.id}/executor`, { is_executor: !contact.is_executor })
-      setTcSuccess(contact.is_executor ? `${contact.name} is no longer your executor.` : `${contact.name} is now your executor.`)
+      setTcSuccess(contact.is_executor ? `${contact.name} is no longer your executor.` : `${contact.name} is now your executor and has been emailed about it.`)
       loadContacts()
       setTimeout(() => setTcSuccess(''), 3000)
     } catch (err) {

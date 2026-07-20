@@ -355,6 +355,48 @@ function inactivityContactNotificationEmail({ recipientName, ownerName, accessLi
 }
 
 // ---------------------------------------------------------------------------
+// Executor designation — sent the moment an owner makes someone their executor,
+// well before anything has happened. Purely informational: explains the role,
+// the automatic timer as a fallback, and that they can report a passing directly
+// at any time rather than waiting, since funerals often happen within days.
+// ---------------------------------------------------------------------------
+function executorDesignatedEmail({ recipientName, ownerName, inactivityPeriodMonths, reportDeathLink }) {
+  return layout(`
+    <p>Dear ${recipientName},</p>
+    <p>
+      <strong>${ownerName}</strong> has named you as their executor on <strong>${APP_NAME}</strong>.
+      There is nothing you need to do right now, this is simply so you know what the role
+      means and what to expect.
+    </p>
+    <p>
+      If ${ownerName} does not log into their account for <strong>${inactivityPeriodMonths} months</strong>,
+      you will automatically receive an email with a secure link giving you access to
+      everything they recorded, except their private vault credentials, which are never
+      shared this way. From that link, you can also let us know if they have passed away,
+      which notifies their other trusted contacts and the people they asked to be told.
+    </p>
+    <p>
+      You do not have to wait for that automatic email. If you already know ${ownerName} has
+      passed away, since funerals often need to happen within days, you can report it
+      directly and get access right away, without any delay:
+    </p>
+    ${button('Report a passing', reportDeathLink)}
+    <p style="color:#6B7280; font-size:14px;">
+      It's worth keeping ${ownerName}'s account email address handy, since that is what
+      you will need to use the link above.
+    </p>
+    <p style="color:#6B7280; font-size:14px;">
+      If you were not expecting this message or believe it has been sent in error, please
+      contact us using the form at the bottom of the site.
+    </p>
+    <p style="color:#6B7280; font-size:14px;">
+      With care,<br/>
+      The ${APP_NAME} team
+    </p>
+  `);
+}
+
+// ---------------------------------------------------------------------------
 // Executor invite — sent when the inactivity timer lapses and the owner has
 // designated an executor. Unlike the plain trusted-contact notification above,
 // this grants full access (minus the vault) and explains the executor can
@@ -389,6 +431,40 @@ function executorInviteEmail({ recipientName, ownerName, accessLink, expiresHour
       This link is valid for <strong>${expiresHours} hours</strong>. If you need longer, or
       if ${ownerName} turns out to be fine, please contact us using the form at the bottom of
       the site.
+    </p>
+    <p style="color:#6B7280; font-size:14px;">
+      With care,<br/>
+      The ${APP_NAME} team
+    </p>
+  `);
+}
+
+// ---------------------------------------------------------------------------
+// Executor invite via manual report — sent when someone uses the public
+// "Report a passing" page rather than waiting for the inactivity timer. Same
+// access and confirm-demise capability as executorInviteEmail, but the wording
+// doesn't imply the owner has gone quiet, since that isn't why this one fires.
+// ---------------------------------------------------------------------------
+function executorReportedInviteEmail({ recipientName, ownerName, accessLink, expiresHours }) {
+  return layout(`
+    <p>Dear ${recipientName},</p>
+    <p>
+      Someone recently reported to us that <strong>${ownerName}</strong> has passed away.
+      You are named as ${ownerName}'s executor on <strong>${APP_NAME}</strong>, so we are
+      reaching out to you directly.
+    </p>
+    <p>
+      Using the secure link below, you can view everything ${ownerName} recorded, with the
+      exception of their private vault (passwords and sensitive credentials), which is never
+      shared this way. If you can confirm that ${ownerName} has passed away, this link also
+      lets you let us know, which will notify their other trusted contacts and the people
+      they asked to be told, according to their wishes.
+    </p>
+    ${button('View information and respond', accessLink)}
+    <p style="color:#6B7280; font-size:14px;">
+      This link is valid for <strong>${expiresHours} hours</strong>. If this message reached
+      you unexpectedly, or ${ownerName} is in fact fine, please contact us using the form at
+      the bottom of the site.
     </p>
     <p style="color:#6B7280; font-size:14px;">
       With care,<br/>
@@ -580,7 +656,9 @@ module.exports = {
   passwordResetEmail,
   inactivityReminderEmail,
   inactivityContactNotificationEmail,
+  executorDesignatedEmail,
   executorInviteEmail,
+  executorReportedInviteEmail,
   demiseNotificationEmail,
   contactAccessEmail,
   orgReactivationRequestEmail,

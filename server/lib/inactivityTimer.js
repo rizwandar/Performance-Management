@@ -208,4 +208,4 @@ async function cleanupExpiredTokens() {
   }
 }
 
-module.exports = { checkInactivity, cleanupExpiredTokens, notifyTrustedContacts };
+module.exports = { checkInactivity, cleanupExpiredTokens, notifyTrustedContacts, generateAccessLink, EXPIRES_HOURS };

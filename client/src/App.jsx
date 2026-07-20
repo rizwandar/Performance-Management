@@ -15,6 +15,7 @@ import RegisterOrganizationPage from './pages/RegisterOrganizationPage'
 import OrgAdminInviteCompletePage from './pages/OrgAdminInviteCompletePage'
 import ForgotPasswordPage     from './pages/ForgotPasswordPage'
 import ResetPasswordPage      from './pages/ResetPasswordPage'
+import ReportDeathPage        from './pages/ReportDeathPage'
 import DashboardPage          from './pages/DashboardPage'
 import ProfilePage            from './pages/ProfilePage'
 import AdminPage              from './pages/AdminPage'
@@ -214,6 +215,7 @@ function SiteFooter() {
                 { label: 'Terms of Service',  href: '/terms', internal: true },
                 { label: 'Accessibility',     href: '/accessibility', internal: true },
                 { label: 'Security',          href: '/security', internal: true },
+                { label: 'Report a Passing',  href: '/report-passing', internal: true },
               ].map(link => (
                 link.internal
                   ? <Link key={link.href} to={link.href}
@@ -561,6 +563,7 @@ function AppContent() {
           <Route path="/register/organization/complete/:token" element={<OrgAdminInviteCompletePage />} />
           <Route path="/forgot-password"   element={<ForgotPasswordPage />} />
           <Route path="/reset-password"    element={<ResetPasswordPage />} />
+          <Route path="/report-passing"    element={<ReportDeathPage />} />
           <Route path="/verify-email"      element={<VerifyEmailPage />} />
 
           {/* Dashboard */}
