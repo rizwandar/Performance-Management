@@ -83,7 +83,14 @@ async function markUserDeceased(userId, { markedByType, markedById }) {
     }
   }
 
-  await auditLog(markedById, 'user_marked_deceased', { user_id: userId, marked_by_type: markedByType });
+  // markedById is a users.id for org_staff (a real admin account) but a
+  // trusted_contacts.id for executor (not a users row at all - the FK on
+  // user_audit_logs.user_id would reject it). Only pass a real user id through;
+  // the contact id is still recorded in metadata either way.
+  const auditUserId = markedByType === 'org_staff' ? markedById : null;
+  await auditLog(auditUserId, 'user_marked_deceased', {
+    user_id: userId, marked_by_type: markedByType, marked_by_id: markedById,
+  });
 
   return queryOne('SELECT * FROM users WHERE id = $1', [userId]);
 }
