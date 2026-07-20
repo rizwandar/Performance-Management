@@ -68,6 +68,15 @@ const ICON_SETS = {
 // ---------------------------------------------------------------------------
 const GROUPS = [
   {
+    id:          'people',
+    label:       'Your People',
+    description: 'The important people in your life and who should be involved.',
+    cardBg:      '#F7EDE7',
+    cardBorder:  '#E4C8B4',
+    startedBorder: '#B87A50',
+    iconBg:      '#EDD8C8',
+  },
+  {
     id:          'legacy',
     label:       'Your Legacy',
     description: 'Who you are, what you love, and what you want to leave behind.',
@@ -84,15 +93,6 @@ const GROUPS = [
     cardBorder:  '#C4DCC4',
     startedBorder: '#5A9A5A',
     iconBg:      '#D8ECD8',
-  },
-  {
-    id:          'people',
-    label:       'Your People',
-    description: 'The important people in your life and who should be involved.',
-    cardBg:      '#F7EDE7',
-    cardBorder:  '#E4C8B4',
-    startedBorder: '#B87A50',
-    iconBg:      '#EDD8C8',
   },
   {
     id:          'affairs',

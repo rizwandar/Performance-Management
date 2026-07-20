@@ -43,7 +43,7 @@ router.get('/users', auth, adminOnly, async (req, res) => {
   const { q } = req.query;
   let sql = `
     SELECT u.id, u.name, u.email, u.date_of_birth, u.created_at, u.last_active_at,
-           u.inactivity_period_months,
+           u.inactivity_period_months, u.is_deceased, u.deceased_at,
            (SELECT MAX(created_at) FROM user_audit_logs WHERE user_id = u.id AND action = 'login_success') as last_login,
            (
              (SELECT COUNT(*) FROM legal_documents     WHERE user_id = u.id) +
@@ -80,6 +80,7 @@ router.get('/users/:id', auth, adminOnly, async (req, res) => {
     SELECT u.id, u.name, u.email, u.date_of_birth, u.about_me, u.legacy_message,
            u.emergency_contact_name, u.emergency_contact_phone, u.emergency_contact_email,
            u.last_active_at, u.inactivity_period_months, u.created_at,
+           u.is_deceased, u.deceased_at, u.deceased_by,
            COALESCE(s.plan, 'free') as plan,
            (s.provider = 'admin_grant') as is_honorary,
            s.updated_at as plan_updated_at,
@@ -125,6 +126,26 @@ router.get('/users/:id', auth, adminOnly, async (req, res) => {
   `, [user.id]);
 
   res.json({ ...user, completion, recent_audit: recentAudit });
+});
+
+// Reverting a mistaken deceased marking for a direct (non-org-managed) user is
+// admin-only, matching the equivalent safeguard for org-managed customers in
+// routes/organizations.js POST /:id/customers/:customerId/revert-deceased.
+router.post('/users/:id/revert-deceased', auth, adminOnly, async (req, res) => {
+  const user = await queryOne('SELECT id, is_deceased FROM users WHERE id = $1 AND is_admin = 0', [req.params.id]);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (!user.is_deceased) return res.status(400).json({ error: 'This user is not marked deceased.' });
+
+  await query(
+    `UPDATE users SET is_deceased = false, deceased_at = NULL, deceased_by = NULL WHERE id = $1`,
+    [user.id]
+  );
+  await query(
+    'INSERT INTO user_audit_logs (user_id, action, metadata) VALUES ($1, $2, $3)',
+    [req.user.id, 'deceased_status_reverted', JSON.stringify({ user_id: user.id })]
+  );
+
+  res.json({ success: true });
 });
 
 router.get('/users/:id/activity', auth, adminOnly, async (req, res) => {

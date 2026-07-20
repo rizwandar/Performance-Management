@@ -1428,6 +1428,20 @@ export default function AdminPage() {
     setPremiumSaving(false)
   }
 
+  const revertDeceased = async (id) => {
+    setPremiumSaving(true)
+    try {
+      await axios.post(`${API}/admin/users/${id}/revert-deceased`)
+      const r = await axios.get(`${API}/admin/users/${id}`)
+      setSelectedUser(r.data)
+      setUsers(u => u.map(x => x.id === id ? { ...x, is_deceased: false, deceased_at: null } : x))
+      showAlert('success', 'Deceased status reverted.')
+    } catch (err) {
+      showAlert('danger', err.response?.data?.error || "Couldn't revert this.")
+    }
+    setPremiumSaving(false)
+  }
+
   const saveSetting = async (key, value) => {
     try {
       await axios.put(`${API}/settings/${key}`, { value })
@@ -1940,6 +1954,17 @@ export default function AdminPage() {
                 ))}
               </div>
 
+              {/* Deceased status */}
+              {selectedUser.is_deceased && (
+                <div className="mb-4" style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: 8, padding: '12px 16px' }}>
+                  <p className="small mb-0" style={{ color: '#991B1B' }}>
+                    Marked deceased{selectedUser.deceased_at && ` on ${formatDate(selectedUser.deceased_at)}`}
+                    {selectedUser.deceased_by && ` (by ${selectedUser.deceased_by.replace('_', ' ')})`}.
+                    Their plan is locked from further edits.
+                  </p>
+                </div>
+              )}
+
               {/* Emergency contact */}
               {selectedUser.emergency_contact_name && (
                 <div className="mb-4">
@@ -2003,6 +2028,12 @@ export default function AdminPage() {
               <Button variant="outline-primary" size="sm" disabled={premiumSaving}
                 onClick={() => grantPremium(selectedUser.id)}>
                 {premiumSaving ? 'Granting…' : 'Grant honorary premium'}
+              </Button>
+            )}
+            {selectedUser.is_deceased && (
+              <Button variant="outline-danger" size="sm" disabled={premiumSaving}
+                onClick={() => revertDeceased(selectedUser.id)}>
+                {premiumSaving ? 'Reverting…' : 'Revert deceased status'}
               </Button>
             )}
             <Button variant="outline-secondary" onClick={() => setSelectedUser(null)}>Close</Button>

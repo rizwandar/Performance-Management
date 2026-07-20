@@ -1,23 +1,41 @@
 const express = require('express');
 const router  = express.Router();
 const { queryOne, queryAll } = require('../db/database');
+const { markUserDeceased } = require('../lib/deceased');
 
-router.get('/:token', async (req, res) => {
-  const tokenRow = await queryOne(`
-    SELECT tct.*, tc.user_id, tc.name AS contact_name, tc.id AS contact_id
+// An executor's access ignores individually-granted permissions and always sees
+// every section except the vault (digital_life), which is never shareable via
+// any access link, executor or otherwise. This mirrors VALID_SECTIONS in
+// routes/trustedContacts.js, which never allows 'digital_life' to be granted
+// as a regular permission either.
+const EXECUTOR_SECTIONS = [
+  'legal_documents', 'financial_items', 'funeral_wishes', 'medical_wishes',
+  'people_to_notify', 'property_items', 'personal_messages', 'songs_that_define_me',
+  'life_wishes',
+];
+
+async function loadTokenRow(token) {
+  return queryOne(`
+    SELECT tct.*, tc.user_id, tc.name AS contact_name, tc.id AS contact_id, tc.is_executor
     FROM trusted_contact_tokens tct
     JOIN trusted_contacts tc ON tc.id = tct.contact_id
     WHERE tct.token = $1 AND tct.expires_at > NOW()
-  `, [req.params.token]);
+  `, [token]);
+}
+
+router.get('/:token', async (req, res) => {
+  const tokenRow = await loadTokenRow(req.params.token);
 
   if (!tokenRow) {
     return res.status(404).json({ error: 'This link is invalid or has expired. Please ask the account holder to generate a new link.' });
   }
 
-  const permissions = (await queryAll(
-    'SELECT section_id FROM trusted_contact_permissions WHERE contact_id = $1',
-    [tokenRow.contact_id]
-  )).map(p => p.section_id);
+  const permissions = tokenRow.is_executor
+    ? EXECUTOR_SECTIONS
+    : (await queryAll(
+        'SELECT section_id FROM trusted_contact_permissions WHERE contact_id = $1',
+        [tokenRow.contact_id]
+      )).map(p => p.section_id);
 
   const owner = await queryOne(
     'SELECT name, date_of_birth, about_me, legacy_message FROM users WHERE id = $1',
@@ -91,6 +109,7 @@ router.get('/:token', async (req, res) => {
   res.json({
     contact_name:     tokenRow.contact_name,
     expires_at:       tokenRow.expires_at,
+    is_executor:      !!tokenRow.is_executor,
     owner: {
       name:           owner.name,
       date_of_birth:  owner.date_of_birth,
@@ -100,6 +119,26 @@ router.get('/:token', async (req, res) => {
     visible_sections: permissions,
     data,
   });
+});
+
+// Only an executor's token can confirm demise, and only with an explicit
+// confirm flag, a deliberate two-step action on the client rather than a
+// single click (matches the equivalent org-portal flow in routes/orgPortal.js).
+router.post('/:token/mark-demised', async (req, res) => {
+  if (req.body.confirm !== true) {
+    return res.status(400).json({ error: 'Confirmation is required to mark this account as deceased.' });
+  }
+
+  const tokenRow = await loadTokenRow(req.params.token);
+  if (!tokenRow) {
+    return res.status(404).json({ error: 'This link is invalid or has expired. Please ask the account holder to generate a new link.' });
+  }
+  if (!tokenRow.is_executor) {
+    return res.status(403).json({ error: 'Only the designated executor can take this action.' });
+  }
+
+  await markUserDeceased(tokenRow.user_id, { markedByType: 'executor', markedById: tokenRow.contact_id });
+  res.json({ success: true });
 });
 
 module.exports = router;

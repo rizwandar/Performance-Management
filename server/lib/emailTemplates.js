@@ -355,6 +355,76 @@ function inactivityContactNotificationEmail({ recipientName, ownerName, accessLi
 }
 
 // ---------------------------------------------------------------------------
+// Executor invite — sent when the inactivity timer lapses and the owner has
+// designated an executor. Unlike the plain trusted-contact notification above,
+// this grants full access (minus the vault) and explains the executor can
+// confirm the owner has passed away, which is what actually triggers the
+// notifications to the owner's other trusted contacts and people to notify.
+// ---------------------------------------------------------------------------
+function executorInviteEmail({ recipientName, ownerName, accessLink, expiresHours }) {
+  return layout(`
+    <p>Dear ${recipientName},</p>
+    <p>
+      We are reaching out on behalf of <strong>${ownerName}</strong>, who has named you as
+      their executor on <strong>${APP_NAME}</strong>.
+    </p>
+    <p>
+      ${ownerName} has not logged into their account within the period they chose, and we
+      have not been able to reach them. As their executor, you are the first person we turn
+      to in this situation.
+    </p>
+    <p>
+      We are not able to confirm what this means. It may simply be that they have been away
+      or have forgotten about the account. Please try to reach them directly first if you can.
+    </p>
+    <p>
+      Using the secure link below, you can view everything ${ownerName} recorded, with the
+      exception of their private vault (passwords and sensitive credentials), which is never
+      shared this way. If you confirm that ${ownerName} has passed away, this link also lets
+      you let us know, which will notify their other trusted contacts and the people they
+      asked to be told, according to their wishes.
+    </p>
+    ${button('View information and respond', accessLink)}
+    <p style="color:#6B7280; font-size:14px;">
+      This link is valid for <strong>${expiresHours} hours</strong>. If you need longer, or
+      if ${ownerName} turns out to be fine, please contact us using the form at the bottom of
+      the site.
+    </p>
+    <p style="color:#6B7280; font-size:14px;">
+      With care,<br/>
+      The ${APP_NAME} team
+    </p>
+  `);
+}
+
+// ---------------------------------------------------------------------------
+// People to notify — sent once a demise has been confirmed. Purely informational,
+// no login link and no plan data, only for people the owner asked to be told.
+// ---------------------------------------------------------------------------
+function demiseNotificationEmail({ recipientName, ownerName }) {
+  return layout(`
+    <p>Dear ${recipientName},</p>
+    <p>
+      We are writing with sad news. <strong>${ownerName}</strong> has been recorded as
+      deceased, and they had asked that you be one of the people told directly.
+    </p>
+    <p>
+      This message contains no further details or documents. It is simply the notice
+      ${ownerName} wanted you to receive. Someone close to them will likely be in touch
+      separately with more information.
+    </p>
+    <p style="color:#6B7280; font-size:14px;">
+      If you are not sure what this means or believe this message reached you in error,
+      please contact us using the form at the bottom of the site.
+    </p>
+    <p style="color:#6B7280; font-size:14px;">
+      With care,<br/>
+      The ${APP_NAME} team
+    </p>
+  `);
+}
+
+// ---------------------------------------------------------------------------
 // Organization portal — invite a brand-new customer to sign up
 // ---------------------------------------------------------------------------
 function orgInviteEmail({ name, orgName, inviteLink }) {
@@ -510,6 +580,8 @@ module.exports = {
   passwordResetEmail,
   inactivityReminderEmail,
   inactivityContactNotificationEmail,
+  executorInviteEmail,
+  demiseNotificationEmail,
   contactAccessEmail,
   orgReactivationRequestEmail,
   orgAdminInviteEmail,

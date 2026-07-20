@@ -484,6 +484,16 @@ async function init() {
     ON trusted_contacts (user_id) WHERE is_executor = 1
   `);
 
+  // Migration: deceased status now lives on users directly, not just on
+  // organization_customers, so the executor/demise-confirmation workflow applies
+  // to direct signups too, not only funeral-home-managed customers.
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_deceased BOOLEAN DEFAULT false`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS deceased_at TIMESTAMPTZ`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS deceased_by TEXT`);
+  // Testing-only override: when set, the inactivity timer uses this instead of
+  // inactivity_period_months, expressed in minutes. Never exposed via PUT /me/timer.
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS inactivity_test_override_minutes INTEGER`);
+
   // Migration: track org-sponsored premium grants (1 year free on customer association),
   // parallel to the existing admin honorary-premium grant (granted_by_admin_id above).
   await pool.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS organization_id INTEGER REFERENCES organizations(id)`);

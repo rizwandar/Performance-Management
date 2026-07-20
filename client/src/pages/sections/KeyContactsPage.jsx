@@ -159,6 +159,21 @@ export default function KeyContactsPage() {
     setDeleting(false)
   }
 
+  const [executorSaving, setExecutorSaving] = useState(false)
+
+  const handleToggleExecutor = async (contact) => {
+    setExecutorSaving(true)
+    try {
+      await axios.put(`${API}/trusted-contacts/${contact.id}/executor`, { is_executor: !contact.is_executor })
+      setTcSuccess(contact.is_executor ? `${contact.name} is no longer your executor.` : `${contact.name} is now your executor.`)
+      loadContacts()
+      setTimeout(() => setTcSuccess(''), 3000)
+    } catch (err) {
+      setTcError(err.response?.data?.error || "We couldn't update this. Please try again.")
+    }
+    setExecutorSaving(false)
+  }
+
   const openSendLink = (contact) => {
     setLinkContact(contact)
     setLinkResult(null)
@@ -186,8 +201,9 @@ export default function KeyContactsPage() {
           onClick={() => navigate('/profile')}>← Back to my plans</button>
         <h3 style={{ color: 'var(--green-900)' }}>🤝 Key Contacts</h3>
         <p className="text-muted">
-          The people who matter most in an emergency, and the trusted contacts who will be notified
-          and given access to your plans when the time comes.
+          The people who matter most in an emergency, the trusted contacts who will be given
+          access to your plans when the time comes, and the one person you trust to confirm it
+          and set everything in motion.
         </p>
       </div>
 
@@ -242,11 +258,17 @@ export default function KeyContactsPage() {
           )}
         </div>
         <p className="text-muted small mb-1">
-          The people who should be notified and given access to your plans when the time comes.
+          The people who should be given access to your plans when the time comes.
           You can add up to 3 trusted contacts and choose exactly which sections each person can see.
         </p>
-        <p className="text-muted small mb-0" style={{ fontStyle: 'italic' }}>
+        <p className="text-muted small mb-1" style={{ fontStyle: 'italic' }}>
           Unlike your emergency contact, trusted contacts receive a secure link to read your plans. You control what each person can access.
+        </p>
+        <p className="text-muted small mb-0" style={{ fontStyle: 'italic' }}>
+          One of these three can also be made your <strong>Executor</strong>: the person notified
+          first if you stop logging in. They can view everything you've recorded except your
+          vault, and are the one who confirms what's happened. Only then are your other trusted
+          contacts and the people you've listed to notify actually informed.
         </p>
       </div>
 
@@ -281,6 +303,11 @@ export default function KeyContactsPage() {
                               {contact.relationship && (
                                 <span className="text-muted small">({contact.relationship})</span>
                               )}
+                              {!!contact.is_executor && (
+                                <Badge style={{ background: 'var(--green-800)', color: '#fff', fontWeight: 600 }}>
+                                  Executor
+                                </Badge>
+                              )}
                             </div>
                             <div className="text-muted small" style={{ paddingLeft: 34 }}>
                               {contact.email && <span className="me-3">✉ {contact.email}</span>}
@@ -308,6 +335,10 @@ export default function KeyContactsPage() {
                             <Button size="sm" variant="primary" onClick={() => openSendLink(contact)}
                               disabled={!contact.email}>
                               Send access link
+                            </Button>
+                            <Button size="sm" variant={contact.is_executor ? 'outline-secondary' : 'outline-success'}
+                              onClick={() => handleToggleExecutor(contact)} disabled={executorSaving}>
+                              {contact.is_executor ? 'Remove as executor' : 'Make executor'}
                             </Button>
                             <Button size="sm" variant="outline-danger" onClick={() => setDeleteTarget(contact)}>Remove</Button>
                           </div>
@@ -342,7 +373,12 @@ export default function KeyContactsPage() {
               <li>The link is valid for <strong>72 hours</strong> and gives read-only access to the sections you select.</li>
               <li>Your digital credentials (passwords) are never included. They are encrypted and only accessible by you.</li>
               <li>You can send a new link at any time. A new link invalidates the previous one.</li>
-              <li>Contacts can also be notified automatically if you haven't logged in within your chosen inactivity period.</li>
+              <li>
+                If you haven't logged in within your chosen inactivity period, your <strong>executor</strong>
+                {' '}is notified first and can confirm what's happened. Only then are your other trusted
+                contacts emailed automatically. If you haven't designated an executor, all trusted
+                contacts are notified directly instead.
+              </li>
             </ul>
           </div>
         </>

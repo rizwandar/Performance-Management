@@ -7,9 +7,10 @@ const { queryOne, queryAll, query } = require('../db/database');
 const auth    = require('../middleware/auth');
 const { requireOrgUser, requireOrgAdmin } = require('../middleware/orgAuth');
 const { sendEmail } = require('../lib/sendEmail');
-const { orgInviteEmail, orgLinkRequestEmail, orgEditConsentRequestEmail, executorNotificationEmail, orgReactivationRequestEmail } = require('../lib/emailTemplates');
+const { orgInviteEmail, orgLinkRequestEmail, orgEditConsentRequestEmail, orgReactivationRequestEmail } = require('../lib/emailTemplates');
 const { PLAN_LIMITS, PLAN_TIERS, PLAN_RATES, getActiveRoleCounts, checkRoleQuota } = require('../lib/orgPlanLimits');
 const { uploadFile, getDownloadUrl, deleteFile } = require('../lib/r2');
+const { markUserDeceased } = require('../lib/deceased');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } });
 
@@ -179,25 +180,11 @@ router.post('/customers/:id/deceased', auth, requireOrgUser, async (req, res) =>
   if (!customer.user_id) return res.status(400).json({ error: 'This customer has not completed signup yet.' });
   if (customer.lifecycle_status === 'deceased') return res.json(customer);
 
-  await query(`UPDATE organization_customers SET lifecycle_status = 'deceased', deceased_at = NOW() WHERE id = $1`, [customer.id]);
-
-  const executor = await queryOne(
-    `SELECT tc.name, tc.email, u.name as owner_name
-     FROM trusted_contacts tc JOIN users u ON u.id = tc.user_id
-     WHERE tc.user_id = $1 AND tc.is_executor = 1`,
-    [customer.user_id]
-  );
-  if (executor?.email) {
-    try {
-      await sendEmail({
-        to: executor.email,
-        subject: `An update regarding ${executor.owner_name}'s In Good Hands plan`,
-        html: executorNotificationEmail({ executorName: executor.name, ownerName: executor.owner_name }),
-      });
-    } catch (err) {
-      console.error('[org-portal] Executor notification failed:', err.message);
-    }
-  }
+  // markUserDeceased handles the users table flag, syncing organization_customers'
+  // lifecycle_status, and fanning out to the owner's trusted contacts, people to
+  // notify, and (since staff rather than the executor is taking this action) a
+  // notice to the executor if one is designated (server/lib/deceased.js).
+  await markUserDeceased(customer.user_id, { markedByType: 'org_staff', markedById: req.user.id });
 
   auditLog(req.user.id, 'customer_marked_deceased', { organization_customer_id: customer.id, customer_user_id: customer.user_id });
 

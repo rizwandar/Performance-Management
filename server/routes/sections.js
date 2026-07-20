@@ -9,10 +9,13 @@ const { recordVaultAttempt } = require('../lib/vaultAttempts');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
 
-// Once an organization marks a customer deceased, their plan is locked from all
-// edits (org portal spec, section 9). This runs before every route on this router;
-// it decodes the token itself (rather than relying on req.user) since requireAuth
-// is applied per-route below, not globally.
+// Once a user is marked deceased (by their executor, org staff, or the timer's
+// direct-notify fallback path - see lib/deceased.js), their plan is locked from
+// all edits, whether they're accessed directly or via org-portal view-as. This
+// runs before every route on this router; it decodes the token itself (rather
+// than relying on req.user) since requireAuth is applied per-route below, not
+// globally. users.is_deceased is the single source of truth (kept in sync with
+// organization_customers.lifecycle_status for org-managed customers).
 async function checkPlanLock(req, res, next) {
   if (req.method === 'GET') return next();
   const token = req.headers.authorization?.split(' ')[1];
@@ -21,7 +24,7 @@ async function checkPlanLock(req, res, next) {
   try { decoded = jwt.verify(token, JWT_SECRET); } catch { return next(); }
   const effectiveId = decoded.viewAs ? decoded.viewAs.customerId : decoded.id;
   const locked = await queryOne(
-    `SELECT id FROM organization_customers WHERE user_id = $1 AND lifecycle_status = 'deceased'`,
+    `SELECT id FROM users WHERE id = $1 AND is_deceased = true`,
     [effectiveId]
   );
   if (locked) return res.status(403).json({ error: 'This plan has been locked and can no longer be edited.' });

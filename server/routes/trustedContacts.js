@@ -115,6 +115,30 @@ router.put('/:id/permissions', requireAuth, async (req, res) => {
   res.json({ contact_id: contact.id, visible_sections });
 });
 
+// Sets this contact as the owner's sole executor, clearing the flag from any
+// other contact first (the DB also enforces at most one executor per user via
+// a partial unique index, but clearing-then-setting here lets the owner freely
+// move the flag between their contacts without hitting that constraint).
+router.put('/:id/executor', requireAuth, async (req, res) => {
+  const contact = await queryOne(
+    'SELECT * FROM trusted_contacts WHERE id = $1 AND user_id = $2',
+    [req.params.id, req.user.id]
+  );
+  if (!contact) return res.status(404).json({ error: 'Contact not found.' });
+
+  const { is_executor } = req.body;
+
+  await transaction(async (client) => {
+    await client.query('UPDATE trusted_contacts SET is_executor = 0 WHERE user_id = $1', [req.user.id]);
+    if (is_executor) {
+      await client.query('UPDATE trusted_contacts SET is_executor = 1 WHERE id = $1', [contact.id]);
+    }
+  });
+
+  const updated = await queryOne('SELECT * FROM trusted_contacts WHERE id = $1', [contact.id]);
+  res.json({ id: updated.id, is_executor: !!updated.is_executor });
+});
+
 router.delete('/:id', requireAuth, async (req, res) => {
   const contact = await queryOne(
     'SELECT * FROM trusted_contacts WHERE id = $1 AND user_id = $2',

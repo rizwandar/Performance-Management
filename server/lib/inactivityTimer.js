@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const { queryOne, queryAll, query } = require('../db/database');
 const { sendEmail } = require('./sendEmail');
-const { inactivityReminderEmail, inactivityContactNotificationEmail } = require('./emailTemplates');
+const { inactivityReminderEmail, inactivityContactNotificationEmail, executorInviteEmail } = require('./emailTemplates');
 
 async function sendPushNotification(expoPushToken, title, body) {
   if (!expoPushToken) return;
@@ -28,6 +28,16 @@ function addMonths(date, months) {
 
 function daysBetween(a, b) {
   return Math.floor((b - a) / (1000 * 60 * 60 * 24));
+}
+
+// Testing-only escape hatch: inactivity_test_override_minutes lets a specific
+// user's timer be set to lapse in minutes instead of months, without touching
+// the public inactivity_period_months setting or its validation.
+function computeExpiresAt(user, lastActive) {
+  if (user.inactivity_test_override_minutes) {
+    return new Date(lastActive.getTime() + user.inactivity_test_override_minutes * 60 * 1000);
+  }
+  return addMonths(lastActive, user.inactivity_period_months);
 }
 
 async function generateAccessLink(contact) {
@@ -80,29 +90,72 @@ async function notifyTrustedContacts(user) {
   );
 }
 
+// When a user has designated an executor (one of their up-to-3 trusted contacts,
+// see is_executor), the lapsed timer notifies that person only, rather than
+// blasting every trusted contact at once. The executor gets full read access
+// (still excluding the vault, enforced in routes/access.js) and can confirm the
+// owner has passed away, which is what actually triggers notifyTrustedContacts
+// and notifyPeopleToNotify (see lib/deceased.js). Users without an executor fall
+// back to the original behavior in checkInactivity below.
+async function notifyExecutor(user, contact) {
+  const accessLink = await generateAccessLink(contact);
+  try {
+    await sendEmail({
+      to:      contact.email,
+      subject: `${user.name} has not checked in: action needed as their executor`,
+      html:    executorInviteEmail({
+        recipientName: contact.name,
+        ownerName:     user.name,
+        accessLink,
+        expiresHours:  EXPIRES_HOURS,
+      }),
+    });
+    console.log(`[inactivity] Notified executor ${contact.email} for user ${user.id}`);
+  } catch (err) {
+    console.error(`[inactivity] Failed to notify executor ${contact.email}:`, err.message);
+  }
+
+  await query(
+    'UPDATE users SET inactivity_contacts_notified_at = $1 WHERE id = $2',
+    [new Date().toISOString(), user.id]
+  );
+}
+
 async function checkInactivity() {
   const now = new Date();
 
   const users = await queryAll(`
     SELECT id, name, email, last_active_at, inactivity_period_months,
+           inactivity_test_override_minutes, is_deceased,
            last_reminder_sent_at, inactivity_contacts_notified_at, expo_push_token
     FROM users
     WHERE is_admin = 0
       AND inactivity_period_months IS NOT NULL
       AND last_active_at IS NOT NULL
+      AND is_deceased = false
   `);
 
   for (const user of users) {
     try {
       const lastActive = new Date(user.last_active_at);
-      const expiresAt  = addMonths(lastActive, user.inactivity_period_months);
+      const expiresAt  = computeExpiresAt(user, lastActive);
       const daysLeft   = daysBetween(now, expiresAt);
 
       if (daysLeft < 0) {
         const alreadyNotified = user.inactivity_contacts_notified_at
           ? daysBetween(new Date(user.inactivity_contacts_notified_at), now) < RENOTIFY_DAYS
           : false;
-        if (!alreadyNotified) await notifyTrustedContacts(user);
+        if (!alreadyNotified) {
+          const executorContact = await queryOne(
+            'SELECT * FROM trusted_contacts WHERE user_id = $1 AND is_executor = 1',
+            [user.id]
+          );
+          if (executorContact?.email) {
+            await notifyExecutor(user, executorContact);
+          } else {
+            await notifyTrustedContacts(user);
+          }
+        }
         continue;
       }
 
@@ -155,4 +208,4 @@ async function cleanupExpiredTokens() {
   }
 }
 
-module.exports = { checkInactivity, cleanupExpiredTokens };
+module.exports = { checkInactivity, cleanupExpiredTokens, notifyTrustedContacts };

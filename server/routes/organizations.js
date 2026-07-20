@@ -288,6 +288,12 @@ router.post('/:id/customers/:customerId/revert-deceased', auth, adminOnly, async
     `UPDATE organization_customers SET lifecycle_status = 'plan_in_progress', deceased_at = NULL WHERE id = $1`,
     [customer.id]
   );
+  if (customer.user_id) {
+    await query(
+      `UPDATE users SET is_deceased = false, deceased_at = NULL, deceased_by = NULL WHERE id = $1`,
+      [customer.user_id]
+    );
+  }
   auditLog(req.user.id, 'deceased_status_reverted', req, { organization_customer_id: customer.id });
 
   const fresh = await queryOne('SELECT * FROM organization_customers WHERE id = $1', [customer.id]);

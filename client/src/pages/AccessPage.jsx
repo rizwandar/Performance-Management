@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { Spinner, Alert, Badge } from 'react-bootstrap'
+import { Spinner, Alert, Badge, Button, Modal } from 'react-bootstrap'
 import axios from 'axios'
 
 const API = import.meta.env.VITE_API_URL
@@ -217,12 +217,30 @@ export default function AccessPage() {
   const [error, setError]     = useState('')
   const [payload, setPayload] = useState(null)
 
+  const [showConfirm, setShowConfirm] = useState(false)
+  const [confirming, setConfirming]   = useState(false)
+  const [confirmError, setConfirmError] = useState('')
+  const [markedDemised, setMarkedDemised] = useState(false)
+
   useEffect(() => {
     axios.get(`${API}/access/${token}`)
       .then(r => setPayload(r.data))
       .catch(err => setError(err.response?.data?.error || 'This link is no longer valid.'))
       .finally(() => setLoading(false))
   }, [token])
+
+  const handleConfirmDemised = async () => {
+    setConfirming(true)
+    setConfirmError('')
+    try {
+      await axios.post(`${API}/access/${token}/mark-demised`, { confirm: true })
+      setMarkedDemised(true)
+      setShowConfirm(false)
+    } catch (err) {
+      setConfirmError(err.response?.data?.error || "We couldn't complete this. Please try again.")
+    }
+    setConfirming(false)
+  }
 
   if (loading) return (
     <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -240,7 +258,7 @@ export default function AccessPage() {
     </div>
   )
 
-  const { owner, contact_name, expires_at, visible_sections, data } = payload
+  const { owner, contact_name, expires_at, visible_sections, data, is_executor } = payload
 
   return (
     <div style={{ maxWidth: 760, margin: '0 auto', padding: '20px 16px 60px' }}>
@@ -255,6 +273,34 @@ export default function AccessPage() {
           This link expires {new Date(expires_at).toLocaleString()}
         </p>
       </div>
+
+      {is_executor && (
+        <div style={{ background: 'var(--green-50)', border: '1px solid var(--green-800)', borderRadius: 10, padding: '18px 20px', marginBottom: 32 }}>
+          {markedDemised ? (
+            <Alert variant="success" className="mb-0">
+              Thank you. We've let {owner.name}'s other trusted contacts and the people they
+              asked to be told know. This link will remain available to you.
+            </Alert>
+          ) : (
+            <>
+              <p style={{ fontWeight: 700, color: 'var(--green-900)', marginBottom: 6 }}>
+                You are {owner.name}'s executor
+              </p>
+              <p className="text-muted small mb-3">
+                You can see everything {owner.name} recorded here, except their private vault
+                credentials, which are never shared this way. If you have confirmed that
+                {' '}{owner.name} has passed away, use the button below to let us know. This will
+                notify their other trusted contacts and the people they asked to be told,
+                according to their wishes.
+              </p>
+              {confirmError && <Alert variant="danger" className="py-2">{confirmError}</Alert>}
+              <Button variant="danger" size="sm" onClick={() => setShowConfirm(true)}>
+                Mark as demised
+              </Button>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Owner's basic info if present */}
       {(owner.about_me || owner.legacy_message) && (
@@ -296,6 +342,26 @@ export default function AccessPage() {
           Please treat it with care and confidentiality.
         </p>
       </div>
+
+      <Modal show={showConfirm} onHide={() => setShowConfirm(false)} centered>
+        <Modal.Header closeButton>
+          <Modal.Title style={{ fontSize: '1.05rem' }}>Confirm: mark {owner.name} as deceased</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <p>
+            This will notify {owner.name}'s other trusted contacts (giving them access to the
+            sections shared with them) and send a notice to the people they asked to be told.
+            This cannot be undone by you once confirmed.
+          </p>
+          {confirmError && <Alert variant="danger" className="mb-0">{confirmError}</Alert>}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="outline-secondary" onClick={() => setShowConfirm(false)}>Cancel</Button>
+          <Button variant="danger" onClick={handleConfirmDemised} disabled={confirming}>
+            {confirming ? 'Confirming…' : 'Yes, mark as demised'}
+          </Button>
+        </Modal.Footer>
+      </Modal>
     </div>
   )
 }
