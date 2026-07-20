@@ -942,7 +942,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
           {[
             {
               table: 'users',
-              fields: 'id, name, email (unique), password_hash, date_of_birth, life_story, about_me, remembered_for, legacy_message, emergency_contact_name, emergency_contact_phone, emergency_contact_email, is_admin (0/1), inactivity_period_months (default 12), last_active_at, reset_token, reset_token_expiry, created_at, plus email verification, privacy consent, and vault attempt tracking fields',
+              fields: 'id, name, email (unique), password_hash, date_of_birth, life_story, about_me, remembered_for, legacy_message, emergency_contact_name, emergency_contact_phone, emergency_contact_email, marital_status, spouse_name, spouse_phone, spouse_email, is_admin (0/1), inactivity_period_months (default 12), last_active_at, reset_token, reset_token_expiry, created_at, plus email verification, privacy consent, and vault attempt tracking fields',
             },
             {
               table: 'legal_documents',

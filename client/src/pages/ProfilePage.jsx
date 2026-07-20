@@ -33,7 +33,10 @@ export default function ProfilePage() {
   const [error, setError]       = useState('')
   const [success, setSuccess]   = useState('')
 
-  const [form, setForm] = useState({ name: '', email: '', date_of_birth: '' })
+  const [form, setForm] = useState({
+    name: '', email: '', date_of_birth: '',
+    marital_status: '', spouse_name: '', spouse_phone: '', spouse_email: '',
+  })
 
   // Change password state
   const [pwForm, setPwForm]     = useState({ current: '', next: '', confirm: '' })
@@ -70,16 +73,21 @@ export default function ProfilePage() {
       .then(r => {
         const u = r.data
         setForm({
-          name:          u.name          || '',
-          email:         u.email         || '',
-          date_of_birth: u.date_of_birth || '',
+          name:           u.name           || '',
+          email:          u.email          || '',
+          date_of_birth:  u.date_of_birth  || '',
+          marital_status: u.marital_status || '',
+          spouse_name:    u.spouse_name    || '',
+          spouse_phone:   u.spouse_phone   || '',
+          spouse_email:   u.spouse_email   || '',
         })
       })
       .catch(() => {
         setForm({
-          name:          authUser?.name  || '',
-          email:         authUser?.email || '',
-          date_of_birth: '',
+          name:           authUser?.name  || '',
+          email:          authUser?.email || '',
+          date_of_birth:  '',
+          marital_status: '', spouse_name: '', spouse_phone: '', spouse_email: '',
         })
       })
 
@@ -284,13 +292,43 @@ export default function ProfilePage() {
             <Form.Control type="date" value={form.date_of_birth} onChange={set('date_of_birth')} />
           </Col>
         </Row>
-        <Form.Group className="mb-1">
+        <Form.Group className="mb-3">
           <Form.Label>Email address</Form.Label>
           <Form.Control type="email" value={form.email} onChange={set('email')} />
           <Form.Text className="text-muted">
             This is also your sign-in email. Changes take effect immediately.
           </Form.Text>
         </Form.Group>
+
+        <Form.Group className="mb-3">
+          <Form.Label>Marital status</Form.Label>
+          <Form.Select value={form.marital_status} onChange={set('marital_status')} style={{ maxWidth: 320 }}>
+            <option value="">Prefer not to say</option>
+            <option value="Single">Single</option>
+            <option value="Married">Married</option>
+            <option value="Common-law / Domestic Partner">Common-law / Domestic Partner</option>
+            <option value="Separated">Separated</option>
+            <option value="Divorced">Divorced</option>
+            <option value="Widowed">Widowed</option>
+          </Form.Select>
+        </Form.Group>
+
+        {['Married', 'Common-law / Domestic Partner'].includes(form.marital_status) && (
+          <Row className="g-3 mb-1">
+            <Col md={4}>
+              <Form.Label>Spouse / partner name</Form.Label>
+              <Form.Control value={form.spouse_name} onChange={set('spouse_name')} placeholder="Their full name" />
+            </Col>
+            <Col md={4}>
+              <Form.Label>Their phone</Form.Label>
+              <Form.Control value={form.spouse_phone} onChange={set('spouse_phone')} placeholder="Optional" />
+            </Col>
+            <Col md={4}>
+              <Form.Label>Their email</Form.Label>
+              <Form.Control type="email" value={form.spouse_email} onChange={set('spouse_email')} placeholder="Optional" />
+            </Col>
+          </Row>
+        )}
 
         <div className="mt-4">
           <Button variant="primary" onClick={handleSave} disabled={saving}>

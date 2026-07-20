@@ -356,6 +356,8 @@ function generatePdf(data, outputStream) {
     ['Full name',          user.name],
     ['Email',              user.email],
     ['Date of birth',      formatDate(user.date_of_birth)],
+    ['Marital status',     user.marital_status],
+    ['Spouse / Partner',   user.spouse_name],
     ['Document generated', formatDate(new Date().toISOString())],
   ], fonts);
 

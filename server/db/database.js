@@ -532,6 +532,14 @@ async function init() {
     FOREIGN KEY (changed_by_user_id) REFERENCES users(id) ON DELETE SET NULL
   `);
 
+  // Marital status + spouse/partner details, captured on the customer profile.
+  // Spouse fields mirror the existing emergency_contact_* shape (name/phone/email)
+  // rather than a separate table, since it's a single record per user.
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS marital_status TEXT`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS spouse_name TEXT`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS spouse_phone TEXT`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS spouse_email TEXT`);
+
   // Seed default settings
   for (const [key, value] of [
     ['password_reset_method', 'email'],

@@ -28,7 +28,8 @@ async function buildBaseData(uid) {
   const user = await queryOne(`
     SELECT id, name, email, date_of_birth,
            life_story, about_me, remembered_for, legacy_message,
-           emergency_contact_name, emergency_contact_phone, emergency_contact_email
+           emergency_contact_name, emergency_contact_phone, emergency_contact_email,
+           marital_status, spouse_name, spouse_phone, spouse_email
     FROM users WHERE id = $1
   `, [uid]);
   if (!user) return null;

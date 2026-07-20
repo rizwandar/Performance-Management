@@ -30,6 +30,7 @@ router.get('/me', auth, async (req, res) => {
     SELECT id, name, email, date_of_birth, about_me, legacy_message,
            life_story, remembered_for,
            emergency_contact_name, emergency_contact_phone, emergency_contact_email,
+           marital_status, spouse_name, spouse_phone, spouse_email,
            songs_enabled, bucket_list_enabled, is_admin, created_at
     FROM users WHERE id = $1
   `, [req.user.id]);
@@ -44,21 +45,25 @@ router.get('/me', auth, async (req, res) => {
 router.put('/me', auth, async (req, res) => {
   const { name, email, date_of_birth, about_me, legacy_message,
           life_story, remembered_for,
-          emergency_contact_name, emergency_contact_phone, emergency_contact_email } = req.body;
+          emergency_contact_name, emergency_contact_phone, emergency_contact_email,
+          marital_status, spouse_name, spouse_phone, spouse_email } = req.body;
   try {
     const existing = await queryOne('SELECT name, email FROM users WHERE id = $1', [req.user.id]);
     await query(`
       UPDATE users SET name=$1, email=$2, date_of_birth=$3, about_me=$4, legacy_message=$5,
         life_story=$6, remembered_for=$7,
-        emergency_contact_name=$8, emergency_contact_phone=$9, emergency_contact_email=$10
-      WHERE id=$11
+        emergency_contact_name=$8, emergency_contact_phone=$9, emergency_contact_email=$10,
+        marital_status=$11, spouse_name=$12, spouse_phone=$13, spouse_email=$14
+      WHERE id=$15
     `, [
       name  ?? existing.name,
       email ?? existing.email,
       date_of_birth || null, about_me || null, legacy_message || null,
       life_story || null, remembered_for || null,
       emergency_contact_name || null, emergency_contact_phone || null,
-      emergency_contact_email || null, req.user.id,
+      emergency_contact_email || null,
+      marital_status || null, spouse_name || null, spouse_phone || null, spouse_email || null,
+      req.user.id,
     ]);
     res.json({ success: true });
   } catch (err) {
