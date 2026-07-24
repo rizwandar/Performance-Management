@@ -1,4 +1,9 @@
+import { useState, useEffect } from 'react'
+import axios from 'axios'
 import { useSubscription } from '../context/SubscriptionContext'
+import { useAuth } from '../context/AuthContext'
+
+const API = import.meta.env.VITE_API_URL || '/api'
 
 const FREE_FEATURES = [
   'How I\'d Like to Be Remembered',
@@ -67,8 +72,79 @@ function PlanCard({ title, price, period, note, features, highlight, badge, chec
   )
 }
 
+function CheckoutButton({ label, planId }) {
+  const { token } = useAuth()
+  const [loading, setLoading] = useState(false)
+  const [error, setError]     = useState('')
+
+  const startCheckout = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const r = await axios.post(`${API}/billing/create-checkout-session`, { plan: planId }, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      window.location.href = r.data.url
+    } catch (err) {
+      setError(err.response?.data?.error || 'Could not start checkout. Please try again.')
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div>
+      <button
+        onClick={startCheckout}
+        disabled={loading}
+        style={{
+          width: '100%', padding: '12px 16px', borderRadius: 10, border: 'none',
+          background: 'var(--green-700)', color: '#fff', fontWeight: 600, fontSize: '0.95rem',
+          cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.7 : 1,
+        }}
+      >
+        {loading ? 'Redirecting to checkout...' : label}
+      </button>
+      {error && <p style={{ color: '#b3261e', fontSize: '0.82rem', marginTop: 8, marginBottom: 0 }}>{error}</p>}
+    </div>
+  )
+}
+
 export default function UpgradePage() {
-  const { isPremium, plan } = useSubscription()
+  const { isPremium, plan, refresh } = useSubscription()
+  const { token } = useAuth()
+  const [subscription, setSubscription] = useState(null)
+  const [checkoutStatus, setCheckoutStatus] = useState(null)
+  const [cancelling, setCancelling] = useState(false)
+  const [cancelMessage, setCancelMessage] = useState('')
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const status = params.get('checkout')
+    if (status) {
+      setCheckoutStatus(status)
+      window.history.replaceState({}, '', '/upgrade')
+      if (status === 'success') refresh()
+    }
+  }, [refresh])
+
+  useEffect(() => {
+    if (!token) return
+    axios.get(`${API}/billing/subscription`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => setSubscription(r.data))
+      .catch(() => {})
+  }, [token, plan])
+
+  const handleCancel = async () => {
+    setCancelling(true)
+    setCancelMessage('')
+    try {
+      const r = await axios.post(`${API}/billing/cancel`, {}, { headers: { Authorization: `Bearer ${token}` } })
+      setCancelMessage(r.data.message)
+    } catch (err) {
+      setCancelMessage(err.response?.data?.error || 'Could not cancel your subscription.')
+    }
+    setCancelling(false)
+  }
 
   return (
     <div style={{ maxWidth: 820, margin: '0 auto' }}>
@@ -79,13 +155,46 @@ export default function UpgradePage() {
         <p style={{ color: 'var(--text-muted)', maxWidth: 520, margin: '0 auto', lineHeight: 1.7 }}>
           In Good Hands is free to start. Upgrade to unlock every section and keep everything your loved ones will need in one place.
         </p>
-        {isPremium && (
+
+        {checkoutStatus === 'success' && (
+          <div style={{
+            display: 'inline-block', marginTop: 16,
+            background: 'var(--green-50)', border: '1px solid var(--green-100)',
+            borderRadius: 8, padding: '8px 20px', color: 'var(--green-800)', fontSize: '0.9rem',
+          }}>
+            Thank you! Your Premium subscription is now active.
+          </div>
+        )}
+        {checkoutStatus === 'cancelled' && (
+          <div style={{
+            display: 'inline-block', marginTop: 16,
+            background: 'var(--parchment-dark)', border: '1px solid var(--border)',
+            borderRadius: 8, padding: '8px 20px', color: 'var(--text-muted)', fontSize: '0.9rem',
+          }}>
+            Checkout was cancelled, no charge was made.
+          </div>
+        )}
+
+        {isPremium && !checkoutStatus && (
           <div style={{
             display: 'inline-block', marginTop: 16,
             background: 'var(--green-50)', border: '1px solid var(--green-100)',
             borderRadius: 8, padding: '8px 20px', color: 'var(--green-800)', fontSize: '0.9rem',
           }}>
             You are currently on the <strong>Premium</strong> plan. Full access is active.
+            {subscription?.provider === 'stripe' && subscription?.status === 'active' && (
+              <>
+                {' '}
+                <button
+                  onClick={handleCancel}
+                  disabled={cancelling}
+                  style={{ background: 'none', border: 'none', color: 'var(--green-800)', textDecoration: 'underline', cursor: 'pointer', padding: 0, fontSize: '0.9rem' }}
+                >
+                  {cancelling ? 'Cancelling...' : 'Cancel subscription'}
+                </button>
+              </>
+            )}
+            {cancelMessage && <p style={{ marginTop: 8, marginBottom: 0, fontSize: '0.85rem' }}>{cancelMessage}</p>}
           </div>
         )}
       </div>
@@ -111,15 +220,9 @@ export default function UpgradePage() {
           highlight
           badge="MOST POPULAR"
           cta={
-            <div style={{
-              background: 'var(--green-100)', border: '1px solid var(--green-200)',
-              borderRadius: 10, padding: '14px 16px', textAlign: 'center',
-            }}>
-              <p style={{ color: 'var(--green-800)', fontWeight: 600, marginBottom: 4, fontSize: '0.9rem' }}>Coming soon</p>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginBottom: 0, lineHeight: 1.5 }}>
-                Online payment is in development. In the meantime, all accounts have full Premium access.
-              </p>
-            </div>
+            plan === 'premium'
+              ? <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem', padding: '10px 0' }}>Your current plan</div>
+              : <CheckoutButton label="Subscribe Monthly" planId="monthly" />
           }
         />
         <PlanCard
@@ -129,25 +232,11 @@ export default function UpgradePage() {
           note="That's just $2.50 per month, saving $30"
           features={PREMIUM_FEATURES}
           cta={
-            <div style={{
-              background: 'var(--parchment-dark)', border: '1px solid var(--border)',
-              borderRadius: 10, padding: '14px 16px', textAlign: 'center',
-            }}>
-              <p style={{ color: 'var(--green-800)', fontWeight: 600, marginBottom: 4, fontSize: '0.9rem' }}>Coming soon</p>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginBottom: 0, lineHeight: 1.5 }}>
-                Annual billing will be available when online payment launches.
-              </p>
-            </div>
+            plan === 'premium'
+              ? <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem', padding: '10px 0' }}>Your current plan</div>
+              : <CheckoutButton label="Subscribe Annually" planId="annual" />
           }
         />
-      </div>
-
-      <div style={{
-        background: 'var(--green-50)', border: '1px solid var(--green-100)',
-        borderRadius: 12, padding: '20px 24px', textAlign: 'center',
-        color: 'var(--green-800)', fontSize: '0.9rem', lineHeight: 1.7,
-      }}>
-        <strong>Currently in open access:</strong> While payment processing is being set up, every account has full Premium access at no charge. We will notify you by email before any billing begins.
       </div>
     </div>
   )
