@@ -70,6 +70,20 @@ services:
       # project's DSN if you do want staging errors tracked.
       - key: SENTRY_DSN
         sync: false
+      # Same Stripe *test-mode* sandbox account/keys as local dev - test mode
+      # is already fully isolated from real money, no need for a third Stripe
+      # environment. Only the webhook secret differs (each registered webhook
+      # endpoint gets its own signing secret) - fill in after registering the
+      # staging webhook endpoint in Stripe (Developers > Webhooks) pointed at
+      # https://in-good-hands-api-staging.onrender.com/api/billing/webhook
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: STRIPE_PRICE_MONTHLY
+        value: price_1TwmNYKYetwCg4ijlwj9LzxK
+      - key: STRIPE_PRICE_ANNUAL
+        value: price_1TwmOAKYetwCg4ijpAdAWah8
 
   - type: web
     name: in-good-hands-client-staging

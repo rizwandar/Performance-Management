@@ -662,12 +662,25 @@ async function init() {
     'UPDATE users SET email_verified = 1 WHERE email_verification_token IS NULL AND email_verified = 0'
   );
 
-  // Backfill: grant existing users a premium subscription
-  await pool.query(`
-    INSERT INTO subscriptions (user_id, plan, status)
-    SELECT id, 'premium', 'active' FROM users
-    ON CONFLICT (user_id) DO NOTHING
-  `);
+  // One-time cutover: honor the "open access" promise made to everyone who
+  // signed up before real billing existed, by grandfathering them premium
+  // forever. Gated on app_settings so this only ever fires once - unlike the
+  // unconditional backfill it replaces, it must NOT re-grant premium to users
+  // who sign up after this point, or the Stripe paywall would be meaningless.
+  const grandfatherDone = await pool.query(
+    "SELECT 1 FROM app_settings WHERE key = 'premium_grandfather_cutoff_done'"
+  );
+  if (grandfatherDone.rows.length === 0) {
+    await pool.query(`
+      INSERT INTO subscriptions (user_id, plan, status, provider)
+      SELECT id, 'premium', 'active', 'grandfathered' FROM users
+      ON CONFLICT (user_id) DO NOTHING
+    `);
+    await pool.query(
+      "INSERT INTO app_settings (key, value) VALUES ('premium_grandfather_cutoff_done', NOW()::text) ON CONFLICT (key) DO NOTHING"
+    );
+    console.log('[db] Premium grandfather cutover applied (one-time)');
+  }
 
   console.log('[db] PostgreSQL schema ready');
 }
