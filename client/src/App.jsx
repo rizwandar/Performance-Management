@@ -215,7 +215,6 @@ function SiteFooter() {
                 { label: 'Terms of Service',  href: '/terms', internal: true },
                 { label: 'Accessibility',     href: '/accessibility', internal: true },
                 { label: 'Security',          href: '/security', internal: true },
-                { label: 'Report a Passing',  href: '/report-passing', internal: true },
               ].map(link => (
                 link.internal
                   ? <Link key={link.href} to={link.href}
@@ -229,6 +228,13 @@ function SiteFooter() {
                       {link.label}
                     </a>
               ))}
+            </div>
+
+            <div className="mt-3">
+              <Link to="/report-passing"
+                  style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--green-800)', textDecoration: 'underline' }}>
+                Need to report a passing?
+              </Link>
             </div>
           </div>
 
