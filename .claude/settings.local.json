@@ -63,7 +63,12 @@
       "Bash(powershell -Command \"Get-CimInstance Win32_Process -Filter \\\\\"Name='node.exe'\\\\\" | Where-Object { \\\\$_.CommandLine -match 'index\\\\.js|vite' } | Select-Object ProcessId,CommandLine\" 2>&1)",
       "Bash(powershell -Command \"Stop-Process -Id 32032,17148,1476 -Force -ErrorAction SilentlyContinue\")",
       "Bash(powershell -Command 'Get-CimInstance Win32_Process -Filter \"Name='\\\\''node.exe'\\\\''\" | Where-Object { $_.CommandLine -match '\\\\''index\\\\.js|vite'\\\\'' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }')",
-      "Bash(xargs grep -l \"report-death\\\\|report-passing\")"
+      "Bash(xargs grep -l \"report-death\\\\|report-passing\")",
+      "Bash(where psql *)",
+      "Bash(where pg_ctl)",
+      "Bash(where docker *)",
+      "Bash(tasklist)",
+      "Bash(netstat -ano)"
     ]
   }
 }

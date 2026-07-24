@@ -1,0 +1,87 @@
+# Staging environment blueprint for In Good Hands.
+#
+# This defines a STAGING-ONLY set of resources, fully separate from production
+# (performance-api / performance-client / in-good-hands-db). Deploy via the
+# Render dashboard: New -> Blueprint -> select this repo -> branch "staging".
+# Review the preview screen before confirming - it shows exactly what will be
+# created before anything is provisioned.
+#
+# Free tier as of 2026-07-24 (per project_dev_database_todo memory): staging
+# Postgres auto-deletes after 90 days of inactivity on the free plan, and the
+# free web service spins down after 15min idle (slow first request after
+# that). Both can be bumped to Starter/Basic-256mb later by editing "plan"
+# below and re-syncing, no data migration needed since schema self-provisions.
+
+databases:
+  - name: in-good-hands-db-staging
+    region: oregon
+    plan: free
+    databaseName: in_good_hands_staging
+    user: in_good_hands_staging_user
+
+services:
+  - type: web
+    name: in-good-hands-api-staging
+    runtime: node
+    region: oregon
+    plan: free
+    rootDir: server
+    buildCommand: npm install
+    startCommand: node index.js
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: in-good-hands-db-staging
+          property: connectionString
+      # Must be DIFFERENT from production's JWT_SECRET/VAULT_KEY - never reuse
+      # prod secrets on staging. Generate fresh random values.
+      - key: JWT_SECRET
+        sync: false
+      - key: VAULT_KEY
+        sync: false
+      # Exact-match CORS check in server/index.js (ALLOWED_ORIGIN) - must equal
+      # the staging client's actual URL with scheme, no trailing slash. Verify
+      # this matches what Render actually assigns the client service below
+      # after first deploy, adjust and redeploy this service if it differs.
+      - key: CLIENT_URL
+        value: https://in-good-hands-client-staging.onrender.com
+      # Reusing the prod Resend key is fine (it's just an API key), but ONLY
+      # exercise email-sending flows (report-death, executor designation,
+      # inactivity notices) against real inboxes YOU control on staging -
+      # never real trusted-contact emails. Consider a distinct FROM_EMAIL.
+      - key: RESEND_API_KEY
+        sync: false
+      # Recommend a SEPARATE R2 bucket for staging so test uploads never sit
+      # alongside real client documents. Create a second bucket in Cloudflare
+      # first, then fill these in.
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET_NAME
+        sync: false
+      - key: R2_ENDPOINT
+        sync: false
+      # Optional - leave unset to disable Sentry on staging and keep prod
+      # error tracking free of staging noise. Set to a separate Sentry
+      # project's DSN if you do want staging errors tracked.
+      - key: SENTRY_DSN
+        sync: false
+
+  - type: web
+    name: in-good-hands-client-staging
+    runtime: static
+    region: oregon
+    rootDir: client
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      # Verify against the API service's actual assigned URL after first
+      # deploy (see note on CLIENT_URL above) - must end in /api.
+      - key: VITE_API_URL
+        value: https://in-good-hands-api-staging.onrender.com/api
+      # Leave unset to keep staging errors out of the prod Sentry project.
+      - key: VITE_SENTRY_DSN
+        sync: false
