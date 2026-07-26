@@ -556,6 +556,14 @@ async function init() {
     FOREIGN KEY (changed_by_user_id) REFERENCES users(id) ON DELETE SET NULL
   `);
 
+  // Real Stripe billing for org subscriptions (Professional/Growth tiers).
+  // billing_status mirrors the consumer subscriptions.status field (active/
+  // trialing/past_due/canceled) - plan_tier alone doesn't tell us whether a
+  // real subscription backs it, Starter has none by design (it's free).
+  await pool.query(`ALTER TABLE organizations ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT`);
+  await pool.query(`ALTER TABLE organizations ADD COLUMN IF NOT EXISTS stripe_subscription_id TEXT`);
+  await pool.query(`ALTER TABLE organizations ADD COLUMN IF NOT EXISTS billing_status TEXT`);
+
   // Marital status + spouse/partner details, captured on the customer profile.
   // Spouse fields mirror the existing emergency_contact_* shape (name/phone/email)
   // rather than a separate table, since it's a single record per user.
@@ -570,6 +578,11 @@ async function init() {
     ['site_theme',            'forest'],
     ['site_font',             'georgia'],
     ['site_logo',             ''],
+    // Growth-tier overage config: customers included free in the $199/mo
+    // base fee, and per-customer price beyond that. Admin-editable via the
+    // existing generic PUT /api/settings/:key, no redeploy needed to change.
+    ['org_growth_included_customers',  '50'],
+    ['org_growth_overage_rate_cents',  '200'],
   ]) {
     await pool.query(
       'INSERT INTO app_settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING',

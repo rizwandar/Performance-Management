@@ -2,10 +2,17 @@
 // express.json() middleware — Stripe's signature check needs the raw body.
 const { stripe } = require('../lib/stripe');
 const { query, queryOne } = require('../db/database');
+const { ORG_PRICE_IDS } = require('../lib/orgPlanLimits');
+const { countActiveCustomers, getOverageConfig } = require('../lib/orgBilling');
 
 const PRICE_TO_PLAN = {
   [process.env.STRIPE_PRICE_MONTHLY]: 'premium',
   [process.env.STRIPE_PRICE_ANNUAL]:  'premium',
+};
+
+const ORG_PRICE_TO_TIER = {
+  [ORG_PRICE_IDS.professional]: 'professional',
+  [ORG_PRICE_IDS.growth]:       'growth',
 };
 
 function toTimestamp(unixSeconds) {
@@ -62,6 +69,72 @@ async function upsertFromSubscription(subscription, userId) {
   );
 }
 
+// Orgs going back to Starter (free) on cancellation - Starter has no Stripe
+// price, so there's nothing to map the subscription's price to.
+async function upsertOrgFromSubscription(subscription, organizationId) {
+  const item = subscription.items.data[0];
+  const priceId = item?.price?.id;
+
+  let resolvedOrgId = organizationId;
+  if (!resolvedOrgId) {
+    const existing = await queryOne(
+      'SELECT id FROM organizations WHERE stripe_customer_id = $1',
+      [subscription.customer]
+    );
+    resolvedOrgId = existing?.id;
+  }
+  if (!resolvedOrgId) {
+    console.error('[stripe webhook] Could not resolve organization_id for subscription', subscription.id);
+    return;
+  }
+
+  const org = await queryOne('SELECT plan_tier FROM organizations WHERE id = $1', [resolvedOrgId]);
+  const isEnding = subscription.status === 'canceled';
+  const newTier = isEnding ? 'starter' : (ORG_PRICE_TO_TIER[priceId] || org.plan_tier);
+
+  await query(
+    `UPDATE organizations
+     SET plan_tier = $1, stripe_customer_id = $2, stripe_subscription_id = $3, billing_status = $4
+     WHERE id = $5`,
+    [newTier, subscription.customer, isEnding ? null : subscription.id, subscription.status, resolvedOrgId]
+  );
+
+  if (newTier !== org.plan_tier) {
+    await query(
+      `INSERT INTO organization_billing_events (organization_id, old_plan_tier, new_plan_tier, rate_snapshot)
+       VALUES ($1, $2, $3, $4)`,
+      [resolvedOrgId, org.plan_tier, newTier, subscription.status]
+    );
+  }
+}
+
+// Fires shortly before Stripe finalizes an org's next invoice. If they're on
+// Growth and over their included customer count, add a one-off line item for
+// the overage - Stripe automatically sweeps any pending invoice item into the
+// invoice that's about to finalize for that customer, no separate metered
+// price/usage-reporting setup needed.
+async function addGrowthOverageIfNeeded(invoice) {
+  const org = await queryOne(
+    'SELECT * FROM organizations WHERE stripe_customer_id = $1',
+    [invoice.customer]
+  );
+  if (!org || org.plan_tier !== 'growth') return;
+
+  const [activeCount, { includedCustomers, overageRateCents }] = await Promise.all([
+    countActiveCustomers(org.id),
+    getOverageConfig(),
+  ]);
+  const overageCount = Math.max(0, activeCount - includedCustomers);
+  if (overageCount === 0) return;
+
+  await stripe.invoiceItems.create({
+    customer: invoice.customer,
+    currency: 'usd',
+    amount: overageCount * overageRateCents,
+    description: `${overageCount} customer${overageCount === 1 ? '' : 's'} over the ${includedCustomers} included in Growth ($${(overageRateCents / 100).toFixed(2)}/customer)`,
+  });
+}
+
 module.exports = async (req, res) => {
   let event;
   try {
@@ -81,20 +154,33 @@ module.exports = async (req, res) => {
         const session = event.data.object;
         if (session.mode === 'subscription') {
           const subscription = await stripe.subscriptions.retrieve(session.subscription);
-          await upsertFromSubscription(subscription, session.client_reference_id);
+          if (session.metadata?.organization_id) {
+            await upsertOrgFromSubscription(subscription, session.metadata.organization_id);
+          } else {
+            await upsertFromSubscription(subscription, session.client_reference_id);
+          }
         }
         break;
       }
       case 'customer.subscription.updated':
       case 'customer.subscription.deleted': {
         const subscription = event.data.object;
-        await upsertFromSubscription(subscription, subscription.metadata?.user_id);
+        if (subscription.metadata?.organization_id) {
+          await upsertOrgFromSubscription(subscription, subscription.metadata.organization_id);
+        } else {
+          await upsertFromSubscription(subscription, subscription.metadata?.user_id);
+        }
+        break;
+      }
+      case 'invoice.upcoming': {
+        await addGrowthOverageIfNeeded(event.data.object);
         break;
       }
       // invoice.payment_failed needs no explicit handling here: Stripe moves
       // the subscription itself to status 'past_due' and fires
       // customer.subscription.updated for that, which already revokes access
-      // via the status check in lib/subscription.js.
+      // via the status check in lib/subscription.js (consumer) / billing_status
+      // (org).
       default:
         break;
     }

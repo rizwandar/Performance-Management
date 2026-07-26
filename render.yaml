@@ -84,6 +84,10 @@ services:
         value: price_1TwmNYKYetwCg4ijlwj9LzxK
       - key: STRIPE_PRICE_ANNUAL
         value: price_1TwmOAKYetwCg4ijpAdAWah8
+      - key: STRIPE_ORG_PRICE_PROFESSIONAL
+        value: price_1TxSFiKYetwCg4ijViGBQlUq
+      - key: STRIPE_ORG_PRICE_GROWTH
+        value: price_1TxSFiKYetwCg4ijb4eonxxX
 
   - type: web
     name: in-good-hands-client-staging

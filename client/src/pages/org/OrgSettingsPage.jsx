@@ -48,6 +48,18 @@ export default function OrgSettingsPage() {
   }
   useEffect(load, [])
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const status = params.get('checkout')
+    if (status === 'success') {
+      showAlert('success', 'Payment successful, your plan is now active.')
+      window.history.replaceState({}, '', '/org/settings')
+    } else if (status === 'cancelled') {
+      showAlert('info', 'Checkout was cancelled, no charge was made.')
+      window.history.replaceState({}, '', '/org/settings')
+    }
+  }, [])
+
   const toggleCategory = (c) => {
     setProfileForm(f => ({
       ...f,
@@ -90,8 +102,12 @@ export default function OrgSettingsPage() {
     if (selectedTier === settings.plan_tier) return
     setSavingPlan(true)
     try {
-      await axios.post(`${API}/org-portal/settings/upgrade-plan`, { plan_tier: selectedTier })
-      showAlert('success', `Plan changed to ${TIER_LABELS[selectedTier]}.`)
+      const r = await axios.post(`${API}/org-portal/settings/upgrade-plan`, { plan_tier: selectedTier })
+      if (r.data.checkout_url) {
+        window.location.href = r.data.checkout_url
+        return
+      }
+      showAlert('success', r.data.message || `Plan changed to ${TIER_LABELS[selectedTier]}.`)
       load()
     } catch (err) {
       showAlert('danger', err.response?.data?.error || 'Could not change plan.')
@@ -144,14 +160,17 @@ export default function OrgSettingsPage() {
         <div className="fw-bold small mb-2" style={{ color: 'var(--green-900)' }}>Plan</div>
         <p className="small text-muted">
           Currently on <strong>{TIER_LABELS[settings.plan_tier]}</strong> ({settings.rate}).
-          Payments aren't active yet during our launch period. Changing plans here takes effect immediately.
+          Moving to a paid plan opens Stripe checkout; switching between paid plans or back to Starter takes effect
+          {selectedTier === 'starter' ? ' at the end of your current billing period' : ' immediately, prorated for the rest of the period'}.
         </p>
         {isOrgAdmin ? (
           <>
             <Form.Select size="sm" className="mb-2" style={{ maxWidth: 360 }} value={selectedTier} onChange={e => setSelectedTier(e.target.value)}>
-              <option value="starter">Starter: Free (5 customers, 1 Org Admin, 1 Org Staff)</option>
-              <option value="professional">Professional: $99/month (50 customers, 3 Org Admins, 3 Org Staff)</option>
-              <option value="growth">Growth: $199/month+ (unlimited customers, 5 Org Admins, 10 Org Staff)</option>
+              <option value="starter">Starter: Free (1 Org Admin, 1 Org Staff)</option>
+              <option value="professional">Professional: $99/month (3 Org Admins, 3 Org Staff)</option>
+              <option value="growth">
+                {`Growth: $199/month + $${(settings.overage.overageRateCents / 100).toFixed(2)}/customer beyond ${settings.overage.includedCustomers} (5 Org Admins, 10 Org Staff)`}
+              </option>
             </Form.Select>
             <Button size="sm" disabled={savingPlan || selectedTier === settings.plan_tier} onClick={changePlan} style={{ background: 'var(--green-800)', border: 'none' }}>
               {savingPlan ? 'Saving…' : 'Change Plan'}
