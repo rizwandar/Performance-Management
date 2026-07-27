@@ -11,6 +11,58 @@ export const parseJwt = (token) => {
   }
 }
 
+// Registered once at module load, not inside a component effect. Page
+// components fetch data in their own mount-time useEffect, and React fires
+// child effects before parent effects — if this were installed inside
+// AuthProvider's useEffect, a hard reload could fire a page's data request
+// before the token was attached, producing a silent, unauthenticated 401.
+// authStateHandlers lets the mounted AuthProvider react (update React state)
+// to events this interceptor detects, without the interceptor depending on
+// the component being mounted yet.
+let authStateHandlers = []
+
+axios.interceptors.request.use(config => {
+  const t = localStorage.getItem('token')
+  if (t) {
+    const decoded = parseJwt(t)
+    if (decoded && decoded.exp * 1000 < Date.now()) {
+      // A view-as session expiring should fall back to the org user's own
+      // session, not force a full logout — they were never signed out.
+      const realToken = decoded.viewAs && localStorage.getItem('realToken')
+      if (realToken) {
+        const realUser = localStorage.getItem('realUser')
+        localStorage.removeItem('realToken')
+        localStorage.removeItem('realUser')
+        localStorage.removeItem('viewAsCustomerName')
+        localStorage.setItem('token', realToken)
+        if (realUser) localStorage.setItem('user', realUser)
+        authStateHandlers.forEach(fn => fn('restoreReal', realToken, realUser))
+        config.headers.Authorization = `Bearer ${realToken}`
+        return config
+      }
+      authStateHandlers.forEach(fn => fn('logout'))
+      return Promise.reject(new Error('Session expired'))
+    }
+    config.headers.Authorization = `Bearer ${t}`
+  }
+  return config
+})
+
+axios.interceptors.response.use(
+  res => res,
+  err => {
+    // Only a genuinely invalid/missing/expired JWT should force a logout.
+    // Plenty of authenticated routes also return 401 for "you typed the
+    // wrong password" (vault unlock, vault password change, account
+    // deletion confirmation, etc.) — those must NOT log the user out,
+    // the calling component shows its own inline error instead.
+    if (err.response?.status === 401 && err.response?.data?.session_expired) {
+      authStateHandlers.forEach(fn => fn('logout'))
+    }
+    return Promise.reject(err)
+  }
+)
+
 export function AuthProvider({ children }) {
   const [token, setToken] = useState(() => localStorage.getItem('token'))
   const [user, setUser] = useState(() => {
@@ -19,50 +71,17 @@ export function AuthProvider({ children }) {
   })
 
   useEffect(() => {
-    const reqInterceptor = axios.interceptors.request.use(config => {
-      const t = localStorage.getItem('token')
-      if (t) {
-        const decoded = parseJwt(t)
-        if (decoded && decoded.exp * 1000 < Date.now()) {
-          // A view-as session expiring should fall back to the org user's own
-          // session, not force a full logout — they were never signed out.
-          const realToken = decoded.viewAs && localStorage.getItem('realToken')
-          if (realToken) {
-            const realUser = localStorage.getItem('realUser')
-            localStorage.removeItem('realToken')
-            localStorage.removeItem('realUser')
-            localStorage.removeItem('viewAsCustomerName')
-            localStorage.setItem('token', realToken)
-            if (realUser) localStorage.setItem('user', realUser)
-            setToken(realToken)
-            setUser(realUser ? JSON.parse(realUser) : null)
-            config.headers.Authorization = `Bearer ${realToken}`
-            return config
-          }
-          logout()
-          return Promise.reject(new Error('Session expired'))
-        }
-        config.headers.Authorization = `Bearer ${t}`
+    const handler = (action, realToken, realUser) => {
+      if (action === 'restoreReal') {
+        setToken(realToken)
+        setUser(realUser ? JSON.parse(realUser) : null)
+      } else {
+        logout()
       }
-      return config
-    })
-
-    const resInterceptor = axios.interceptors.response.use(
-      res => res,
-      err => {
-        // Only a genuinely invalid/missing/expired JWT should force a logout.
-        // Plenty of authenticated routes also return 401 for "you typed the
-        // wrong password" (vault unlock, vault password change, account
-        // deletion confirmation, etc.) — those must NOT log the user out,
-        // the calling component shows its own inline error instead.
-        if (err.response?.status === 401 && err.response?.data?.session_expired) logout()
-        return Promise.reject(err)
-      }
-    )
-
+    }
+    authStateHandlers.push(handler)
     return () => {
-      axios.interceptors.request.eject(reqInterceptor)
-      axios.interceptors.response.eject(resInterceptor)
+      authStateHandlers = authStateHandlers.filter(h => h !== handler)
     }
   }, [])
 
