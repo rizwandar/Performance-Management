@@ -527,8 +527,6 @@ export default function KeyContactsPage() {
         </Modal.Footer>
       </Modal>
 
-      {(ecSuccess || tcSuccess) && <Alert variant="success" className="mt-4">{ecSuccess || tcSuccess}</Alert>}
-      {(ecError || tcError) && !showModal && <Alert variant="danger" className="mt-4">{ecError || tcError}</Alert>}
       <div className="mt-4 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
         <button className="btn btn-link p-0"
           style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '0.9rem' }}
