@@ -1195,20 +1195,20 @@ USERS         GET/PUT /api/users/me (profile)
               PUT /api/users/me/emergency-contact
 
 SECTIONS      GET /api/sections/completion (counts per section)
-              GET/POST/PUT/DELETE /api/sections/legal-documents
-              POST /api/sections/legal-documents/list (vault auth)
-              GET/POST/PUT/DELETE /api/sections/financial-affairs
-              POST /api/sections/financial-affairs/list (vault auth)
+              POST/PUT/DELETE /api/sections/legal-documents
+              POST /api/sections/legal-documents/list (vault auth, only way to read)
+              POST/PUT/DELETE /api/sections/financial-affairs
+              POST /api/sections/financial-affairs/list (vault auth, only way to read)
               GET/PUT /api/sections/funeral-wishes
               GET/PUT /api/sections/medical-wishes
               GET/POST/PUT/DELETE /api/sections/people-to-notify
-              GET/POST/PUT/DELETE /api/sections/property-possessions
-              POST /api/sections/property-possessions/list (vault auth)
+              POST/PUT/DELETE /api/sections/property-possessions
+              POST /api/sections/property-possessions/list (vault auth, only way to read)
               GET/POST/PUT/DELETE /api/sections/personal-messages
               GET/POST/PUT/DELETE /api/sections/songs-that-define-me
               GET/POST/PUT/DELETE /api/sections/life-wishes
-              GET/POST/PUT/DELETE /api/sections/household-info
-              POST /api/sections/household-info/list (vault auth)
+              POST/PUT/DELETE /api/sections/household-info
+              POST /api/sections/household-info/list (vault auth, only way to read)
               GET/POST/PUT/DELETE /api/sections/children-dependants
               GET/POST/DELETE     /api/sections/key-contacts (trusted contacts)
 

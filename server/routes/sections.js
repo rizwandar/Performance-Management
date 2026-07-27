@@ -148,11 +148,6 @@ router.post('/legal-documents/list', requireAuth, async (req, res) => {
   res.json(items);
 });
 
-router.get('/legal-documents', requireAuth, async (req, res) => {
-  const items = await queryAll('SELECT * FROM legal_documents WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]);
-  res.json(items);
-});
-
 router.post('/legal-documents', requireAuth, requirePremium, async (req, res) => {
   const { vault_password, document_type, title, held_by, location, notes } = req.body;
   if (!await checkVault(vault_password, req.user.id, res, req)) return;
@@ -192,10 +187,6 @@ router.post('/financial-affairs/list', requireAuth, async (req, res) => {
   if (!await checkVault(req.body.vault_password, req.user.id, res, req)) return;
   const items = await queryAll('SELECT * FROM financial_items WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]);
   res.json(items);
-});
-
-router.get('/financial-affairs', requireAuth, async (req, res) => {
-  res.json(await queryAll('SELECT * FROM financial_items WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]));
 });
 
 router.post('/financial-affairs', requireAuth, requirePremium, async (req, res) => {
@@ -342,10 +333,6 @@ router.post('/property-possessions/list', requireAuth, async (req, res) => {
   res.json(items);
 });
 
-router.get('/property-possessions', requireAuth, async (req, res) => {
-  res.json(await queryAll('SELECT * FROM property_items WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]));
-});
-
 router.post('/property-possessions', requireAuth, requirePremium, async (req, res) => {
   const { vault_password, category, title, description, location, intended_recipient, notes } = req.body;
   if (!await checkVault(vault_password, req.user.id, res, req)) return;
@@ -487,10 +474,6 @@ router.post('/household-info/list', requireAuth, async (req, res) => {
   if (!await checkVault(req.body.vault_password, req.user.id, res, req)) return;
   const items = await queryAll('SELECT * FROM household_info WHERE user_id = $1 ORDER BY category, title', [req.user.id]);
   res.json(items);
-});
-
-router.get('/household-info', requireAuth, async (req, res) => {
-  res.json(await queryAll('SELECT * FROM household_info WHERE user_id = $1 ORDER BY category, title', [req.user.id]));
 });
 
 router.post('/household-info', requireAuth, requirePremium, async (req, res) => {
