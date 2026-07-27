@@ -1565,7 +1565,10 @@ export default function AdminPage() {
 
   const formatDate = iso => {
     if (!iso) return 'N/A'
-    try { return new Date(iso).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }) }
+    try {
+      const d = /^\d{4}-\d{2}-\d{2}$/.test(iso) ? new Date(`${iso}T00:00:00`) : new Date(iso)
+      return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
+    }
     catch { return iso }
   }
 

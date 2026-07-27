@@ -101,7 +101,7 @@ export default function ChildrenDependantsPage() {
 
   const formatDob = dob => {
     if (!dob) return null
-    try { return new Date(dob).toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' }) }
+    try { return new Date(`${dob}T00:00:00`).toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' }) }
     catch { return dob }
   }
 
