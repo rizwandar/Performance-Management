@@ -137,7 +137,9 @@ async function addGrowthOverageIfNeeded(invoice) {
   });
 }
 
-module.exports = async (req, res) => {
+module.exports.upsertFromSubscription = upsertFromSubscription;
+
+module.exports.handler = async (req, res) => {
   let event;
   try {
     event = stripe.webhooks.constructEvent(
