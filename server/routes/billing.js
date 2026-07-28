@@ -4,6 +4,7 @@ const { queryOne, queryAll } = require('../db/database');
 const auth    = require('../middleware/auth');
 const { getUserPlan } = require('../lib/subscription');
 const { stripe, PRICE_IDS } = require('../lib/stripe');
+const { upsertFromSubscription } = require('./stripeWebhook');
 
 router.get('/subscription', auth, async (req, res) => {
   const sub = await queryOne('SELECT * FROM subscriptions WHERE user_id = $1', [req.user.id]);
@@ -126,15 +127,19 @@ router.post('/create-checkout-session', auth, async (req, res) => {
 });
 
 // Cancels at the end of the current billing period rather than immediately,
-// so the user keeps access they already paid for. The subscriptions row
-// itself is updated by the webhook (source of truth), not here.
+// so the user keeps access they already paid for. The webhook remains the
+// source of truth for out-of-band changes (e.g. a dashboard-initiated edit),
+// but we also apply Stripe's response here directly - otherwise a client
+// re-fetch right after this call can race ahead of the async webhook and
+// briefly show stale (pre-cancel) data.
 router.post('/cancel', auth, async (req, res) => {
   const sub = await queryOne('SELECT * FROM subscriptions WHERE user_id = $1', [req.user.id]);
   if (!sub || sub.provider !== 'stripe' || !sub.provider_subscription_id) {
     return res.status(400).json({ error: 'No active paid subscription to cancel.' });
   }
   try {
-    await stripe.subscriptions.update(sub.provider_subscription_id, { cancel_at_period_end: true });
+    const updated = await stripe.subscriptions.update(sub.provider_subscription_id, { cancel_at_period_end: true });
+    await upsertFromSubscription(updated, req.user.id);
     res.json({ message: 'Your subscription will stay active until the end of the current billing period, then it will not renew.' });
   } catch (err) {
     console.error('[billing] Cancel failed:', err.message);
@@ -155,7 +160,8 @@ router.post('/reinstate', auth, async (req, res) => {
     return res.status(400).json({ error: 'Your subscription is not currently scheduled to cancel.' });
   }
   try {
-    await stripe.subscriptions.update(sub.provider_subscription_id, { cancel_at_period_end: false });
+    const updated = await stripe.subscriptions.update(sub.provider_subscription_id, { cancel_at_period_end: false });
+    await upsertFromSubscription(updated, req.user.id);
     res.json({ message: 'Your premium membership has been reinstated. You will continue to be billed as normal.' });
   } catch (err) {
     console.error('[billing] Reinstate failed:', err.message);

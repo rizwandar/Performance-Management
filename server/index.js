@@ -35,7 +35,7 @@ app.use((req, res, next) => {
 
 // Mounted before express.json() - Stripe webhook signature verification needs
 // the raw request body, not JSON-parsed.
-app.post('/api/billing/webhook', express.raw({ type: 'application/json' }), require('./routes/stripeWebhook'));
+app.post('/api/billing/webhook', express.raw({ type: 'application/json' }), require('./routes/stripeWebhook').handler);
 
 app.use(express.json({ limit: '10kb' }));
 
