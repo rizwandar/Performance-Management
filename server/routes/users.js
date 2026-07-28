@@ -8,6 +8,7 @@ const { deriveKey, verifyVaultPassword } = require('../lib/vault');
 const { deleteFile, getDownloadUrl } = require('../lib/r2');
 const { sendEmail } = require('../lib/sendEmail');
 const { accountDeletionConfirmEmail } = require('../lib/emailTemplates');
+const { stripe } = require('../lib/stripe');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
 
@@ -255,6 +256,18 @@ router.delete('/me', auth, async (req, res) => {
   const uploads = await queryAll('SELECT r2_key FROM uploaded_documents WHERE user_id = $1', [user.id]);
   for (const upload of uploads) {
     try { await deleteFile(upload.r2_key); } catch { /* continue */ }
+  }
+
+  // A deleted account should never keep being billed. Cancel immediately
+  // (not cancel_at_period_end) since there's no account left to retain
+  // access for. Never let a Stripe hiccup block the deletion itself.
+  const sub = await queryOne('SELECT provider, provider_subscription_id FROM subscriptions WHERE user_id = $1', [user.id]);
+  if (sub?.provider === 'stripe' && sub.provider_subscription_id) {
+    try {
+      await stripe.subscriptions.cancel(sub.provider_subscription_id);
+    } catch (e) {
+      console.error('[delete-account] Stripe cancellation failed:', e.message);
+    }
   }
 
   await query('DELETE FROM users WHERE id = $1', [user.id]);

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import axios from 'axios'
 import { useSubscription } from '../context/SubscriptionContext'
 import { useAuth } from '../context/AuthContext'
@@ -114,8 +115,6 @@ export default function UpgradePage() {
   const { token } = useAuth()
   const [subscription, setSubscription] = useState(null)
   const [checkoutStatus, setCheckoutStatus] = useState(null)
-  const [cancelling, setCancelling] = useState(false)
-  const [cancelMessage, setCancelMessage] = useState('')
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -134,20 +133,8 @@ export default function UpgradePage() {
       .catch(() => {})
   }, [token, plan])
 
-  const handleCancel = async () => {
-    setCancelling(true)
-    setCancelMessage('')
-    try {
-      const r = await axios.post(`${API}/billing/cancel`, {}, { headers: { Authorization: `Bearer ${token}` } })
-      setCancelMessage(r.data.message)
-    } catch (err) {
-      setCancelMessage(err.response?.data?.error || 'Could not cancel your subscription.')
-    }
-    setCancelling(false)
-  }
-
   return (
-    <div style={{ maxWidth: 820, margin: '0 auto' }}>
+    <div style={{ maxWidth: 1180, margin: '0 auto' }}>
       <div style={{ textAlign: 'center', marginBottom: 48 }}>
         <h2 style={{ fontFamily: 'Georgia, serif', color: 'var(--green-900)', marginBottom: 12 }}>
           Choose Your Plan
@@ -182,19 +169,12 @@ export default function UpgradePage() {
             borderRadius: 8, padding: '8px 20px', color: 'var(--green-800)', fontSize: '0.9rem',
           }}>
             You are currently on the <strong>Premium</strong> plan. Full access is active.
-            {subscription?.provider === 'stripe' && subscription?.status === 'active' && (
+            {subscription?.provider === 'stripe' && (
               <>
-                {' '}
-                <button
-                  onClick={handleCancel}
-                  disabled={cancelling}
-                  style={{ background: 'none', border: 'none', color: 'var(--green-800)', textDecoration: 'underline', cursor: 'pointer', padding: 0, fontSize: '0.9rem' }}
-                >
-                  {cancelling ? 'Cancelling...' : 'Cancel subscription'}
-                </button>
+                {' '}Manage your billing in{' '}
+                <Link to="/profile/settings" style={{ color: 'var(--green-800)', fontWeight: 600 }}>My Profile</Link>.
               </>
             )}
-            {cancelMessage && <p style={{ marginTop: 8, marginBottom: 0, fontSize: '0.85rem' }}>{cancelMessage}</p>}
           </div>
         )}
       </div>
@@ -220,7 +200,7 @@ export default function UpgradePage() {
           highlight
           badge="MOST POPULAR"
           cta={
-            plan === 'premium'
+            subscription?.plan_id === 'monthly'
               ? <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem', padding: '10px 0' }}>Your current plan</div>
               : <CheckoutButton label="Subscribe Monthly" planId="monthly" />
           }
@@ -232,7 +212,7 @@ export default function UpgradePage() {
           note="That's just $2.50 per month, saving $30"
           features={PREMIUM_FEATURES}
           cta={
-            plan === 'premium'
+            subscription?.plan_id === 'annual'
               ? <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem', padding: '10px 0' }}>Your current plan</div>
               : <CheckoutButton label="Subscribe Annually" planId="annual" />
           }

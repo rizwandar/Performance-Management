@@ -10,8 +10,10 @@ router.get('/subscription', auth, async (req, res) => {
   if (!sub) {
     return res.json({ plan: 'free', status: 'active', trial_ends_at: null, current_period_end: null });
   }
+  const planId = Object.entries(PRICE_IDS).find(([, priceId]) => priceId === sub.provider_price_id)?.[0] || null;
   res.json({
     plan:                 sub.plan,
+    plan_id:              planId, // 'monthly' | 'annual' | null - which price, not just "premium"
     status:               sub.status,
     provider:             sub.provider,
     trial_ends_at:        sub.trial_ends_at,
@@ -137,6 +139,27 @@ router.post('/cancel', auth, async (req, res) => {
   } catch (err) {
     console.error('[billing] Cancel failed:', err.message);
     res.status(500).json({ error: 'Could not cancel your subscription. Please try again or contact support.' });
+  }
+});
+
+// Undoes a pending cancel_at_period_end before it takes effect. Only works
+// while the subscription is still 'active' (i.e. before Stripe actually
+// fires customer.subscription.deleted at period end) - past that point the
+// subscription is gone and the user needs a fresh checkout instead.
+router.post('/reinstate', auth, async (req, res) => {
+  const sub = await queryOne('SELECT * FROM subscriptions WHERE user_id = $1', [req.user.id]);
+  if (!sub || sub.provider !== 'stripe' || !sub.provider_subscription_id) {
+    return res.status(400).json({ error: 'No subscription to reinstate.' });
+  }
+  if (!sub.cancelled_at) {
+    return res.status(400).json({ error: 'Your subscription is not currently scheduled to cancel.' });
+  }
+  try {
+    await stripe.subscriptions.update(sub.provider_subscription_id, { cancel_at_period_end: false });
+    res.json({ message: 'Your premium membership has been reinstated. You will continue to be billed as normal.' });
+  } catch (err) {
+    console.error('[billing] Reinstate failed:', err.message);
+    res.status(500).json({ error: 'Could not reinstate your subscription. Please try again or contact support.' });
   }
 });
 

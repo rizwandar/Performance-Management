@@ -353,6 +353,12 @@ async function init() {
     ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS granted_by_admin_id INTEGER REFERENCES users(id)
   `);
 
+  // Migration: the specific Stripe price the user is subscribed to, so the
+  // UI can tell Monthly and Annual apart instead of only knowing "premium".
+  await pool.query(`
+    ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS provider_price_id TEXT
+  `);
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS payment_methods (
       id                 SERIAL PRIMARY KEY,
