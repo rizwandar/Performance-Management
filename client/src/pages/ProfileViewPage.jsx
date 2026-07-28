@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Card, Row, Col, Badge, Button, Alert, Spinner } from 'react-bootstrap'
 import axios from 'axios'
+import { formatPhone } from '@in-good-hands/shared/format'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -73,7 +74,7 @@ export default function ProfileViewPage() {
         <Section title="My Trusted Contact">
           <Row className="g-3">
             <Col md={4}><Field label="Name" value={profile.emergency_contact_name} /></Col>
-            <Col md={4}><Field label="Phone" value={profile.emergency_contact_phone} /></Col>
+            <Col md={4}><Field label="Phone" value={formatPhone(profile.emergency_contact_phone, profile.country_code)} /></Col>
             <Col md={4}><Field label="Email" value={profile.emergency_contact_email} /></Col>
           </Row>
         </Section>

@@ -78,7 +78,7 @@ router.get('/users', auth, adminOnly, async (req, res) => {
 
 router.get('/users/:id', auth, adminOnly, async (req, res) => {
   const user = await queryOne(`
-    SELECT u.id, u.name, u.email, u.date_of_birth, u.about_me, u.legacy_message,
+    SELECT u.id, u.name, u.email, u.date_of_birth, u.about_me, u.legacy_message, u.country_code,
            u.emergency_contact_name, u.emergency_contact_phone, u.emergency_contact_email,
            u.last_active_at, u.inactivity_period_months, u.created_at,
            u.is_deceased, u.deceased_at, u.deceased_by,

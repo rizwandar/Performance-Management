@@ -6,6 +6,7 @@
   "exports": {
     "./api": "./api.js",
     "./auth": "./auth.js",
-    "./constants": "./constants.js"
+    "./constants": "./constants.js",
+    "./format": "./format.js"
   }
 }

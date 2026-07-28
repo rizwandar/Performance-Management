@@ -138,6 +138,7 @@ router.post('/login', loginRules, validate, async (req, res) => {
       email_verified:      user.email_verified ?? 1,
       songs_enabled:       user.songs_enabled,
       bucket_list_enabled: user.bucket_list_enabled,
+      country_code:        user.country_code || null,
       org_role:            user.org_role || null,
       organization_id:     user.organization_id || null,
       organization_location_id: user.organization_location_id || null,

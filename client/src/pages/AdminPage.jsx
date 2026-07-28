@@ -4,6 +4,7 @@ import axios from 'axios'
 import { applyTheme, applyFont } from '../App'
 import { useBranding } from '../context/BrandingContext'
 import OrganizationsPanel from './admin/OrganizationsPanel'
+import { formatPhone } from '@in-good-hands/shared/format'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -2050,7 +2051,7 @@ export default function AdminPage() {
                   <h6 style={{ color: 'var(--green-900)', marginBottom: 8 }}>Emergency Contact</h6>
                   <p className="small mb-0">
                     {selectedUser.emergency_contact_name}
-                    {selectedUser.emergency_contact_phone && ` · ${selectedUser.emergency_contact_phone}`}
+                    {selectedUser.emergency_contact_phone && ` · ${formatPhone(selectedUser.emergency_contact_phone, selectedUser.country_code)}`}
                     {selectedUser.emergency_contact_email && ` · ${selectedUser.emergency_contact_email}`}
                   </p>
                 </div>

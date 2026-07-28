@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Form, Row, Col, Alert, Modal, Spinner, Badge } from 'react-bootstrap'
 import axios from 'axios'
+import { useAuth } from '../../context/AuthContext'
+import { formatPhone } from '@in-good-hands/shared/format'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -22,6 +24,7 @@ const emptyContact = { sequence: '', name: '', relationship: '', email: '', phon
 
 export default function KeyContactsPage() {
   const navigate = useNavigate()
+  const { user } = useAuth()
 
   // ── Emergency contact state ────────────────────────────────────────────────
   const [ecLoading, setEcLoading]   = useState(true)
@@ -311,7 +314,7 @@ export default function KeyContactsPage() {
                             </div>
                             <div className="text-muted small" style={{ paddingLeft: 34 }}>
                               {contact.email && <span className="me-3">✉ {contact.email}</span>}
-                              {contact.phone && <span>📞 {contact.phone}</span>}
+                              {contact.phone && <span>📞 {formatPhone(contact.phone, user?.country_code)}</span>}
                             </div>
                             {contact.visible_sections?.length > 0 ? (
                               <div style={{ paddingLeft: 34, marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 4 }}>

@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { Button, Form, Row, Col, Alert, Modal, Spinner } from 'react-bootstrap'
 import axios from 'axios'
 import { VaultSetupScreen, VaultLockScreen } from '../../components/VaultGate'
+import { useAuth } from '../../context/AuthContext'
+import { formatPhone } from '@in-good-hands/shared/format'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -25,6 +27,7 @@ const empty = {
 
 export default function FinancialAffairsPage() {
   const navigate = useNavigate()
+  const { user } = useAuth()
 
   // Vault state: 'loading' | 'no-vault' | 'locked' | 'unlocked'
   const [vaultState, setVaultState]       = useState('loading')
@@ -215,7 +218,7 @@ export default function FinancialAffairsPage() {
                   </p>
                   {item.account_type      && <p className="text-muted small mb-1">Type: {item.account_type}</p>}
                   {item.account_reference && <p className="text-muted small mb-1">Reference: {item.account_reference}</p>}
-                  {item.contact_name      && <p className="text-muted small mb-1">Contact: {item.contact_name}{item.contact_phone ? `, ${item.contact_phone}` : ''}</p>}
+                  {item.contact_name      && <p className="text-muted small mb-1">Contact: {item.contact_name}{item.contact_phone ? `, ${formatPhone(item.contact_phone, user?.country_code)}` : ''}</p>}
                   {item.notes             && <p className="text-muted small mb-0" style={{ fontStyle: 'italic' }}>{item.notes}</p>}
                 </div>
                 <div className="d-flex gap-2 ms-3 flex-shrink-0">

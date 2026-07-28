@@ -13,6 +13,7 @@
     "@sentry/react": "^10.65.0",
     "axios": "^1.15.0",
     "bootstrap": "^5.3.8",
+    "libphonenumber-js": "^1.13.9",
     "react": "^19.2.4",
     "react-bootstrap": "^2.10.10",
     "react-dom": "^19.2.4",

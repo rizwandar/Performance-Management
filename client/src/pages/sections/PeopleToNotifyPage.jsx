@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Form, Row, Col, Alert, Modal, Spinner } from 'react-bootstrap'
 import axios from 'axios'
+import { useAuth } from '../../context/AuthContext'
+import { formatPhone } from '@in-good-hands/shared/format'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -9,6 +11,7 @@ const empty = { name: '', relationship: '', email: '', phone: '', notified_by: '
 
 export default function PeopleToNotifyPage() {
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [items, setItems]         = useState([])
   const [loading, setLoading]     = useState(true)
   const [saving, setSaving]       = useState(false)
@@ -128,7 +131,7 @@ export default function PeopleToNotifyPage() {
                   </p>
                   {(item.email || item.phone) && (
                     <p className="text-muted small mb-1">
-                      {[item.email, item.phone].filter(Boolean).join(' · ')}
+                      {[item.email, formatPhone(item.phone, user?.country_code)].filter(Boolean).join(' · ')}
                     </p>
                   )}
                   {item.notified_by && (
