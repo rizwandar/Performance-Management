@@ -68,6 +68,13 @@ export default function ProfilePage() {
   const [deleting, setDeleting]     = useState(false)
   const [deleteError, setDeleteError] = useState('')
 
+  // Billing & subscription state
+  const [subscription, setSubscription]     = useState(null)
+  const [cancelling, setCancelling]         = useState(false)
+  const [reinstating, setReinstating]       = useState(false)
+  const [billingMessage, setBillingMessage] = useState('')
+  const [billingError, setBillingError]     = useState('')
+
   useEffect(() => {
     const loadProfile = axios.get(`${API}/users/me`)
       .then(r => {
@@ -99,7 +106,11 @@ export default function ProfilePage() {
       .then(r => setVaultExists(r.data.exists))
       .catch(() => setVaultExists(false))
 
-    Promise.all([loadProfile, loadTimer, loadVault]).finally(() => setLoading(false))
+    const loadBilling = axios.get(`${API}/billing/subscription`)
+      .then(r => setSubscription(r.data))
+      .catch(() => {})
+
+    Promise.all([loadProfile, loadTimer, loadVault, loadBilling]).finally(() => setLoading(false))
   }, [])
 
   const set = field => e => setForm(f => ({ ...f, [field]: e.target.value }))
@@ -214,6 +225,41 @@ export default function ProfilePage() {
       }
     }
     setDeleting(false)
+  }
+
+  const handleCancelSubscription = async () => {
+    if (!window.confirm(
+      "Cancel your premium membership?\n\nYou'll keep full access until the end of your current billing period. " +
+      "After that, your account reverts to the free plan, nothing is deleted, and everything you've recorded in " +
+      'the premium sections stays safely stored and becomes visible again the moment you resubscribe.'
+    )) return
+    setCancelling(true)
+    setBillingError('')
+    setBillingMessage('')
+    try {
+      const r = await axios.post(`${API}/billing/cancel`)
+      setBillingMessage(r.data.message)
+      const fresh = await axios.get(`${API}/billing/subscription`)
+      setSubscription(fresh.data)
+    } catch (err) {
+      setBillingError(err.response?.data?.error || 'Could not cancel your subscription.')
+    }
+    setCancelling(false)
+  }
+
+  const handleReinstate = async () => {
+    setReinstating(true)
+    setBillingError('')
+    setBillingMessage('')
+    try {
+      const r = await axios.post(`${API}/billing/reinstate`)
+      setBillingMessage(r.data.message)
+      const fresh = await axios.get(`${API}/billing/subscription`)
+      setSubscription(fresh.data)
+    } catch (err) {
+      setBillingError(err.response?.data?.error || 'Could not reinstate your subscription.')
+    }
+    setReinstating(false)
   }
 
   const formatDate = iso => {
@@ -546,6 +592,51 @@ export default function ProfilePage() {
           </Button>
         </div>
       )}
+
+      {/* ── Billing & Subscription ───────────────────────────────────────── */}
+      <div style={{ background: 'var(--parchment)', borderRadius: 12, padding: '24px', border: '1px solid var(--border)', marginTop: 24 }}>
+        <h6 style={{ color: 'var(--green-900)', marginBottom: 4 }}>Billing &amp; Subscription</h6>
+
+        {billingError && <Alert variant="danger" className="mt-3">{billingError}</Alert>}
+        {billingMessage && <Alert variant="success" className="mt-3">{billingMessage}</Alert>}
+
+        {!subscription || subscription.plan === 'free' ? (
+          <>
+            <p className="text-muted small mb-3">You're on the free plan. Upgrade to unlock every section.</p>
+            <Button variant="outline-primary" onClick={() => navigate('/upgrade')}>See Premium plans</Button>
+          </>
+        ) : subscription.cancelled_at ? (
+          <div style={{ background: '#fff8e6', border: '1px solid #f5d78e', borderRadius: 10, padding: '16px 20px' }}>
+            <p style={{ color: '#8a6416', fontWeight: 600, marginBottom: 8 }}>
+              You cancelled your premium membership on {formatDate(subscription.cancelled_at)}.
+            </p>
+            <p className="small mb-3" style={{ color: '#8a6416', lineHeight: 1.6 }}>
+              Your subscription stays active until <strong>{formatDate(subscription.current_period_end)}</strong>, then
+              it will not renew and you will not be billed again. Nothing is deleted: everything you've recorded in
+              your premium sections stays safely stored, and will unlock again the moment you resubscribe.
+              You can reinstate your membership any time before then.
+            </p>
+            <Button variant="outline-primary" onClick={handleReinstate} disabled={reinstating}>
+              {reinstating ? 'Reinstating...' : 'Reinstate my membership'}
+            </Button>
+          </div>
+        ) : (
+          <>
+            <p className="text-muted small mb-1">
+              You're on the <strong>{subscription.plan_id === 'annual' ? 'Premium Annual' : 'Premium Monthly'}</strong> plan.
+            </p>
+            {subscription.current_period_end && (
+              <p className="text-muted small mb-3">Renews {formatDate(subscription.current_period_end)}.</p>
+            )}
+            {subscription.provider === 'stripe' && (
+              <button className="btn btn-link p-0" style={{ color: '#DC3545', fontSize: '0.85rem' }}
+                onClick={handleCancelSubscription} disabled={cancelling}>
+                {cancelling ? 'Cancelling...' : 'Cancel subscription'}
+              </button>
+            )}
+          </>
+        )}
+      </div>
 
       {/* ── Delete My Account ────────────────────────────────────────────── */}
       <div style={{ background: 'var(--parchment)', borderRadius: 12, padding: '24px', border: '1px solid var(--border)', marginTop: 24 }}>
