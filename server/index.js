@@ -7,6 +7,11 @@ const rateLimit = require('express-rate-limit');
 const { init: initDb, queryOne } = require('./db/database');
 const app = express();
 
+// Render sits in front of the app behind exactly one reverse-proxy hop, so
+// express-rate-limit (and req.ip generally) needs to trust that one hop's
+// X-Forwarded-For to see the real client IP, rather than the proxy's IP.
+app.set('trust proxy', 1);
+
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
