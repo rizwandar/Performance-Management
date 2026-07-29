@@ -56,7 +56,7 @@ export default function UpgradeScreen() {
           <Text style={styles.badgeText}>MOST POPULAR</Text>
         </View>
         <Text style={styles.planTitle}>Premium Monthly</Text>
-        <Text style={styles.planPrice}>$4.99 / month</Text>
+        <Text style={styles.planPrice}>$10 / month</Text>
         {PREMIUM_SECTIONS.map((f, i) => (
           <View key={i} style={styles.featureRow}>
             <Text style={[styles.check, { color: THEME.primary }]}>✓</Text>
@@ -70,8 +70,8 @@ export default function UpgradeScreen() {
 
       <View style={styles.card}>
         <Text style={styles.planTitle}>Premium Annual</Text>
-        <Text style={styles.planPrice}>$29.99 / year</Text>
-        <Text style={styles.planNote}>Just $2.50/month, saving $30 vs monthly</Text>
+        <Text style={styles.planPrice}>$100 / year</Text>
+        <Text style={styles.planNote}>Just $8.33/month, saving $20 vs monthly</Text>
         <View style={styles.comingSoon}>
           <Text style={styles.comingSoonText}>Coming soon: online payment</Text>
         </View>

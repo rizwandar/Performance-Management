@@ -194,7 +194,7 @@ export default function UpgradePage() {
         />
         <PlanCard
           title="Premium Monthly"
-          price="$4.99"
+          price="$10"
           period="/ month"
           features={PREMIUM_FEATURES}
           highlight
@@ -207,9 +207,9 @@ export default function UpgradePage() {
         />
         <PlanCard
           title="Premium Annual"
-          price="$29.99"
+          price="$100"
           period="/ year"
-          note="That's just $2.50 per month, saving $30"
+          note="That's just $8.33 per month, saving $20"
           features={PREMIUM_FEATURES}
           cta={
             subscription?.plan_id === 'annual'
