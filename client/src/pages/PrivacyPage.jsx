@@ -39,13 +39,13 @@ export default function PrivacyPage() {
           Privacy Policy
         </h2>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-          Last updated: April 2026. This policy applies to all users of In Good Hands.
+          Last updated: July 2026. This policy applies to all users of In Good Hands.
         </p>
       </div>
 
       {section('intro', '1. Introduction', <>
         {p('In Good Hands ("we", "us", "our") is committed to protecting your personal information and respecting your privacy. This Privacy Policy explains what data we collect, how we use it, where it is stored, and what rights you have.')}
-        {p('This policy is written to meet the requirements of the General Data Protection Regulation (GDPR, EU/UK), the Personal Information Protection and Electronic Documents Act (PIPEDA, Canada), Quebec Law 25, the Australian Privacy Act 1988, the New Zealand Privacy Act 2020, and applicable US state privacy laws including the California Consumer Privacy Act (CCPA).')}
+        {p('In Good Hands currently launches and is marketed to users in the United States. This policy is written to meet the requirements of applicable US state privacy laws, including the California Consumer Privacy Act as amended by the California Privacy Rights Act (CCPA/CPRA), as well as the General Data Protection Regulation (GDPR, EU/UK), the Personal Information Protection and Electronic Documents Act (PIPEDA, Canada), Quebec Law 25, the Australian Privacy Act 1988, and the New Zealand Privacy Act 2020, for users who access the service from those regions.')}
         {p('By creating an account, you confirm that you have read this policy and agree to the collection and use of your information as described here.')}
       </>)}
 
@@ -59,7 +59,8 @@ export default function PrivacyPage() {
           'Usage and security logs: login events, failed login attempts, and vault access attempts. Used to protect your account.',
           'Communications: messages you send via the contact form.',
         ])}
-        {p('We do not collect payment card data. We do not sell or share your personal information with third parties for marketing purposes.')}
+        {p('Some of what you choose to record falls under "sensitive personal information" as defined by California law, specifically medical/health information (Medical Wishes) and financial account information (Financial Affairs). We collect this only because you choose to record it as part of your own planning, and we use it solely to provide the service, never to analyze or infer anything about you, and never for advertising.')}
+        {p('We do not collect payment card data (Stripe, our payment processor, handles that directly). We do not sell or share your personal information with third parties for marketing purposes.')}
       </>)}
 
       {section('use', '3. How We Use Your Data', <>
@@ -82,7 +83,22 @@ export default function PrivacyPage() {
       </>)}
 
       {section('rights', '5. Your Rights', <>
-        {p('You have the following rights regarding your personal information. To exercise any of these, use the self-service tools in your account or contact us at the address below.')}
+        {p('You have the following rights regarding your personal information. To exercise any of these, use the self-service tools in your account or contact us at the address below. In Good Hands currently launches and is marketed to users in the United States; the sections below apply to all users regardless of location.')}
+
+        {jurisdiction('🇺🇸', 'US State Privacy Laws, including California (CCPA/CPRA)', <>
+          <p style={{ margin: 0 }}>
+            <strong>Right to know:</strong> You may request details of what personal information we collect, the sources it comes from, and how we use and disclose it.<br/>
+            <strong>Right to correct:</strong> Update inaccurate information via your Profile page, or contact us for data we hold that isn't self-editable.<br/>
+            <strong>Right to delete:</strong> Use "Delete My Account" in Profile Settings to immediately and permanently delete all your data.<br/>
+            <strong>Right to limit use of sensitive personal information:</strong> Some of what you record here (medical wishes, financial account details) qualifies as "sensitive personal information" under California law. We only use it to provide the service you asked for, never to infer characteristics about you or for advertising. Because we don't use it for anything beyond that, there is nothing further to limit, but you may still contact us with questions.<br/>
+            <strong>Right to opt out of sale or sharing:</strong> We do not sell personal information, and we do not share it for cross-context behavioral advertising (the kind of "sharing" CPRA also covers). If this ever changes, for example if ad campaigns begin using retargeting pixels, we will update this policy first and provide a "Do Not Sell or Share My Personal Information" option before doing so.<br/>
+            <strong>Right to non-discrimination:</strong> Exercising any of these rights will not result in denial of service, a different price, or a different quality of service.<br/>
+            <strong>Authorized agents:</strong> You may designate an authorized agent to make a request on your behalf; we will verify the agent's authority before responding.<br/>
+            <strong>Verification:</strong> To protect your data, most requests must be made from your logged-in account. Requests made by email are verified by matching the details you provide against your account.<br/>
+            <strong>Response time:</strong> California law allows up to 45 days to respond (extendable by another 45 days for complex requests); we aim to respond well within that window.<br/>
+            <strong>Complaints:</strong> Contact the California Privacy Protection Agency (CPPA) at cppa.ca.gov, or your state Attorney General if you are in another US state with its own privacy law.
+          </p>
+        </>)}
 
         {jurisdiction('🇪🇺 🇬🇧', 'GDPR (EU and UK)', <>
           <p style={{ margin: 0 }}>
@@ -101,15 +117,6 @@ export default function PrivacyPage() {
             <strong>Right to correction:</strong> Update your information via your Profile page.<br/>
             <strong>Right to deletion:</strong> Use "Delete My Account" in Profile Settings. Data stored outside Canada is subject to the laws of that country; however, we apply PIPEDA-equivalent protections.<br/>
             <strong>Complaints:</strong> Contact the Office of the Privacy Commissioner of Canada (OPC) at priv.gc.ca.
-          </p>
-        </>)}
-
-        {jurisdiction('🇺🇸', 'California Consumer Privacy Act (CCPA)', <>
-          <p style={{ margin: 0 }}>
-            <strong>Right to know:</strong> You may request details of what personal information we collect and how we use it.<br/>
-            <strong>Right to deletion:</strong> Use "Delete My Account" in Profile Settings to permanently delete all your data.<br/>
-            <strong>Right to opt out of sale:</strong> We do not sell personal information. This right is not applicable.<br/>
-            <strong>Non-discrimination:</strong> Exercising these rights will not affect your service.
           </p>
         </>)}
 
@@ -165,7 +172,7 @@ export default function PrivacyPage() {
           'Email: Use the contact form at the bottom of any page, or email us directly.',
           'Telephone: If you would prefer to speak with an administrator before deletion, you can request this via the contact form. An administrator will call you to confirm the deletion.',
         ])}
-        {p('We aim to respond to all privacy requests within 30 days.')}
+        {p('We aim to respond to all privacy requests within 30 days. California residents are entitled to up to 45 days under state law (extendable once by another 45 days for complex requests); we aim to respond well within that window in all cases.')}
       </>)}
 
       <div style={{
