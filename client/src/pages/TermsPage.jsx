@@ -52,7 +52,8 @@ export default function TermsPage() {
       </>)}
 
       {section('vault', '5. The Vault and Encryption', <>
-        {p('Certain sections of the Service (Digital Life and Personal and Legal Documents) are protected by a vault password that you set. Your vault password is never stored on our servers. It is derived client-side and used to encrypt your data before storage.')}
+        {p('Certain sections of the Service (Digital Life and Personal and Legal Documents) are protected by a vault password that you set. Your vault password is never stored on our servers. It is derived client-side and used to encrypt the text you enter directly (credentials, document details, notes) before storage.')}
+        {p('Files you upload as attachments within these sections (for example, a scanned document or photo) are stored securely and access-controlled, but are not encrypted using your vault password. See our Security page for the full technical detail on how uploaded files are protected.')}
         {p('This means that if you lose or forget your vault password, we cannot recover your vault-protected data on your behalf. You will need to reset your vault, which will permanently delete the vault-protected content. Your other plans and information will remain safe.')}
         {p('After 5 consecutive failed vault password attempts, your vault will be temporarily locked for 15 minutes as a security measure. No vault data is deleted for incorrect attempts. You will be notified by email at each failed attempt.')}
       </>)}
