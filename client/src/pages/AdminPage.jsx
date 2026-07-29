@@ -1056,10 +1056,10 @@ Please confirm the stack choices above (or tell me which to change), and then we
             ]},
             { group: 'Your Affairs', color: '#8A7A6A', sections: [
               { id: 'legal_documents', label: 'Personal & Legal Documents', route: '/sections/legal-documents', note: 'Vault-protected. Uses shared vault (digital_vault). Fields not encrypted. Up to 2 file attachments per item via uploaded_documents.' },
-              { id: 'property_items', label: 'Property & Possessions', route: '/sections/property-possessions', note: 'Vault-protected. Uses shared vault (digital_vault). Fields not encrypted. property_items table.' },
-              { id: 'financial_items', label: 'Financial Affairs', route: '/sections/financial-affairs', note: 'Vault-protected. Uses shared vault (digital_vault). Fields not encrypted. financial_items table.' },
+              { id: 'property_items', label: 'Property & Possessions', route: '/sections/property-possessions', note: 'Vault-protected. Uses shared vault (digital_vault). Fields not encrypted. property_items table. Up to 2 file attachments per item via uploaded_documents.' },
+              { id: 'financial_items', label: 'Financial Affairs', route: '/sections/financial-affairs', note: 'Vault-protected. Uses shared vault (digital_vault). Fields not encrypted. financial_items table. Up to 2 file attachments per item via uploaded_documents.' },
               { id: 'digital_credentials', label: 'Digital Life', route: '/sections/digital-life', note: 'Vault-protected. digital_credentials table. Fields AES-256-GCM encrypted. Shares vault with the other Your Affairs sections.' },
-              { id: 'household-info', label: 'Practical Household Information', route: '/sections/household-info', note: 'Vault-protected. Uses shared vault (digital_vault). Fields not encrypted. household_info table.' },
+              { id: 'household-info', label: 'Practical Household Information', route: '/sections/household-info', note: 'Vault-protected. Uses shared vault (digital_vault). Fields not encrypted. household_info table. Up to 2 file attachments per item via uploaded_documents.' },
             ]},
           ].map(group => (
             <div key={group.group} style={{ marginBottom: 18 }}>
@@ -1124,7 +1124,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
             ['Signed URLs', '1-hour expiry. Generated fresh on each GET request. Never stored.'],
             ['File types', 'Documents: PDF, JPEG, PNG, HEIC, WebP, DOC, DOCX (max 20MB). Photos: JPEG, PNG, HEIC, WebP (max 15MB).'],
             ['Photo roles', 'funeral_main: 1 per user per section (old one deleted on upload). funeral_gallery: max 20 per section.'],
-            ['Legal doc attachments', '1-2 files per legal_document item_id. item_id stored in uploaded_documents.'],
+            ['Item attachments', '1-2 files per item_id, optional. Available in Legal Documents, Financial Affairs, Property & Possessions, and Household Info (section_id = legal_documents / financial_items / property_items / household_info). item_id stored in uploaded_documents.'],
             ['Logo', 'Admin can upload logo via /api/documents/upload with section_id="site_logo". R2 key stored in app_settings key=site_logo.'],
           ]} />
         </BpSection>

@@ -1,8 +1,9 @@
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Form, Row, Col, Alert, Modal, Spinner } from 'react-bootstrap'
 import axios from 'axios'
 import { VaultSetupScreen, VaultLockScreen } from '../../components/VaultGate'
+import FileAttachments from '../../components/FileAttachments'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -22,107 +23,6 @@ const DOCUMENT_TYPES = [
 ]
 
 const empty = { document_type: '', title: '', held_by: '', location: '', notes: '' }
-
-const MAX_FILES_PER_ITEM = 2
-
-function FileAttachments({ itemId, sectionDocs, onUpload, onDelete }) {
-  const attached = sectionDocs.filter(d => d.item_id === itemId)
-  const fileRef  = useRef(null)
-  const [uploading, setUploading] = useState(false)
-  const [upError, setUpError]     = useState('')
-
-  const handleFileSelect = async (e) => {
-    const file = e.target.files[0]
-    if (!file) return
-    setUpError('')
-    setUploading(true)
-    try {
-      const fd = new FormData()
-      fd.append('file', file)
-      fd.append('section_id', 'legal_documents')
-      fd.append('item_id', String(itemId))
-      const r = await axios.post(`${API}/documents/upload`, fd)
-      onUpload(r.data)
-    } catch (err) {
-      setUpError(err.response?.data?.error || 'Upload failed. Please try again.')
-    }
-    setUploading(false)
-    // Reset so same file can be re-selected if needed
-    e.target.value = ''
-  }
-
-  const handleDelete = async (docId) => {
-    if (!window.confirm('Remove this attachment?')) return
-    try {
-      await axios.delete(`${API}/documents/${docId}`)
-      onDelete(docId)
-    } catch {
-      // silently ignore — list will refresh on next load
-    }
-  }
-
-  const canUpload = attached.length < MAX_FILES_PER_ITEM
-
-  return (
-    <div style={{ marginTop: 8 }}>
-      {attached.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
-          {attached.map(doc => (
-            <div key={doc.id} style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              background: 'var(--green-50)', border: '1px solid var(--green-100)',
-              borderRadius: 6, padding: '3px 8px', fontSize: '0.8rem',
-            }}>
-              <span>📎</span>
-              <a
-                href="#"
-                style={{ color: 'var(--green-800)', textDecoration: 'none' }}
-                onClick={async e => {
-                  e.preventDefault()
-                  try {
-                    const r = await axios.get(`${API}/documents/download/${doc.id}`)
-                    window.open(r.data.url, '_blank')
-                  } catch {
-                    alert("Couldn't open the file. Please try again.")
-                  }
-                }}
-              >
-                {doc.original_name}
-              </a>
-              <button
-                onClick={() => handleDelete(doc.id)}
-                style={{ background: 'none', border: 'none', color: '#9CA3AF', cursor: 'pointer', fontSize: '0.9rem', padding: 0 }}
-                title="Remove attachment"
-              >×</button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {upError && <p style={{ color: 'var(--danger)', fontSize: '0.8rem', margin: '4px 0' }}>{upError}</p>}
-
-      {canUpload && (
-        <div>
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".pdf,.jpg,.jpeg,.png,.heic,.webp,.doc,.docx"
-            style={{ display: 'none' }}
-            onChange={handleFileSelect}
-          />
-          <button
-            className="btn btn-link p-0"
-            style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}
-            onClick={() => fileRef.current?.click()}
-            disabled={uploading}
-          >
-            {uploading ? 'Uploading...' : `+ Attach file${attached.length > 0 ? ` (${MAX_FILES_PER_ITEM - attached.length} remaining)` : ' (up to 2)'}`}
-          </button>
-        </div>
-      )}
-    </div>
-  )
-}
 
 export default function LegalDocumentsPage() {
   const navigate = useNavigate()
@@ -338,6 +238,7 @@ export default function LegalDocumentsPage() {
                   {item.notes    && <p className="text-muted small mb-1" style={{ fontStyle: 'italic' }}>{item.notes}</p>}
 
                   <FileAttachments
+                    sectionId="legal_documents"
                     itemId={item.id}
                     sectionDocs={sectionDocs}
                     onUpload={newDoc => setSectionDocs(prev => [newDoc, ...prev])}

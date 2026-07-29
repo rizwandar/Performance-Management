@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Button, Form, Row, Col, Alert, Modal, Spinner } from 'react-bootstrap'
 import axios from 'axios'
 import { VaultSetupScreen, VaultLockScreen } from '../../components/VaultGate'
+import FileAttachments from '../../components/FileAttachments'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -36,6 +37,7 @@ export default function HouseholdInfoPage() {
   const [vaultPassword, setVaultPassword] = useState('')
 
   const [items, setItems]         = useState([])
+  const [sectionDocs, setSectionDocs] = useState([])  // all uploaded_documents for this section
   const [loading, setLoading]     = useState(false)
   const [saving, setSaving]       = useState(false)
   const [error, setError]         = useState('')
@@ -55,8 +57,14 @@ export default function HouseholdInfoPage() {
   const loadItems = useCallback((pw) => {
     setLoading(true)
     setLoadFailed(false)
-    axios.post(`${API}/sections/household-info/list`, { vault_password: pw })
-      .then(r => setItems(r.data))
+    Promise.all([
+      axios.post(`${API}/sections/household-info/list`, { vault_password: pw }),
+      axios.get(`${API}/documents/household_info`),
+    ])
+      .then(([itemsRes, docsRes]) => {
+        setItems(itemsRes.data)
+        setSectionDocs(docsRes.data)
+      })
       .catch(() => setLoadFailed(true))
       .finally(() => setLoading(false))
   }, [])
@@ -71,6 +79,7 @@ export default function HouseholdInfoPage() {
     setVaultState('no-vault')
     setVaultPassword('')
     setItems([])
+    setSectionDocs([])
   }
 
   const openAdd = () => { setEditing(null); setForm(empty); setError(''); setShowModal(true) }
@@ -244,6 +253,13 @@ export default function HouseholdInfoPage() {
                         {item.notes && (
                           <p className="text-muted small mb-0" style={{ fontStyle: 'italic' }}>{item.notes}</p>
                         )}
+                        <FileAttachments
+                          sectionId="household_info"
+                          itemId={item.id}
+                          sectionDocs={sectionDocs}
+                          onUpload={newDoc => setSectionDocs(prev => [newDoc, ...prev])}
+                          onDelete={docId  => setSectionDocs(prev => prev.filter(d => d.id !== docId))}
+                        />
                       </div>
                       <div className="d-flex gap-2 ms-3 flex-shrink-0">
                         <Button size="sm" variant="outline-primary" onClick={() => openEdit(item)}>Edit</Button>
