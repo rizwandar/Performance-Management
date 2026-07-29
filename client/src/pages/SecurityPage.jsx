@@ -49,7 +49,7 @@ export default function SecurityPage() {
       </>)}
 
       {section('vaultattempts', '4. Vault Attempt Protection', <>
-        {p('Failed vault password attempts are tracked per account. Each failed attempt triggers a security email so you know if someone is trying to access your vault. After 5 consecutive failed attempts, the vault data is permanently deleted as a last-resort protection against sustained guessing attacks.')}
+        {p('Failed vault password attempts are tracked per account. Each failed attempt triggers a security email so you know if someone is trying to access your vault. After 5 consecutive failed attempts, the vault is temporarily locked for 15 minutes as protection against sustained guessing attacks. No vault data is ever deleted for incorrect attempts - entering the correct password unlocks it immediately, even during a lockout.')}
       </>)}
 
       {section('accounts', '5. Account Security', <>

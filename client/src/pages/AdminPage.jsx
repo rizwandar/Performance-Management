@@ -773,7 +773,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
                 ['Setup', 'User chooses a vault password (min 8 characters). A verification marker is encrypted and stored. The password itself is not stored anywhere.'],
                 ['Unlocking', 'User enters their vault password. The server attempts to decrypt the verification marker. If it succeeds, the vault is considered unlocked for the session.'],
                 ['Session', 'The vault password is held in React state (memory only). It is never written to localStorage or cookies. Locking the vault clears it from memory.'],
-                ['Failed attempts', '3 failed attempts: force logout, email notification to user. 5 failed attempts: all vault data permanently deleted, email notification sent.'],
+                ['Failed attempts', '3 failed attempts: force logout, email notification to user. 5 failed attempts: vault temporarily locked for 15 minutes, email notification sent. Nothing is ever deleted for incorrect attempts - the correct password unlocks immediately even mid-lockout.'],
                 ['Reset vault', 'User can reset the vault by confirming their account (login) password. This permanently deletes all vault-protected data.'],
                 ['Change password', 'User can change the vault password from My Profile. The server decrypts all fields with the old password and re-encrypts with the new one in a single transaction.'],
                 ['Trusted contact exclusion', 'Vault sections are never shown to trusted contacts. The access page explicitly omits them.'],

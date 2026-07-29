@@ -54,7 +54,7 @@ export default function TermsPage() {
       {section('vault', '5. The Vault and Encryption', <>
         {p('Certain sections of the Service (Digital Life and Personal and Legal Documents) are protected by a vault password that you set. Your vault password is never stored on our servers. It is derived client-side and used to encrypt your data before storage.')}
         {p('This means that if you lose or forget your vault password, we cannot recover your vault-protected data on your behalf. You will need to reset your vault, which will permanently delete the vault-protected content. Your other plans and information will remain safe.')}
-        {p('After 5 consecutive failed vault password attempts, your vault data will be permanently deleted as a security measure. You will be notified by email at each failed attempt.')}
+        {p('After 5 consecutive failed vault password attempts, your vault will be temporarily locked for 15 minutes as a security measure. No vault data is deleted for incorrect attempts. You will be notified by email at each failed attempt.')}
       </>)}
 
       {section('trusted', '6. Trusted Contacts and Access Links', <>

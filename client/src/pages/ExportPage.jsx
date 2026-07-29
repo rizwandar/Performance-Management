@@ -72,8 +72,8 @@ export default function ExportPage() {
           message = parsedJson.error || message
         } catch {}
       }
-      if (parsedJson?.vault_deleted) {
-        setVaultError('Your vault has been deleted after too many incorrect attempts. Your other plans and wishes are safe. You can create a new vault in the Digital Life section.')
+      if (parsedJson?.vault_locked) {
+        setVaultError(message)
       } else if (parsedJson?.force_logout) {
         logout()
         navigate('/login', { state: { vaultLockout: true } })

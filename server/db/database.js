@@ -359,6 +359,13 @@ async function init() {
     ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS provider_price_id TEXT
   `);
 
+  // Migration: replaces vault-deletion-on-5-failed-attempts with a temporary
+  // lockout instead. NULL means not locked; a future timestamp means locked
+  // until then.
+  await pool.query(`
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS vault_locked_until TIMESTAMPTZ
+  `);
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS payment_methods (
       id                 SERIAL PRIMARY KEY,

@@ -1,12 +1,12 @@
 const express = require('express');
 const router  = express.Router();
 const jwt     = require('jsonwebtoken');
-const { queryOne, queryAll, query } = require('../db/database');
+const { queryOne, queryAll } = require('../db/database');
 const auth    = require('../middleware/auth');
 const requirePremium = require('../middleware/requiresPremium');
 const { generatePdf } = require('../lib/generatePdf');
 const { deriveKey, decryptField, verifyVaultPassword } = require('../lib/vault');
-const { recordVaultAttempt } = require('../lib/vaultAttempts');
+const { recordVaultAttempt, getVaultLockStatus, resetVaultAttempts } = require('../lib/vaultAttempts');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
 
@@ -111,13 +111,29 @@ router.post('/', auth, requirePremium, async (req, res) => {
   }
 
   const key = deriveKey(vault_password, uid);
-  if (!verifyVaultPassword(vault.check_enc, key)) {
-    const { attempts, shouldLogout, vaultDeleted } = await recordVaultAttempt(uid);
+  const isCorrect = verifyVaultPassword(vault.check_enc, key);
+
+  // A correct password always unlocks immediately, even mid-lockout - see
+  // the matching comment in routes/sections.js checkVault().
+  if (isCorrect) {
+    await resetVaultAttempts(uid);
+  } else {
+    const lockedUntil = await getVaultLockStatus(uid);
+    if (lockedUntil) {
+      return res.status(423).json({
+        error: `Too many incorrect attempts. Your vault is temporarily locked until ${lockedUntil.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}. Nothing has been deleted.`,
+        vault_locked: true,
+        locked_until: lockedUntil.toISOString(),
+      });
+    }
+
+    const { attempts, shouldLogout, vaultLocked, lockedUntil: newLockedUntil } = await recordVaultAttempt(uid);
     const remaining = Math.max(0, 5 - attempts);
-    if (vaultDeleted) {
-      return res.status(410).json({
-        error: 'Your vault has been deleted after 5 incorrect attempts. Your other plans and wishes are completely safe. You can create a new vault at any time.',
-        vault_deleted: true,
+    if (vaultLocked) {
+      return res.status(423).json({
+        error: `Too many incorrect attempts. Your vault has been temporarily locked until ${newLockedUntil.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}. Nothing has been deleted - enter the correct password any time to unlock it immediately.`,
+        vault_locked: true,
+        locked_until: newLockedUntil.toISOString(),
       });
     } else if (shouldLogout) {
       return res.status(403).json({
@@ -131,7 +147,6 @@ router.post('/', auth, requirePremium, async (req, res) => {
       });
     }
   }
-  await query('UPDATE users SET vault_attempts = 0 WHERE id = $1', [uid]);
 
   const credRows = await queryAll(
     'SELECT id, service, service_url, username_enc, password_enc, notes_enc, created_at FROM digital_credentials WHERE user_id = $1 ORDER BY service',

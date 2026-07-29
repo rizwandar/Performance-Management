@@ -5,7 +5,7 @@ const { queryOne, queryAll, query, transaction } = require('../db/database');
 const requireAuth    = require('../middleware/auth');
 const requirePremium = require('../middleware/requiresPremium');
 const { deriveKey, encryptField, decryptField, createVaultCheck, verifyVaultPassword } = require('../lib/vault');
-const { recordVaultAttempt } = require('../lib/vaultAttempts');
+const { recordVaultAttempt, getVaultLockStatus, resetVaultAttempts } = require('../lib/vaultAttempts');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
 
@@ -110,21 +110,38 @@ async function checkVault(vault_password, userId, res, req) {
     return false;
   }
   const key = deriveKey(vault_password, userId);
-  if (!verifyVaultPassword(vault.check_enc, key)) {
-    await _sendVaultFailResponse(userId, res, req);
+  const isCorrect = verifyVaultPassword(vault.check_enc, key);
+
+  // A correct password always unlocks immediately, even mid-lockout - that's
+  // proof of legitimate ownership, and there's nothing left to brute-force
+  // once they've already gotten it right.
+  if (isCorrect) {
+    await resetVaultAttempts(userId);
+    return true;
+  }
+
+  const lockedUntil = await getVaultLockStatus(userId);
+  if (lockedUntil) {
+    res.status(423).json({
+      error: `Too many incorrect attempts. Your vault is temporarily locked until ${lockedUntil.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}. Nothing has been deleted.`,
+      vault_locked: true,
+      locked_until: lockedUntil.toISOString(),
+    });
     return false;
   }
-  await query('UPDATE users SET vault_attempts = 0 WHERE id = $1', [userId]);
-  return true;
+
+  await _sendVaultFailResponse(userId, res, req);
+  return false;
 }
 
 async function _sendVaultFailResponse(userId, res, req) {
-  const { attempts, shouldLogout, vaultDeleted } = await recordVaultAttempt(userId, req);
+  const { attempts, shouldLogout, vaultLocked, lockedUntil } = await recordVaultAttempt(userId, req);
   const remaining = Math.max(0, 5 - attempts);
-  if (vaultDeleted) {
-    res.status(410).json({
-      error: 'Your vault has been deleted after 5 incorrect attempts. Your other plans and wishes are completely safe. You can create a new vault at any time.',
-      vault_deleted: true,
+  if (vaultLocked) {
+    res.status(423).json({
+      error: `Too many incorrect attempts. Your vault has been temporarily locked until ${lockedUntil.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}. Nothing has been deleted - enter the correct password any time to unlock it immediately.`,
+      vault_locked: true,
+      locked_until: lockedUntil.toISOString(),
     });
   } else if (shouldLogout) {
     res.status(403).json({
@@ -133,7 +150,7 @@ async function _sendVaultFailResponse(userId, res, req) {
     });
   } else {
     res.status(401).json({
-      error: `Incorrect vault password. ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining. After 3 incorrect attempts you will be signed out. After 5, your vault data will be permanently deleted.`,
+      error: `Incorrect vault password. ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining. After 3 incorrect attempts you will be signed out. After 5, your vault will be temporarily locked for 15 minutes.`,
       attempts, remaining,
     });
   }
@@ -645,28 +662,12 @@ router.delete('/digital-life/vault', requireAuth, async (req, res) => {
 });
 
 router.post('/digital-life/vault/verify', requireAuth, async (req, res) => {
-  const { vault_password } = req.body;
-  if (!vault_password) return res.status(400).json({ error: 'vault_password is required.' });
-  const vault = await queryOne('SELECT check_enc FROM digital_vault WHERE user_id = $1', [req.user.id]);
-  if (!vault) return res.status(404).json({ error: 'No vault found.' });
-  const key   = deriveKey(vault_password, req.user.id);
-  const valid = verifyVaultPassword(vault.check_enc, key);
-  if (!valid) { await _sendVaultFailResponse(req.user.id, res, req); return; }
-  await query('UPDATE users SET vault_attempts = 0 WHERE id = $1', [req.user.id]);
+  if (!await checkVault(req.body.vault_password, req.user.id, res, req)) return;
   res.json({ valid: true });
 });
 
 router.post('/digital-life/list', requireAuth, async (req, res) => {
-  const { vault_password } = req.body;
-  if (!vault_password) return res.status(400).json({ error: 'vault_password is required.' });
-
-  const vault = await queryOne('SELECT check_enc FROM digital_vault WHERE user_id = $1', [req.user.id]);
-  if (!vault) return res.status(404).json({ error: 'No vault found.' });
-
-  const key   = deriveKey(vault_password, req.user.id);
-  const valid = verifyVaultPassword(vault.check_enc, key);
-  if (!valid) { await _sendVaultFailResponse(req.user.id, res, req); return; }
-  await query('UPDATE users SET vault_attempts = 0 WHERE id = $1', [req.user.id]);
+  if (!await checkVault(req.body.vault_password, req.user.id, res, req)) return;
 
   const rows = await queryAll(
     'SELECT id, service, service_url, username_enc, password_enc, notes_enc, created_at FROM digital_credentials WHERE user_id = $1 ORDER BY service',

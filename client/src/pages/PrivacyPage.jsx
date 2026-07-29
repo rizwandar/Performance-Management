@@ -139,7 +139,7 @@ export default function PrivacyPage() {
           'All data in transit is encrypted with TLS (HTTPS).',
           'Passwords are hashed using bcrypt with a cost factor of 10.',
           'Vault-protected data (credentials and legal documents) is encrypted at rest with AES-256-GCM using a key derived from your vault password via scrypt. Your vault password is never sent to or stored on our servers.',
-          'Failed vault password attempts are monitored and trigger automatic security emails. After 5 failed attempts, vault data is permanently deleted as a security measure.',
+          'Failed vault password attempts are monitored and trigger automatic security emails. After 5 failed attempts, your vault is temporarily locked for 15 minutes as a security measure. No data is ever deleted for incorrect attempts.',
           'JWT authentication tokens expire after 8 hours.',
           'Rate limiting is applied to all authentication endpoints.',
         ])}
