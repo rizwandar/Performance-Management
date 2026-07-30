@@ -290,19 +290,19 @@ function vaultLockedSection(doc, title, palette, fonts) {
 function generatePdf(data, outputStream) {
   const {
     user, settings = {}, logoBuffer,
-    legalDocs       = [],
-    financialItems  = [],
     funeralWishes   = {},
     medicalWishes   = {},
     peopleToNotify  = [],
-    propertyItems   = [],
     messages        = [],
     songsDefineMe   = [],
     lifeWishes      = [],
     trustedContacts = [],
     childrenDependants = [],
-    householdInfo   = [],
-    vaultData       = null,  // { legalDocs, credentials } — only in complete export
+    // legalDocs, financialItems, propertyItems, householdInfo, and credentials
+    // are all vault-protected - only ever present inside vaultData, never at
+    // the top level, so a standard (non-vault) export can't render them by
+    // accident even if a future field gets added here without thinking about it.
+    vaultData       = null,  // { legalDocs, financialItems, propertyItems, householdInfo, credentials } - only in complete export
   } = data;
 
   const palette = THEME_PALETTES[settings.site_theme] || DEFAULT_THEME;
@@ -348,6 +348,11 @@ function generatePdf(data, outputStream) {
      .text(user.name, LEFT_X, doc.y, { align: 'center', width: PAGE_W - MARGIN * 2 });
   doc.font(fonts.italic).fontSize(9.5).fillColor(MUTED)
      .text('Personal Planning Record', { align: 'center', width: PAGE_W - MARGIN * 2 });
+  doc.font(fonts.bold).fontSize(8).fillColor(vaultData ? '#7A5210' : MUTED)
+     .text(
+       vaultData ? 'COMPLETE EXPORT — includes vault-protected content' : 'STANDARD EXPORT — excludes vault-protected content',
+       { align: 'center', width: PAGE_W - MARGIN * 2 }
+     );
   doc.moveDown(0.6);
   rule(doc);
   doc.moveDown(0.4);
@@ -497,22 +502,9 @@ function generatePdf(data, outputStream) {
 
   addPageFooter(doc, pageNum, palette, fonts);
 
-  // ── Page 4: Property + Songs + Bucket List ─────────────────────────────────
+  // ── Page 4: Songs + Bucket List ─────────────────────────────────────────────
+  // Property & Possessions is vault-protected - rendered on the vault page below.
   doc.addPage();
-
-  sectionHeader(doc, 'Property & Possessions', palette, fonts);
-  if (!propertyItems.length) {
-    noData(doc, fonts);
-  } else {
-    renderCards(doc, propertyItems.map(item => [
-      { label: '',              value: item.title },
-      { label: 'Category',      value: item.category },
-      { label: 'Description',   value: item.description },
-      { label: 'Location',      value: item.location },
-      { label: 'Goes to',       value: item.intended_recipient },
-      { label: 'Notes',         value: item.notes },
-    ]), palette, fonts);
-  }
 
   sectionHeader(doc, 'Songs That Define Me', palette, fonts);
   if (!songsDefineMe.length) {
@@ -540,24 +532,10 @@ function generatePdf(data, outputStream) {
 
   addPageFooter(doc, pageNum, palette, fonts);
 
-  // ── Page 5: Financial + Children + Household ──────────────────────────────
+  // ── Page 5: Children & Dependants ───────────────────────────────────────────
+  // Financial Affairs and Practical Household Information are vault-protected -
+  // rendered on the vault page below.
   doc.addPage();
-
-  sectionHeader(doc, 'Financial Affairs', palette, fonts);
-  if (!financialItems.length) {
-    noData(doc, fonts);
-  } else {
-    renderCards(doc, financialItems.map(item => [
-      { label: '',               value: item.institution || item.category },
-      { label: 'Category',       value: item.category },
-      { label: 'Institution',    value: item.institution },
-      { label: 'Account type',   value: item.account_type },
-      { label: 'Reference',      value: item.account_reference },
-      { label: 'Contact',        value: item.contact_name },
-      { label: 'Phone',          value: item.contact_phone },
-      { label: 'Notes',          value: item.notes },
-    ]), palette, fonts);
-  }
 
   sectionHeader(doc, 'Children & Dependants', palette, fonts);
   if (!childrenDependants.length) {
@@ -572,20 +550,6 @@ function generatePdf(data, outputStream) {
       { label: 'Guardian contact',   value: item.guardian_contact },
       { label: 'Alternate guardian', value: item.alternate_guardian },
       { label: 'Notes',              value: item.notes },
-    ]), palette, fonts);
-  }
-
-  sectionHeader(doc, 'Practical Household Information', palette, fonts);
-  if (!householdInfo.length) {
-    noData(doc, fonts);
-  } else {
-    renderCards(doc, householdInfo.map(item => [
-      { label: '',           value: item.title },
-      { label: 'Category',  value: item.category },
-      { label: 'Provider',  value: item.provider },
-      { label: 'Reference', value: item.account_reference },
-      { label: 'Contact',   value: item.contact },
-      { label: 'Notes',     value: item.notes },
     ]), palette, fonts);
   }
 
@@ -626,6 +590,50 @@ function generatePdf(data, outputStream) {
       ]), palette, fonts);
     }
 
+    sectionHeader(doc, 'Financial Affairs', palette, fonts);
+    if (!vaultData.financialItems?.length) {
+      noData(doc, fonts);
+    } else {
+      renderCards(doc, vaultData.financialItems.map(item => [
+        { label: '',               value: item.institution || item.category },
+        { label: 'Category',       value: item.category },
+        { label: 'Institution',    value: item.institution },
+        { label: 'Account type',   value: item.account_type },
+        { label: 'Reference',      value: item.account_reference },
+        { label: 'Contact',        value: item.contact_name },
+        { label: 'Phone',          value: item.contact_phone },
+        { label: 'Notes',          value: item.notes },
+      ]), palette, fonts);
+    }
+
+    sectionHeader(doc, 'Property & Possessions', palette, fonts);
+    if (!vaultData.propertyItems?.length) {
+      noData(doc, fonts);
+    } else {
+      renderCards(doc, vaultData.propertyItems.map(item => [
+        { label: '',              value: item.title },
+        { label: 'Category',      value: item.category },
+        { label: 'Description',   value: item.description },
+        { label: 'Location',      value: item.location },
+        { label: 'Goes to',       value: item.intended_recipient },
+        { label: 'Notes',         value: item.notes },
+      ]), palette, fonts);
+    }
+
+    sectionHeader(doc, 'Practical Household Information', palette, fonts);
+    if (!vaultData.householdInfo?.length) {
+      noData(doc, fonts);
+    } else {
+      renderCards(doc, vaultData.householdInfo.map(item => [
+        { label: '',           value: item.title },
+        { label: 'Category',  value: item.category },
+        { label: 'Provider',  value: item.provider },
+        { label: 'Reference', value: item.account_reference },
+        { label: 'Contact',   value: item.contact },
+        { label: 'Notes',     value: item.notes },
+      ]), palette, fonts);
+    }
+
     sectionHeader(doc, 'Digital Life: Credentials and Accounts', palette, fonts);
     if (!vaultData.credentials?.length) {
       noData(doc, fonts);
@@ -655,6 +663,9 @@ function generatePdf(data, outputStream) {
     rule(doc);
 
     vaultLockedSection(doc, 'Personal & Legal Documents', palette, fonts);
+    vaultLockedSection(doc, 'Financial Affairs', palette, fonts);
+    vaultLockedSection(doc, 'Property & Possessions', palette, fonts);
+    vaultLockedSection(doc, 'Practical Household Information', palette, fonts);
     vaultLockedSection(doc, 'Digital Life: Credentials and Accounts', palette, fonts);
   }
 

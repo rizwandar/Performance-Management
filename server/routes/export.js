@@ -24,6 +24,12 @@ router.use((req, res, next) => {
   next();
 });
 
+// Non-vault-protected data only - safe to load and render regardless of
+// whether the vault password has been verified. Vault-protected sections
+// (legal documents, financial affairs, property, household info, digital
+// credentials) are loaded separately by loadVaultData(), only ever called
+// after a successful vault-password check, so they can't reach the standard
+// export even by accident (see SEC-02).
 async function buildBaseData(uid) {
   const user = await queryOne(`
     SELECT id, name, email, date_of_birth,
@@ -38,32 +44,51 @@ async function buildBaseData(uid) {
   const settings     = Object.fromEntries(settingsRows.map(r => [r.key, r.value]));
 
   const [
-    legalDocs, financialItems, funeralWishes, medicalWishes,
-    peopleToNotify, propertyItems, messages, songsDefineMe,
-    lifeWishes, trustedContacts, childrenDependants, householdInfo,
+    funeralWishes, medicalWishes, peopleToNotify, messages,
+    songsDefineMe, lifeWishes, trustedContacts, childrenDependants,
   ] = await Promise.all([
-    queryAll('SELECT * FROM legal_documents   WHERE user_id = $1 ORDER BY created_at', [uid]),
-    queryAll('SELECT * FROM financial_items   WHERE user_id = $1 ORDER BY created_at', [uid]),
     queryOne('SELECT * FROM funeral_wishes    WHERE user_id = $1', [uid]),
     queryOne('SELECT * FROM medical_wishes    WHERE user_id = $1', [uid]),
     queryAll('SELECT * FROM people_to_notify  WHERE user_id = $1 ORDER BY created_at', [uid]),
-    queryAll('SELECT * FROM property_items    WHERE user_id = $1 ORDER BY created_at', [uid]),
     queryAll('SELECT * FROM personal_messages WHERE user_id = $1 ORDER BY created_at', [uid]),
     queryAll('SELECT * FROM songs_that_define_me WHERE user_id = $1 ORDER BY added_at', [uid]),
     queryAll('SELECT * FROM life_wishes       WHERE user_id = $1 ORDER BY created_at', [uid]),
     queryAll('SELECT * FROM trusted_contacts  WHERE user_id = $1 ORDER BY sequence', [uid]),
     queryAll('SELECT * FROM children_dependants WHERE user_id = $1 ORDER BY created_at', [uid]),
-    queryAll('SELECT * FROM household_info    WHERE user_id = $1 ORDER BY created_at', [uid]),
   ]);
 
   return {
     user, settings,
-    legalDocs, financialItems,
     funeralWishes:  funeralWishes  || {},
     medicalWishes:  medicalWishes  || {},
-    peopleToNotify, propertyItems, messages, songsDefineMe,
-    lifeWishes, trustedContacts, childrenDependants, householdInfo,
+    peopleToNotify, messages, songsDefineMe,
+    lifeWishes, trustedContacts, childrenDependants,
   };
+}
+
+// Vault-protected data only. Caller must have already verified the vault
+// password before calling this - it does not check anything itself.
+async function loadVaultData(uid, key) {
+  const [legalDocs, financialItems, propertyItems, householdInfo, credRows] = await Promise.all([
+    queryAll('SELECT * FROM legal_documents WHERE user_id = $1 ORDER BY created_at', [uid]),
+    queryAll('SELECT * FROM financial_items WHERE user_id = $1 ORDER BY created_at', [uid]),
+    queryAll('SELECT * FROM property_items  WHERE user_id = $1 ORDER BY created_at', [uid]),
+    queryAll('SELECT * FROM household_info  WHERE user_id = $1 ORDER BY created_at', [uid]),
+    queryAll(
+      'SELECT id, service, service_url, username_enc, password_enc, notes_enc, created_at FROM digital_credentials WHERE user_id = $1 ORDER BY service',
+      [uid]
+    ),
+  ]);
+
+  const credentials = credRows.map(row => ({
+    service:     row.service,
+    service_url: row.service_url,
+    username:    decryptField(row.username_enc, key),
+    password:    decryptField(row.password_enc, key),
+    notes:       decryptField(row.notes_enc, key),
+  }));
+
+  return { legalDocs, financialItems, propertyItems, householdInfo, credentials };
 }
 
 async function loadLogo(settings) {
@@ -80,6 +105,9 @@ function streamPdf(data, res) {
   const safeName = data.user.name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `attachment; filename="in-good-hands-${safeName}.pdf"`);
+  // Never let a browser, proxy, or CDN cache a generated export - both
+  // versions can contain sensitive personal data.
+  res.setHeader('Cache-Control', 'no-store, private');
   try {
     generatePdf(data, res);
   } catch (err) {
@@ -148,24 +176,14 @@ router.post('/', auth, requirePremium, async (req, res) => {
     }
   }
 
-  const credRows = await queryAll(
-    'SELECT id, service, service_url, username_enc, password_enc, notes_enc, created_at FROM digital_credentials WHERE user_id = $1 ORDER BY service',
-    [uid]
-  );
-
-  const credentials = credRows.map(row => ({
-    service:     row.service,
-    service_url: row.service_url,
-    username:    decryptField(row.username_enc, key),
-    password:    decryptField(row.password_enc, key),
-    notes:       decryptField(row.notes_enc, key),
-  }));
-
-  const data = await buildBaseData(uid);
+  const [data, vaultData] = await Promise.all([
+    buildBaseData(uid),
+    loadVaultData(uid, key),
+  ]);
   if (!data) return res.status(404).json({ error: 'User not found.' });
 
   data.logoBuffer = await loadLogo(data.settings);
-  data.vaultData  = { legalDocs: data.legalDocs, credentials };
+  data.vaultData  = vaultData;
 
   streamPdf(data, res);
 });
