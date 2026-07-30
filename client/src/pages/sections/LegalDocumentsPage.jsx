@@ -53,7 +53,7 @@ export default function LegalDocumentsPage() {
     setLoading(true)
     Promise.all([
       axios.post(`${API}/sections/legal-documents/list`, { vault_password: pw }),
-      axios.get(`${API}/documents/legal_documents`),
+      axios.post(`${API}/documents/legal_documents`, { vault_password: pw }),
     ])
       .then(([itemsRes, docsRes]) => {
         setItems(itemsRes.data)
@@ -250,6 +250,7 @@ export default function LegalDocumentsPage() {
                     sectionId="legal_documents"
                     itemId={item.id}
                     sectionDocs={sectionDocs}
+                    vaultPassword={vaultPassword}
                     onUpload={newDoc => setSectionDocs(prev => [newDoc, ...prev])}
                     onDelete={docId  => setSectionDocs(prev => prev.filter(d => d.id !== docId))}
                   />

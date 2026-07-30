@@ -10,7 +10,7 @@ export const MAX_FILES_PER_ITEM = 2
 // are stored in Cloudflare R2, access-controlled via short-lived signed
 // URLs, but not additionally encrypted with the vault password - see the
 // Security page for the full detail on that distinction.
-export default function FileAttachments({ sectionId, itemId, sectionDocs, onUpload, onDelete }) {
+export default function FileAttachments({ sectionId, itemId, sectionDocs, onUpload, onDelete, vaultPassword }) {
   const attached = sectionDocs.filter(d => d.item_id === itemId)
   const fileRef  = useRef(null)
   const [uploading, setUploading] = useState(false)
@@ -26,6 +26,7 @@ export default function FileAttachments({ sectionId, itemId, sectionDocs, onUplo
       fd.append('file', file)
       fd.append('section_id', sectionId)
       fd.append('item_id', String(itemId))
+      if (vaultPassword) fd.append('vault_password', vaultPassword)
       const r = await axios.post(`${API}/documents/upload`, fd)
       onUpload(r.data)
     } catch (err) {
@@ -39,7 +40,7 @@ export default function FileAttachments({ sectionId, itemId, sectionDocs, onUplo
   const handleDelete = async (docId) => {
     if (!window.confirm('Remove this attachment?')) return
     try {
-      await axios.delete(`${API}/documents/${docId}`)
+      await axios.delete(`${API}/documents/${docId}`, { data: { vault_password: vaultPassword } })
       onDelete(docId)
     } catch {
       // silently ignore — list will refresh on next load
@@ -65,7 +66,7 @@ export default function FileAttachments({ sectionId, itemId, sectionDocs, onUplo
                 onClick={async e => {
                   e.preventDefault()
                   try {
-                    const r = await axios.get(`${API}/documents/download/${doc.id}`)
+                    const r = await axios.post(`${API}/documents/download/${doc.id}`, { vault_password: vaultPassword })
                     window.open(r.data.url, '_blank')
                   } catch {
                     alert("Couldn't open the file. Please try again.")

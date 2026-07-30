@@ -1216,12 +1216,17 @@ VAULT         POST /api/sections/digital-life/vault (setup)
               DELETE /api/sections/digital-life/vault (reset)
               GET/POST/PUT/DELETE /api/sections/digital-life/credentials
 
-DOCUMENTS     POST /api/documents/upload (multipart: file, section_id, item_id)
-              GET  /api/documents/:section_id (list)
-              GET  /api/documents/download/:id (signed URL)
-              DELETE /api/documents/:id
-              POST /api/documents/photos/upload (photo_role required)
-              GET  /api/documents/photos/:section_id
+DOCUMENTS     POST /api/documents/upload (multipart: file, section_id, item_id, vault_password if protected)
+              POST /api/documents/:section_id (list; vault_password in body if protected)
+              POST /api/documents/download/:id (signed URL; vault_password in body if protected)
+              DELETE /api/documents/:id (vault_password in body if protected)
+              POST /api/documents/photos/upload (photo_role required, vault_password if protected)
+              POST /api/documents/photos/:section_id (vault_password in body if protected)
+              List/download/delete/photos routes use POST rather than GET wherever a
+              vault_password may need to travel, so it never ends up in a query string.
+              Which sections are "protected" is a single list in server/lib/vaultSections.js,
+              derived from the document's own section_id server-side, never trusted from the
+              client - see SEC-01 in the security backlog.
 
 EXPORT        GET  /api/export (standard, no vault)
               POST /api/export {vault_password} (full, with vault)

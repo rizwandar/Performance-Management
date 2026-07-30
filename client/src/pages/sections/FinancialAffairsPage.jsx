@@ -55,7 +55,7 @@ export default function FinancialAffairsPage() {
     setLoading(true)
     Promise.all([
       axios.post(`${API}/sections/financial-affairs/list`, { vault_password: pw }),
-      axios.get(`${API}/documents/financial_items`),
+      axios.post(`${API}/documents/financial_items`, { vault_password: pw }),
     ])
       .then(([itemsRes, docsRes]) => {
         setItems(itemsRes.data)
@@ -242,6 +242,7 @@ export default function FinancialAffairsPage() {
                     sectionId="financial_items"
                     itemId={item.id}
                     sectionDocs={sectionDocs}
+                    vaultPassword={vaultPassword}
                     onUpload={newDoc => setSectionDocs(prev => [newDoc, ...prev])}
                     onDelete={docId  => setSectionDocs(prev => prev.filter(d => d.id !== docId))}
                   />

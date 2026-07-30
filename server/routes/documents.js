@@ -5,6 +5,12 @@ const router  = express.Router();
 const { queryOne, queryAll, query } = require('../db/database');
 const requireAuth = require('../middleware/auth');
 const { uploadFile, getDownloadUrl, deleteFile } = require('../lib/r2');
+const { checkVault } = require('../lib/vaultAuth');
+const { isVaultProtectedSection } = require('../lib/vaultSections');
+
+// Signed URLs for vault-protected documents get a much shorter lifetime than
+// the default 1 hour used for non-vault attachments (funeral photos, admin logo).
+const VAULT_DOWNLOAD_TTL_SECONDS = 300;
 
 const ALLOWED_MIME_TYPES = new Set([
   'application/pdf',
@@ -47,11 +53,14 @@ router.post('/upload', requireAuth, (req, res, next) => {
   });
 }, async (req, res) => {
   try {
-    const { section_id, item_id } = req.body;
+    const { section_id, item_id, vault_password } = req.body;
     const userId = req.user.id;
 
     if (!req.file)   return res.status(400).json({ error: 'No file provided.' });
     if (!section_id) return res.status(400).json({ error: 'section_id is required.' });
+    if (isVaultProtectedSection(section_id)) {
+      if (!await checkVault(vault_password, userId, res, req)) return;
+    }
 
     const ext    = req.file.originalname.split('.').pop();
     const safeExt = ext.replace(/[^a-zA-Z0-9]/g, '');
@@ -79,24 +88,40 @@ router.post('/upload', requireAuth, (req, res, next) => {
   }
 });
 
-router.get('/:section_id', requireAuth, async (req, res) => {
+// POST, not GET - a vault_password needs to travel in the body, never a query
+// string (query strings end up in access logs, proxy logs, and browser history).
+router.post('/:section_id', requireAuth, async (req, res) => {
+  const { section_id } = req.params;
+  if (isVaultProtectedSection(section_id)) {
+    if (!await checkVault(req.body.vault_password, req.user.id, res, req)) return;
+  }
   const docs = await queryAll(`
     SELECT id, section_id, item_id, original_name, size_bytes, mime_type, uploaded_at
     FROM uploaded_documents
     WHERE user_id = $1 AND section_id = $2
     ORDER BY uploaded_at DESC
-  `, [req.user.id, req.params.section_id]);
+  `, [req.user.id, section_id]);
   res.json(docs);
 });
 
-router.get('/download/:id', requireAuth, async (req, res) => {
+// POST, not GET, for the same reason as the list route above.
+router.post('/download/:id', requireAuth, async (req, res) => {
   try {
     const doc = await queryOne(
       'SELECT * FROM uploaded_documents WHERE id = $1 AND user_id = $2',
       [req.params.id, req.user.id]
     );
     if (!doc) return res.status(404).json({ error: 'Document not found.' });
-    const url = await getDownloadUrl(doc.r2_key);
+
+    // Sensitivity is derived from the document's own section_id, never trusted
+    // from the client - a document tagged legal_documents is vault-protected
+    // no matter how the request claims to be shaped.
+    const protectedDoc = isVaultProtectedSection(doc.section_id);
+    if (protectedDoc) {
+      if (!await checkVault(req.body.vault_password, req.user.id, res, req)) return;
+    }
+
+    const url = await getDownloadUrl(doc.r2_key, protectedDoc ? VAULT_DOWNLOAD_TTL_SECONDS : undefined);
     res.json({ url, original_name: doc.original_name });
   } catch (err) {
     console.error('Download error:', err);
@@ -111,6 +136,11 @@ router.delete('/:id', requireAuth, async (req, res) => {
       [req.params.id, req.user.id]
     );
     if (!doc) return res.status(404).json({ error: 'Document not found.' });
+
+    if (isVaultProtectedSection(doc.section_id)) {
+      if (!await checkVault(req.body?.vault_password, req.user.id, res, req)) return;
+    }
+
     await deleteFile(doc.r2_key);
     await query('DELETE FROM uploaded_documents WHERE id = $1', [doc.id]);
     res.json({ success: true });
@@ -127,12 +157,15 @@ router.post('/photos/upload', requireAuth, (req, res, next) => {
   });
 }, async (req, res) => {
   try {
-    const { section_id, photo_role } = req.body;
+    const { section_id, photo_role, vault_password } = req.body;
     const userId = req.user.id;
 
     if (!req.file)   return res.status(400).json({ error: 'No photo provided.' });
     if (!section_id) return res.status(400).json({ error: 'section_id is required.' });
     if (!photo_role) return res.status(400).json({ error: 'photo_role is required.' });
+    if (isVaultProtectedSection(section_id)) {
+      if (!await checkVault(vault_password, userId, res, req)) return;
+    }
 
     if (photo_role === 'funeral_main') {
       const existing = await queryAll(
@@ -180,22 +213,29 @@ router.post('/photos/upload', requireAuth, (req, res, next) => {
   }
 });
 
-router.get('/photos/:section_id', requireAuth, async (req, res) => {
+// POST, not GET, for the same reason as the document list route above.
+router.post('/photos/:section_id', requireAuth, async (req, res) => {
   try {
+    const { section_id } = req.params;
+    if (isVaultProtectedSection(section_id)) {
+      if (!await checkVault(req.body?.vault_password, req.user.id, res, req)) return;
+    }
+
     const docs = await queryAll(`
       SELECT id, photo_role, original_name, size_bytes, mime_type, r2_key, uploaded_at
       FROM uploaded_documents
       WHERE user_id = $1 AND section_id = $2 AND photo_role IS NOT NULL
       ORDER BY photo_role DESC, uploaded_at ASC
-    `, [req.user.id, req.params.section_id]);
+    `, [req.user.id, section_id]);
 
+    const ttl = isVaultProtectedSection(section_id) ? VAULT_DOWNLOAD_TTL_SECONDS : undefined;
     const withUrls = await Promise.all(docs.map(async doc => ({
       id:            doc.id,
       photo_role:    doc.photo_role,
       original_name: doc.original_name,
       size_bytes:    doc.size_bytes,
       uploaded_at:   doc.uploaded_at,
-      signed_url:    await getDownloadUrl(doc.r2_key),
+      signed_url:    await getDownloadUrl(doc.r2_key, ttl),
     })));
 
     res.json(withUrls);

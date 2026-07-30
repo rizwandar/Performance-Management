@@ -59,7 +59,7 @@ export default function FuneralWishesPage() {
   const galleryFileRef = useRef(null)
 
   const loadPhotos = () => {
-    axios.get(`${API}/documents/photos/funeral_wishes`)
+    axios.post(`${API}/documents/photos/funeral_wishes`)
       .then(r => {
         setMainPhoto(r.data.find(p => p.photo_role === 'funeral_main') || null)
         setGalleryPhotos(r.data.filter(p => p.photo_role === 'funeral_gallery'))

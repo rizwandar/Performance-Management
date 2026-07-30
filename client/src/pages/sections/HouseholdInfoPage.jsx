@@ -60,7 +60,7 @@ export default function HouseholdInfoPage() {
     setLoadFailed(false)
     Promise.all([
       axios.post(`${API}/sections/household-info/list`, { vault_password: pw }),
-      axios.get(`${API}/documents/household_info`),
+      axios.post(`${API}/documents/household_info`, { vault_password: pw }),
     ])
       .then(([itemsRes, docsRes]) => {
         setItems(itemsRes.data)
@@ -266,6 +266,7 @@ export default function HouseholdInfoPage() {
                           sectionId="household_info"
                           itemId={item.id}
                           sectionDocs={sectionDocs}
+                          vaultPassword={vaultPassword}
                           onUpload={newDoc => setSectionDocs(prev => [newDoc, ...prev])}
                           onDelete={docId  => setSectionDocs(prev => prev.filter(d => d.id !== docId))}
                         />
