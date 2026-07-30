@@ -473,7 +473,7 @@ function NavBar() {
 // Unverified email banner — shown to logged-in users who haven't verified yet
 // ---------------------------------------------------------------------------
 function UnverifiedEmailBanner() {
-  const { user, login, token } = useAuth()
+  const { user } = useAuth()
   const [sending, setSending] = useState(false)
   const [sent, setSent]       = useState(false)
   const [resendError, setResendError] = useState('')

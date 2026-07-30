@@ -3,7 +3,7 @@
  * Both sections use the same vault (digital_vault table), so these
  * screens hit the same endpoints regardless of which section renders them.
  */
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Form, Alert, InputGroup, Spinner } from 'react-bootstrap'
 import axios from 'axios'

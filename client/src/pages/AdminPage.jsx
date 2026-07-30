@@ -118,7 +118,6 @@ const PRESET_NAMES = [
 
 function BrandingPanel({ showAlert }) {
   const { setBranding } = useBranding()
-  const [settings, setSettings] = useState({})
   const [loading, setLoading]   = useState(true)
 
   // Name state
@@ -138,7 +137,6 @@ function BrandingPanel({ showAlert }) {
   useEffect(() => {
     axios.get(`${import.meta.env.VITE_API_URL}/settings`).then(r => {
       const s = r.data
-      setSettings(s)
       const name = s.site_name || 'In Good Hands'
       if (PRESET_NAMES.includes(name)) {
         setSelectedName(name)
@@ -905,9 +903,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
         ForgotPasswordPage.jsx, ResetPasswordPage.jsx
         DashboardPage.jsx    # 14 section cards, 4 groups, earthy colours
         ProfilePage.jsx      # Personal details, password, vault password
-        TrustedContactsPage.jsx
         AccessPage.jsx       # Public trusted-contact read-only view
-        ProfileViewPage.jsx
         AdminPage.jsx        # Full admin panel
         ExportPage.jsx       # Two-option PDF download page
         sections/            # One page per section (14 files)

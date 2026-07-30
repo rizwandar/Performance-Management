@@ -147,12 +147,6 @@ body {
 a { color: var(--green-800); }
 a:hover { color: var(--green-900); }
 
-/* ── Page title ────────────────────────────────────────────────────────── */
-.page-title {
-  color: var(--green-900);
-  font-weight: 700;
-}
-
 /* ── Section / item cards ───────────────────────────────────────────────── */
 .section-card {
   background: #fff;
@@ -161,15 +155,6 @@ a:hover { color: var(--green-900); }
   padding: 14px 16px;
   margin-bottom: 12px;
   box-shadow: 0 1px 6px rgba(45, 90, 61, 0.06);
-}
-
-/* Legacy class kept for v1 items */
-.goal-card {
-  background: linear-gradient(135deg, var(--green-50) 0%, var(--parchment) 100%);
-  border-left: 4px solid var(--gold);
-  border-radius: var(--card-radius-sm, 10px);
-  padding: 14px 16px;
-  margin-bottom: 12px;
 }
 
 /* ── Alerts ────────────────────────────────────────────────────────────── */
@@ -212,13 +197,6 @@ a:hover { color: var(--green-900); }
   font-size: 1.2rem;
   max-width: 560px;
   margin: 0 auto;
-}
-
-/* ── Divider ───────────────────────────────────────────────────────────── */
-.warm-divider {
-  border: none;
-  border-top: 1px solid var(--border);
-  margin: 2rem 0;
 }
 
 /* ── Section placeholder ────────────────────────────────────────────────── */

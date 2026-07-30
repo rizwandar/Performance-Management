@@ -12,12 +12,6 @@ export default function TermsPage() {
     <p style={{ color: 'var(--text)', lineHeight: 1.75, marginBottom: 12 }}>{text}</p>
   )
 
-  const li = (items) => (
-    <ul style={{ lineHeight: 1.75, color: 'var(--text)', marginBottom: 12 }}>
-      {items.map((item, i) => <li key={i}>{item}</li>)}
-    </ul>
-  )
-
   return (
     <div style={{ maxWidth: 820, margin: '0 auto' }}>
       <div style={{ marginBottom: 36 }}>
