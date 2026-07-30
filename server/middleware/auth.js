@@ -59,6 +59,18 @@ module.exports = async (req, res, next) => {
     if (error) return res.status(403).json({ error });
     req.user = user;
   } else {
+    // Tokens minted since the session_version migration carry an `sv` claim;
+    // a mismatch against the user's live value means the password was reset
+    // or changed since this token was issued, so it's rejected even though it
+    // hasn't expired yet. Tokens without the claim (already-issued sessions at
+    // migration time, or a couple of org-flow token issuers not yet updated)
+    // skip the check rather than being force-logged-out by this change.
+    if (decoded.sv !== undefined) {
+      const row = await queryOne('SELECT session_version FROM users WHERE id = $1', [decoded.id]);
+      if (!row || row.session_version !== decoded.sv) {
+        return res.status(401).json({ error: 'Your session has expired. Please sign in again.', session_expired: true });
+      }
+    }
     req.user = decoded;
   }
   next();

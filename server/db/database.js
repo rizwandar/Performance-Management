@@ -46,7 +46,7 @@ async function init() {
       password_hash                   TEXT NOT NULL,
       date_of_birth                   TEXT,
       is_admin                        INTEGER DEFAULT 0,
-      reset_token                     TEXT,
+      reset_token                     TEXT, -- SHA-256 hash of the reset token, never the raw value (SEC-04)
       reset_token_expiry              TEXT,
       last_active_at                  TIMESTAMPTZ DEFAULT NOW(),
       inactivity_period_months        INTEGER DEFAULT 12,
@@ -569,14 +569,6 @@ async function init() {
     FOREIGN KEY (changed_by_user_id) REFERENCES users(id) ON DELETE SET NULL
   `);
 
-  // Real Stripe billing for org subscriptions (Professional/Growth tiers).
-  // billing_status mirrors the consumer subscriptions.status field (active/
-  // trialing/past_due/canceled) - plan_tier alone doesn't tell us whether a
-  // real subscription backs it, Starter has none by design (it's free).
-  await pool.query(`ALTER TABLE organizations ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT`);
-  await pool.query(`ALTER TABLE organizations ADD COLUMN IF NOT EXISTS stripe_subscription_id TEXT`);
-  await pool.query(`ALTER TABLE organizations ADD COLUMN IF NOT EXISTS billing_status TEXT`);
-
   // Marital status + spouse/partner details, captured on the customer profile.
   // Spouse fields mirror the existing emergency_contact_* shape (name/phone/email)
   // rather than a separate table, since it's a single record per user.
@@ -585,17 +577,19 @@ async function init() {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS spouse_phone TEXT`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS spouse_email TEXT`);
 
+  // Bumped whenever a password is changed or reset (self-service, forgot-password,
+  // or admin-initiated) so JWTs issued before that point stop being accepted by
+  // requireAuth - closes the gap where a stolen session survived a password reset.
+  // Tokens minted before this migration carry no session-version claim at all, so
+  // requireAuth skips the check for them rather than mass-logging-out everyone.
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS session_version INTEGER DEFAULT 1`);
+
   // Seed default settings
   for (const [key, value] of [
     ['password_reset_method', 'email'],
     ['site_theme',            'forest'],
     ['site_font',             'georgia'],
     ['site_logo',             ''],
-    // Growth-tier overage config: customers included free in the $199/mo
-    // base fee, and per-customer price beyond that. Admin-editable via the
-    // existing generic PUT /api/settings/:key, no redeploy needed to change.
-    ['org_growth_included_customers',  '50'],
-    ['org_growth_overage_rate_cents',  '200'],
   ]) {
     await pool.query(
       'INSERT INTO app_settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING',

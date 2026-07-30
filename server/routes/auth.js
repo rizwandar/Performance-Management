@@ -3,6 +3,7 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 const { body } = require('express-validator');
 const { queryOne, query } = require('../db/database');
 const { sendEmail } = require('../lib/sendEmail');
@@ -10,6 +11,43 @@ const { welcomeEmail, passwordResetEmail, emailVerificationEmail } = require('..
 const { validate } = require('../middleware/validate');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
+
+// Reset tokens are high-entropy random values, so a fast hash is enough (unlike
+// passwords, there's nothing to slow an attacker down against - the entropy is
+// the defense). The DB only ever stores this hash, never the raw token; the raw
+// value exists only in the emailed link.
+function hashResetToken(token) {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+// Cheap defense-in-depth against timing side-channels on the DOB comparison in
+// forgot-password. DOB is low-entropy to begin with, so this isn't the primary
+// defense - the per-email rate limiter below is.
+function timingSafeStringEqual(a, b) {
+  const bufA = Buffer.from(String(a ?? ''));
+  const bufB = Buffer.from(String(b ?? ''));
+  if (bufA.length !== bufB.length) {
+    crypto.timingSafeEqual(bufA, bufA);
+    return false;
+  }
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
+const GENERIC_RESET_RESPONSE = { message: 'If that email is registered, a reset link has been sent.' };
+
+// Keyed by email (not just IP) so guessing a DOB against one known account can't
+// be brute-forced by rotating IPs, and so it throttles independently of the
+// broader per-IP authLimiter already applied to all of /api/auth/*. The handler
+// returns the same generic response a normal request gets, so being throttled
+// is itself indistinguishable from a normal "email sent" response.
+const forgotPasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  keyGenerator: (req) => (req.body?.email || '').toLowerCase().trim() || ipKeyGenerator(req.ip),
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => res.json(GENERIC_RESET_RESPONSE),
+});
 
 async function auditLog(userId, action, req, metadata) {
   try {
@@ -76,7 +114,7 @@ router.post('/register', registerRules, validate, async (req, res) => {
     );
     auditLog(newId, 'register', req);
 
-    const token = jwt.sign({ id: newId, email, is_admin: 0 }, JWT_SECRET, { expiresIn: '8h' });
+    const token = jwt.sign({ id: newId, email, is_admin: 0, sv: 1 }, JWT_SECRET, { expiresIn: '8h' });
     res.status(201).json({
       id: newId,
       token,
@@ -124,6 +162,7 @@ router.post('/login', loginRules, validate, async (req, res) => {
       id: user.id, email: user.email, is_admin: user.is_admin,
       org_role: user.org_role || undefined, organization_id: user.organization_id || undefined,
       organization_location_id: user.organization_location_id || undefined,
+      sv: user.session_version ?? 1,
     },
     JWT_SECRET,
     { expiresIn: '8h' }
@@ -149,50 +188,47 @@ router.post('/login', loginRules, validate, async (req, res) => {
 const forgotRules = [
   body('email').trim().notEmpty().withMessage('Email is required.')
     .customSanitizer(v => v.toLowerCase()),
+  body('date_of_birth').optional({ checkFalsy: true })
+    .isDate().withMessage('Date of birth must be a valid date.'),
 ];
-router.post('/forgot-password', forgotRules, validate, async (req, res) => {
+// Date of birth, when the site is configured to ask for it, is an ADDITIONAL
+// check layered on top of the email link - never an alternate path to a token.
+// A reset link is always and only delivered by email; the API never returns a
+// token, and the response is identical whether the account exists, the DOB
+// matched, or the request was rate-limited, so none of it is a signal an
+// attacker can use to enumerate accounts or brute-force a date of birth (SEC-04).
+router.post('/forgot-password', forgotPasswordLimiter, forgotRules, validate, async (req, res) => {
   const { email, date_of_birth } = req.body;
   if (!email) return res.status(400).json({ error: 'Email is required' });
 
-  const setting = await queryOne("SELECT value FROM app_settings WHERE key = 'password_reset_method'");
-  const method  = setting?.value || 'email';
-  const user    = await queryOne('SELECT * FROM users WHERE email = $1', [email]);
-
-  if (method === 'dob') {
-    if (!date_of_birth) return res.status(400).json({ error: 'Date of birth is required' });
-    if (!user || user.date_of_birth !== date_of_birth) {
-      return res.status(404).json({ error: 'No account found with those details' });
-    }
-    const token  = crypto.randomBytes(32).toString('hex');
-    const expiry = new Date(Date.now() + 15 * 60 * 1000).toISOString();
-    await query('UPDATE users SET reset_token = $1, reset_token_expiry = $2 WHERE id = $3', [token, expiry, user.id]);
-    return res.json({ token });
-  } else {
-    if (user) {
-      const token  = crypto.randomBytes(32).toString('hex');
-      const expiry = new Date(Date.now() + 60 * 60 * 1000).toISOString();
-      await query('UPDATE users SET reset_token = $1, reset_token_expiry = $2 WHERE id = $3', [token, expiry, user.id]);
-
-      const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
-      const resetLink = `${clientUrl}/reset-password?token=${token}`;
-
-      let emailOk = false;
-      try {
-        await sendEmail({
-          to:      user.email,
-          subject: 'Reset your In Good Hands password',
-          html:    passwordResetEmail({ name: user.name, resetLink }),
-        });
-        emailOk = true;
-      } catch (e) {
-        console.error('Password reset email failed:', e.message);
-      }
-      if (!emailOk) {
-        console.warn('[auth] Password reset email failed. Reset link (server-side only):', resetLink);
-      }
-    }
-    return res.json({ message: 'If that email is registered, a reset link has been sent.' });
+  const setting     = await queryOne("SELECT value FROM app_settings WHERE key = 'password_reset_method'");
+  const requireDob   = setting?.value === 'dob';
+  if (requireDob && !date_of_birth) {
+    return res.status(400).json({ error: 'Date of birth is required' });
   }
+
+  const user = await queryOne('SELECT * FROM users WHERE email = $1', [email]);
+  const dobMatches = !requireDob || (!!user && timingSafeStringEqual(user.date_of_birth, date_of_birth));
+
+  if (user && dobMatches) {
+    const rawToken  = crypto.randomBytes(32).toString('hex');
+    const tokenHash = hashResetToken(rawToken);
+    const expiry    = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+    await query('UPDATE users SET reset_token = $1, reset_token_expiry = $2 WHERE id = $3', [tokenHash, expiry, user.id]);
+
+    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+    const resetLink = `${clientUrl}/reset-password?token=${rawToken}`;
+    sendEmail({
+      to:      user.email,
+      subject: 'Reset your In Good Hands password',
+      html:    passwordResetEmail({ name: user.name, resetLink }),
+    }).catch(e => console.error('[auth] Password reset email failed for user', user.id, ':', e.message));
+    auditLog(user.id, 'password_reset_requested', req);
+  } else {
+    auditLog(user?.id || null, 'password_reset_denied', req, { reason: !user ? 'no_account' : 'dob_mismatch' });
+  }
+
+  res.json(GENERIC_RESET_RESPONSE);
 });
 
 const resetRules = [
@@ -207,13 +243,20 @@ router.post('/reset-password', resetRules, validate, async (req, res) => {
   const { token, password } = req.body;
   if (!token || !password) return res.status(400).json({ error: 'Token and password are required' });
 
-  const user = await queryOne('SELECT * FROM users WHERE reset_token = $1', [token]);
+  const tokenHash = hashResetToken(token);
+  const user = await queryOne('SELECT * FROM users WHERE reset_token = $1', [tokenHash]);
   if (!user || !user.reset_token_expiry || new Date(user.reset_token_expiry) < new Date()) {
     return res.status(400).json({ error: 'Invalid or expired reset token' });
   }
 
   const hash = bcrypt.hashSync(password, 10);
-  await query('UPDATE users SET password_hash = $1, reset_token = NULL, reset_token_expiry = NULL WHERE id = $2', [hash, user.id]);
+  // session_version bump signs every other already-issued token out on their
+  // next request - a stolen session shouldn't survive its owner reclaiming the
+  // account (SEC-04's session-invalidation-on-reset requirement).
+  await query(
+    'UPDATE users SET password_hash = $1, reset_token = NULL, reset_token_expiry = NULL, session_version = session_version + 1 WHERE id = $2',
+    [hash, user.id]
+  );
   auditLog(user.id, 'password_changed', req);
   res.json({ success: true });
 });

@@ -91,7 +91,10 @@ router.post('/me/change-password', auth, async (req, res) => {
     return res.status(401).json({ error: 'Your current password is incorrect.' });
 
   const hash = bcrypt.hashSync(new_password, 10);
-  await query('UPDATE users SET password_hash = $1 WHERE id = $2', [hash, req.user.id]);
+  // Bumping session_version signs out any other active session on its next
+  // request - matches the same invalidation-on-password-change behavior as
+  // the forgot-password reset flow (SEC-04).
+  await query('UPDATE users SET password_hash = $1, session_version = session_version + 1 WHERE id = $2', [hash, req.user.id]);
   res.json({ success: true });
 });
 
