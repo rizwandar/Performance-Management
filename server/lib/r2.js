@@ -27,11 +27,12 @@ async function uploadFile({ key, buffer, mimeType }) {
 }
 
 /**
- * Generate a signed download URL valid for 1 hour.
+ * Generate a signed download URL. Defaults to 1 hour; callers handling
+ * vault-protected documents should pass a shorter expiresIn.
  */
-async function getDownloadUrl(key) {
+async function getDownloadUrl(key, expiresIn = 3600) {
   const command = new GetObjectCommand({ Bucket: BUCKET, Key: key });
-  return getSignedUrl(client, command, { expiresIn: 3600 });
+  return getSignedUrl(client, command, { expiresIn });
 }
 
 /**

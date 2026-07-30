@@ -46,7 +46,7 @@ export default function PropertyPossessionsPage() {
     setLoading(true)
     Promise.all([
       axios.post(`${API}/sections/property-possessions/list`, { vault_password: pw }),
-      axios.get(`${API}/documents/property_items`),
+      axios.post(`${API}/documents/property_items`, { vault_password: pw }),
     ])
       .then(([itemsRes, docsRes]) => {
         setItems(itemsRes.data)
@@ -234,6 +234,7 @@ export default function PropertyPossessionsPage() {
                     sectionId="property_items"
                     itemId={item.id}
                     sectionDocs={sectionDocs}
+                    vaultPassword={vaultPassword}
                     onUpload={newDoc => setSectionDocs(prev => [newDoc, ...prev])}
                     onDelete={docId  => setSectionDocs(prev => prev.filter(d => d.id !== docId))}
                   />
