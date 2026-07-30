@@ -7,7 +7,9 @@ const API = import.meta.env.VITE_API_URL
 
 export default function ForgotPasswordPage() {
   const [method, setMethod] = useState('email')
-  const [form, setForm] = useState({ email: '', date_of_birth: '' })
+  const [form, setForm] = useState({ email: '', date_of_birth: '', security_answer: '' })
+  const [question, setQuestion] = useState(null)
+  const [loadingQuestion, setLoadingQuestion] = useState(false)
   const [status, setStatus] = useState(null)
   const [loading, setLoading] = useState(false)
   const [submitted, setSubmitted] = useState(false)
@@ -19,10 +21,23 @@ export default function ForgotPasswordPage() {
   }, [])
 
   // A reset link is always delivered by email, never returned here directly -
-  // date of birth (when the site asks for it) is only an additional check
-  // before that email is sent, not an alternate way to get a working link.
-  // The response is identical whether the account exists, the DOB matched, or
-  // the request was rate-limited, so this form can't be used to test either.
+  // date of birth or a security question answer (when the site asks for one)
+  // is only an additional check before that email is sent, not an alternate
+  // way to get a working link. The response is identical whether the account
+  // exists, the additional check matched, or the request was rate-limited, so
+  // this form can't be used to test any of that (SEC-04, SEC-05).
+  const handleEmailBlur = async () => {
+    if (method !== 'security_question' || !form.email || question) return
+    setLoadingQuestion(true)
+    try {
+      const res = await axios.post(`${API}/auth/forgot-password/question`, { email: form.email })
+      setQuestion(res.data.question)
+    } catch {
+      // non-fatal - the security-answer field just won't have a prompt yet
+    }
+    setLoadingQuestion(false)
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
@@ -51,7 +66,8 @@ export default function ForgotPasswordPage() {
                 <Form.Control
                   type="email"
                   value={form.email}
-                  onChange={e => setForm({ ...form, email: e.target.value })}
+                  onChange={e => { setForm({ ...form, email: e.target.value }); setQuestion(null) }}
+                  onBlur={handleEmailBlur}
                   required
                 />
               </Form.Group>
@@ -62,6 +78,19 @@ export default function ForgotPasswordPage() {
                     type="date"
                     value={form.date_of_birth}
                     onChange={e => setForm({ ...form, date_of_birth: e.target.value })}
+                    required
+                  />
+                </Form.Group>
+              )}
+              {method === 'security_question' && (
+                <Form.Group className="mb-3">
+                  <Form.Label>
+                    {loadingQuestion ? 'Loading your security question...' : question || 'Security question answer'}
+                  </Form.Label>
+                  <Form.Control
+                    value={form.security_answer}
+                    onChange={e => setForm({ ...form, security_answer: e.target.value })}
+                    placeholder="Your answer"
                     required
                   />
                 </Form.Group>

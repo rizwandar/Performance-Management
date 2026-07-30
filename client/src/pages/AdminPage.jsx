@@ -514,7 +514,7 @@ AUTH SYSTEM:
 - JWT in localStorage, 8-hour expiry, signed with JWT_SECRET env var.
 - bcryptjs for password hashing, salt rounds = 10.
 - Rate limiting: 20 requests per 15 minutes on /api/auth routes, 200 requests per 15 minutes on general /api/ routes. forgot-password is additionally rate-limited per email address (5 per 15 minutes).
-- Password reset: always by emailed link, single-use, expires in 30 minutes, stored server-side as a SHA-256 hash (never the raw token, never returned in any API response). Admin can optionally also require date of birth as an extra check before that email is sent - it is never an alternate path to a reset link. A successful reset (or any password change) bumps users.session_version, which invalidates any other already-issued session token.
+- Password reset: always by emailed link, single-use, expires in 30 minutes, stored server-side as a SHA-256 hash (never the raw token, never returned in any API response). Admin can optionally also require date of birth or a security question as an extra check before that email is sent - either is only ever an additional signal, never an alternate path to a reset link. Security question answers are stored as a bcrypt hash (users.security_answer_hash), same as passwords. A successful reset (or any password change) bumps users.session_version, which invalidates any other already-issued session token.
 - Audit log: every login_success, login_failed, logout, register, password_changed, password_reset_requested, password_reset_denied stored in user_audit_logs table.
 - Vault failure audit: every failed vault attempt logged with attempt count.
 
@@ -814,7 +814,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
                 ['Activity log', 'Recent actions across all users: logins, failures, registrations, password changes. Filterable by user.'],
                 ['Appearance', '8 colour themes, 6 font choices, 3 icon sets. Changes apply live via CSS variables and are persisted in app_settings.'],
                 ['Branding', 'Change the site name (stored in app_settings, displayed via BrandingContext throughout the app and in emails/PDF). Upload a custom logo (stored in R2). Choose from preset logo illustrations.'],
-                ['Settings', 'Toggle whether password reset also requires date-of-birth confirmation in addition to the emailed link (Resend). The link itself is always required, never optional.'],
+                ['Settings', 'Toggle whether password reset also requires date-of-birth or security-question confirmation in addition to the emailed link (Resend). The link itself is always required, never optional.'],
                 ['App Blueprint', 'This three-level documentation system. Read-only. Downloadable as PDF and as a rebuild prompt text file.'],
               ]} />
             </BpSection>
@@ -824,7 +824,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
             <BpSection title="Email Communications">
               <BpTable rows={[
                 ['Welcome email', 'Sent on registration. Warm welcome, link to log in.'],
-                ['Password reset', 'Sent on forgot-password request, always by email, reset link valid 30 minutes. If the site is set to also require date of birth, that\'s only an additional check before this email is sent, never an alternative to it.'],
+                ['Password reset', 'Sent on forgot-password request, always by email, reset link valid 30 minutes. If the site is set to also require date of birth or a security question, that\'s only an additional check before this email is sent, never an alternative to it.'],
                 ['Inactivity reminder', 'Sent to the user as their timer approaches expiry. Days remaining shown clearly. Includes a "reset my timer" CTA (just log in again).'],
                 ['Inactivity notification', 'Sent to trusted contacts when the user\'s timer expires. Warm, gentle tone. Advises contacting the person directly first if possible. Includes the 72-hour access link.'],
                 ['Contact access link', 'Sent to a trusted contact when the user manually clicks "Send access link". Tells them the owner has shared something important.'],
@@ -946,7 +946,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
           {[
             {
               table: 'users',
-              fields: 'id, name, email (unique), password_hash, date_of_birth, life_story, about_me, remembered_for, legacy_message, emergency_contact_name, emergency_contact_phone, emergency_contact_email, marital_status, spouse_name, spouse_phone, spouse_email, is_admin (0/1), inactivity_period_months (default 12), last_active_at, reset_token (SHA-256 hash, not the raw token), reset_token_expiry, session_version (bumped on password change/reset, invalidates older JWTs), created_at, plus email verification, privacy consent, and vault attempt tracking fields',
+              fields: 'id, name, email (unique), password_hash, date_of_birth, life_story, about_me, remembered_for, legacy_message, emergency_contact_name, emergency_contact_phone, emergency_contact_email, marital_status, spouse_name, spouse_phone, spouse_email, is_admin (0/1), inactivity_period_months (default 12), last_active_at, reset_token (SHA-256 hash, not the raw token), reset_token_expiry, session_version (bumped on password change/reset, invalidates older JWTs), security_question (plain text, not sensitive), security_answer_hash (bcrypt, never returned to the client), created_at, plus email verification, privacy consent, and vault attempt tracking fields',
             },
             {
               table: 'legal_documents',
@@ -1014,7 +1014,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
             },
             {
               table: 'app_settings',
-              fields: 'id, key (unique), value. Keys: site_theme, site_font, site_icon_set, site_logo (R2 key), password_reset_method (email/dob)',
+              fields: 'id, key (unique), value. Keys: site_theme, site_font, site_icon_set, site_logo (R2 key), password_reset_method (email/dob/security_question)',
             },
             {
               table: 'subscriptions',
@@ -1105,7 +1105,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
             ['Protected routes', 'requireAuth middleware in server/middleware/auth.js. Decodes JWT, attaches req.user. Also rejects a token whose sv claim no longer matches users.session_version (password changed/reset since it was issued).'],
             ['Audit log', 'user_audit_logs table. Logs: login_success, login_failed, logout, register, password_changed, password_reset_requested, password_reset_denied.'],
             ['Error monitoring', 'Sentry (@sentry/node), initialised in instrument.js before any other import. Server errors reported automatically via the Express error handler.'],
-            ['Password reset', 'Always emailed, single-use, expires in 30 minutes. Token stored in users.reset_token as a SHA-256 hash (not the raw value) + reset_token_expiry; never returned in an API response. Admin can optionally also require date of birth as an additional check before that email is sent, never as an alternate path. Also rate-limited per email address (5 requests / 15 min) independent of the general per-IP auth limiter.'],
+            ['Password reset', 'Always emailed, single-use, expires in 30 minutes. Token stored in users.reset_token as a SHA-256 hash (not the raw value) + reset_token_expiry; never returned in an API response. Admin can optionally also require date of birth or a security question as an additional check before that email is sent, never as an alternate path. POST /api/auth/forgot-password/question always returns a question (real or a deterministic decoy) so it can\'t be used to enumerate accounts. Also rate-limited per email address (5 requests / 15 min) independent of the general per-IP auth limiter.'],
           ]} />
         </BpSection>
       </div>
@@ -1171,7 +1171,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
             ['Users tab', 'Search users by name/email. Click user to open detail modal: all profile fields, section completion counts, audit log, send access link, reset password, delete account.'],
             ['Activity tab', 'Recent audit log with action labels, IP, and timestamps.'],
             ['Appearance tab', 'Choose colour theme (8 options), font (6 options), icon set (3 options). Changes apply live via CSS variables.'],
-            ['Settings tab', 'Password reset method: email link, optionally plus a date-of-birth check before the link is sent.'],
+            ['Settings tab', 'Password reset method: email link, optionally plus a date-of-birth or security-question check before the link is sent.'],
             ['App Blueprint tab', 'Three-level documentation: L1 Feature Overview, L2 Product Specification, L3 Technical Reference. PDF download and rebuild prompt download.'],
             ['Theme storage', 'app_settings table keys: site_theme, site_font, site_icon_set, site_logo.'],
             ['Themes available', 'Forest, Dusk, Terracotta, Ocean, Rose Garden, Midnight, High Contrast, Soft Mist.'],
@@ -1186,11 +1186,13 @@ Please confirm the stack choices above (or tell me which to change), and then we
         <BpSection title="12. Key API Endpoints">
           <BpCode>{`AUTH          POST /api/auth/login, /register, /logout
               POST /api/auth/forgot-password, /reset-password
+              POST /api/auth/forgot-password/question (fetch the prompt for security-question mode; always returns a question, real or decoy)
               GET  /api/auth/check (validate JWT)
 
 USERS         GET/PUT /api/users/me (profile)
               PUT /api/users/me/timer (inactivity period)
               PUT /api/users/me/emergency-contact
+              PUT/DELETE /api/users/me/security-question (requires current_password to set/change/remove)
 
 SECTIONS      GET /api/sections/completion (counts per section)
               POST/PUT/DELETE /api/sections/legal-documents
@@ -1943,8 +1945,9 @@ export default function AdminPage() {
           </p>
           <div className="d-flex gap-3 flex-wrap">
             {[
-              { value: 'email', label: 'Email link', desc: 'A reset link is sent to the registered email address' },
-              { value: 'dob',   label: 'Email link + date of birth', desc: 'User must also confirm their date of birth before the reset link is emailed' },
+              { value: 'email',            label: 'Email link', desc: 'A reset link is sent to the registered email address' },
+              { value: 'dob',              label: 'Email link + date of birth', desc: 'User must also confirm their date of birth before the reset link is emailed' },
+              { value: 'security_question', label: 'Email link + security question', desc: "User must also answer their security question before the reset link is emailed. Only works for users who've set one up in My Profile." },
             ].map(opt => (
               <div key={opt.value}
                 onClick={() => saveSetting('password_reset_method', opt.value)}

@@ -584,6 +584,14 @@ async function init() {
   // requireAuth skips the check for them rather than mass-logging-out everyone.
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS session_version INTEGER DEFAULT 1`);
 
+  // Optional additional password-recovery signal (SEC-05, built on SEC-04's
+  // "additional check, never an independent path" design). security_question is
+  // the plain question text (not sensitive); security_answer_hash is a bcrypt
+  // hash of the normalized (trimmed, lowercased) answer - the raw answer is
+  // never stored anywhere, mirroring password_hash.
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS security_question TEXT`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS security_answer_hash TEXT`);
+
   // Seed default settings
   for (const [key, value] of [
     ['password_reset_method', 'email'],

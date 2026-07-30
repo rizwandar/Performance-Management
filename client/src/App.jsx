@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Routes, Route, Link, useNavigate, Navigate } from 'react-router-dom'
+import { Routes, Route, Link, useNavigate, useLocation, Navigate } from 'react-router-dom'
 import { Navbar, Container, Nav, Button } from 'react-bootstrap'
 import axios from 'axios'
 import { AuthProvider, useAuth, parseJwt } from './context/AuthContext'
@@ -519,6 +519,58 @@ function UnverifiedEmailBanner() {
   )
 }
 
+// Persistent, non-blocking nudge for whichever additional recovery signal the
+// site's forgot-password flow actually requires (date of birth or a security
+// question) but this specific user hasn't set up - without it they'd be
+// silently unable to self-serve a password reset (SEC-05, follows from
+// SEC-04's "always email + an optional additional check" design). Derived
+// entirely from this user's own /users/me + the public /settings - no new
+// server endpoint, so there's no way for it to expose anyone else's status.
+// Re-checks on every route change so it clears the moment the gap is fixed,
+// without needing a dismiss button that could hide a real gap indefinitely.
+function RecoveryCompletionBanner() {
+  const { user } = useAuth()
+  const location = useLocation()
+  const [gap, setGap] = useState(null) // 'dob' | 'security_question' | null
+
+  useEffect(() => {
+    if (!user || user.is_admin) return
+    Promise.all([
+      axios.get(`${API}/settings`),
+      axios.get(`${API}/users/me`),
+    ]).then(([settingsRes, meRes]) => {
+      const method = settingsRes.data.password_reset_method || 'email'
+      if (method === 'dob' && !meRes.data.date_of_birth) setGap('dob')
+      else if (method === 'security_question' && !meRes.data.has_security_question) setGap('security_question')
+      else setGap(null)
+    }).catch(() => setGap(null))
+  }, [user, location.pathname])
+
+  if (!user || user.is_admin || !gap) return null
+
+  const message = gap === 'dob'
+    ? "This site's password reset also asks for your date of birth, but yours isn't on file."
+    : "This site's password reset also asks for your security question, but you haven't set one up."
+
+  return (
+    <div style={{
+      background: '#FFF7ED', borderBottom: '1px solid #FED7AA',
+      padding: '10px 0', fontSize: '0.88rem',
+    }}>
+      <div className="container" style={{ maxWidth: 960, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <span style={{ color: '#92400E' }}>
+          🔑 {message} Without it, you could be locked out if you ever forget your password.
+        </span>
+        <Link to="/profile/settings"
+          className="btn btn-sm"
+          style={{ background: '#C9904A', color: '#fff', border: 'none', padding: '3px 12px', fontSize: '0.82rem', textDecoration: 'none' }}>
+          Complete my profile
+        </Link>
+      </div>
+    </div>
+  )
+}
+
 function AppContent() {
   const { setBranding } = useBranding()
   const [maintenance, setMaintenance] = useState(false)
@@ -593,6 +645,7 @@ function AppContent() {
       <NavBar />
       <ViewAsBanner />
       <UnverifiedEmailBanner />
+      <RecoveryCompletionBanner />
       <Container id="main-content" className="py-4" style={{ flex: 1 }}>
         <Routes>
           <Route path="/"                  element={<LandingPage />} />

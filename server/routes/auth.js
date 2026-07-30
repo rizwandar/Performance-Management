@@ -35,6 +35,29 @@ function timingSafeStringEqual(a, b) {
 
 const GENERIC_RESET_RESPONSE = { message: 'If that email is registered, a reset link has been sent.' };
 
+// Shown to an unknown email, or a known account that never set up a security
+// question, so that the /forgot-password/question endpoint can't be used to
+// enumerate which accounts exist or which ones have a question configured -
+// it always returns *something* that looks like a real question. Picked
+// deterministically per email (not randomly per request) so repeat requests
+// for the same address see the same decoy, the way a real question would
+// behave, rather than a new one that would itself be a tell.
+const DECOY_SECURITY_QUESTIONS = [
+  'What was the name of your first pet?',
+  'What was the make and model of your first car?',
+  'In what city did your parents meet?',
+  'What was the name of your first school?',
+  'What is your favorite childhood book?',
+];
+function decoyQuestionForEmail(email) {
+  const hash = crypto.createHash('sha256').update(email).digest();
+  return DECOY_SECURITY_QUESTIONS[hash[0] % DECOY_SECURITY_QUESTIONS.length];
+}
+
+function normalizeSecurityAnswer(answer) {
+  return String(answer ?? '').trim().toLowerCase();
+}
+
 // Keyed by email (not just IP) so guessing a DOB against one known account can't
 // be brute-forced by rotating IPs, and so it throttles independently of the
 // broader per-IP authLimiter already applied to all of /api/auth/*. The handler
@@ -47,6 +70,21 @@ const forgotPasswordLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   handler: (req, res) => res.json(GENERIC_RESET_RESPONSE),
+});
+
+// Separate, more generous budget for just fetching the security-question
+// prompt to display - it reveals no more than the (possibly decoy) question
+// text either way, so it isn't a guess to throttle the way the actual
+// forgot-password submission is. Sharing the strict 5/15min budget above
+// would let a normal type-email-then-fetch-question flow exhaust it before
+// the user ever gets to submit an answer.
+const forgotPasswordQuestionLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  keyGenerator: (req) => (req.body?.email || '').toLowerCase().trim() || ipKeyGenerator(req.ip),
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => res.json({ question: decoyQuestionForEmail((req.body?.email || '').toLowerCase().trim()) }),
 });
 
 async function auditLog(userId, action, req, metadata) {
@@ -185,32 +223,61 @@ router.post('/login', loginRules, validate, async (req, res) => {
   });
 });
 
+const emailOnlyRules = [
+  body('email').trim().notEmpty().withMessage('Email is required.')
+    .customSanitizer(v => v.toLowerCase()),
+];
+// Lets the forgot-password page display a question to answer, without ever
+// revealing whether the account exists or has a question configured - a
+// decoy is returned for both an unknown email and a known one that never set
+// one up, so the response shape is identical in every case (SEC-05).
+router.post('/forgot-password/question', forgotPasswordQuestionLimiter, emailOnlyRules, validate, async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email is required' });
+  const user = await queryOne('SELECT security_question FROM users WHERE email = $1', [email]);
+  res.json({ question: user?.security_question || decoyQuestionForEmail(email) });
+});
+
 const forgotRules = [
   body('email').trim().notEmpty().withMessage('Email is required.')
     .customSanitizer(v => v.toLowerCase()),
   body('date_of_birth').optional({ checkFalsy: true })
     .isDate().withMessage('Date of birth must be a valid date.'),
+  body('security_answer').optional({ checkFalsy: true }).trim(),
 ];
-// Date of birth, when the site is configured to ask for it, is an ADDITIONAL
-// check layered on top of the email link - never an alternate path to a token.
-// A reset link is always and only delivered by email; the API never returns a
-// token, and the response is identical whether the account exists, the DOB
-// matched, or the request was rate-limited, so none of it is a signal an
-// attacker can use to enumerate accounts or brute-force a date of birth (SEC-04).
+// Date of birth or a security-question answer, when the site is configured to
+// ask for one, is an ADDITIONAL check layered on top of the email link - never
+// an alternate path to a token. A reset link is always and only delivered by
+// email, the API never returns a token, and the response is identical whether
+// the account exists, the additional check matched, or the request was
+// rate-limited, so none of it is a signal an attacker can use to enumerate
+// accounts or brute-force a date of birth / security answer (SEC-04, SEC-05).
 router.post('/forgot-password', forgotPasswordLimiter, forgotRules, validate, async (req, res) => {
-  const { email, date_of_birth } = req.body;
+  const { email, date_of_birth, security_answer } = req.body;
   if (!email) return res.status(400).json({ error: 'Email is required' });
 
-  const setting     = await queryOne("SELECT value FROM app_settings WHERE key = 'password_reset_method'");
-  const requireDob   = setting?.value === 'dob';
+  const setting = await queryOne("SELECT value FROM app_settings WHERE key = 'password_reset_method'");
+  const method  = setting?.value || 'email';
+  const requireDob             = method === 'dob';
+  const requireSecurityAnswer  = method === 'security_question';
   if (requireDob && !date_of_birth) {
     return res.status(400).json({ error: 'Date of birth is required' });
+  }
+  if (requireSecurityAnswer && !security_answer) {
+    return res.status(400).json({ error: 'An answer to your security question is required' });
   }
 
   const user = await queryOne('SELECT * FROM users WHERE email = $1', [email]);
   const dobMatches = !requireDob || (!!user && timingSafeStringEqual(user.date_of_birth, date_of_birth));
+  // A user who never set up a security question can't satisfy this check no
+  // matter what they type - same as a DOB mismatch, this falls through to the
+  // generic "no match" branch below rather than revealing why.
+  const securityAnswerMatches = !requireSecurityAnswer || (
+    !!user && !!user.security_answer_hash &&
+    bcrypt.compareSync(normalizeSecurityAnswer(security_answer), user.security_answer_hash)
+  );
 
-  if (user && dobMatches) {
+  if (user && dobMatches && securityAnswerMatches) {
     const rawToken  = crypto.randomBytes(32).toString('hex');
     const tokenHash = hashResetToken(rawToken);
     const expiry    = new Date(Date.now() + 30 * 60 * 1000).toISOString();
@@ -225,7 +292,8 @@ router.post('/forgot-password', forgotPasswordLimiter, forgotRules, validate, as
     }).catch(e => console.error('[auth] Password reset email failed for user', user.id, ':', e.message));
     auditLog(user.id, 'password_reset_requested', req);
   } else {
-    auditLog(user?.id || null, 'password_reset_denied', req, { reason: !user ? 'no_account' : 'dob_mismatch' });
+    const reason = !user ? 'no_account' : !dobMatches ? 'dob_mismatch' : 'security_answer_mismatch';
+    auditLog(user?.id || null, 'password_reset_denied', req, { reason });
   }
 
   res.json(GENERIC_RESET_RESPONSE);
