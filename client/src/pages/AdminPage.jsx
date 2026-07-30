@@ -4,6 +4,7 @@ import axios from 'axios'
 import { applyTheme, applyFont } from '../App'
 import { useBranding } from '../context/BrandingContext'
 import OrganizationsPanel from './admin/OrganizationsPanel'
+import { formatPhone } from '@in-good-hands/shared/format'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -19,6 +20,7 @@ const THEMES = [
   { id: 'midnight',    name: 'Midnight',       description: 'Deep indigo & antique gold',     swatch: ['#1A1A3E', '#B8963E', '#F5F5FA'] },
   { id: 'highcontrast', name: 'High Contrast', description: 'Maximum contrast, accessibility-first', swatch: ['#111111', '#C05000', '#FFFFFF'] },
   { id: 'softmist',    name: 'Soft Mist',      description: 'Very low contrast, gentle and calm',    swatch: ['#4A5A65', '#A89870', '#F8F9FA'] },
+  { id: 'keepsake',    name: 'Keepsake',       description: 'Cream, walnut & marigold, like a treasured box of letters', swatch: ['#3A2E22', '#E0A438', '#FAF3E8'] },
 ]
 
 const FONTS = [
@@ -116,7 +118,6 @@ const PRESET_NAMES = [
 
 function BrandingPanel({ showAlert }) {
   const { setBranding } = useBranding()
-  const [settings, setSettings] = useState({})
   const [loading, setLoading]   = useState(true)
 
   // Name state
@@ -136,7 +137,6 @@ function BrandingPanel({ showAlert }) {
   useEffect(() => {
     axios.get(`${import.meta.env.VITE_API_URL}/settings`).then(r => {
       const s = r.data
-      setSettings(s)
       const name = s.site_name || 'In Good Hands'
       if (PRESET_NAMES.includes(name)) {
         setSelectedName(name)
@@ -772,7 +772,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
                 ['Setup', 'User chooses a vault password (min 8 characters). A verification marker is encrypted and stored. The password itself is not stored anywhere.'],
                 ['Unlocking', 'User enters their vault password. The server attempts to decrypt the verification marker. If it succeeds, the vault is considered unlocked for the session.'],
                 ['Session', 'The vault password is held in React state (memory only). It is never written to localStorage or cookies. Locking the vault clears it from memory.'],
-                ['Failed attempts', '3 failed attempts: force logout, email notification to user. 5 failed attempts: all vault data permanently deleted, email notification sent.'],
+                ['Failed attempts', '3 failed attempts: force logout, email notification to user. 5 failed attempts: vault temporarily locked for 15 minutes, email notification sent. Nothing is ever deleted for incorrect attempts - the correct password unlocks immediately even mid-lockout.'],
                 ['Reset vault', 'User can reset the vault by confirming their account (login) password. This permanently deletes all vault-protected data.'],
                 ['Change password', 'User can change the vault password from My Profile. The server decrypts all fields with the old password and re-encrypts with the new one in a single transaction.'],
                 ['Trusted contact exclusion', 'Vault sections are never shown to trusted contacts. The access page explicitly omits them.'],
@@ -903,9 +903,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
         ForgotPasswordPage.jsx, ResetPasswordPage.jsx
         DashboardPage.jsx    # 14 section cards, 4 groups, earthy colours
         ProfilePage.jsx      # Personal details, password, vault password
-        TrustedContactsPage.jsx
         AccessPage.jsx       # Public trusted-contact read-only view
-        ProfileViewPage.jsx
         AdminPage.jsx        # Full admin panel
         ExportPage.jsx       # Two-option PDF download page
         sections/            # One page per section (14 files)
@@ -1055,10 +1053,10 @@ Please confirm the stack choices above (or tell me which to change), and then we
             ]},
             { group: 'Your Affairs', color: '#8A7A6A', sections: [
               { id: 'legal_documents', label: 'Personal & Legal Documents', route: '/sections/legal-documents', note: 'Vault-protected. Uses shared vault (digital_vault). Fields not encrypted. Up to 2 file attachments per item via uploaded_documents.' },
-              { id: 'property_items', label: 'Property & Possessions', route: '/sections/property-possessions', note: 'Vault-protected. Uses shared vault (digital_vault). Fields not encrypted. property_items table.' },
-              { id: 'financial_items', label: 'Financial Affairs', route: '/sections/financial-affairs', note: 'Vault-protected. Uses shared vault (digital_vault). Fields not encrypted. financial_items table.' },
+              { id: 'property_items', label: 'Property & Possessions', route: '/sections/property-possessions', note: 'Vault-protected. Uses shared vault (digital_vault). Fields not encrypted. property_items table. Up to 2 file attachments per item via uploaded_documents.' },
+              { id: 'financial_items', label: 'Financial Affairs', route: '/sections/financial-affairs', note: 'Vault-protected. Uses shared vault (digital_vault). Fields not encrypted. financial_items table. Up to 2 file attachments per item via uploaded_documents.' },
               { id: 'digital_credentials', label: 'Digital Life', route: '/sections/digital-life', note: 'Vault-protected. digital_credentials table. Fields AES-256-GCM encrypted. Shares vault with the other Your Affairs sections.' },
-              { id: 'household-info', label: 'Practical Household Information', route: '/sections/household-info', note: 'Vault-protected. Uses shared vault (digital_vault). Fields not encrypted. household_info table.' },
+              { id: 'household-info', label: 'Practical Household Information', route: '/sections/household-info', note: 'Vault-protected. Uses shared vault (digital_vault). Fields not encrypted. household_info table. Up to 2 file attachments per item via uploaded_documents.' },
             ]},
           ].map(group => (
             <div key={group.group} style={{ marginBottom: 18 }}>
@@ -1123,7 +1121,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
             ['Signed URLs', '1-hour expiry. Generated fresh on each GET request. Never stored.'],
             ['File types', 'Documents: PDF, JPEG, PNG, HEIC, WebP, DOC, DOCX (max 20MB). Photos: JPEG, PNG, HEIC, WebP (max 15MB).'],
             ['Photo roles', 'funeral_main: 1 per user per section (old one deleted on upload). funeral_gallery: max 20 per section.'],
-            ['Legal doc attachments', '1-2 files per legal_document item_id. item_id stored in uploaded_documents.'],
+            ['Item attachments', '1-2 files per item_id, optional. Available in Legal Documents, Financial Affairs, Property & Possessions, and Household Info (section_id = legal_documents / financial_items / property_items / household_info). item_id stored in uploaded_documents.'],
             ['Logo', 'Admin can upload logo via /api/documents/upload with section_id="site_logo". R2 key stored in app_settings key=site_logo.'],
           ]} />
         </BpSection>
@@ -1195,20 +1193,20 @@ USERS         GET/PUT /api/users/me (profile)
               PUT /api/users/me/emergency-contact
 
 SECTIONS      GET /api/sections/completion (counts per section)
-              GET/POST/PUT/DELETE /api/sections/legal-documents
-              POST /api/sections/legal-documents/list (vault auth)
-              GET/POST/PUT/DELETE /api/sections/financial-affairs
-              POST /api/sections/financial-affairs/list (vault auth)
+              POST/PUT/DELETE /api/sections/legal-documents
+              POST /api/sections/legal-documents/list (vault auth, only way to read)
+              POST/PUT/DELETE /api/sections/financial-affairs
+              POST /api/sections/financial-affairs/list (vault auth, only way to read)
               GET/PUT /api/sections/funeral-wishes
               GET/PUT /api/sections/medical-wishes
               GET/POST/PUT/DELETE /api/sections/people-to-notify
-              GET/POST/PUT/DELETE /api/sections/property-possessions
-              POST /api/sections/property-possessions/list (vault auth)
+              POST/PUT/DELETE /api/sections/property-possessions
+              POST /api/sections/property-possessions/list (vault auth, only way to read)
               GET/POST/PUT/DELETE /api/sections/personal-messages
               GET/POST/PUT/DELETE /api/sections/songs-that-define-me
               GET/POST/PUT/DELETE /api/sections/life-wishes
-              GET/POST/PUT/DELETE /api/sections/household-info
-              POST /api/sections/household-info/list (vault auth)
+              POST/PUT/DELETE /api/sections/household-info
+              POST /api/sections/household-info/list (vault auth, only way to read)
               GET/POST/PUT/DELETE /api/sections/children-dependants
               GET/POST/DELETE     /api/sections/key-contacts (trusted contacts)
 
@@ -1565,7 +1563,10 @@ export default function AdminPage() {
 
   const formatDate = iso => {
     if (!iso) return 'N/A'
-    try { return new Date(iso).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }) }
+    try {
+      const d = /^\d{4}-\d{2}-\d{2}$/.test(iso) ? new Date(`${iso}T00:00:00`) : new Date(iso)
+      return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
+    }
     catch { return iso }
   }
 
@@ -2047,7 +2048,7 @@ export default function AdminPage() {
                   <h6 style={{ color: 'var(--green-900)', marginBottom: 8 }}>Emergency Contact</h6>
                   <p className="small mb-0">
                     {selectedUser.emergency_contact_name}
-                    {selectedUser.emergency_contact_phone && ` · ${selectedUser.emergency_contact_phone}`}
+                    {selectedUser.emergency_contact_phone && ` · ${formatPhone(selectedUser.emergency_contact_phone, selectedUser.country_code)}`}
                     {selectedUser.emergency_contact_email && ` · ${selectedUser.emergency_contact_email}`}
                   </p>
                 </div>

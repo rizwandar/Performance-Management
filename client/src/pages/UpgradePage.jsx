@@ -49,11 +49,14 @@ function PlanCard({ title, price, period, note, features, highlight, badge, chec
     <div style={{
       flex: 1, minWidth: 260, maxWidth: 360,
       border: highlight ? '2px solid var(--green-600)' : '1px solid var(--border)',
-      borderRadius: 16, overflow: 'hidden',
+      borderRadius: 'var(--card-radius, 16px)', overflow: 'hidden',
       boxShadow: highlight ? '0 4px 24px rgba(45,90,61,0.12)' : 'none',
     }}>
       {badge && (
-        <div style={{ background: 'var(--green-700)', color: '#fff', textAlign: 'center', padding: '6px 0', fontSize: '0.8rem', fontWeight: 700, letterSpacing: '0.04em' }}>
+        <div style={{
+          background: 'var(--btn-cta-bg, var(--green-700))', color: 'var(--btn-cta-color, #fff)',
+          textAlign: 'center', padding: '6px 0', fontSize: '0.8rem', fontWeight: 700, letterSpacing: '0.04em',
+        }}>
           {badge}
         </div>
       )}
@@ -98,8 +101,9 @@ function CheckoutButton({ label, planId }) {
         onClick={startCheckout}
         disabled={loading}
         style={{
-          width: '100%', padding: '12px 16px', borderRadius: 10, border: 'none',
-          background: 'var(--green-700)', color: '#fff', fontWeight: 600, fontSize: '0.95rem',
+          width: '100%', padding: '12px 16px', borderRadius: 'var(--btn-radius, 10px)', border: 'none',
+          background: 'var(--btn-cta-bg, var(--green-700))', color: 'var(--btn-cta-color, #fff)',
+          fontWeight: 600, fontSize: '0.95rem',
           cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.7 : 1,
         }}
       >
@@ -194,7 +198,7 @@ export default function UpgradePage() {
         />
         <PlanCard
           title="Premium Monthly"
-          price="$4.99"
+          price="$10"
           period="/ month"
           features={PREMIUM_FEATURES}
           highlight
@@ -207,9 +211,9 @@ export default function UpgradePage() {
         />
         <PlanCard
           title="Premium Annual"
-          price="$29.99"
+          price="$100"
           period="/ year"
-          note="That's just $2.50 per month, saving $30"
+          note="That's just $8.33 per month, saving $20"
           features={PREMIUM_FEATURES}
           cta={
             subscription?.plan_id === 'annual'

@@ -55,7 +55,7 @@ router.get('/plans', (req, res) => {
         id:            'monthly',
         name:          'Premium Monthly',
         description:   'Full access to all 14 sections, billed monthly',
-        price_monthly: 4.99,
+        price_monthly: 10,
         price_annual:  null,
         features: [
           'All free sections',
@@ -72,10 +72,10 @@ router.get('/plans', (req, res) => {
       {
         id:           'annual',
         name:         'Premium Annual',
-        description:  'Full access, billed annually (save $30)',
+        description:  'Full access, billed annually (save $20)',
         price_monthly: null,
-        price_annual:  29.99,
-        features: ['Everything in Premium Monthly', 'Save $30 vs monthly'],
+        price_annual:  100,
+        features: ['Everything in Premium Monthly', 'Save $20 vs monthly'],
       },
     ],
   });

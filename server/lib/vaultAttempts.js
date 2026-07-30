@@ -2,17 +2,29 @@ const { queryOne, query } = require('../db/database');
 
 const MAX_ATTEMPTS     = 5;
 const LOGOUT_THRESHOLD = 3;
+const LOCKOUT_MINUTES  = 15;
+
+// Checks whether the vault is currently under a lockout from a past run of
+// failed attempts. Returns the lockedUntil timestamp if still locked, or
+// null if there's no lockout (or it has already expired).
+async function getVaultLockStatus(userId) {
+  const user = await queryOne('SELECT vault_locked_until FROM users WHERE id = $1', [userId]);
+  if (!user?.vault_locked_until) return null;
+  const lockedUntil = new Date(user.vault_locked_until);
+  return lockedUntil > new Date() ? lockedUntil : null;
+}
 
 async function recordVaultAttempt(userId, req) {
   const user = await queryOne(
     'SELECT id, name, email, vault_attempts FROM users WHERE id = $1',
     [userId]
   );
-  if (!user) return { attempts: 0, shouldLogout: false, vaultDeleted: false };
+  if (!user) return { attempts: 0, shouldLogout: false, vaultLocked: false, lockedUntil: null };
 
   const newAttempts  = (user.vault_attempts || 0) + 1;
-  const vaultDeleted = newAttempts >= MAX_ATTEMPTS;
+  const vaultLocked  = newAttempts >= MAX_ATTEMPTS;
   const shouldLogout = newAttempts >= LOGOUT_THRESHOLD;
+  const lockedUntil  = vaultLocked ? new Date(Date.now() + LOCKOUT_MINUTES * 60 * 1000) : null;
 
   await query('UPDATE users SET vault_attempts = $1 WHERE id = $2', [newAttempts, userId]);
 
@@ -21,7 +33,7 @@ async function recordVaultAttempt(userId, req) {
     const ua = req?.headers?.['user-agent'] || null;
     await query(
       'INSERT INTO user_audit_logs (user_id, action, ip_address, user_agent, metadata) VALUES ($1, $2, $3, $4, $5)',
-      [userId, 'vault_attempt_failed', ip, ua, JSON.stringify({ attempt: newAttempts, vault_deleted: vaultDeleted })]
+      [userId, 'vault_attempt_failed', ip, ua, JSON.stringify({ attempt: newAttempts, vault_locked: vaultLocked })]
     );
   } catch (e) {
     console.error('[vault-attempts] Audit log failed:', e.message);
@@ -30,18 +42,19 @@ async function recordVaultAttempt(userId, req) {
   const remaining = Math.max(0, MAX_ATTEMPTS - newAttempts);
   _sendAttemptEmail(user, newAttempts, remaining);
 
-  if (vaultDeleted) {
-    await query('DELETE FROM digital_vault WHERE user_id = $1', [userId]);
-    await query('DELETE FROM digital_credentials WHERE user_id = $1', [userId]);
-    await query('UPDATE users SET vault_attempts = 0 WHERE id = $1', [userId]);
-    _sendDestroyedEmail(user);
+  if (vaultLocked) {
+    await query(
+      'UPDATE users SET vault_attempts = 0, vault_locked_until = $1 WHERE id = $2',
+      [lockedUntil.toISOString(), userId]
+    );
+    _sendLockedEmail(user, lockedUntil);
   }
 
-  return { attempts: newAttempts, shouldLogout, vaultDeleted };
+  return { attempts: newAttempts, shouldLogout, vaultLocked, lockedUntil };
 }
 
 async function resetVaultAttempts(userId) {
-  await query('UPDATE users SET vault_attempts = 0 WHERE id = $1', [userId]);
+  await query('UPDATE users SET vault_attempts = 0, vault_locked_until = NULL WHERE id = $1', [userId]);
 }
 
 function _sendAttemptEmail(user, attempts, remaining) {
@@ -54,14 +67,14 @@ function _sendAttemptEmail(user, attempts, remaining) {
   }).catch(e => console.error('[vault-attempts] Email failed:', e.message));
 }
 
-function _sendDestroyedEmail(user) {
+function _sendLockedEmail(user, lockedUntil) {
   const { sendEmail } = require('./sendEmail');
-  const { vaultDestroyedEmail } = require('./emailTemplates');
+  const { vaultLockedEmail } = require('./emailTemplates');
   sendEmail({
     to:      user.email,
-    subject: 'In Good Hands: Your vault has been deleted for your security',
-    html:    vaultDestroyedEmail({ name: user.name }),
-  }).catch(e => console.error('[vault-attempts] Destroyed email failed:', e.message));
+    subject: 'In Good Hands: Your vault has been temporarily locked',
+    html:    vaultLockedEmail({ name: user.name, lockedUntil, minutes: LOCKOUT_MINUTES }),
+  }).catch(e => console.error('[vault-attempts] Locked email failed:', e.message));
 }
 
-module.exports = { recordVaultAttempt, resetVaultAttempts };
+module.exports = { recordVaultAttempt, resetVaultAttempts, getVaultLockStatus, MAX_ATTEMPTS, LOCKOUT_MINUTES };

@@ -46,10 +46,11 @@ export default function SecurityPage() {
           'Each encrypted value has its own random initialisation vector and authentication tag, so identical values do not produce identical ciphertext.',
         ])}
         {p('Because we never store your vault password, we cannot recover it for you. If it is lost, your vault must be reset, which permanently deletes vault-protected content. This trade-off is deliberate: it means a breach of our database alone cannot expose your vault data.')}
+        {p('This field-level encryption applies to the text you enter directly (credentials, document details, notes). Files you upload as attachments (for example, a scanned document or photo) are handled differently: see "Infrastructure" below for how those are protected.')}
       </>)}
 
       {section('vaultattempts', '4. Vault Attempt Protection', <>
-        {p('Failed vault password attempts are tracked per account. Each failed attempt triggers a security email so you know if someone is trying to access your vault. After 5 consecutive failed attempts, the vault data is permanently deleted as a last-resort protection against sustained guessing attacks.')}
+        {p('Failed vault password attempts are tracked per account. Each failed attempt triggers a security email so you know if someone is trying to access your vault. After 5 consecutive failed attempts, the vault is temporarily locked for 15 minutes as protection against sustained guessing attacks. No vault data is ever deleted for incorrect attempts - entering the correct password unlocks it immediately, even during a lockout.')}
       </>)}
 
       {section('accounts', '5. Account Security', <>
@@ -62,7 +63,12 @@ export default function SecurityPage() {
       </>)}
 
       {section('infra', '6. Infrastructure', <>
-        {p('Application data is stored in a managed PostgreSQL database. Uploaded documents and photos are stored in Cloudflare R2 object storage, accessed only through short-lived, signed URLs generated on demand, rather than being made publicly accessible.')}
+        {p('Application data is stored in a managed PostgreSQL database. Uploaded documents and photos, including attachments in vault-protected sections, are stored in Cloudflare R2 object storage.')}
+        {li([
+          'Files are never publicly accessible. Every download is authenticated, checked against your account, and served through a short-lived signed URL (valid for one hour) generated on demand, rather than a permanent link.',
+          'Cloudflare R2 encrypts all stored files at rest by default, as a standard feature of the storage platform.',
+          'Unlike vault text fields (see "The Digital Vault" above), uploaded files are not additionally encrypted with a key derived from your vault password. This means file contents, while access-controlled and encrypted at rest by our storage provider, do not carry the same "even we cannot read it" guarantee that applies to vault text data. We may revisit this in a future update.',
+        ])}
         {p('Access to production infrastructure and environment credentials is restricted to those operating the Service.')}
       </>)}
 

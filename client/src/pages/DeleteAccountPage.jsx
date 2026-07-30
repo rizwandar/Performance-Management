@@ -10,7 +10,7 @@ export default function DeleteAccountPage() {
   )
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)', padding: '48px 16px' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--parchment)', padding: '48px 16px' }}>
       <div style={{ maxWidth: 720, margin: '0 auto' }}>
         <h1 style={{ fontFamily: 'Georgia, serif', color: 'var(--green-900)', marginBottom: 8 }}>
           Account Deletion Request

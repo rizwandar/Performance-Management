@@ -55,6 +55,21 @@ const API = import.meta.env.VITE_API_URL
 // ---------------------------------------------------------------------------
 // Theme & font maps — applied by writing CSS variables onto <html>
 // ---------------------------------------------------------------------------
+// Card radius/border tokens: all existing themes get today's literal look
+// (14px/10px, solid, neutral grey) explicitly, so switching between themes
+// can't leave a previous theme's radius/border stuck (applyTheme only sets
+// properties present in the incoming theme object, it doesn't clear ones a
+// prior theme set - every theme must carry every key it might need to reset).
+const DEFAULT_CARD_TOKENS = {
+  '--card-radius': '14px', '--card-radius-sm': '10px',
+  '--card-border-style': 'solid', '--card-border-color': '#E0DDD5',
+  '--hero-fold-size': '0px',
+  // Buttons/progress default to today's look: small radius, dark-ink fill.
+  '--btn-radius': '6px',
+  '--btn-cta-bg': 'var(--green-800)', '--btn-cta-color': '#fff', '--btn-cta-hover-bg': 'var(--green-900)',
+  '--progress-fill': 'linear-gradient(90deg, var(--green-800), var(--green-600))',
+}
+
 const THEME_VARS = {
   forest: {
     '--green-900': '#1A3D28', '--green-800': '#2D5A3D', '--green-700': '#3D7A53',
@@ -62,6 +77,7 @@ const THEME_VARS = {
     '--gold': '#C9904A', '--gold-light': '#E8B97A', '--gold-50': '#FDF6EC',
     '--parchment': '#F7F5F0', '--parchment-dark': '#EDE9DF',
     '--bs-primary': '#2D5A3D', '--bs-primary-rgb': '45, 90, 61',
+    ...DEFAULT_CARD_TOKENS,
   },
   dusk: {
     '--green-900': '#1E2D4A', '--green-800': '#2A3F63', '--green-700': '#3A5280',
@@ -69,6 +85,7 @@ const THEME_VARS = {
     '--gold': '#B87333', '--gold-light': '#D4945A', '--gold-50': '#FBF2EA',
     '--parchment': '#F5F0E8', '--parchment-dark': '#E8E0D0',
     '--bs-primary': '#2A3F63', '--bs-primary-rgb': '42, 63, 99',
+    ...DEFAULT_CARD_TOKENS,
   },
   terracotta: {
     '--green-900': '#3D2315', '--green-800': '#5C3520', '--green-700': '#7A4A2E',
@@ -76,6 +93,7 @@ const THEME_VARS = {
     '--gold': '#D4842A', '--gold-light': '#E8A85A', '--gold-50': '#FDF5EA',
     '--parchment': '#FAF7F2', '--parchment-dark': '#F0EAE0',
     '--bs-primary': '#5C3520', '--bs-primary-rgb': '92, 53, 32',
+    ...DEFAULT_CARD_TOKENS,
   },
   // Three additional themes
   ocean: {
@@ -84,6 +102,7 @@ const THEME_VARS = {
     '--gold': '#E6944A', '--gold-light': '#F0B47A', '--gold-50': '#FEF5EC',
     '--parchment': '#F5F9FA', '--parchment-dark': '#E0EDF2',
     '--bs-primary': '#175F7A', '--bs-primary-rgb': '23, 95, 122',
+    ...DEFAULT_CARD_TOKENS,
   },
   rosegarden: {
     '--green-900': '#5C2D3C', '--green-800': '#7A3F52', '--green-700': '#9A5568',
@@ -91,6 +110,7 @@ const THEME_VARS = {
     '--gold': '#C4976A', '--gold-light': '#D9B48E', '--gold-50': '#FDF6EE',
     '--parchment': '#FAF5F6', '--parchment-dark': '#F0E4E8',
     '--bs-primary': '#7A3F52', '--bs-primary-rgb': '122, 63, 82',
+    ...DEFAULT_CARD_TOKENS,
   },
   midnight: {
     '--green-900': '#1A1A3E', '--green-800': '#2D2D6B', '--green-700': '#3D3D8A',
@@ -98,6 +118,7 @@ const THEME_VARS = {
     '--gold': '#B8963E', '--gold-light': '#D4B46A', '--gold-50': '#FBF6E8',
     '--parchment': '#F5F5FA', '--parchment-dark': '#E8E8F0',
     '--bs-primary': '#2D2D6B', '--bs-primary-rgb': '45, 45, 107',
+    ...DEFAULT_CARD_TOKENS,
   },
   highcontrast: {
     '--green-900': '#111111', '--green-800': '#222222', '--green-700': '#444444',
@@ -105,6 +126,7 @@ const THEME_VARS = {
     '--gold': '#C05000', '--gold-light': '#E07030', '--gold-50': '#FFF5EE',
     '--parchment': '#FFFFFF', '--parchment-dark': '#F0F0F0',
     '--bs-primary': '#222222', '--bs-primary-rgb': '34, 34, 34',
+    ...DEFAULT_CARD_TOKENS,
   },
   softmist: {
     '--green-900': '#4A5A65', '--green-800': '#6A7D8A', '--green-700': '#8A9DAA',
@@ -112,6 +134,23 @@ const THEME_VARS = {
     '--gold': '#A89870', '--gold-light': '#C4B490', '--gold-50': '#F8F4EE',
     '--parchment': '#F8F9FA', '--parchment-dark': '#EEF1F4',
     '--bs-primary': '#6A7D8A', '--bs-primary-rgb': '106, 125, 138',
+    ...DEFAULT_CARD_TOKENS,
+  },
+  // Keepsake — cream/walnut/marigold, matching the "Keepsake" style guide concept.
+  // Card radius is larger and dashed rather than solid; see index.css's .card rule.
+  keepsake: {
+    '--green-900': '#2E2419', '--green-800': '#3A2E22', '--green-700': '#6b5a45',
+    '--green-600': '#8a7560', '--green-100': '#E8DCC8', '--green-50': '#FAF3E8',
+    '--gold': '#E0A438', '--gold-light': '#EBBE6A', '--gold-50': '#FDF3E0',
+    '--parchment': '#FAF3E8', '--parchment-dark': '#F0E4D0',
+    '--bs-primary': '#3A2E22', '--bs-primary-rgb': '58, 46, 34',
+    '--card-radius': '26px', '--card-radius-sm': '16px',
+    '--card-border-style': 'dashed', '--card-border-color': '#E8DCC8',
+    '--hero-fold-size': '32px',
+    '--terracotta': '#C97A56',
+    '--btn-radius': '999px',
+    '--btn-cta-bg': '#E0A438', '--btn-cta-color': '#3A2E22', '--btn-cta-hover-bg': '#C68A2E',
+    '--progress-fill': '#C97A56',
   },
 }
 
@@ -434,7 +473,7 @@ function NavBar() {
 // Unverified email banner — shown to logged-in users who haven't verified yet
 // ---------------------------------------------------------------------------
 function UnverifiedEmailBanner() {
-  const { user, login, token } = useAuth()
+  const { user } = useAuth()
   const [sending, setSending] = useState(false)
   const [sent, setSent]       = useState(false)
   const [resendError, setResendError] = useState('')

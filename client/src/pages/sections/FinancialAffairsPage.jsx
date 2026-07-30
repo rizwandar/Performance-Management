@@ -3,6 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import { Button, Form, Row, Col, Alert, Modal, Spinner } from 'react-bootstrap'
 import axios from 'axios'
 import { VaultSetupScreen, VaultLockScreen } from '../../components/VaultGate'
+import SectionHero from '../../components/SectionHero'
+import FileAttachments from '../../components/FileAttachments'
+import { useAuth } from '../../context/AuthContext'
+import { formatPhone } from '@in-good-hands/shared/format'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -25,12 +29,14 @@ const empty = {
 
 export default function FinancialAffairsPage() {
   const navigate = useNavigate()
+  const { user } = useAuth()
 
   // Vault state: 'loading' | 'no-vault' | 'locked' | 'unlocked'
   const [vaultState, setVaultState]       = useState('loading')
   const [vaultPassword, setVaultPassword] = useState('')
 
   const [items, setItems]         = useState([])
+  const [sectionDocs, setSectionDocs] = useState([])  // all uploaded_documents for this section
   const [loading, setLoading]     = useState(false)
   const [saving, setSaving]       = useState(false)
   const [error, setError]         = useState('')
@@ -47,8 +53,14 @@ export default function FinancialAffairsPage() {
 
   const loadItems = useCallback((pw) => {
     setLoading(true)
-    axios.post(`${API}/sections/financial-affairs/list`, { vault_password: pw })
-      .then(r => setItems(r.data))
+    Promise.all([
+      axios.post(`${API}/sections/financial-affairs/list`, { vault_password: pw }),
+      axios.get(`${API}/documents/financial_items`),
+    ])
+      .then(([itemsRes, docsRes]) => {
+        setItems(itemsRes.data)
+        setSectionDocs(docsRes.data)
+      })
       .catch(() => setError("We couldn't load your financial records. Please try locking and unlocking again."))
       .finally(() => setLoading(false))
   }, [])
@@ -63,6 +75,7 @@ export default function FinancialAffairsPage() {
     setVaultState('no-vault')
     setVaultPassword('')
     setItems([])
+    setSectionDocs([])
   }
 
   const openAdd = () => { setEditing(null); setForm(empty); setError(''); setShowModal(true) }
@@ -119,18 +132,23 @@ export default function FinancialAffairsPage() {
         onClick={() => navigate('/profile')}>
         ← Back to my plans
       </button>
-      <h3 style={{ color: 'var(--green-900)' }}>💼 Financial Affairs</h3>
-      <p className="text-muted">
-        Record your bank accounts, investments, insurance, debts, and other financial interests.
-        This section is vault-protected. Only you can access it with your vault password.
-      </p>
     </div>
+  )
+
+  const hero = (
+    <SectionHero
+      eyebrow="Your Affairs"
+      headline="Every account, accounted for"
+      highlight="accounted for"
+      subtext="Record your bank accounts, investments, insurance, debts, and other financial interests. This section is vault-protected, only you can access it with your vault password."
+    />
   )
 
   if (vaultState === 'loading') {
     return (
       <div style={{ maxWidth: 800, margin: '0 auto' }}>
         {backLink}
+      {hero}
         <div className="text-center py-5">
           <Spinner animation="border" style={{ color: 'var(--green-800)' }} />
         </div>
@@ -142,6 +160,7 @@ export default function FinancialAffairsPage() {
     return (
       <div style={{ maxWidth: 800, margin: '0 auto' }}>
         {backLink}
+      {hero}
         <VaultSetupScreen onSetup={() => setVaultState('locked')} />
       </div>
     )
@@ -151,6 +170,7 @@ export default function FinancialAffairsPage() {
     return (
       <div style={{ maxWidth: 800, margin: '0 auto' }}>
         {backLink}
+      {hero}
         <VaultLockScreen onUnlock={handleUnlock} onReset={handleVaultReset} />
       </div>
     )
@@ -159,6 +179,7 @@ export default function FinancialAffairsPage() {
   return (
     <div style={{ maxWidth: 800, margin: '0 auto' }}>
       {backLink}
+      {hero}
 
       <div style={{
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -215,8 +236,15 @@ export default function FinancialAffairsPage() {
                   </p>
                   {item.account_type      && <p className="text-muted small mb-1">Type: {item.account_type}</p>}
                   {item.account_reference && <p className="text-muted small mb-1">Reference: {item.account_reference}</p>}
-                  {item.contact_name      && <p className="text-muted small mb-1">Contact: {item.contact_name}{item.contact_phone ? `, ${item.contact_phone}` : ''}</p>}
+                  {item.contact_name      && <p className="text-muted small mb-1">Contact: {item.contact_name}{item.contact_phone ? `, ${formatPhone(item.contact_phone, user?.country_code)}` : ''}</p>}
                   {item.notes             && <p className="text-muted small mb-0" style={{ fontStyle: 'italic' }}>{item.notes}</p>}
+                  <FileAttachments
+                    sectionId="financial_items"
+                    itemId={item.id}
+                    sectionDocs={sectionDocs}
+                    onUpload={newDoc => setSectionDocs(prev => [newDoc, ...prev])}
+                    onDelete={docId  => setSectionDocs(prev => prev.filter(d => d.id !== docId))}
+                  />
                 </div>
                 <div className="d-flex gap-2 ms-3 flex-shrink-0">
                   <Button size="sm" variant="outline-primary" onClick={() => openEdit(item)}>Edit</Button>

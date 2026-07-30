@@ -3,7 +3,7 @@
  * Both sections use the same vault (digital_vault table), so these
  * screens hit the same endpoints regardless of which section renders them.
  */
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Form, Alert, InputGroup, Spinner } from 'react-bootstrap'
 import axios from 'axios'
@@ -108,7 +108,7 @@ export function VaultLockScreen({ onUnlock, onReset }) {
   const [checking, setChecking] = useState(false)
   const [error, setError]       = useState('')
   const [showReset, setShowReset] = useState(false)
-  const [vaultGone, setVaultGone] = useState(false)
+  const [lockedUntil, setLockedUntil] = useState(null)
 
   // Reset flow
   const [accountPw, setAccountPw]   = useState('')
@@ -123,11 +123,13 @@ export function VaultLockScreen({ onUnlock, onReset }) {
     setChecking(true)
     try {
       await axios.post(`${API}/sections/digital-life/vault/verify`, { vault_password: pw })
+      setLockedUntil(null)
       onUnlock(pw)
     } catch (err) {
       const data = err.response?.data || {}
-      if (data.vault_deleted) {
-        setVaultGone(true)
+      if (data.vault_locked) {
+        setLockedUntil(data.locked_until)
+        setChecking(false)
         return
       }
       if (data.force_logout) {
@@ -161,27 +163,7 @@ export function VaultLockScreen({ onUnlock, onReset }) {
     setResetting(false)
   }
 
-  if (vaultGone) {
-    return (
-      <div style={{ maxWidth: 440, margin: '0 auto' }}>
-        <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 12, padding: '32px 36px', textAlign: 'center' }}>
-          <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>🔓</div>
-          <h5 style={{ color: '#991B1B', marginBottom: 8 }}>Vault deleted</h5>
-          <p className="small mb-4" style={{ color: '#7F1D1D' }}>
-            After 5 incorrect vault password attempts, your vault-protected data has been permanently
-            deleted for your security. Your other plans and wishes are completely safe.
-          </p>
-          <p className="small mb-4 text-muted">
-            You can create a new vault at any time by returning to this section and setting a new vault password.
-            A confirmation email has been sent to your registered address.
-          </p>
-          <Button variant="outline-secondary" size="sm" onClick={() => { setVaultGone(false); onReset() }}>
-            Set up a new vault
-          </Button>
-        </div>
-      </div>
-    )
-  }
+  const isLocked = lockedUntil && new Date(lockedUntil) > new Date()
 
   if (showReset) {
     return (
@@ -237,7 +219,14 @@ export function VaultLockScreen({ onUnlock, onReset }) {
           It stays in memory only. It is never saved to disk or sent anywhere except during this session.
         </p>
 
-        {error && <Alert variant="danger">{error}</Alert>}
+        {isLocked && (
+          <Alert variant="warning">
+            Too many incorrect attempts. Your vault is temporarily locked until{' '}
+            <strong>{new Date(lockedUntil).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}</strong>.
+            Nothing has been deleted — entering the correct password now will unlock it immediately.
+          </Alert>
+        )}
+        {!isLocked && error && <Alert variant="danger">{error}</Alert>}
 
         <Form.Group className="mb-4">
           <Form.Label style={{ fontWeight: 600 }}>Vault password</Form.Label>

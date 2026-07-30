@@ -23,8 +23,8 @@ export default function NotFoundPage() {
         <Link
           to={isTokenValid() ? '/profile' : '/'}
           style={{
-            background: 'var(--green-800)', color: '#fff',
-            padding: '10px 24px', borderRadius: 8,
+            background: 'var(--btn-cta-bg, var(--green-800))', color: 'var(--btn-cta-color, #fff)',
+            padding: '10px 24px', borderRadius: 'var(--btn-radius, 8px)',
             textDecoration: 'none', fontSize: '0.95rem',
           }}
         >
@@ -34,7 +34,7 @@ export default function NotFoundPage() {
           to="/login"
           style={{
             background: 'transparent', color: 'var(--green-800)',
-            padding: '10px 24px', borderRadius: 8,
+            padding: '10px 24px', borderRadius: 'var(--btn-radius, 8px)',
             border: '1px solid var(--green-800)',
             textDecoration: 'none', fontSize: '0.95rem',
           }}

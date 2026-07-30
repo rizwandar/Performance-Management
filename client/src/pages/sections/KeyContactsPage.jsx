@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Form, Row, Col, Alert, Modal, Spinner, Badge } from 'react-bootstrap'
 import axios from 'axios'
+import { useAuth } from '../../context/AuthContext'
+import { formatPhone } from '@in-good-hands/shared/format'
+import SectionHero from '../../components/SectionHero'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -22,6 +25,7 @@ const emptyContact = { sequence: '', name: '', relationship: '', email: '', phon
 
 export default function KeyContactsPage() {
   const navigate = useNavigate()
+  const { user } = useAuth()
 
   // ── Emergency contact state ────────────────────────────────────────────────
   const [ecLoading, setEcLoading]   = useState(true)
@@ -199,16 +203,17 @@ export default function KeyContactsPage() {
         <button className="btn btn-link p-0 mb-2"
           style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '0.9rem' }}
           onClick={() => navigate('/profile')}>← Back to my plans</button>
-        <h3 style={{ color: 'var(--green-900)' }}>🤝 Key Contacts</h3>
-        <p className="text-muted">
-          The people who matter most in an emergency, the trusted contacts who will be given
-          access to your plans when the time comes, and the one person you trust to confirm it
-          and set everything in motion.
-        </p>
       </div>
 
+      <SectionHero
+        eyebrow="Your People"
+        headline="The people to call on"
+        highlight="call on"
+        subtext="The people who matter most in an emergency, the trusted contacts who will be given access to your plans when the time comes, and the one person you trust to confirm it and set everything in motion."
+      />
+
       {/* ── Emergency Contact ───────────────────────────────────────────────── */}
-      <div style={{ background: 'var(--parchment)', borderRadius: 12, padding: '24px', marginBottom: 28, border: '1px solid var(--border)' }}>
+      <div style={{ background: 'var(--parchment)', borderRadius: 'var(--card-radius-sm, 12px)', padding: '24px', marginBottom: 28, border: '1px solid var(--border)' }}>
         <h6 style={{ color: 'var(--green-900)', marginBottom: 4 }}>Emergency Contact</h6>
         <p className="text-muted small mb-1">
           The first person to call if you are in an emergency and unable to speak for yourself.
@@ -250,7 +255,7 @@ export default function KeyContactsPage() {
       </div>
 
       {/* ── Trusted Contacts ────────────────────────────────────────────────── */}
-      <div style={{ background: 'var(--parchment)', borderRadius: 12, padding: '24px 24px 16px', marginBottom: 16, border: '1px solid var(--border)' }}>
+      <div style={{ background: 'var(--parchment)', borderRadius: 'var(--card-radius-sm, 12px)', padding: '24px 24px 16px', marginBottom: 16, border: '1px solid var(--border)' }}>
         <div className="d-flex justify-content-between align-items-start mb-1 flex-wrap gap-2">
           <h6 style={{ color: 'var(--green-900)', margin: 0 }}>Trusted Contacts</h6>
           {contacts.length < 3 && (
@@ -311,14 +316,14 @@ export default function KeyContactsPage() {
                             </div>
                             <div className="text-muted small" style={{ paddingLeft: 34 }}>
                               {contact.email && <span className="me-3">✉ {contact.email}</span>}
-                              {contact.phone && <span>📞 {contact.phone}</span>}
+                              {contact.phone && <span>📞 {formatPhone(contact.phone, user?.country_code)}</span>}
                             </div>
                             {contact.visible_sections?.length > 0 ? (
                               <div style={{ paddingLeft: 34, marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                                 {contact.visible_sections.map(sid => {
                                   const s = SECTIONS.find(x => x.id === sid)
                                   return s ? (
-                                    <Badge key={sid} style={{ background: '#fff', color: 'var(--green-900)', border: '1px solid var(--green-200, #a8c8b4)', fontWeight: 500, fontSize: '0.75rem' }}>
+                                    <Badge key={sid} style={{ background: '#fff', color: 'var(--green-900)', border: '1px solid var(--green-100)', fontWeight: 500, fontSize: '0.75rem' }}>
                                       {s.label}
                                     </Badge>
                                   ) : null
@@ -527,8 +532,6 @@ export default function KeyContactsPage() {
         </Modal.Footer>
       </Modal>
 
-      {(ecSuccess || tcSuccess) && <Alert variant="success" className="mt-4">{ecSuccess || tcSuccess}</Alert>}
-      {(ecError || tcError) && !showModal && <Alert variant="danger" className="mt-4">{ecError || tcError}</Alert>}
       <div className="mt-4 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
         <button className="btn btn-link p-0"
           style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '0.9rem' }}

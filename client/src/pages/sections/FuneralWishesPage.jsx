@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { Button, Form, Row, Col, Alert, Spinner } from 'react-bootstrap'
 import axios from 'axios'
+import SectionHero from '../../components/SectionHero'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -14,7 +15,7 @@ const empty = {
 // Section card with a clear heading bar
 function SectionCard({ title, children }) {
   return (
-    <div style={{ marginBottom: 24, border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+    <div style={{ marginBottom: 24, border: '1px solid var(--border)', borderRadius: 'var(--card-radius-sm, 12px)', overflow: 'hidden' }}>
       <div style={{
         background: 'var(--green-800)', color: '#fff',
         padding: '10px 20px', fontSize: '0.95rem', fontWeight: 700, letterSpacing: '0.02em',
@@ -189,11 +190,16 @@ export default function FuneralWishesPage() {
           onClick={() => navigate('/profile')}>
           ← Back to my plans
         </button>
-        <h3 style={{ color: 'var(--green-900)' }}>🕊️ Funeral & End-of-Life Wishes</h3>
-        <p className="text-muted">
-          Recording your wishes here is one of the greatest gifts you can give the people you love.
-          It removes the guesswork during an already difficult time.
-        </p>
+      </div>
+
+      <SectionHero
+        eyebrow="Your Wishes"
+        headline="How you'd like to be sent off"
+        highlight="sent off"
+        subtext="Recording your wishes here is one of the greatest gifts you can give the people you love. It removes the guesswork during an already difficult time."
+      />
+
+      <div className="mb-4">
         {hasData && (
           <div style={{
             background: 'var(--green-50)', border: '1px solid var(--green-100)',

@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Alert, Spinner, InputGroup, Form } from 'react-bootstrap'
 import axios from 'axios'
+import SectionHero from '../../components/SectionHero'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -123,12 +124,14 @@ export default function SongsThatDefineMePage() {
         <button className="btn btn-link p-0 mb-2"
           style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '0.9rem' }}
           onClick={() => navigate('/profile')}>← Back to my plans</button>
-        <h3 style={{ color: 'var(--green-900)' }}>🎵 Songs That Define Me</h3>
-        <p className="text-muted">
-          Music tells a story words can't always reach. Search for an artist or band below
-          and pick the songs that have shaped who you are. Up to 60 songs.
-        </p>
       </div>
+
+      <SectionHero
+        eyebrow="Your Legacy"
+        headline="The soundtrack of your life"
+        highlight="soundtrack"
+        subtext="Music tells a story words can't always reach. Search for an artist or band below and pick the songs that have shaped who you are. Up to 60 songs."
+      />
 
       {success && <Alert variant="success" dismissible onClose={() => setSuccess('')}>{success}</Alert>}
 

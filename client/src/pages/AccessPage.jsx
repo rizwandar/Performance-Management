@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Spinner, Alert, Badge, Button, Modal } from 'react-bootstrap'
 import axios from 'axios'
+import { formatPhone } from '@in-good-hands/shared/format'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -53,7 +54,7 @@ function LegalDocuments({ data }) {
   ))
 }
 
-function FinancialItems({ data }) {
+function FinancialItems({ data, countryCode }) {
   if (!data?.length) return <p className="text-muted small">No financial details recorded.</p>
   return data.map(d => (
     <ItemCard key={d.id}>
@@ -64,7 +65,7 @@ function FinancialItems({ data }) {
       <FieldRow label="Account type"      value={d.account_type} />
       <FieldRow label="Account reference" value={d.account_reference} />
       <FieldRow label="Contact name"      value={d.contact_name} />
-      <FieldRow label="Contact phone"     value={d.contact_phone} />
+      <FieldRow label="Contact phone"     value={formatPhone(d.contact_phone, countryCode)} />
       <FieldRow label="Notes"             value={d.notes} />
     </ItemCard>
   ))
@@ -89,7 +90,7 @@ function FuneralWishes({ data }) {
   )
 }
 
-function MedicalWishes({ data }) {
+function MedicalWishes({ data, countryCode }) {
   if (!data) return <p className="text-muted small">No medical wishes recorded.</p>
   return (
     <ItemCard>
@@ -99,7 +100,7 @@ function MedicalWishes({ data }) {
       <FieldRow label="Directive location"      value={data.directive_location} />
       <FieldRow label="DNR preference"          value={data.dnr_preference} />
       <FieldRow label="GP name"                 value={data.gp_name} />
-      <FieldRow label="GP phone"                value={data.gp_phone} />
+      <FieldRow label="GP phone"                value={formatPhone(data.gp_phone, countryCode)} />
       <FieldRow label="Hospital preference"     value={data.hospital_preference} />
       <FieldRow label="Current medications"     value={data.current_medications} />
       <FieldRow label="Medical conditions"      value={data.medical_conditions} />
@@ -108,14 +109,14 @@ function MedicalWishes({ data }) {
   )
 }
 
-function PeopleToNotify({ data }) {
+function PeopleToNotify({ data, countryCode }) {
   if (!data?.length) return <p className="text-muted small">No people to notify recorded.</p>
   return data.map(d => (
     <ItemCard key={d.id}>
       <p style={{ fontWeight: 700, color: 'var(--green-900)', marginBottom: 4 }}>{d.name}</p>
       <FieldRow label="Relationship"  value={d.relationship} />
       <FieldRow label="Email"         value={d.email} />
-      <FieldRow label="Phone"         value={d.phone} />
+      <FieldRow label="Phone"         value={formatPhone(d.phone, countryCode)} />
       <FieldRow label="Notified by"   value={d.notified_by} />
       <FieldRow label="Notes"         value={d.notes} />
     </ItemCard>
@@ -331,7 +332,7 @@ export default function AccessPage() {
         const { label, Component, dataKey } = config
         return (
           <SectionBlock key={sectionId} title={label}>
-            <Component data={data[dataKey]} />
+            <Component data={data[dataKey]} countryCode={owner.country_code} />
           </SectionBlock>
         )
       })}

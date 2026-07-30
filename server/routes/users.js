@@ -29,7 +29,7 @@ router.use((req, res, next) => {
 router.get('/me', auth, async (req, res) => {
   const user = await queryOne(`
     SELECT id, name, email, date_of_birth, about_me, legacy_message,
-           life_story, remembered_for,
+           life_story, remembered_for, country_code,
            emergency_contact_name, emergency_contact_phone, emergency_contact_email,
            marital_status, spouse_name, spouse_phone, spouse_email,
            songs_enabled, bucket_list_enabled, is_admin, created_at

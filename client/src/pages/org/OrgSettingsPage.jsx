@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Form, Button, Spinner, Alert, Row, Col } from 'react-bootstrap'
 import axios from 'axios'
 import { useAuth } from '../../context/AuthContext'
+import { formatPhone } from '@in-good-hands/shared/format'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -246,7 +247,7 @@ export default function OrgSettingsPage() {
         <div className="fw-bold small mb-2" style={{ color: 'var(--green-900)' }}>Locations ({settings.locations.length})</div>
         {settings.locations.map(l => (
           <div key={l.id} className="small mb-1 d-flex justify-content-between align-items-center">
-            <span>{l.name}{l.address ? `, ${l.address}` : ''}{l.phone ? `, ${l.phone}` : ''}</span>
+            <span>{l.name}{l.address ? `, ${l.address}` : ''}{l.phone ? `, ${formatPhone(l.phone)}` : ''}</span>
             {isOrgAdmin && (
               <Button variant="link" size="sm" className="text-danger p-0" onClick={() => deleteLocation(l.id)}>Remove</Button>
             )}

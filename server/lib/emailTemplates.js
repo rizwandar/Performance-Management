@@ -230,7 +230,8 @@ function vaultAttemptEmail({ name, attempts, remaining, maxAttempts }) {
   const logoutWarning = attempts >= 3
     ? `<p style="background:#FEF2F2; border:1px solid #FECACA; border-radius:8px; padding:14px 16px; color:#991B1B; font-size:14px;">
         <strong>Security notice:</strong> After 3 incorrect attempts you are automatically signed out
-        and must log in again before trying. After ${maxAttempts} total attempts your vault data will be permanently deleted.
+        and must log in again before trying. After ${maxAttempts} total attempts your vault will be
+        temporarily locked for 15 minutes. Nothing is ever deleted for incorrect attempts.
        </p>`
     : '';
 
@@ -240,7 +241,7 @@ function vaultAttemptEmail({ name, attempts, remaining, maxAttempts }) {
       We detected a failed attempt to access your vault on <strong>${APP_NAME}</strong>.
     </p>
     <p style="background:#FFF7ED; border:1px solid #FED7AA; border-radius:8px; padding:14px 16px; font-size:14px; color:#92400E;">
-      <strong>Attempt ${attempts} of ${maxAttempts}</strong>${remaining > 0 ? `: ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining before vault data is permanently deleted.` : '.'}
+      <strong>Attempt ${attempts} of ${maxAttempts}</strong>${remaining > 0 ? `: ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining before a temporary 15-minute lockout.` : '.'}
     </p>
     ${logoutWarning}
     <p>
@@ -260,22 +261,21 @@ function vaultAttemptEmail({ name, attempts, remaining, maxAttempts }) {
 }
 
 // ---------------------------------------------------------------------------
-// Vault destroyed notification
+// Vault temporarily locked notification
 // ---------------------------------------------------------------------------
-function vaultDestroyedEmail({ name }) {
+function vaultLockedEmail({ name, lockedUntil, minutes }) {
+  const until = new Date(lockedUntil).toLocaleString('en-US', {
+    dateStyle: 'medium', timeStyle: 'short',
+  });
   return layout(`
     <p>Dear ${name},</p>
     <p>
-      After 5 consecutive failed vault password attempts, your vault-protected data on
-      <strong>${APP_NAME}</strong> has been permanently deleted as a security measure.
+      After 5 consecutive failed vault password attempts, your vault on
+      <strong>${APP_NAME}</strong> has been temporarily locked for ${minutes} minutes as a security measure.
     </p>
-    <p style="background:#FEF2F2; border:1px solid #FECACA; border-radius:8px; padding:14px 16px; color:#991B1B; font-size:14px;">
-      <strong>Deleted:</strong> Your digital credentials and legal document records stored in the vault.
-      All other sections (wishes, messages, financial affairs, contacts, and more) are completely safe and untouched.
-    </p>
-    <p>
-      You can create a new vault at any time by visiting the Digital Life or Legal Documents
-      sections and setting a new vault password.
+    <p style="background:#FFF7ED; border:1px solid #FED7AA; border-radius:8px; padding:14px 16px; color:#92400E; font-size:14px;">
+      <strong>Nothing has been deleted.</strong> Your vault-protected data is completely safe.
+      You can try again after ${until}, or enter the correct password sooner to unlock it immediately.
     </p>
     <p>
       If you did not make these attempts, someone may have had access to your account.
@@ -664,7 +664,7 @@ module.exports = {
   orgReactivationRequestEmail,
   orgAdminInviteEmail,
   vaultAttemptEmail,
-  vaultDestroyedEmail,
+  vaultLockedEmail,
   accountDeletionConfirmEmail,
   orgInviteEmail,
   orgLinkRequestEmail,

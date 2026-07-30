@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Form, Alert, Spinner } from 'react-bootstrap'
 import axios from 'axios'
+import SectionHero from '../../components/SectionHero'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -59,12 +60,14 @@ export default function HowToBeRememberedPage() {
         <button className="btn btn-link p-0 mb-2"
           style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '0.9rem' }}
           onClick={() => navigate('/profile')}>← Back to my plans</button>
-        <h3 style={{ color: 'var(--green-900)' }}>🕯️ How I'd Like to Be Remembered</h3>
-        <p className="text-muted">
-          The most personal part of your plans. These words will help the people you love understand
-          who you were, what you stood for, and how you'd like to be remembered.
-        </p>
       </div>
+
+      <SectionHero
+        eyebrow="Your Legacy"
+        headline="Your story, in your own words"
+        highlight="own words"
+        subtext="The most personal part of your plans. These words will help the people you love understand who you were, what you stood for, and how you'd like to be remembered."
+      />
 
       {success && <Alert variant="success">{success}</Alert>}
       {error   && <Alert variant="danger">{error}</Alert>}

@@ -72,8 +72,8 @@ export default function ExportPage() {
           message = parsedJson.error || message
         } catch {}
       }
-      if (parsedJson?.vault_deleted) {
-        setVaultError('Your vault has been deleted after too many incorrect attempts. Your other plans and wishes are safe. You can create a new vault in the Digital Life section.')
+      if (parsedJson?.vault_locked) {
+        setVaultError(message)
       } else if (parsedJson?.force_logout) {
         logout()
         navigate('/login', { state: { vaultLockout: true } })
@@ -153,8 +153,8 @@ export default function ExportPage() {
           onClick={handleStandardExport}
           disabled={exporting}
           style={{
-            background: 'var(--green-800)', border: 'none',
-            padding: '9px 24px', fontSize: '0.9rem', borderRadius: 8,
+            background: 'var(--btn-cta-bg, var(--green-800))', color: 'var(--btn-cta-color, #fff)', border: 'none',
+            padding: '9px 24px', fontSize: '0.9rem', borderRadius: 'var(--btn-radius, 8px)',
           }}
         >
           {exporting
@@ -214,8 +214,8 @@ export default function ExportPage() {
               credentials). Setting up a vault, and exporting it, is part of the Premium plan.
             </p>
             <Link to="/upgrade" className="btn btn-sm" style={{
-              background: 'var(--green-800)', color: '#fff', border: 'none',
-              padding: '8px 20px', fontSize: '0.85rem', fontWeight: 600, borderRadius: 8,
+              background: 'var(--btn-cta-bg, var(--green-800))', color: 'var(--btn-cta-color, #fff)', border: 'none',
+              padding: '8px 20px', fontSize: '0.85rem', fontWeight: 600, borderRadius: 'var(--btn-radius, 8px)',
             }}>
               See Premium plans
             </Link>

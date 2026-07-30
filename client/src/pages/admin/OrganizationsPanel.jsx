@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Form, Button, Modal, Spinner, Badge, Row, Col } from 'react-bootstrap'
 import axios from 'axios'
+import { formatPhone } from '@in-good-hands/shared/format'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -250,7 +251,7 @@ function OrgDetailModal({ orgId, onHide, showAlert }) {
               <div className="fw-bold small mb-2" style={{ color: 'var(--green-900)' }}>Locations ({org.locations.length})</div>
               {org.locations.map(l => (
                 <div key={l.id} className="small mb-1">
-                  {l.name}{l.address ? `, ${l.address}` : ''}{l.phone ? `, ${l.phone}` : ''}
+                  {l.name}{l.address ? `, ${l.address}` : ''}{l.phone ? `, ${formatPhone(l.phone)}` : ''}
                 </div>
               ))}
               <Row className="g-2 mt-1">
