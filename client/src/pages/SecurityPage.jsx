@@ -38,7 +38,7 @@ export default function SecurityPage() {
       </>)}
 
       {section('vault', '3. The Digital Vault', <>
-        {p('Your digital credentials and legal document records are protected by a separate vault password, in addition to your account password. This section uses field-level encryption designed so that even we cannot read your vault contents:')}
+        {p('Your digital credentials, legal document records, financial affairs, property and possessions, and practical household information are all protected by a separate vault password, in addition to your account password. These sections use field-level encryption designed so that even we cannot read your vault contents:')}
         {li([
           'Vault data is encrypted with AES-256-GCM, an authenticated encryption algorithm that detects tampering as well as protecting confidentiality.',
           'The encryption key is derived from your vault password using scrypt, a memory-hard key derivation function designed to resist brute-force attacks.',

@@ -6,6 +6,7 @@ const requireAuth    = require('../middleware/auth');
 const requirePremium = require('../middleware/requiresPremium');
 const { deriveKey, encryptField, decryptField, createVaultCheck, verifyVaultPassword } = require('../lib/vault');
 const { checkVault } = require('../lib/vaultAuth');
+const { TABLE_FIELDS, decryptRow, migrateRow } = require('../lib/vaultFields');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
 
@@ -100,8 +101,16 @@ router.get('/completion', requireAuth, async (req, res) => {
 // Section 1 — Legal Documents (vault-protected)
 // ---------------------------------------------------------------------------
 router.post('/legal-documents/list', requireAuth, async (req, res) => {
-  if (!await checkVault(req.body.vault_password, req.user.id, res, req)) return;
-  const items = await queryAll('SELECT * FROM legal_documents WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]);
+  const { vault_password } = req.body;
+  if (!await checkVault(vault_password, req.user.id, res, req)) return;
+  const key  = deriveKey(vault_password, req.user.id);
+  const rows = await queryAll('SELECT * FROM legal_documents WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]);
+  const items = [];
+  for (const row of rows) {
+    const { decrypted, legacyPlaintext } = decryptRow('legal_documents', row, key);
+    items.push(decrypted);
+    if (legacyPlaintext) await migrateRow(query, 'legal_documents', row.id, decrypted, key);
+  }
   res.json(items);
 });
 
@@ -109,22 +118,35 @@ router.post('/legal-documents', requireAuth, requirePremium, async (req, res) =>
   const { vault_password, document_type, title, held_by, location, notes } = req.body;
   if (!await checkVault(vault_password, req.user.id, res, req)) return;
   if (!title) return res.status(400).json({ error: 'A title or description is required.' });
+  const key = deriveKey(vault_password, req.user.id);
   const result = await query(`
-    INSERT INTO legal_documents (user_id, document_type, title, held_by, location, notes)
+    INSERT INTO legal_documents (user_id, document_type_enc, title_enc, held_by_enc, location_enc, notes_enc)
     VALUES ($1, $2, $3, $4, $5, $6) RETURNING id
-  `, [req.user.id, document_type || null, title, held_by || null, location || null, notes || null]);
+  `, [
+    req.user.id,
+    encryptField(document_type, key),
+    encryptField(title, key),
+    encryptField(held_by, key),
+    encryptField(location, key),
+    encryptField(notes, key),
+  ]);
   res.status(201).json({ id: result.rows[0].id });
 });
 
 router.put('/legal-documents/:id', requireAuth, requirePremium, async (req, res) => {
-  const item = await queryOne('SELECT * FROM legal_documents WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
-  if (!item) return res.status(404).json({ error: 'Item not found.' });
+  const row = await queryOne('SELECT * FROM legal_documents WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
+  if (!row) return res.status(404).json({ error: 'Item not found.' });
   const { vault_password, document_type, title, held_by, location, notes } = req.body;
   if (!await checkVault(vault_password, req.user.id, res, req)) return;
-  await query(`
-    UPDATE legal_documents SET document_type=$1, title=$2, held_by=$3, location=$4, notes=$5 WHERE id=$6
-  `, [document_type ?? item.document_type, title ?? item.title, held_by ?? item.held_by,
-      location ?? item.location, notes ?? item.notes, item.id]);
+  const key = deriveKey(vault_password, req.user.id);
+  const { decrypted } = decryptRow('legal_documents', row, key);
+  await migrateRow(query, 'legal_documents', row.id, {
+    document_type: document_type ?? decrypted.document_type,
+    title:         title ?? decrypted.title,
+    held_by:       held_by ?? decrypted.held_by,
+    location:      location ?? decrypted.location,
+    notes:         notes ?? decrypted.notes,
+  }, key);
   res.json({ success: true });
 });
 
@@ -141,8 +163,16 @@ router.delete('/legal-documents/:id', requireAuth, requirePremium, async (req, r
 // Section 2 — Financial Affairs
 // ---------------------------------------------------------------------------
 router.post('/financial-affairs/list', requireAuth, async (req, res) => {
-  if (!await checkVault(req.body.vault_password, req.user.id, res, req)) return;
-  const items = await queryAll('SELECT * FROM financial_items WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]);
+  const { vault_password } = req.body;
+  if (!await checkVault(vault_password, req.user.id, res, req)) return;
+  const key  = deriveKey(vault_password, req.user.id);
+  const rows = await queryAll('SELECT * FROM financial_items WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]);
+  const items = [];
+  for (const row of rows) {
+    const { decrypted, legacyPlaintext } = decryptRow('financial_items', row, key);
+    items.push(decrypted);
+    if (legacyPlaintext) await migrateRow(query, 'financial_items', row.id, decrypted, key);
+  }
   res.json(items);
 });
 
@@ -150,25 +180,39 @@ router.post('/financial-affairs', requireAuth, requirePremium, async (req, res) 
   const { vault_password, category, institution, account_type, account_reference, contact_name, contact_phone, notes } = req.body;
   if (!await checkVault(vault_password, req.user.id, res, req)) return;
   if (!institution && !category) return res.status(400).json({ error: 'Please provide at least an institution or category.' });
+  const key = deriveKey(vault_password, req.user.id);
   const result = await query(`
-    INSERT INTO financial_items (user_id, category, institution, account_type, account_reference, contact_name, contact_phone, notes)
+    INSERT INTO financial_items (user_id, category_enc, institution_enc, account_type_enc, account_reference_enc, contact_name_enc, contact_phone_enc, notes_enc)
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id
-  `, [req.user.id, category || null, institution || null, account_type || null,
-      account_reference || null, contact_name || null, contact_phone || null, notes || null]);
+  `, [
+    req.user.id,
+    encryptField(category, key),
+    encryptField(institution, key),
+    encryptField(account_type, key),
+    encryptField(account_reference, key),
+    encryptField(contact_name, key),
+    encryptField(contact_phone, key),
+    encryptField(notes, key),
+  ]);
   res.status(201).json({ id: result.rows[0].id });
 });
 
 router.put('/financial-affairs/:id', requireAuth, requirePremium, async (req, res) => {
-  const item = await queryOne('SELECT * FROM financial_items WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
-  if (!item) return res.status(404).json({ error: 'Item not found.' });
+  const row = await queryOne('SELECT * FROM financial_items WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
+  if (!row) return res.status(404).json({ error: 'Item not found.' });
   const { vault_password, category, institution, account_type, account_reference, contact_name, contact_phone, notes } = req.body;
   if (!await checkVault(vault_password, req.user.id, res, req)) return;
-  await query(`
-    UPDATE financial_items SET category=$1, institution=$2, account_type=$3, account_reference=$4,
-    contact_name=$5, contact_phone=$6, notes=$7 WHERE id=$8
-  `, [category ?? item.category, institution ?? item.institution, account_type ?? item.account_type,
-      account_reference ?? item.account_reference, contact_name ?? item.contact_name,
-      contact_phone ?? item.contact_phone, notes ?? item.notes, item.id]);
+  const key = deriveKey(vault_password, req.user.id);
+  const { decrypted } = decryptRow('financial_items', row, key);
+  await migrateRow(query, 'financial_items', row.id, {
+    category:          category ?? decrypted.category,
+    institution:       institution ?? decrypted.institution,
+    account_type:      account_type ?? decrypted.account_type,
+    account_reference: account_reference ?? decrypted.account_reference,
+    contact_name:      contact_name ?? decrypted.contact_name,
+    contact_phone:     contact_phone ?? decrypted.contact_phone,
+    notes:             notes ?? decrypted.notes,
+  }, key);
   res.json({ success: true });
 });
 
@@ -285,8 +329,16 @@ router.delete('/people-to-notify/:id', requireAuth, async (req, res) => {
 // Section 7 — Property & Possessions
 // ---------------------------------------------------------------------------
 router.post('/property-possessions/list', requireAuth, async (req, res) => {
-  if (!await checkVault(req.body.vault_password, req.user.id, res, req)) return;
-  const items = await queryAll('SELECT * FROM property_items WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]);
+  const { vault_password } = req.body;
+  if (!await checkVault(vault_password, req.user.id, res, req)) return;
+  const key  = deriveKey(vault_password, req.user.id);
+  const rows = await queryAll('SELECT * FROM property_items WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]);
+  const items = [];
+  for (const row of rows) {
+    const { decrypted, legacyPlaintext } = decryptRow('property_items', row, key);
+    items.push(decrypted);
+    if (legacyPlaintext) await migrateRow(query, 'property_items', row.id, decrypted, key);
+  }
   res.json(items);
 });
 
@@ -294,22 +346,37 @@ router.post('/property-possessions', requireAuth, requirePremium, async (req, re
   const { vault_password, category, title, description, location, intended_recipient, notes } = req.body;
   if (!await checkVault(vault_password, req.user.id, res, req)) return;
   if (!title) return res.status(400).json({ error: 'A title is required.' });
+  const key = deriveKey(vault_password, req.user.id);
   const result = await query(`
-    INSERT INTO property_items (user_id, category, title, description, location, intended_recipient, notes)
+    INSERT INTO property_items (user_id, category_enc, title_enc, description_enc, location_enc, intended_recipient_enc, notes_enc)
     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id
-  `, [req.user.id, category || null, title, description || null, location || null, intended_recipient || null, notes || null]);
+  `, [
+    req.user.id,
+    encryptField(category, key),
+    encryptField(title, key),
+    encryptField(description, key),
+    encryptField(location, key),
+    encryptField(intended_recipient, key),
+    encryptField(notes, key),
+  ]);
   res.status(201).json({ id: result.rows[0].id });
 });
 
 router.put('/property-possessions/:id', requireAuth, requirePremium, async (req, res) => {
-  const item = await queryOne('SELECT * FROM property_items WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
-  if (!item) return res.status(404).json({ error: 'Item not found.' });
+  const row = await queryOne('SELECT * FROM property_items WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
+  if (!row) return res.status(404).json({ error: 'Item not found.' });
   const { vault_password, category, title, description, location, intended_recipient, notes } = req.body;
   if (!await checkVault(vault_password, req.user.id, res, req)) return;
-  await query(`
-    UPDATE property_items SET category=$1, title=$2, description=$3, location=$4, intended_recipient=$5, notes=$6 WHERE id=$7
-  `, [category ?? item.category, title ?? item.title, description ?? item.description,
-      location ?? item.location, intended_recipient ?? item.intended_recipient, notes ?? item.notes, item.id]);
+  const key = deriveKey(vault_password, req.user.id);
+  const { decrypted } = decryptRow('property_items', row, key);
+  await migrateRow(query, 'property_items', row.id, {
+    category:            category ?? decrypted.category,
+    title:               title ?? decrypted.title,
+    description:         description ?? decrypted.description,
+    location:            location ?? decrypted.location,
+    intended_recipient:  intended_recipient ?? decrypted.intended_recipient,
+    notes:               notes ?? decrypted.notes,
+  }, key);
   res.json({ success: true });
 });
 
@@ -428,8 +495,20 @@ router.delete('/lifes-wishes/:id', requireAuth, async (req, res) => {
 // Section 13 — Practical Household Information
 // ---------------------------------------------------------------------------
 router.post('/household-info/list', requireAuth, async (req, res) => {
-  if (!await checkVault(req.body.vault_password, req.user.id, res, req)) return;
-  const items = await queryAll('SELECT * FROM household_info WHERE user_id = $1 ORDER BY category, title', [req.user.id]);
+  const { vault_password } = req.body;
+  if (!await checkVault(vault_password, req.user.id, res, req)) return;
+  const key  = deriveKey(vault_password, req.user.id);
+  // No longer sorted by category/title at the DB level - now that those
+  // fields are ciphertext, that would sort by encrypted bytes instead of the
+  // real values. Sort after decrypting instead.
+  const rows = await queryAll('SELECT * FROM household_info WHERE user_id = $1', [req.user.id]);
+  const items = [];
+  for (const row of rows) {
+    const { decrypted, legacyPlaintext } = decryptRow('household_info', row, key);
+    items.push(decrypted);
+    if (legacyPlaintext) await migrateRow(query, 'household_info', row.id, decrypted, key);
+  }
+  items.sort((a, b) => (a.category || '').localeCompare(b.category || '') || (a.title || '').localeCompare(b.title || ''));
   res.json(items);
 });
 
@@ -437,22 +516,37 @@ router.post('/household-info', requireAuth, requirePremium, async (req, res) => 
   const { vault_password, category, title, provider, account_reference, contact, notes } = req.body;
   if (!await checkVault(vault_password, req.user.id, res, req)) return;
   if (!title) return res.status(400).json({ error: 'A title is required.' });
+  const key = deriveKey(vault_password, req.user.id);
   const result = await query(`
-    INSERT INTO household_info (user_id, category, title, provider, account_reference, contact, notes)
+    INSERT INTO household_info (user_id, category_enc, title_enc, provider_enc, account_reference_enc, contact_enc, notes_enc)
     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id
-  `, [req.user.id, category || null, title, provider || null, account_reference || null, contact || null, notes || null]);
+  `, [
+    req.user.id,
+    encryptField(category, key),
+    encryptField(title, key),
+    encryptField(provider, key),
+    encryptField(account_reference, key),
+    encryptField(contact, key),
+    encryptField(notes, key),
+  ]);
   res.status(201).json({ id: result.rows[0].id });
 });
 
 router.put('/household-info/:id', requireAuth, requirePremium, async (req, res) => {
-  const item = await queryOne('SELECT * FROM household_info WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
-  if (!item) return res.status(404).json({ error: 'Item not found.' });
+  const row = await queryOne('SELECT * FROM household_info WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
+  if (!row) return res.status(404).json({ error: 'Item not found.' });
   const { vault_password, category, title, provider, account_reference, contact, notes } = req.body;
   if (!await checkVault(vault_password, req.user.id, res, req)) return;
-  await query(`
-    UPDATE household_info SET category=$1, title=$2, provider=$3, account_reference=$4, contact=$5, notes=$6 WHERE id=$7
-  `, [category ?? item.category, title ?? item.title, provider ?? item.provider,
-      account_reference ?? item.account_reference, contact ?? item.contact, notes ?? item.notes, item.id]);
+  const key = deriveKey(vault_password, req.user.id);
+  const { decrypted } = decryptRow('household_info', row, key);
+  await migrateRow(query, 'household_info', row.id, {
+    category:          category ?? decrypted.category,
+    title:             title ?? decrypted.title,
+    provider:          provider ?? decrypted.provider,
+    account_reference: account_reference ?? decrypted.account_reference,
+    contact:           contact ?? decrypted.contact,
+    notes:             notes ?? decrypted.notes,
+  }, key);
   res.json({ success: true });
 });
 
@@ -564,6 +658,22 @@ router.put('/digital-life/vault', requireAuth, async (req, res) => {
         row.id,
       ]);
     }
+
+    // SEC-03: the other 4 vault-protected tables also need re-encrypting
+    // under the new key. Rows still on legacy plaintext (never migrated
+    // because the owner hadn't read/written them since SEC-03 shipped) get
+    // upgraded to encrypted here too, using this same transaction - a vault
+    // password change is exactly the kind of full-vault-touch moment that
+    // makes that migration free to do alongside the real work.
+    const clientQuery = (sql, params) => client.query(sql, params);
+    for (const table of Object.keys(TABLE_FIELDS)) {
+      const tableRows = (await client.query(`SELECT * FROM ${table} WHERE user_id = $1`, [req.user.id])).rows;
+      for (const row of tableRows) {
+        const { decrypted } = decryptRow(table, row, oldKey);
+        await migrateRow(clientQuery, table, row.id, decrypted, newKey);
+      }
+    }
+
     await client.query('UPDATE digital_vault SET check_enc=$1 WHERE user_id=$2', [newCheck, req.user.id]);
   });
 
@@ -581,20 +691,28 @@ router.delete('/digital-life/vault', requireAuth, async (req, res) => {
     return res.status(401).json({ error: 'Incorrect account password. Please enter the password you use to log in to In Good Hands.' });
   }
 
-  const legalDocFiles = await queryAll(
-    'SELECT r2_key FROM uploaded_documents WHERE user_id = $1 AND section_id = $2',
-    [req.user.id, 'legal_documents']
+  // SEC-03: financial_items/property_items/household_info are now genuinely
+  // vault-encrypted alongside legal_documents, so a vault reset must delete
+  // them (and their file attachments) too - there's no way to recover their
+  // encrypted content without the password being reset anyway, so leaving
+  // them behind would just be unreadable ciphertext orphaned forever.
+  const vaultProtectedTables = Object.keys(TABLE_FIELDS);
+  const vaultFiles = await queryAll(
+    `SELECT r2_key FROM uploaded_documents WHERE user_id = $1 AND section_id = ANY($2)`,
+    [req.user.id, vaultProtectedTables]
   );
 
   await transaction(async (client) => {
     await client.query('DELETE FROM digital_credentials WHERE user_id = $1', [req.user.id]);
     await client.query('DELETE FROM digital_vault WHERE user_id = $1', [req.user.id]);
-    await client.query('DELETE FROM uploaded_documents WHERE user_id = $1 AND section_id = $2', [req.user.id, 'legal_documents']);
-    await client.query('DELETE FROM legal_documents WHERE user_id = $1', [req.user.id]);
+    await client.query(`DELETE FROM uploaded_documents WHERE user_id = $1 AND section_id = ANY($2)`, [req.user.id, vaultProtectedTables]);
+    for (const table of vaultProtectedTables) {
+      await client.query(`DELETE FROM ${table} WHERE user_id = $1`, [req.user.id]);
+    }
   });
 
   const { deleteFile } = require('../lib/r2');
-  for (const f of legalDocFiles) {
+  for (const f of vaultFiles) {
     deleteFile(f.r2_key).catch(() => {});
   }
 
