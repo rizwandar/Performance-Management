@@ -4,6 +4,7 @@ import { Button, Form, Row, Col, Alert, Modal, Spinner } from 'react-bootstrap'
 import axios from 'axios'
 import { VaultSetupScreen, VaultLockScreen } from '../../components/VaultGate'
 import FileAttachments from '../../components/FileAttachments'
+import SectionHero from '../../components/SectionHero'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -141,18 +142,23 @@ export default function HouseholdInfoPage() {
       <button className="btn btn-link p-0 mb-2"
         style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '0.9rem' }}
         onClick={() => navigate('/profile')}>← Back to my plans</button>
-      <h3 style={{ color: 'var(--green-900)' }}>🔑 Practical Household Information</h3>
-      <p className="text-muted">
-        Utility providers, insurance policies, regular bills, alarm codes, and the day-to-day details
-        that keep your home running. This section is vault-protected. Only you can access it with your vault password.
-      </p>
     </div>
+  )
+
+  const hero = (
+    <SectionHero
+      eyebrow="Your Affairs"
+      headline="The small things that keep a home running"
+      highlight="a home running"
+      subtext="Utility providers, insurance policies, regular bills, alarm codes, and the day-to-day details that keep your home running. This section is vault-protected, only you can access it with your vault password."
+    />
   )
 
   if (vaultState === 'loading') {
     return (
       <div style={{ maxWidth: 800, margin: '0 auto' }}>
         {backLink}
+      {hero}
         <div className="text-center py-5">
           <Spinner animation="border" style={{ color: 'var(--green-800)' }} />
         </div>
@@ -164,6 +170,7 @@ export default function HouseholdInfoPage() {
     return (
       <div style={{ maxWidth: 800, margin: '0 auto' }}>
         {backLink}
+      {hero}
         <VaultSetupScreen onSetup={() => setVaultState('locked')} />
       </div>
     )
@@ -173,6 +180,7 @@ export default function HouseholdInfoPage() {
     return (
       <div style={{ maxWidth: 800, margin: '0 auto' }}>
         {backLink}
+      {hero}
         <VaultLockScreen onUnlock={handleUnlock} onReset={handleVaultReset} />
       </div>
     )
@@ -181,6 +189,7 @@ export default function HouseholdInfoPage() {
   return (
     <div style={{ maxWidth: 800, margin: '0 auto' }}>
       {backLink}
+      {hero}
 
       <div style={{
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',

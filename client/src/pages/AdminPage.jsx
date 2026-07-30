@@ -20,6 +20,7 @@ const THEMES = [
   { id: 'midnight',    name: 'Midnight',       description: 'Deep indigo & antique gold',     swatch: ['#1A1A3E', '#B8963E', '#F5F5FA'] },
   { id: 'highcontrast', name: 'High Contrast', description: 'Maximum contrast, accessibility-first', swatch: ['#111111', '#C05000', '#FFFFFF'] },
   { id: 'softmist',    name: 'Soft Mist',      description: 'Very low contrast, gentle and calm',    swatch: ['#4A5A65', '#A89870', '#F8F9FA'] },
+  { id: 'keepsake',    name: 'Keepsake',       description: 'Cream, walnut & marigold, like a treasured box of letters', swatch: ['#3A2E22', '#E0A438', '#FAF3E8'] },
 ]
 
 const FONTS = [

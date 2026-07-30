@@ -17,6 +17,7 @@
   --text:        #1A1A1A;
   --text-muted:  #6B6B5F;
   --border:      #E0DDD5;
+  --success:     #2D6B4A;
 
   --bs-primary:          #2D5A3D;
   --bs-primary-rgb:      45, 90, 61;
@@ -54,17 +55,21 @@ body {
 
 /* ── Buttons ───────────────────────────────────────────────────────────── */
 .btn-primary {
-  background: var(--green-800);
-  border-color: var(--green-800);
+  background: var(--btn-cta-bg, var(--green-800));
+  border-color: var(--btn-cta-bg, var(--green-800));
+  color: var(--btn-cta-color, #fff);
+  border-radius: var(--btn-radius, 6px);
   font-family: inherit;
 }
 .btn-primary:hover, .btn-primary:focus {
-  background: var(--green-900);
-  border-color: var(--green-900);
+  background: var(--btn-cta-hover-bg, var(--green-900));
+  border-color: var(--btn-cta-hover-bg, var(--green-900));
+  color: var(--btn-cta-color, #fff);
 }
 .btn-outline-primary {
   color: var(--green-800);
   border-color: var(--green-800);
+  border-radius: var(--btn-radius, 6px);
   font-family: inherit;
 }
 .btn-outline-primary:hover {
@@ -89,16 +94,16 @@ body {
 
 /* ── Cards ─────────────────────────────────────────────────────────────── */
 .card {
-  border: 1px solid var(--border);
+  border: 1px var(--card-border-style, solid) var(--card-border-color, var(--border));
   box-shadow: 0 2px 12px rgba(45, 90, 61, 0.06);
-  border-radius: 14px;
+  border-radius: var(--card-radius, 14px);
   background: #fff;
 }
 
 .card-header {
   background: linear-gradient(135deg, var(--green-50) 0%, var(--parchment) 100%);
   border-bottom: 1px solid var(--green-100);
-  border-radius: 14px 14px 0 0 !important;
+  border-radius: var(--card-radius, 14px) var(--card-radius, 14px) 0 0 !important;
   font-weight: 600;
   color: var(--green-900);
   font-family: Georgia, serif;
@@ -152,7 +157,7 @@ a:hover { color: var(--green-900); }
 .section-card {
   background: #fff;
   border-left: 4px solid var(--gold);
-  border-radius: 10px;
+  border-radius: var(--card-radius-sm, 10px);
   padding: 14px 16px;
   margin-bottom: 12px;
   box-shadow: 0 1px 6px rgba(45, 90, 61, 0.06);
@@ -162,7 +167,7 @@ a:hover { color: var(--green-900); }
 .goal-card {
   background: linear-gradient(135deg, var(--green-50) 0%, var(--parchment) 100%);
   border-left: 4px solid var(--gold);
-  border-radius: 10px;
+  border-radius: var(--card-radius-sm, 10px);
   padding: 14px 16px;
   margin-bottom: 12px;
 }
@@ -224,6 +229,31 @@ a:hover { color: var(--green-900); }
   padding: 32px;
   text-align: center;
   color: var(--text-muted);
+}
+
+/* ── Hero panel (Dashboard welcome banner) ──────────────────────────────── */
+.hero-panel {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--green-50), var(--gold-50));
+  border: 1px solid var(--green-100);
+  border-radius: var(--card-radius, 14px);
+  padding: 24px 28px;
+}
+/* Folded-corner detail: 0-sized (invisible) unless a theme sets --hero-fold-size */
+.hero-panel::after {
+  content: '';
+  position: absolute; top: 0; right: 0;
+  width: 0; height: 0;
+  border-style: solid;
+  border-width: 0 var(--hero-fold-size, 0px) var(--hero-fold-size, 0px) 0;
+  border-color: transparent var(--green-100) transparent transparent;
+}
+.hero-panel mark {
+  background: color-mix(in srgb, var(--gold) 35%, transparent);
+  color: inherit;
+  padding: 0 4px;
+  border-radius: 3px;
 }
 
 /* ── Print styles (PDF export of App Blueprint) ─────────────────────────── */

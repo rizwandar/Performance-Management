@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Form, Row, Col, Alert, Modal, Spinner } from 'react-bootstrap'
 import axios from 'axios'
+import SectionHero from '../../components/SectionHero'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -81,19 +82,18 @@ export default function MessagesPage() {
           onClick={() => navigate('/profile')}>
           ← Back to my plans
         </button>
-        <h3 style={{ color: 'var(--green-900)' }}>💌 Messages to Loved Ones</h3>
-        <p className="text-muted">
-          Write the words you want them to hear. These messages will be kept safely
-          and passed on to the people who matter most to you.
-        </p>
       </div>
+
+      <SectionHero
+        eyebrow="Your Legacy"
+        headline="The words they'll hold onto"
+        highlight="hold onto"
+        subtext="Write the words you want them to hear. These messages will be kept safely and passed on to the people who matter most to you."
+        cta={{ label: '+ Write a message', onClick: openAdd }}
+      />
 
       {success && <Alert variant="success">{success}</Alert>}
       {error && !showModal && <Alert variant="danger">{error}</Alert>}
-
-      <div className="mb-4">
-        <Button variant="primary" onClick={openAdd}>+ Write a message</Button>
-      </div>
 
       {loading ? (
         <div className="text-center py-4">

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Form, Row, Col, Alert, Modal, Spinner } from 'react-bootstrap'
 import axios from 'axios'
+import SectionHero from '../../components/SectionHero'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -111,19 +112,18 @@ export default function ChildrenDependantsPage() {
         <button className="btn btn-link p-0 mb-2"
           style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '0.9rem' }}
           onClick={() => navigate('/profile')}>← Back to my plans</button>
-        <h3 style={{ color: 'var(--green-900)' }}>👶 Children & Dependants</h3>
-        <p className="text-muted">
-          Record care arrangements for anyone who depends on you, including children, pets, or elderly relatives.
-          Include guardianship wishes and any special care needs so your loved ones know exactly what to do.
-        </p>
       </div>
+
+      <SectionHero
+        eyebrow="Your People"
+        headline="Care instructions for those who depend on you"
+        highlight="depend on you"
+        subtext="Record care arrangements for anyone who depends on you, including children, pets, or elderly relatives. Include guardianship wishes and any special care needs so your loved ones know exactly what to do."
+        cta={{ label: '+ Add a dependant', onClick: openAdd }}
+      />
 
       {success && <Alert variant="success">{success}</Alert>}
       {error && !showModal && <Alert variant="danger">{error}</Alert>}
-
-      <div className="mb-4">
-        <Button variant="primary" onClick={openAdd}>+ Add a dependant</Button>
-      </div>
 
       {loading ? (
         <div className="text-center py-4"><Spinner animation="border" style={{ color: 'var(--green-800)' }} /></div>

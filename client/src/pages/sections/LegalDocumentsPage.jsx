@@ -4,6 +4,7 @@ import { Button, Form, Row, Col, Alert, Modal, Spinner } from 'react-bootstrap'
 import axios from 'axios'
 import { VaultSetupScreen, VaultLockScreen } from '../../components/VaultGate'
 import FileAttachments from '../../components/FileAttachments'
+import SectionHero from '../../components/SectionHero'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -135,12 +136,16 @@ export default function LegalDocumentsPage() {
         onClick={() => navigate('/profile')}>
         ← Back to my plans
       </button>
-      <h3 style={{ color: 'var(--green-900)' }}>📄 Personal & Legal Documents</h3>
-      <p className="text-muted">
-        Record where your important documents are kept and who holds them.
-        This section is vault-protected. Only you can access it with your vault password.
-      </p>
     </div>
+  )
+
+  const hero = (
+    <SectionHero
+      eyebrow="Your Affairs"
+      headline="The papers that protect what matters"
+      highlight="protect"
+      subtext="Record where your important documents are kept and who holds them. This section is vault-protected, only you can access it with your vault password."
+    />
   )
 
   // ── Vault states ───────────────────────────────────────────────────────────
@@ -148,6 +153,7 @@ export default function LegalDocumentsPage() {
     return (
       <div style={{ maxWidth: 800, margin: '0 auto' }}>
         {backLink}
+      {hero}
         <div className="text-center py-5">
           <Spinner animation="border" style={{ color: 'var(--green-800)' }} />
         </div>
@@ -159,6 +165,7 @@ export default function LegalDocumentsPage() {
     return (
       <div style={{ maxWidth: 800, margin: '0 auto' }}>
         {backLink}
+      {hero}
         <VaultSetupScreen onSetup={() => setVaultState('locked')} />
       </div>
     )
@@ -168,6 +175,7 @@ export default function LegalDocumentsPage() {
     return (
       <div style={{ maxWidth: 800, margin: '0 auto' }}>
         {backLink}
+      {hero}
         <VaultLockScreen onUnlock={handleUnlock} onReset={handleVaultReset} />
       </div>
     )
@@ -177,6 +185,7 @@ export default function LegalDocumentsPage() {
   return (
     <div style={{ maxWidth: 800, margin: '0 auto' }}>
       {backLink}
+      {hero}
 
       {/* Vault status bar */}
       <div style={{

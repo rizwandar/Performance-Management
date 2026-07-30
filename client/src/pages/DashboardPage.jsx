@@ -231,6 +231,7 @@ export default function DashboardPage() {
 
   const startedCount = SECTIONS.filter(isStarted).length
   const isNewUser    = startedCount === 0
+  const nextSection   = SECTIONS.find(s => !isStarted(s)) || SECTIONS[0]
 
   if (loading) return (
     <div className="text-center py-5">
@@ -242,11 +243,14 @@ export default function DashboardPage() {
     <div style={{ maxWidth: 900, margin: '0 auto' }}>
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div className="mb-4">
-        <div className="d-flex align-items-center gap-2 flex-wrap">
-          <h2 style={{ color: 'var(--green-900)', fontFamily: 'Georgia, serif', marginBottom: 0 }}>
+      <div className="hero-panel mb-4">
+        <div className="d-flex align-items-center gap-2 flex-wrap" style={{ marginBottom: 8 }}>
+          <span style={{
+            fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+            color: 'var(--green-700)',
+          }}>
             {isNewUser ? `Welcome, ${user?.name?.split(' ')[0]}` : `Welcome back, ${user?.name?.split(' ')[0]}`}
-          </h2>
+          </span>
           {isPremium && (
             <span style={{
               display: 'inline-flex', alignItems: 'center', gap: 5,
@@ -258,8 +262,43 @@ export default function DashboardPage() {
             </span>
           )}
         </div>
-        <p className="text-muted mb-0">
-          Everything you record here will one day give your loved ones clarity and comfort.
+        <h2 style={{
+          color: 'var(--green-900)', fontFamily: 'Georgia, serif', fontWeight: 700,
+          fontSize: '2rem', lineHeight: 1.25, margin: '0 0 12px', maxWidth: '22ch',
+        }}>
+          Your <mark>story</mark> is waiting to be told
+        </h2>
+        <p className="text-muted mb-3" style={{ maxWidth: 540, lineHeight: 1.65 }}>
+          You have {SECTIONS.length} sections to work through, at whatever pace feels right for you.
+          There is no right order, and no rush.
+        </p>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginBottom: 22 }}>
+          <button type="button" className="btn btn-primary" style={{ fontWeight: 600, padding: '10px 22px' }}
+            onClick={() => navigate(nextSection.route)}>
+            Continue my plans →
+          </button>
+          <button type="button" className="btn btn-outline-primary" style={{ fontWeight: 600, padding: '10px 22px' }}
+            onClick={() => navigate('/export')}>
+            Export as PDF
+          </button>
+        </div>
+        <div
+          role="progressbar"
+          aria-valuenow={startedCount}
+          aria-valuemin={0}
+          aria-valuemax={SECTIONS.length}
+          aria-label={`${startedCount} of ${SECTIONS.length} sections started`}
+          style={{ height: 8, borderRadius: 8, background: 'var(--green-100)', overflow: 'hidden', maxWidth: 360 }}
+        >
+          <div style={{
+            height: '100%',
+            width: `${(startedCount / SECTIONS.length) * 100}%`,
+            background: 'var(--progress-fill, var(--green-800))', borderRadius: 8,
+            transition: 'width 0.4s ease',
+          }} />
+        </div>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: 6, marginBottom: 0 }}>
+          {startedCount} of {SECTIONS.length} sections started
         </p>
       </div>
 
@@ -273,15 +312,10 @@ export default function DashboardPage() {
           borderRadius: 12, padding: '28px 32px', marginBottom: 28,
         }}>
           <h5 style={{ color: 'var(--green-900)', fontFamily: 'Georgia, serif', marginBottom: 8 }}>
-            Your plans are waiting to be written
+            A few good places to begin
           </h5>
-          <p style={{ color: 'var(--text-muted)', lineHeight: 1.7, marginBottom: 16, maxWidth: 560 }}>
-            You have 14 sections to work through, at whatever pace feels right for you.
-            There is no right order and no rush. Most people start with what feels most
-            urgent or most personal to them.
-          </p>
           <p style={{ color: 'var(--text-muted)', lineHeight: 1.7, marginBottom: 20, maxWidth: 560 }}>
-            A few good places to begin:
+            Most people start with what feels most urgent or most personal to them.
           </p>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 20 }}>
             {[
@@ -294,7 +328,7 @@ export default function DashboardPage() {
                 key={s.route}
                 onClick={() => navigate(s.route)}
                 style={{
-                  background: '#fff', border: '1px solid var(--green-200, #A8C8B4)',
+                  background: '#fff', border: '1px solid var(--green-100)',
                   borderRadius: 8, padding: '8px 16px',
                   color: 'var(--green-800)', fontSize: '0.88rem',
                   cursor: 'pointer', fontFamily: 'inherit',
@@ -309,32 +343,6 @@ export default function DashboardPage() {
           </p>
         </div>
       )}
-
-      {/* ── Progress bar ───────────────────────────────────────────────────── */}
-      <div style={{
-        background: '#fff', borderRadius: 10, padding: '16px 20px',
-        border: '1px solid var(--border)', marginBottom: 32,
-      }}>
-        <div className="d-flex justify-content-between align-items-center mb-2">
-          <span style={{ fontWeight: 600, color: 'var(--green-900)', fontSize: '0.9rem' }}>Your progress</span>
-          <span className="text-muted small">{startedCount} of {SECTIONS.length} sections started</span>
-        </div>
-        <div
-          role="progressbar"
-          aria-valuenow={startedCount}
-          aria-valuemin={0}
-          aria-valuemax={SECTIONS.length}
-          aria-label={`${startedCount} of ${SECTIONS.length} sections started`}
-          style={{ height: 8, borderRadius: 8, background: 'var(--green-100)', overflow: 'hidden' }}
-        >
-          <div style={{
-            height: '100%',
-            width: `${(startedCount / SECTIONS.length) * 100}%`,
-            background: 'var(--green-800)', borderRadius: 8,
-            transition: 'width 0.4s ease',
-          }} />
-        </div>
-      </div>
 
       {/* ── Section groups ─────────────────────────────────────────────────── */}
       {GROUPS.map((group, gi) => {
@@ -427,7 +435,7 @@ export default function DashboardPage() {
                       style={{
                         cursor: 'pointer',
                         background: group.cardBg,
-                        border: locked ? `1px solid ${group.cardBorder}` : `1px solid ${group.cardBorder}`,
+                        border: `1px var(--card-border-style, solid) ${group.cardBorder}`,
                         transition: 'box-shadow 0.15s, transform 0.1s',
                         boxShadow: 'none',
                         opacity: locked ? 0.8 : 1,

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Form, Row, Col, Alert, Modal, Spinner, Badge } from 'react-bootstrap'
 import axios from 'axios'
+import SectionHero from '../../components/SectionHero'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -104,12 +105,15 @@ export default function LifesWishesPage() {
         <button className="btn btn-link p-0 mb-2"
           style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '0.9rem' }}
           onClick={() => navigate('/profile')}>← Back to my plans</button>
-        <h3 style={{ color: 'var(--green-900)' }}>✨ My Bucket List</h3>
-        <p className="text-muted">
-          The things you hope to do, see, give, and become. Some are dreams, some are in motion,
-          some are already ticked off. All of them say something about who you are.
-        </p>
       </div>
+
+      <SectionHero
+        eyebrow="Your Legacy"
+        headline="The things you still want to chase"
+        highlight="chase"
+        subtext="The things you hope to do, see, give, and become. Some are dreams, some are in motion, some are already ticked off. All of them say something about who you are."
+        cta={{ label: '+ Add a wish', onClick: openAdd }}
+      />
 
       {success && <Alert variant="success">{success}</Alert>}
       {error && !showModal && <Alert variant="danger">{error}</Alert>}
@@ -137,10 +141,6 @@ export default function LifesWishesPage() {
           ))}
         </div>
       )}
-
-      <div className="mb-4">
-        <Button variant="primary" onClick={openAdd}>+ Add a wish</Button>
-      </div>
 
       {loading ? (
         <div className="text-center py-4"><Spinner animation="border" style={{ color: 'var(--green-800)' }} /></div>

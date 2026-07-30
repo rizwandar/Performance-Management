@@ -4,6 +4,7 @@ import { Button, Form, Row, Col, Alert, Modal, Spinner, Badge } from 'react-boot
 import axios from 'axios'
 import { useAuth } from '../../context/AuthContext'
 import { formatPhone } from '@in-good-hands/shared/format'
+import SectionHero from '../../components/SectionHero'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -202,16 +203,17 @@ export default function KeyContactsPage() {
         <button className="btn btn-link p-0 mb-2"
           style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '0.9rem' }}
           onClick={() => navigate('/profile')}>← Back to my plans</button>
-        <h3 style={{ color: 'var(--green-900)' }}>🤝 Key Contacts</h3>
-        <p className="text-muted">
-          The people who matter most in an emergency, the trusted contacts who will be given
-          access to your plans when the time comes, and the one person you trust to confirm it
-          and set everything in motion.
-        </p>
       </div>
 
+      <SectionHero
+        eyebrow="Your People"
+        headline="The people to call on"
+        highlight="call on"
+        subtext="The people who matter most in an emergency, the trusted contacts who will be given access to your plans when the time comes, and the one person you trust to confirm it and set everything in motion."
+      />
+
       {/* ── Emergency Contact ───────────────────────────────────────────────── */}
-      <div style={{ background: 'var(--parchment)', borderRadius: 12, padding: '24px', marginBottom: 28, border: '1px solid var(--border)' }}>
+      <div style={{ background: 'var(--parchment)', borderRadius: 'var(--card-radius-sm, 12px)', padding: '24px', marginBottom: 28, border: '1px solid var(--border)' }}>
         <h6 style={{ color: 'var(--green-900)', marginBottom: 4 }}>Emergency Contact</h6>
         <p className="text-muted small mb-1">
           The first person to call if you are in an emergency and unable to speak for yourself.
@@ -253,7 +255,7 @@ export default function KeyContactsPage() {
       </div>
 
       {/* ── Trusted Contacts ────────────────────────────────────────────────── */}
-      <div style={{ background: 'var(--parchment)', borderRadius: 12, padding: '24px 24px 16px', marginBottom: 16, border: '1px solid var(--border)' }}>
+      <div style={{ background: 'var(--parchment)', borderRadius: 'var(--card-radius-sm, 12px)', padding: '24px 24px 16px', marginBottom: 16, border: '1px solid var(--border)' }}>
         <div className="d-flex justify-content-between align-items-start mb-1 flex-wrap gap-2">
           <h6 style={{ color: 'var(--green-900)', margin: 0 }}>Trusted Contacts</h6>
           {contacts.length < 3 && (
@@ -321,7 +323,7 @@ export default function KeyContactsPage() {
                                 {contact.visible_sections.map(sid => {
                                   const s = SECTIONS.find(x => x.id === sid)
                                   return s ? (
-                                    <Badge key={sid} style={{ background: '#fff', color: 'var(--green-900)', border: '1px solid var(--green-200, #a8c8b4)', fontWeight: 500, fontSize: '0.75rem' }}>
+                                    <Badge key={sid} style={{ background: '#fff', color: 'var(--green-900)', border: '1px solid var(--green-100)', fontWeight: 500, fontSize: '0.75rem' }}>
                                       {s.label}
                                     </Badge>
                                   ) : null

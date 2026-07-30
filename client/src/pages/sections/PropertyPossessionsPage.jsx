@@ -4,6 +4,7 @@ import { Button, Form, Row, Col, Alert, Modal, Spinner } from 'react-bootstrap'
 import axios from 'axios'
 import { VaultSetupScreen, VaultLockScreen } from '../../components/VaultGate'
 import FileAttachments from '../../components/FileAttachments'
+import SectionHero from '../../components/SectionHero'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -121,18 +122,23 @@ export default function PropertyPossessionsPage() {
         onClick={() => navigate('/profile')}>
         ← Back to my plans
       </button>
-      <h3 style={{ color: 'var(--green-900)' }}>🏡 Property & Possessions</h3>
-      <p className="text-muted">
-        Record your property, vehicles, and meaningful belongings. Note who you'd like
-        to receive them. This section is vault-protected. Only you can access it with your vault password.
-      </p>
     </div>
+  )
+
+  const hero = (
+    <SectionHero
+      eyebrow="Your Affairs"
+      headline="What you own, and who it's for"
+      highlight="who it's for"
+      subtext="Record your property, vehicles, and meaningful belongings, and note who you'd like to receive them. This section is vault-protected, only you can access it with your vault password."
+    />
   )
 
   if (vaultState === 'loading') {
     return (
       <div style={{ maxWidth: 800, margin: '0 auto' }}>
         {backLink}
+      {hero}
         <div className="text-center py-5">
           <Spinner animation="border" style={{ color: 'var(--green-800)' }} />
         </div>
@@ -144,6 +150,7 @@ export default function PropertyPossessionsPage() {
     return (
       <div style={{ maxWidth: 800, margin: '0 auto' }}>
         {backLink}
+      {hero}
         <VaultSetupScreen onSetup={() => setVaultState('locked')} />
       </div>
     )
@@ -153,6 +160,7 @@ export default function PropertyPossessionsPage() {
     return (
       <div style={{ maxWidth: 800, margin: '0 auto' }}>
         {backLink}
+      {hero}
         <VaultLockScreen onUnlock={handleUnlock} onReset={handleVaultReset} />
       </div>
     )
@@ -161,6 +169,7 @@ export default function PropertyPossessionsPage() {
   return (
     <div style={{ maxWidth: 800, margin: '0 auto' }}>
       {backLink}
+      {hero}
 
       <div style={{
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',

@@ -4,6 +4,7 @@ import { Button, Form, Row, Col, Alert, Modal, Spinner } from 'react-bootstrap'
 import axios from 'axios'
 import { useAuth } from '../../context/AuthContext'
 import { formatPhone } from '@in-good-hands/shared/format'
+import SectionHero from '../../components/SectionHero'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -84,24 +85,23 @@ export default function PeopleToNotifyPage() {
           onClick={() => navigate('/profile')}>
           ← Back to my plans
         </button>
-        <h3 style={{ color: 'var(--green-900)' }}>👥 People to Notify</h3>
-        <p className="text-muted">
-          When the time comes, who needs to know? List the people you'd want notified,
-          and, just as importantly, who will be responsible for reaching each of them.
-        </p>
-        <p className="text-muted small" style={{ fontStyle: 'italic' }}>
-          These people don't get access to your plans, only a short, caring notice once your
-          executor (or funeral home) has confirmed what's happened. If you'd like someone to
-          send this automatically, add their email address below.
-        </p>
       </div>
+
+      <SectionHero
+        eyebrow="Your People"
+        headline="Make sure no one is forgotten"
+        highlight="forgotten"
+        subtext="When the time comes, who needs to know? List the people you'd want notified, and, just as importantly, who will be responsible for reaching each of them."
+        cta={{ label: '+ Add a person', onClick: openAdd }}
+      />
+      <p className="text-muted small mb-4" style={{ fontStyle: 'italic' }}>
+        These people don't get access to your plans, only a short, caring notice once your
+        executor (or funeral home) has confirmed what's happened. If you'd like someone to
+        send this automatically, add their email address below.
+      </p>
 
       {success && <Alert variant="success">{success}</Alert>}
       {error && !showModal && <Alert variant="danger">{error}</Alert>}
-
-      <div className="mb-4">
-        <Button variant="primary" onClick={openAdd}>+ Add a person</Button>
-      </div>
 
       {loading ? (
         <div className="text-center py-4">

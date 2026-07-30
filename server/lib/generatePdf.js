@@ -12,6 +12,7 @@ const THEME_PALETTES = {
   midnight:    { dark: '#1A1A3E', mid: '#2D2D60', accent: '#B8963E', bg: '#F5F5FA' },
   highcontrast:{ dark: '#111111', mid: '#333333', accent: '#C05000', bg: '#FFFFFF' },
   softmist:    { dark: '#4A5A65', mid: '#6A7D8A', accent: '#A89870', bg: '#F8F9FA' },
+  keepsake:    { dark: '#2E2419', mid: '#3A2E22', accent: '#E0A438', bg: '#FAF3E8' },
 };
 const DEFAULT_THEME = THEME_PALETTES.forest;
 

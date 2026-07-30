@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Button, Form, Row, Col, Alert, Modal, Spinner, InputGroup } from 'react-bootstrap'
 import axios from 'axios'
 import { VaultSetupScreen, VaultLockScreen } from '../../components/VaultGate'
+import SectionHero from '../../components/SectionHero'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -145,12 +146,16 @@ export default function DigitalLifePage() {
         onClick={() => navigate('/profile')}>
         ← Back to my plans
       </button>
-      <h3 style={{ color: 'var(--green-900)' }}>💻 Digital Life</h3>
-      <p className="text-muted">
-        Securely store the usernames and passwords for your online accounts.
-        Everything is encrypted. Only you can unlock it with your vault password.
-      </p>
     </div>
+  )
+
+  const hero = (
+    <SectionHero
+      eyebrow="Your Affairs"
+      headline="Your digital world, safely handed down"
+      highlight="digital world"
+      subtext="Securely store the usernames and passwords for your online accounts. Everything is encrypted, only you can unlock it with your vault password."
+    />
   )
 
   // ── Loading ────────────────────────────────────────────────────────────────
@@ -158,6 +163,7 @@ export default function DigitalLifePage() {
     return (
       <div style={{ maxWidth: 800, margin: '0 auto' }}>
         {backLink}
+      {hero}
         <div className="text-center py-5">
           <Spinner animation="border" style={{ color: 'var(--green-800)' }} />
         </div>
@@ -170,6 +176,7 @@ export default function DigitalLifePage() {
     return (
       <div style={{ maxWidth: 800, margin: '0 auto' }}>
         {backLink}
+      {hero}
         <VaultSetupScreen onSetup={() => setVaultState('locked')} />
       </div>
     )
@@ -180,6 +187,7 @@ export default function DigitalLifePage() {
     return (
       <div style={{ maxWidth: 800, margin: '0 auto' }}>
         {backLink}
+      {hero}
         <VaultLockScreen onUnlock={handleUnlock} onReset={handleVaultReset} />
       </div>
     )
@@ -189,6 +197,7 @@ export default function DigitalLifePage() {
   return (
     <div style={{ maxWidth: 800, margin: '0 auto' }}>
       {backLink}
+      {hero}
 
       {/* Vault status bar */}
       <div style={{
