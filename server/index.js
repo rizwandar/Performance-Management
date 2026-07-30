@@ -108,7 +108,17 @@ Sentry.setupExpressErrorHandler(app);
 
 app.use((err, req, res, next) => {
   console.error('[error]', err.message, err.stack);
-  res.status(err.status || 500).json({ error: err.message || 'Internal server error' });
+  // err.message can carry raw DB/driver detail (SQL fragments, table/column
+  // names, file paths) that reaches this handler precisely because it wasn't
+  // a route-level validation error the handler expected - every route that
+  // wants to show the client something specific already sends its own
+  // res.json() before an error would ever get here. NODE_ENV is 'production'
+  // on both the staging and production Render services (see instrument.js),
+  // so this only stays verbose in true local development.
+  if (process.env.NODE_ENV !== 'production') {
+    return res.status(err.status || 500).json({ error: err.message || 'Internal server error' });
+  }
+  res.status(err.status || 500).json({ error: 'Something went wrong. Please try again.', code: 'INTERNAL_ERROR' });
 });
 
 const cron = require('node-cron');
