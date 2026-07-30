@@ -702,6 +702,59 @@ async function init() {
     console.log('[db] Premium grandfather cutover applied (one-time)');
   }
 
+  // Migration (SEC-03): field-level encryption for the vault-protected
+  // section tables, matching the pattern already used for digital_credentials
+  // (see vault.js). Additive only - existing plaintext columns stay in the
+  // schema and keep any not-yet-migrated data readable; server/lib/vaultFields.js
+  // migrates each row to its _enc column the next time it's read or written
+  // with the owner's vault password, since the server never has that
+  // password outside of a live request and so can't batch-migrate for users
+  // who never revisit these sections.
+  await pool.query(`
+    ALTER TABLE legal_documents
+      ADD COLUMN IF NOT EXISTS document_type_enc TEXT,
+      ADD COLUMN IF NOT EXISTS title_enc         TEXT,
+      ADD COLUMN IF NOT EXISTS held_by_enc       TEXT,
+      ADD COLUMN IF NOT EXISTS location_enc      TEXT,
+      ADD COLUMN IF NOT EXISTS notes_enc         TEXT
+  `);
+  await pool.query(`
+    ALTER TABLE financial_items
+      ADD COLUMN IF NOT EXISTS category_enc          TEXT,
+      ADD COLUMN IF NOT EXISTS institution_enc        TEXT,
+      ADD COLUMN IF NOT EXISTS account_type_enc       TEXT,
+      ADD COLUMN IF NOT EXISTS account_reference_enc  TEXT,
+      ADD COLUMN IF NOT EXISTS contact_name_enc       TEXT,
+      ADD COLUMN IF NOT EXISTS contact_phone_enc      TEXT,
+      ADD COLUMN IF NOT EXISTS notes_enc              TEXT
+  `);
+  await pool.query(`
+    ALTER TABLE property_items
+      ADD COLUMN IF NOT EXISTS category_enc           TEXT,
+      ADD COLUMN IF NOT EXISTS title_enc              TEXT,
+      ADD COLUMN IF NOT EXISTS description_enc        TEXT,
+      ADD COLUMN IF NOT EXISTS location_enc           TEXT,
+      ADD COLUMN IF NOT EXISTS intended_recipient_enc  TEXT,
+      ADD COLUMN IF NOT EXISTS notes_enc              TEXT
+  `);
+  await pool.query(`
+    ALTER TABLE household_info
+      ADD COLUMN IF NOT EXISTS category_enc           TEXT,
+      ADD COLUMN IF NOT EXISTS title_enc              TEXT,
+      ADD COLUMN IF NOT EXISTS provider_enc           TEXT,
+      ADD COLUMN IF NOT EXISTS account_reference_enc  TEXT,
+      ADD COLUMN IF NOT EXISTS contact_enc            TEXT,
+      ADD COLUMN IF NOT EXISTS notes_enc              TEXT
+  `);
+  // New rows now write title only to title_enc, leaving the plaintext column
+  // NULL - these 3 tables' original NOT NULL constraint on title predates
+  // that and would otherwise reject every new insert. Loosening a
+  // constraint isn't dropping or renaming a column, so this stays within
+  // the "never drop/rename columns" convention.
+  await pool.query(`ALTER TABLE legal_documents  ALTER COLUMN title DROP NOT NULL`);
+  await pool.query(`ALTER TABLE property_items   ALTER COLUMN title DROP NOT NULL`);
+  await pool.query(`ALTER TABLE household_info   ALTER COLUMN title DROP NOT NULL`);
+
   console.log('[db] PostgreSQL schema ready');
 }
 

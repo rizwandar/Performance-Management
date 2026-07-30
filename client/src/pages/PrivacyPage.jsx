@@ -145,7 +145,7 @@ export default function PrivacyPage() {
         {li([
           'All data in transit is encrypted with TLS (HTTPS).',
           'Passwords are hashed using bcrypt with a cost factor of 10.',
-          'Vault-protected text (credentials, document details, notes) is encrypted at rest with AES-256-GCM using a key derived from your vault password via scrypt. Your vault password is never sent to or stored on our servers.',
+          'Vault-protected text (digital credentials, legal document details, financial affairs, property and possessions, practical household information, and notes) is encrypted at rest with AES-256-GCM using a key derived from your vault password via scrypt. Your vault password is never sent to or stored on our servers.',
           'Uploaded files (such as document scans or photos) are stored in Cloudflare R2, encrypted at rest by the storage provider, and only ever accessible through short-lived signed URLs tied to your authenticated account, never a public link. Files are not additionally encrypted with your vault password.',
           'Failed vault password attempts are monitored and trigger automatic security emails. After 5 failed attempts, your vault is temporarily locked for 15 minutes as a security measure. No data is ever deleted for incorrect attempts.',
           'JWT authentication tokens expire after 8 hours.',
