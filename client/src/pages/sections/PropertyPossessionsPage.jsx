@@ -108,7 +108,7 @@ export default function PropertyPossessionsPage() {
   const handleDelete = async (id) => {
     if (!window.confirm('Remove this item from your records?')) return
     try {
-      await axios.delete(`${API}/sections/property-possessions/${id}`)
+      await axios.delete(`${API}/sections/property-possessions/${id}`, { data: { vault_password: vaultPassword } })
       setItems(prev => prev.filter(i => i.id !== id))
     } catch {
       setError("We couldn't remove this item. Please try again.")

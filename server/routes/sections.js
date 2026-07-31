@@ -153,6 +153,7 @@ router.put('/legal-documents/:id', requireAuth, requirePremium, async (req, res)
 router.delete('/legal-documents/:id', requireAuth, requirePremium, async (req, res) => {
   const item = await queryOne('SELECT * FROM legal_documents WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
+  if (!await checkVault(req.body?.vault_password, req.user.id, res, req)) return;
   await query('DELETE FROM uploaded_documents WHERE user_id = $1 AND section_id = $2 AND item_id = $3',
     [req.user.id, 'legal_documents', item.id]);
   await query('DELETE FROM legal_documents WHERE id = $1', [item.id]);
@@ -219,6 +220,7 @@ router.put('/financial-affairs/:id', requireAuth, requirePremium, async (req, re
 router.delete('/financial-affairs/:id', requireAuth, requirePremium, async (req, res) => {
   const item = await queryOne('SELECT * FROM financial_items WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
+  if (!await checkVault(req.body?.vault_password, req.user.id, res, req)) return;
   await query('DELETE FROM financial_items WHERE id = $1', [item.id]);
   res.json({ success: true });
 });
@@ -383,6 +385,7 @@ router.put('/property-possessions/:id', requireAuth, requirePremium, async (req,
 router.delete('/property-possessions/:id', requireAuth, requirePremium, async (req, res) => {
   const item = await queryOne('SELECT * FROM property_items WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
+  if (!await checkVault(req.body?.vault_password, req.user.id, res, req)) return;
   await query('DELETE FROM property_items WHERE id = $1', [item.id]);
   res.json({ success: true });
 });
@@ -553,6 +556,7 @@ router.put('/household-info/:id', requireAuth, requirePremium, async (req, res) 
 router.delete('/household-info/:id', requireAuth, requirePremium, async (req, res) => {
   const item = await queryOne('SELECT id FROM household_info WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
+  if (!await checkVault(req.body?.vault_password, req.user.id, res, req)) return;
   await query('DELETE FROM household_info WHERE id = $1', [item.id]);
   res.json({ success: true });
 });
@@ -725,7 +729,9 @@ router.post('/digital-life/vault/verify', requireAuth, async (req, res) => {
 });
 
 router.post('/digital-life/list', requireAuth, async (req, res) => {
-  if (!await checkVault(req.body.vault_password, req.user.id, res, req)) return;
+  const { vault_password } = req.body;
+  if (!await checkVault(vault_password, req.user.id, res, req)) return;
+  const key = deriveKey(vault_password, req.user.id);
 
   const rows = await queryAll(
     'SELECT id, service, service_url, username_enc, password_enc, notes_enc, created_at FROM digital_credentials WHERE user_id = $1 ORDER BY service',
