@@ -441,7 +441,7 @@ ${appName} is a warm, end-of-life planning web application. Users document their
 
 TARGET AUDIENCE: Adults (primarily 40+). Launch marketing targets the United States specifically (the Privacy Policy is written to lead with CCPA/CPRA), though registration itself stays open worldwide and the Privacy Policy also covers GDPR (EU/UK), PIPEDA (Canada), Quebec Law 25, the Australian Privacy Act, and the NZ Privacy Act for users in those regions.
 
-TONE: Warm, kind, reassuring. Never clinical. UI copy currently uses Australian English spelling and date formatting (organised, colour, d MMMM YYYY). No em-dashes anywhere in the application.
+TONE: Warm, kind, reassuring. Never clinical. UI copy currently uses Australian English spelling and date formatting (organised, colour, d MMMM YYYY), a holdover that predates the US-first launch pivot and should be migrated to American English (organized, color, en-US dates) - not yet done. No em-dashes anywhere in the application.
 
 COLOUR PALETTE: Earthy, grounded, trustworthy. Forest green (primary), warm gold (accent), parchment backgrounds.
 
@@ -883,7 +883,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
             ['Purpose', 'End-of-life planning web application. Users document their wishes, assets, contacts, and messages so loved ones have clarity and comfort when the time comes.'],
             ['Target audience', 'Adults (primarily 40+). Launch marketing targets the United States specifically (Privacy Policy leads with CCPA/CPRA); registration itself stays open worldwide.'],
             ['Tone of voice', 'Warm, kind, reassuring, end-of-life-aware. Never clinical. No em-dashes anywhere.'],
-            ['Language', 'Australian English. Uses "organised" not "organized", etc.'],
+            ['Language', 'Currently Australian English throughout the UI (organised, colour, en-AU date formatting), a holdover from before the US-first launch pivot. TODO: migrate UI copy and date formatting to American English (organized, color, en-US) to match the current US market focus - not yet done, flagged here so it is not lost.'],
             ['Primary colour metaphor', 'Earthy, grounded, trustworthy. Forest green, warm gold, parchment backgrounds.'],
           ]} />
         </BpSection>
