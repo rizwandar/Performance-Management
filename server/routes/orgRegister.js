@@ -100,10 +100,15 @@ router.post('/:token/complete', async (req, res) => {
   if (existing) return res.status(409).json({ error: 'An account with this email already exists. Please sign in instead.' });
 
   const hash = bcrypt.hashSync(password, 10);
+  const [privacyVersion, tosVersion] = await Promise.all([
+    queryOne("SELECT version FROM policy_versions WHERE module = 'privacy' ORDER BY version DESC LIMIT 1"),
+    queryOne("SELECT version FROM policy_versions WHERE module = 'tos' ORDER BY version DESC LIMIT 1"),
+  ]);
   const userResult = await query(
-    `INSERT INTO users (name, email, password_hash, is_admin, email_verified, org_role, organization_id, privacy_consent, privacy_consent_at)
-     VALUES ($1, $2, $3, 0, 1, 'org_admin', $4, 1, NOW()) RETURNING id`,
-    [invite.name, invite.email, hash, invite.organization_id]
+    `INSERT INTO users (name, email, password_hash, is_admin, email_verified, org_role, organization_id,
+                        privacy_consent, privacy_consent_at, privacy_version_consented, tos_version_consented)
+     VALUES ($1, $2, $3, 0, 1, 'org_admin', $4, 1, NOW(), $5, $6) RETURNING id`,
+    [invite.name, invite.email, hash, invite.organization_id, privacyVersion?.version ?? null, tosVersion?.version ?? null]
   );
   const userId = userResult.rows[0].id;
 

@@ -570,6 +570,58 @@ function RecoveryCompletionBanner() {
   )
 }
 
+// Non-blocking nudge shown when the admin has published a newer Privacy
+// Policy or Terms of Service version than this user last consented to
+// (FEAT-04/05 item 4). Re-checks on every route change, same pattern as
+// RecoveryCompletionBanner above, and clears itself the moment /legal/consent
+// succeeds rather than needing a dismiss button that could hide a real
+// outstanding re-consent indefinitely.
+function LegalReconsentBanner() {
+  const { user } = useAuth()
+  const location = useLocation()
+  const [needsReconsent, setNeedsReconsent] = useState(false)
+  const [agreeing, setAgreeing] = useState(false)
+
+  const checkStatus = () => {
+    if (!user) return
+    axios.get(`${API}/legal/status`)
+      .then(r => setNeedsReconsent(!!r.data.needs_reconsent))
+      .catch(() => setNeedsReconsent(false))
+  }
+
+  useEffect(checkStatus, [user, location.pathname])
+
+  if (!user || !needsReconsent) return null
+
+  const handleAgree = () => {
+    setAgreeing(true)
+    axios.post(`${API}/legal/consent`)
+      .then(() => setNeedsReconsent(false))
+      .finally(() => setAgreeing(false))
+  }
+
+  return (
+    <div style={{
+      background: '#FFF7ED', borderBottom: '1px solid #FED7AA',
+      padding: '10px 0', fontSize: '0.88rem',
+    }}>
+      <div className="container" style={{ maxWidth: 960, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <span style={{ color: '#92400E' }}>
+          📄 We've updated our <Link to="/privacy" style={{ color: '#92400E', fontWeight: 600 }}>Privacy Policy</Link> and/or <Link to="/terms" style={{ color: '#92400E', fontWeight: 600 }}>Terms of Service</Link>. Please review and re-confirm your agreement.
+        </span>
+        <button
+          className="btn btn-sm"
+          style={{ background: '#C9904A', color: '#fff', border: 'none', padding: '3px 12px', fontSize: '0.82rem' }}
+          onClick={handleAgree}
+          disabled={agreeing}
+        >
+          {agreeing ? 'Saving…' : 'I agree'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function AppContent() {
   const { setBranding } = useBranding()
   const [maintenance, setMaintenance] = useState(false)
@@ -645,6 +697,7 @@ function AppContent() {
       <ViewAsBanner />
       <UnverifiedEmailBanner />
       <RecoveryCompletionBanner />
+      <LegalReconsentBanner />
       <Container id="main-content" className="py-4" style={{ flex: 1 }}>
         <Routes>
           <Route path="/"                  element={<LandingPage />} />

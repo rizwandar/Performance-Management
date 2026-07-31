@@ -130,12 +130,23 @@ router.post('/register', registerRules, validate, async (req, res) => {
     const verifyToken  = crypto.randomBytes(32).toString('hex');
     const verifyExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
+    // The single privacy_consent checkbox agrees to both the Privacy Policy
+    // and Terms of Service at once (FEAT-04/05), so record which published
+    // version of each was current at signup - null if neither has been
+    // published yet (e.g. a fresh install before any admin publish action).
+    const [privacyVersion, tosVersion] = await Promise.all([
+      queryOne("SELECT version FROM policy_versions WHERE module = 'privacy' ORDER BY version DESC LIMIT 1"),
+      queryOne("SELECT version FROM policy_versions WHERE module = 'tos' ORDER BY version DESC LIMIT 1"),
+    ]);
+
     const result = await query(`
       INSERT INTO users (name, email, password_hash, date_of_birth, country_code, privacy_consent,
-                         privacy_consent_at, email_verified, email_verification_token, email_verification_expires_at)
-      VALUES ($1, $2, $3, $4, $5, 1, NOW(), 0, $6, $7)
+                         privacy_consent_at, privacy_version_consented, tos_version_consented,
+                         email_verified, email_verification_token, email_verification_expires_at)
+      VALUES ($1, $2, $3, $4, $5, 1, NOW(), $6, $7, 0, $8, $9)
       RETURNING id
-    `, [name, email, hash, date_of_birth || null, country_code || null, verifyToken, verifyExpiry]);
+    `, [name, email, hash, date_of_birth || null, country_code || null,
+        privacyVersion?.version ?? null, tosVersion?.version ?? null, verifyToken, verifyExpiry]);
 
     const newId = result.rows[0].id;
 
