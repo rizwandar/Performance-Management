@@ -14,21 +14,21 @@ const FREE_SECTION_ROUTES = new Set([
 const SubscriptionContext = createContext({ isPremium: true, plan: 'premium', loading: false, refresh: () => {} })
 
 export function SubscriptionProvider({ children }) {
-  const { token }              = useAuth()
+  const { user }               = useAuth()
   const [plan, setPlan]       = useState('premium')
   const [loading, setLoading] = useState(false)
 
   const refresh = useCallback(async () => {
-    if (!token) { setPlan('free'); return }
+    if (!user) { setPlan('free'); return }
     setLoading(true)
     try {
-      const r = await axios.get(`${API}/billing/access`, { headers: { Authorization: `Bearer ${token}` } })
+      const r = await axios.get(`${API}/billing/access`)
       setPlan(r.data.plan)
     } catch {
       setPlan('premium') // fail open so existing users are not locked out
     }
     setLoading(false)
-  }, [token])
+  }, [user])
 
   useEffect(() => { refresh() }, [refresh])
 
