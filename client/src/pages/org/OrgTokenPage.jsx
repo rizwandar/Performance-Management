@@ -35,7 +35,7 @@ export default function OrgTokenPage() {
     setError('')
     try {
       const r = await axios.post(`${API}/org-links/${token}/complete-invite`, { name, password, privacy_consent: consent })
-      login(r.data.token, r.data.user)
+      login(r.data.user)
       navigate('/profile')
     } catch (err) {
       setError(err.response?.data?.error || 'Could not complete signup. Please try again.')

@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
 export default function NotFoundPage() {
-  const { isTokenValid } = useAuth()
+  const { isLoggedIn } = useAuth()
 
   return (
     <div style={{
@@ -21,14 +21,14 @@ export default function NotFoundPage() {
       </p>
       <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
         <Link
-          to={isTokenValid() ? '/profile' : '/'}
+          to={isLoggedIn() ? '/profile' : '/'}
           style={{
             background: 'var(--btn-cta-bg, var(--green-800))', color: 'var(--btn-cta-color, #fff)',
             padding: '10px 24px', borderRadius: 'var(--btn-radius, 8px)',
             textDecoration: 'none', fontSize: '0.95rem',
           }}
         >
-          {isTokenValid() ? 'Back to my plans' : 'Back to home'}
+          {isLoggedIn() ? 'Back to my plans' : 'Back to home'}
         </Link>
         <Link
           to="/login"

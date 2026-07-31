@@ -13,6 +13,7 @@ const { uploadFile, getDownloadUrl, deleteFile } = require('../lib/r2');
 const { markUserDeceased } = require('../lib/deceased');
 const { stripe } = require('../lib/stripe');
 const { getOverageConfig } = require('../lib/orgBilling');
+const { setAuthCookies } = require('../lib/authCookies');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } });
 
@@ -260,13 +261,51 @@ router.post('/customers/:id/view-as', auth, requireOrgUser, async (req, res) => 
   );
 
   auditLog(req.user.id, 'view_as_start', { organization_customer_id: customer.id, customer_id: customer.user_id });
-  res.json({ token: viewAsToken, customer_name: customerUser?.name, edit_allowed: !!customer.edit_consent });
+  // SEC-09: the org portal is web-only, so the view-as token is handed off
+  // the same way a normal login is now - set as the httpOnly session cookie,
+  // overwriting the org admin's own token cookie for the duration of the
+  // view-as session, rather than returned here for the client to stash in
+  // localStorage and swap in manually.
+  setAuthCookies(res, viewAsToken);
+  res.json({ customer_name: customerUser?.name, edit_allowed: !!customer.edit_consent });
 });
 
 router.post('/view-as/end', auth, async (req, res) => {
   if (!req.isViewAs || !req.actingUser) return res.status(400).json({ error: 'No active view-as session.' });
   auditLog(req.actingUser.id, 'view_as_end', { customer_id: req.user.id });
-  res.json({ success: true });
+
+  // Re-mint the real admin's normal session cookie from their current live
+  // row (not the stale claims on the view-as token) so this also picks up
+  // anything that changed while they were viewing-as (SEC-10's live-check
+  // philosophy) - a deactivated-mid-session admin doesn't get a working
+  // session handed back here. Previously the client restored this from a
+  // realToken it had stashed in localStorage before the swap; that stash no
+  // longer exists (SEC-09), so the server has to do this instead.
+  const admin = await queryOne('SELECT * FROM users WHERE id = $1', [req.actingUser.id]);
+  if (!admin) return res.status(401).json({ error: 'Your session has expired. Please sign in again.', session_expired: true });
+
+  const jwt = require('jsonwebtoken');
+  const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
+  const restoredToken = jwt.sign(
+    {
+      id: admin.id, email: admin.email, is_admin: admin.is_admin,
+      org_role: admin.org_role || undefined, organization_id: admin.organization_id || undefined,
+      organization_location_id: admin.organization_location_id || undefined,
+      sv: admin.session_version ?? 1,
+    },
+    JWT_SECRET,
+    { expiresIn: '8h' }
+  );
+  setAuthCookies(res, restoredToken);
+  res.json({
+    success: true,
+    user: {
+      id: admin.id, name: admin.name, email: admin.email, is_admin: admin.is_admin,
+      email_verified: admin.email_verified ?? 1, songs_enabled: admin.songs_enabled, bucket_list_enabled: admin.bucket_list_enabled,
+      country_code: admin.country_code || null, org_role: admin.org_role || null,
+      organization_id: admin.organization_id || null, organization_location_id: admin.organization_location_id || null,
+    },
+  });
 });
 
 // ---------------------------------------------------------------------------

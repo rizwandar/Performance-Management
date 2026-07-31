@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Routes, Route, Link, useNavigate, useLocation, Navigate } from 'react-router-dom'
 import { Navbar, Container, Nav, Button } from 'react-bootstrap'
 import axios from 'axios'
-import { AuthProvider, useAuth, parseJwt } from './context/AuthContext'
+import { AuthProvider, useAuth } from './context/AuthContext'
 import { BrandingProvider, useBranding } from './context/BrandingContext'
 import { SubscriptionProvider, useSubscription } from './context/SubscriptionContext'
 
@@ -357,19 +357,18 @@ function SiteFooter() {
 // Helpers
 // ---------------------------------------------------------------------------
 function ProtectedRoute({ children, adminOnly = false, allowRoles = null }) {
-  const { user, isTokenValid } = useAuth()
-  if (!isTokenValid()) return <Navigate to="/login" replace />
+  const { user, isLoggedIn } = useAuth()
+  if (!isLoggedIn()) return <Navigate to="/login" replace />
   if (adminOnly && !user?.is_admin) return <Navigate to="/profile" replace />
   if (allowRoles && !allowRoles.includes(user?.org_role)) return <Navigate to="/profile" replace />
   return children
 }
 
 function NavBar() {
-  const { user, token, isTokenValid, logout } = useAuth()
+  const { user, isLoggedIn, isViewAs, logout } = useAuth()
   const { siteName, logoUrl } = useBranding()
   const { isPremium } = useSubscription()
   const navigate = useNavigate()
-  const isViewAs = !!(token && parseJwt(token)?.viewAs)
 
   const handleLogout = () => {
     logout()
@@ -387,7 +386,7 @@ function NavBar() {
         <Navbar.Toggle aria-label="Toggle navigation menu" />
         <Navbar.Collapse>
           <Nav className="ms-auto align-items-center">
-            {isTokenValid() ? (
+            {isLoggedIn() ? (
               <>
                 {!user?.is_admin && !user?.org_role && (
                   <>
