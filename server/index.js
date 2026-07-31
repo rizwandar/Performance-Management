@@ -80,12 +80,27 @@ app.use(async (req, res, next) => {
   }
 });
 
+// The organization/funeral-home portal is not part of this launch. Gated by
+// deploy config, defaulting to OFF - a service with no ORG_PORTAL_ENABLED set
+// at all (the current state of production) gets the safe behavior automatically,
+// rather than requiring someone to remember to disable it before launch. When
+// off, these routers aren't registered at all (not merely rejected), so there's
+// no code path to reach regardless of what the client UI shows or hides -
+// hiding navigation is not access control (SEC-12). Flip ORG_PORTAL_ENABLED=true
+// to bring the subsystem back, e.g. for continued testing on staging.
+const ORG_PORTAL_ENABLED = process.env.ORG_PORTAL_ENABLED === 'true';
+const ORG_PORTAL_ROUTE_PREFIXES = ['/api/admin/organizations', '/api/org-portal', '/api/org-links', '/api/org-register'];
+
 app.use('/api/auth',            require('./routes/auth'));
 app.use('/api/users',           require('./routes/users'));
-app.use('/api/admin/organizations', require('./routes/organizations'));
-app.use('/api/org-portal',      require('./routes/orgPortal'));
-app.use('/api/org-links',       require('./routes/orgPublic'));
-app.use('/api/org-register',    require('./routes/orgRegister'));
+if (ORG_PORTAL_ENABLED) {
+  app.use('/api/admin/organizations', require('./routes/organizations'));
+  app.use('/api/org-portal',      require('./routes/orgPortal'));
+  app.use('/api/org-links',       require('./routes/orgPublic'));
+  app.use('/api/org-register',    require('./routes/orgRegister'));
+} else {
+  app.use(ORG_PORTAL_ROUTE_PREFIXES, (req, res) => res.status(404).json({ error: 'Not found.' }));
+}
 app.use('/api/admin',           require('./routes/admin'));
 app.use('/api/settings',        require('./routes/settings'));
 app.use('/api/deezer',          require('./routes/deezer'));
