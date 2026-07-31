@@ -118,7 +118,7 @@ export default function FinancialAffairsPage() {
   const handleDelete = async (id) => {
     if (!window.confirm('Remove this financial record?')) return
     try {
-      await axios.delete(`${API}/sections/financial-affairs/${id}`)
+      await axios.delete(`${API}/sections/financial-affairs/${id}`, { data: { vault_password: vaultPassword } })
       setItems(prev => prev.filter(i => i.id !== id))
     } catch {
       setError("We couldn't remove this item. Please try again.")

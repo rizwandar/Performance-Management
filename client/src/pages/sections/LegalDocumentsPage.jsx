@@ -120,7 +120,7 @@ export default function LegalDocumentsPage() {
   const handleDelete = async (id) => {
     if (!window.confirm('Remove this document record and any attached files?')) return
     try {
-      await axios.delete(`${API}/sections/legal-documents/${id}`)
+      await axios.delete(`${API}/sections/legal-documents/${id}`, { data: { vault_password: vaultPassword } })
       setItems(prev => prev.filter(i => i.id !== id))
       setSectionDocs(prev => prev.filter(d => d.item_id !== id))
     } catch {

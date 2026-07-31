@@ -122,7 +122,7 @@ export default function HouseholdInfoPage() {
   const handleDelete = async (id) => {
     if (!window.confirm('Remove this entry?')) return
     try {
-      await axios.delete(`${API}/sections/household-info/${id}`)
+      await axios.delete(`${API}/sections/household-info/${id}`, { data: { vault_password: vaultPassword } })
       setItems(prev => prev.filter(i => i.id !== id))
     } catch {
       setError("We couldn't remove this entry. Please try again.")
