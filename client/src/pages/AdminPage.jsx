@@ -4,6 +4,7 @@ import axios from 'axios'
 import { applyTheme, applyFont } from '../App'
 import { useBranding } from '../context/BrandingContext'
 import OrganizationsPanel from './admin/OrganizationsPanel'
+import LegalPanel from './admin/LegalPanel'
 import { formatPhone } from '@in-good-hands/shared/format'
 
 const API = import.meta.env.VITE_API_URL
@@ -69,7 +70,7 @@ const SECTION_LABELS = {
 // ---------------------------------------------------------------------------
 // Tab navigation
 // ---------------------------------------------------------------------------
-const TABS = ['Overview', 'Users', 'Activity', 'Appearance', 'Branding', 'Organizations', 'Settings', 'Versions', 'App Blueprint']
+const TABS = ['Overview', 'Users', 'Activity', 'Appearance', 'Branding', 'Organizations', 'Settings', 'Legal', 'Versions', 'App Blueprint']
 
 const VERSION_MODULES = [
   { id: 'client',     label: 'Client App' },
@@ -2222,6 +2223,8 @@ export default function AdminPage() {
 
       {/* ── Organizations ──────────────────────────────────────────────────── */}
       {tab === 'Organizations' && <OrganizationsPanel showAlert={showAlert} />}
+
+      {tab === 'Legal' && <LegalPanel showAlert={showAlert} />}
 
       {/* ── Versions ───────────────────────────────────────────────────────── */}
       {tab === 'Versions' && (

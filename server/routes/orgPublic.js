@@ -59,10 +59,16 @@ router.post('/:token/complete-invite', async (req, res) => {
   if (existing) return res.status(409).json({ error: 'An account with this email already exists. Please use the sign in page instead.' });
 
   const hash = bcrypt.hashSync(password, 10);
+  const [privacyVersion, tosVersion] = await Promise.all([
+    queryOne("SELECT version FROM policy_versions WHERE module = 'privacy' ORDER BY version DESC LIMIT 1"),
+    queryOne("SELECT version FROM policy_versions WHERE module = 'tos' ORDER BY version DESC LIMIT 1"),
+  ]);
   const result = await query(
-    `INSERT INTO users (name, email, password_hash, privacy_consent, privacy_consent_at, email_verified)
-     VALUES ($1, $2, $3, 1, NOW(), 1) RETURNING id`,
-    [(name || row.invited_name || '').trim() || row.invited_name, row.invited_email, hash]
+    `INSERT INTO users (name, email, password_hash, privacy_consent, privacy_consent_at,
+                        privacy_version_consented, tos_version_consented, email_verified)
+     VALUES ($1, $2, $3, 1, NOW(), $4, $5, 1) RETURNING id`,
+    [(name || row.invited_name || '').trim() || row.invited_name, row.invited_email, hash,
+     privacyVersion?.version ?? null, tosVersion?.version ?? null]
   );
   const userId = result.rows[0].id;
 
