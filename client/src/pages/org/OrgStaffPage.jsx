@@ -107,7 +107,7 @@ export default function OrgStaffPage() {
                 {!s.is_active && <Badge className="ms-2" bg="secondary">Deactivated</Badge>}
               </div>
               <div className="small text-muted">
-                {s.email} · <Badge style={{ background: s.org_role === 'org_admin' ? 'var(--green-800)' : 'var(--text-muted)' }}>
+                {s.email} · <Badge bg={null} style={{ background: s.org_role === 'org_admin' ? 'var(--green-800)' : 'var(--text-muted)', color: '#fff' }}>
                   {s.org_role === 'org_admin' ? 'Org Admin' : 'Org Staff'}
                 </Badge>
                 {locations.find(l => l.id === s.organization_location_id) && ` · ${locations.find(l => l.id === s.organization_location_id).name}`}

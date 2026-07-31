@@ -60,7 +60,7 @@ function FinancialItems({ data, countryCode }) {
     <ItemCard key={d.id}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 4, marginBottom: 4 }}>
         <span style={{ fontWeight: 700, color: 'var(--green-900)' }}>{d.institution || 'Unnamed'}</span>
-        {d.category && <Badge style={{ background: 'var(--green-100)', color: 'var(--green-900)', fontWeight: 500 }}>{d.category.replace('_', ' ')}</Badge>}
+        {d.category && <Badge bg={null} style={{ background: 'var(--green-100)', color: 'var(--green-900)', fontWeight: 500 }}>{d.category.replace('_', ' ')}</Badge>}
       </div>
       <FieldRow label="Account type"      value={d.account_type} />
       <FieldRow label="Account reference" value={d.account_reference} />
@@ -129,7 +129,7 @@ function PropertyItems({ data }) {
     <ItemCard key={d.id}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 4, marginBottom: 4 }}>
         <span style={{ fontWeight: 700, color: 'var(--green-900)' }}>{d.title}</span>
-        {d.category && <Badge style={{ background: 'var(--green-100)', color: 'var(--green-900)', fontWeight: 500 }}>{d.category.replace('_', ' ')}</Badge>}
+        {d.category && <Badge bg={null} style={{ background: 'var(--green-100)', color: 'var(--green-900)', fontWeight: 500 }}>{d.category.replace('_', ' ')}</Badge>}
       </div>
       <FieldRow label="Description"        value={d.description} />
       <FieldRow label="Location"           value={d.location} />
@@ -182,7 +182,7 @@ function LifeWishes({ data }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 4, marginBottom: 4 }}>
         <span style={{ fontWeight: 700, color: 'var(--green-900)' }}>{d.title}</span>
         {d.status && (
-          <Badge style={{ background: STATUS_COLORS[d.status] || '#888', color: '#fff', fontWeight: 500, textTransform: 'capitalize' }}>
+          <Badge bg={null} style={{ background: STATUS_COLORS[d.status] || '#888', color: '#fff', fontWeight: 500, textTransform: 'capitalize' }}>
             {d.status}
           </Badge>
         )}
