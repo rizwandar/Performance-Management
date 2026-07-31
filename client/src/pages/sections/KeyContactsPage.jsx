@@ -76,9 +76,14 @@ export default function KeyContactsPage() {
 
   const loadContacts = () => {
     setTcLoading(true)
-    axios.get(`${API}/trusted-contacts`)
+    setTcError('')
+    const fetchOnce = () => axios.get(`${API}/trusted-contacts`)
+    // Most failures here are a brief blip, not a real problem, so retry once
+    // silently before bothering the user with anything.
+    fetchOnce()
+      .catch(() => fetchOnce())
       .then(r => setContacts(r.data))
-      .catch(() => setTcError("We couldn't load your trusted contacts."))
+      .catch(() => setTcError('Your trusted contacts are taking a moment to load.'))
       .finally(() => setTcLoading(false))
   }
 
@@ -278,7 +283,12 @@ export default function KeyContactsPage() {
       </div>
 
       {tcSuccess && <Alert variant="success">{tcSuccess}</Alert>}
-      {tcError   && <Alert variant="danger">{tcError}</Alert>}
+      {tcError && (
+        <Alert variant="danger" className="d-flex justify-content-between align-items-center gap-2">
+          <span>{tcError}</span>
+          <Button size="sm" variant="outline-danger" onClick={loadContacts}>Try again</Button>
+        </Alert>
+      )}
 
       {tcLoading ? (
         <div className="text-center py-4">
