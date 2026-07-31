@@ -101,6 +101,8 @@ RESEND_API_KEY=
 VAULT_KEY=
 ```
 
+Optional: `ORG_PORTAL_ENABLED=true` registers the org/funeral-home portal routes (`organizations.js`, `orgPortal.js`, `orgPublic.js`, `orgRegister.js`). Unset or any other value keeps them unregistered entirely, not merely rejected (SEC-12) - this is the default in production since the org portal isn't part of the initial end-user launch. Set to `true` on staging/local dev to keep testing it.
+
 ## Key Conventions
 
 - **No TypeScript** — the entire project is plain JavaScript.

@@ -59,6 +59,30 @@ module.exports = async (req, res, next) => {
     if (error) return res.status(403).json({ error });
     req.user = user;
   } else {
+    // Tokens minted since the session_version migration carry an `sv` claim;
+    // a mismatch against the user's live value means the password was reset
+    // or changed since this token was issued, so it's rejected even though it
+    // hasn't expired yet. Tokens without the claim (already-issued sessions at
+    // migration time, or a couple of org-flow token issuers not yet updated)
+    // skip the check rather than being force-logged-out by this change.
+    // The same lookup also catches two other cases a still-valid-but-stale JWT
+    // shouldn't survive (SEC-10): the account was deleted entirely (org staff
+    // deactivation only sets is_active=0 today; a regular account only ever
+    // goes away via hard delete, so "row missing" is the real-world case for
+    // that path too), and org staff deactivated mid-session (org_role account
+    // with is_active=0) - previously that only blocked future logins, not
+    // requests already carrying a token issued before the deactivation. The
+    // is_admin comparison is forward-looking defense-in-depth: no admin
+    // promote/demote feature exists yet, so it can't fire today, but the
+    // enforcement point is ready the moment one is built, without needing to
+    // touch this file again.
+    if (decoded.sv !== undefined) {
+      const row = await queryOne('SELECT session_version, is_active, org_role, is_admin FROM users WHERE id = $1', [decoded.id]);
+      const deactivated = row?.org_role && row.is_active === 0;
+      if (!row || row.session_version !== decoded.sv || deactivated || row.is_admin !== decoded.is_admin) {
+        return res.status(401).json({ error: 'Your session has expired. Please sign in again.', session_expired: true });
+      }
+    }
     req.user = decoded;
   }
   next();

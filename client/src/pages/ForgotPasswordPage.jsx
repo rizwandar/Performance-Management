@@ -7,13 +7,12 @@ const API = import.meta.env.VITE_API_URL
 
 export default function ForgotPasswordPage() {
   const [method, setMethod] = useState('email')
-  const [form, setForm] = useState({ email: '', date_of_birth: '' })
+  const [form, setForm] = useState({ email: '', date_of_birth: '', security_answer: '' })
+  const [question, setQuestion] = useState(null)
+  const [loadingQuestion, setLoadingQuestion] = useState(false)
   const [status, setStatus] = useState(null)
   const [loading, setLoading] = useState(false)
-  const [dobToken, setDobToken] = useState(null)
-  const [newPassword, setNewPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [done, setDone] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
 
   useEffect(() => {
     axios.get(`${API}/settings`).then(res => {
@@ -21,109 +20,54 @@ export default function ForgotPasswordPage() {
     }).catch(() => {})
   }, [])
 
+  // A reset link is always delivered by email, never returned here directly -
+  // date of birth or a security question answer (when the site asks for one)
+  // is only an additional check before that email is sent, not an alternate
+  // way to get a working link. The response is identical whether the account
+  // exists, the additional check matched, or the request was rate-limited, so
+  // this form can't be used to test any of that (SEC-04, SEC-05).
+  const handleEmailBlur = async () => {
+    if (method !== 'security_question' || !form.email || question) return
+    setLoadingQuestion(true)
+    try {
+      const res = await axios.post(`${API}/auth/forgot-password/question`, { email: form.email })
+      setQuestion(res.data.question)
+    } catch {
+      // non-fatal - the security-answer field just won't have a prompt yet
+    }
+    setLoadingQuestion(false)
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
     setStatus(null)
     try {
       const res = await axios.post(`${API}/auth/forgot-password`, form)
-      if (method === 'dob' && res.data.token) {
-        setDobToken(res.data.token)
-      } else if (res.data.reset_link) {
-        // Dev fallback: email not configured — show a direct reset link
-        setStatus({
-          type: 'warning',
-          msg: `${res.data.message}`,
-          link: res.data.reset_link,
-        })
-      } else {
-        setStatus({ type: 'success', msg: res.data.message })
-      }
+      setStatus({ type: 'success', msg: res.data.message })
+      setSubmitted(true)
     } catch (err) {
       setStatus({ type: 'danger', msg: err.response?.data?.error || 'Something went wrong' })
     }
     setLoading(false)
   }
 
-  const handleReset = async (e) => {
-    e.preventDefault()
-    if (newPassword !== confirmPassword) {
-      return setStatus({ type: 'danger', msg: 'Passwords do not match' })
-    }
-    setLoading(true)
-    try {
-      await axios.post(`${API}/auth/reset-password`, { token: dobToken, password: newPassword })
-      setDone(true)
-    } catch (err) {
-      setStatus({ type: 'danger', msg: err.response?.data?.error || 'Reset failed' })
-    }
-    setLoading(false)
-  }
-
-  if (done) return (
-    <div className="d-flex justify-content-center pt-4">
-      <Card style={{ width: '100%', maxWidth: 420 }}>
-        <Card.Body className="text-center py-4">
-          <p className="text-success fw-bold mb-3">Password reset successfully!</p>
-          <Link to="/login">Back to Login</Link>
-        </Card.Body>
-      </Card>
-    </div>
-  )
-
   return (
     <div className="d-flex justify-content-center pt-4">
       <Card style={{ width: '100%', maxWidth: 420 }}>
         <Card.Header><h5 className="mb-0">Reset Password</h5></Card.Header>
         <Card.Body>
-          {status && (
-            <Alert variant={status.type}>
-              {status.msg}
-              {status.link && (
-                <div className="mt-2">
-                  <a href={status.link} style={{ wordBreak: 'break-all', fontSize: '0.85rem' }}>
-                    {status.link}
-                  </a>
-                </div>
-              )}
-            </Alert>
-          )}
+          {status && <Alert variant={status.type}>{status.msg}</Alert>}
 
-          {dobToken ? (
-            <Form onSubmit={handleReset}>
-              <p className="text-muted small mb-3">Identity verified. Enter your new password below.</p>
-              <Form.Group className="mb-3">
-                <Form.Label>New Password</Form.Label>
-                <Form.Control
-                  type="password"
-                  value={newPassword}
-                  onChange={e => setNewPassword(e.target.value)}
-                  required
-                  autoComplete="new-password"
-                />
-              </Form.Group>
-              <Form.Group className="mb-4">
-                <Form.Label>Confirm Password</Form.Label>
-                <Form.Control
-                  type="password"
-                  value={confirmPassword}
-                  onChange={e => setConfirmPassword(e.target.value)}
-                  required
-                  autoComplete="new-password"
-                />
-              </Form.Group>
-              <Button type="submit" variant="primary" className="w-100" disabled={loading}>
-                {loading ? 'Resetting...' : 'Reset Password'}
-              </Button>
-            </Form>
-          ) : (
+          {!submitted && (
             <Form onSubmit={handleSubmit}>
               <Form.Group className="mb-3">
                 <Form.Label>Email Address</Form.Label>
                 <Form.Control
                   type="email"
                   value={form.email}
-                  onChange={e => setForm({ ...form, email: e.target.value })}
+                  onChange={e => { setForm({ ...form, email: e.target.value }); setQuestion(null) }}
+                  onBlur={handleEmailBlur}
                   required
                 />
               </Form.Group>
@@ -138,8 +82,21 @@ export default function ForgotPasswordPage() {
                   />
                 </Form.Group>
               )}
+              {method === 'security_question' && (
+                <Form.Group className="mb-3">
+                  <Form.Label>
+                    {loadingQuestion ? 'Loading your security question...' : question || 'Security question answer'}
+                  </Form.Label>
+                  <Form.Control
+                    value={form.security_answer}
+                    onChange={e => setForm({ ...form, security_answer: e.target.value })}
+                    placeholder="Your answer"
+                    required
+                  />
+                </Form.Group>
+              )}
               <Button type="submit" variant="primary" className="w-100 mb-3" disabled={loading}>
-                {loading ? 'Sending...' : method === 'email' ? 'Send Reset Link' : 'Verify & Continue'}
+                {loading ? 'Sending...' : 'Send Reset Link'}
               </Button>
             </Form>
           )}

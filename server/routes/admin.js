@@ -229,7 +229,12 @@ router.post('/users/:id/reset-password', auth, adminOnly, async (req, res) => {
 
   const bcrypt = require('bcryptjs');
   const hash   = bcrypt.hashSync(new_password, 10);
-  await query('UPDATE users SET password_hash = $1, reset_token = NULL, reset_token_expiry = NULL WHERE id = $2', [hash, user.id]);
+  // session_version bump signs out any session the (possibly compromised)
+  // account already has open, same as the self-service reset flow (SEC-04).
+  await query(
+    'UPDATE users SET password_hash = $1, reset_token = NULL, reset_token_expiry = NULL, session_version = session_version + 1 WHERE id = $2',
+    [hash, user.id]
+  );
   await query(
     `INSERT INTO user_audit_logs (user_id, action, metadata) VALUES ($1, 'password_reset', $2)`,
     [user.id, JSON.stringify({ reset_by: 'admin', admin_id: req.user.id })]

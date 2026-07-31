@@ -8,9 +8,11 @@ const auth    = require('../middleware/auth');
 const { requireOrgUser, requireOrgAdmin } = require('../middleware/orgAuth');
 const { sendEmail } = require('../lib/sendEmail');
 const { orgInviteEmail, orgLinkRequestEmail, orgEditConsentRequestEmail, orgReactivationRequestEmail } = require('../lib/emailTemplates');
-const { PLAN_LIMITS, PLAN_TIERS, PLAN_RATES, getActiveRoleCounts, checkRoleQuota } = require('../lib/orgPlanLimits');
+const { PLAN_LIMITS, PLAN_TIERS, PLAN_RATES, ORG_PRICE_IDS, getActiveRoleCounts, checkRoleQuota } = require('../lib/orgPlanLimits');
 const { uploadFile, getDownloadUrl, deleteFile } = require('../lib/r2');
 const { markUserDeceased } = require('../lib/deceased');
+const { stripe } = require('../lib/stripe');
+const { getOverageConfig } = require('../lib/orgBilling');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } });
 
@@ -455,7 +457,10 @@ router.get('/settings', auth, requireOrgUser, async (req, res) => {
   const locations = await queryAll('SELECT * FROM organization_locations WHERE organization_id = $1 ORDER BY name', [req.user.organization_id]);
   const counts = await getActiveRoleCounts(req.user.organization_id);
   const limits = PLAN_LIMITS[org.plan_tier] || PLAN_LIMITS.starter;
-  const rate = PLAN_RATES[org.plan_tier] || null;
+  const overage = await getOverageConfig();
+  const rate = org.plan_tier === 'growth'
+    ? `$199/month + $${(overage.overageRateCents / 100).toFixed(2)} per active customer beyond ${overage.includedCustomers}`
+    : (PLAN_RATES[org.plan_tier] || null);
 
   res.json({
     ...org,
@@ -465,6 +470,7 @@ router.get('/settings', auth, requireOrgUser, async (req, res) => {
     limits,
     counts,
     rate,
+    overage,
   });
 });
 
@@ -519,10 +525,22 @@ router.post('/logo', auth, requireOrgAdmin, upload.single('logo'), async (req, r
   res.json({ success: true, logo_url: logoUrl });
 });
 
-// Self-service plan changes (upgrade or downgrade); lateral moves are allowed
-// too. A downgrade is blocked if current active admin/staff counts exceed the
-// new tier's limits, so the org is never left in a state that violates its own
-// plan. No payment is collected, this just records the choice for the ledger.
+// Self-service plan changes. A downgrade is blocked if current active
+// admin/staff counts exceed the new tier's limits, so the org is never left
+// in a state that violates its own plan.
+//
+// Three real cases, handled differently:
+// - Starter -> paid: no payment method on file yet, needs a real Stripe
+//   Checkout session (client redirects to session.url). DB plan_tier flips
+//   via the checkout.session.completed webhook, not here.
+// - paid -> paid (Professional <-> Growth): a subscription and payment
+//   method already exist, just swap the subscription's price with proration.
+//   DB plan_tier flips via the resulting customer.subscription.updated
+//   webhook.
+// - paid -> Starter: cancel_at_period_end, same fairness pattern as the
+//   consumer tier (org keeps what it paid for through the current period).
+//   DB flips to starter via customer.subscription.deleted once it actually
+//   ends.
 router.post('/settings/upgrade-plan', auth, requireOrgAdmin, async (req, res) => {
   const { plan_tier } = req.body;
   if (!PLAN_TIERS.includes(plan_tier)) return res.status(400).json({ error: 'Please choose a valid plan.' });
@@ -539,15 +557,61 @@ router.post('/settings/upgrade-plan', auth, requireOrgAdmin, async (req, res) =>
     });
   }
 
-  await query('UPDATE organizations SET plan_tier = $1 WHERE id = $2', [plan_tier, org.id]);
-  await query(
-    `INSERT INTO organization_billing_events (organization_id, old_plan_tier, new_plan_tier, rate_snapshot, changed_by_user_id)
-     VALUES ($1, $2, $3, $4, $5)`,
-    [org.id, org.plan_tier, plan_tier, PLAN_RATES[plan_tier], req.user.id]
-  );
-  auditLog(req.user.id, 'org_plan_changed', { organization_id: org.id, old_plan_tier: org.plan_tier, new_plan_tier: plan_tier });
+  try {
+    if (plan_tier === 'starter') {
+      if (!org.stripe_subscription_id) {
+        // No real subscription behind the current tier - nothing to cancel, flip directly.
+        await query('UPDATE organizations SET plan_tier = $1 WHERE id = $2', ['starter', org.id]);
+        await query(
+          `INSERT INTO organization_billing_events (organization_id, old_plan_tier, new_plan_tier, rate_snapshot, changed_by_user_id)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [org.id, org.plan_tier, 'starter', PLAN_RATES.starter, req.user.id]
+        );
+        auditLog(req.user.id, 'org_plan_changed', { organization_id: org.id, old_plan_tier: org.plan_tier, new_plan_tier: 'starter' });
+        return res.json({ success: true, plan_tier: 'starter' });
+      }
+      await stripe.subscriptions.update(org.stripe_subscription_id, { cancel_at_period_end: true });
+      return res.json({ success: true, message: 'Your plan will move to Starter at the end of the current billing period.' });
+    }
 
-  res.json({ success: true, plan_tier });
+    const priceId = ORG_PRICE_IDS[plan_tier];
+
+    if (org.stripe_subscription_id && org.plan_tier !== 'starter') {
+      const subscription = await stripe.subscriptions.retrieve(org.stripe_subscription_id);
+      await stripe.subscriptions.update(org.stripe_subscription_id, {
+        items: [{ id: subscription.items.data[0].id, price: priceId }],
+        proration_behavior: 'create_prorations',
+      });
+      return res.json({ success: true, message: 'Plan updated.' });
+    }
+
+    let customerId = org.stripe_customer_id;
+    if (!customerId) {
+      const customer = await stripe.customers.create({
+        name: org.name,
+        email: req.user.email,
+        metadata: { organization_id: String(org.id) },
+      });
+      customerId = customer.id;
+      await query('UPDATE organizations SET stripe_customer_id = $1 WHERE id = $2', [customerId, org.id]);
+    }
+
+    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+    const session = await stripe.checkout.sessions.create({
+      mode: 'subscription',
+      customer: customerId,
+      metadata: { organization_id: String(org.id) },
+      line_items: [{ price: priceId, quantity: 1 }],
+      subscription_data: { metadata: { organization_id: String(org.id) } },
+      success_url: `${clientUrl}/org/settings?checkout=success`,
+      cancel_url: `${clientUrl}/org/settings?checkout=cancelled`,
+    });
+
+    res.json({ checkout_url: session.url });
+  } catch (err) {
+    console.error('[org billing] Plan change failed:', err.message);
+    res.status(500).json({ error: 'Could not process the plan change. Please try again.' });
+  }
 });
 
 module.exports = router;

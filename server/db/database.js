@@ -46,7 +46,7 @@ async function init() {
       password_hash                   TEXT NOT NULL,
       date_of_birth                   TEXT,
       is_admin                        INTEGER DEFAULT 0,
-      reset_token                     TEXT,
+      reset_token                     TEXT, -- SHA-256 hash of the reset token, never the raw value (SEC-04)
       reset_token_expiry              TEXT,
       last_active_at                  TIMESTAMPTZ DEFAULT NOW(),
       inactivity_period_months        INTEGER DEFAULT 12,
@@ -576,6 +576,21 @@ async function init() {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS spouse_name TEXT`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS spouse_phone TEXT`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS spouse_email TEXT`);
+
+  // Bumped whenever a password is changed or reset (self-service, forgot-password,
+  // or admin-initiated) so JWTs issued before that point stop being accepted by
+  // requireAuth - closes the gap where a stolen session survived a password reset.
+  // Tokens minted before this migration carry no session-version claim at all, so
+  // requireAuth skips the check for them rather than mass-logging-out everyone.
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS session_version INTEGER DEFAULT 1`);
+
+  // Optional additional password-recovery signal (SEC-05, built on SEC-04's
+  // "additional check, never an independent path" design). security_question is
+  // the plain question text (not sensitive); security_answer_hash is a bcrypt
+  // hash of the normalized (trimmed, lowercased) answer - the raw answer is
+  // never stored anywhere, mirroring password_hash.
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS security_question TEXT`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS security_answer_hash TEXT`);
 
   // Seed default settings
   for (const [key, value] of [

@@ -84,6 +84,17 @@ services:
         value: price_1TwmNYKYetwCg4ijlwj9LzxK
       - key: STRIPE_PRICE_ANNUAL
         value: price_1TwmOAKYetwCg4ijpAdAWah8
+      - key: STRIPE_ORG_PRICE_PROFESSIONAL
+        value: price_1TxSFiKYetwCg4ijViGBQlUq
+      - key: STRIPE_ORG_PRICE_GROWTH
+        value: price_1TxSFiKYetwCg4ijb4eonxxX
+      # The org/funeral-home portal defaults to OFF when this var is unset at
+      # all (see server/index.js) - it's not part of the initial end-user
+      # launch. Explicitly ON here so org features stay testable on staging;
+      # production intentionally has no such var set yet, so it stays off
+      # there without anyone needing to remember to disable it (SEC-12).
+      - key: ORG_PORTAL_ENABLED
+        value: 'true'
 
   - type: web
     name: in-good-hands-client-staging

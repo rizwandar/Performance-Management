@@ -7,6 +7,16 @@ import OrgConsentPanel from '../components/OrgConsentPanel'
 
 const API = import.meta.env.VITE_API_URL
 
+const CUSTOM_QUESTION = 'Other (write my own)'
+const SECURITY_QUESTION_PRESETS = [
+  'What was the name of your first pet?',
+  'What was the make and model of your first car?',
+  'In what city did your parents meet?',
+  'What was the name of your first school?',
+  'What is your favorite childhood book?',
+  CUSTOM_QUESTION,
+]
+
 function PasswordRequirements({ password }) {
   const checks = [
     { label: 'At least 8 characters',  met: password.length >= 8 },
@@ -43,6 +53,18 @@ export default function ProfilePage() {
   const [pwSaving, setPwSaving] = useState(false)
   const [pwError, setPwError]   = useState('')
   const [pwSuccess, setPwSuccess] = useState('')
+
+  // Security question state
+  const [securityQuestion, setSecurityQuestion] = useState(null) // current question text, or null if unset
+  const [showSqForm, setShowSqForm]     = useState(false)
+  const [sqForm, setSqForm]             = useState({ current_password: '', questionChoice: SECURITY_QUESTION_PRESETS[0], customQuestion: '', answer: '', confirmAnswer: '' })
+  const [sqSaving, setSqSaving]         = useState(false)
+  const [sqError, setSqError]           = useState('')
+  const [sqSuccess, setSqSuccess]       = useState('')
+  const [showSqRemove, setShowSqRemove] = useState(false)
+  const [sqRemovePw, setSqRemovePw]     = useState('')
+  const [sqRemoving, setSqRemoving]     = useState(false)
+  const [sqRemoveError, setSqRemoveError] = useState('')
 
   // Inactivity timer state
   const [timerData, setTimerData]     = useState(null)
@@ -88,6 +110,7 @@ export default function ProfilePage() {
           spouse_phone:   u.spouse_phone   || '',
           spouse_email:   u.spouse_email   || '',
         })
+        setSecurityQuestion(u.security_question || null)
       })
       .catch(() => {
         setForm({
@@ -153,6 +176,53 @@ export default function ProfilePage() {
       setPwError(err.response?.data?.error || "We couldn't change your password. Please try again.")
     }
     setPwSaving(false)
+  }
+
+  const openSqForm = () => {
+    setSqError('')
+    setSqForm({ current_password: '', questionChoice: SECURITY_QUESTION_PRESETS[0], customQuestion: '', answer: '', confirmAnswer: '' })
+    setShowSqForm(true)
+  }
+
+  const handleSaveSecurityQuestion = async () => {
+    setSqError('')
+    const question = sqForm.questionChoice === CUSTOM_QUESTION ? sqForm.customQuestion.trim() : sqForm.questionChoice
+    if (!sqForm.current_password) return setSqError('Please enter your current password to confirm.')
+    if (!question) return setSqError('Please choose or write a question.')
+    if (!sqForm.answer.trim()) return setSqError('Please enter an answer.')
+    if (sqForm.answer !== sqForm.confirmAnswer) return setSqError('Answers do not match.')
+    setSqSaving(true)
+    try {
+      await axios.put(`${API}/users/me/security-question`, {
+        current_password: sqForm.current_password,
+        question,
+        answer: sqForm.answer,
+      })
+      setSecurityQuestion(question)
+      setShowSqForm(false)
+      setSqSuccess('Security question saved.')
+      setTimeout(() => setSqSuccess(''), 4000)
+    } catch (err) {
+      setSqError(err.response?.data?.error || "We couldn't save this. Please try again.")
+    }
+    setSqSaving(false)
+  }
+
+  const handleRemoveSecurityQuestion = async () => {
+    setSqRemoveError('')
+    if (!sqRemovePw) return setSqRemoveError('Please enter your current password to confirm.')
+    setSqRemoving(true)
+    try {
+      await axios.delete(`${API}/users/me/security-question`, { data: { current_password: sqRemovePw } })
+      setSecurityQuestion(null)
+      setShowSqRemove(false)
+      setSqRemovePw('')
+      setSqSuccess('Security question removed.')
+      setTimeout(() => setSqSuccess(''), 4000)
+    } catch (err) {
+      setSqRemoveError(err.response?.data?.error || "We couldn't remove this. Please try again.")
+    }
+    setSqRemoving(false)
   }
 
   const handleChangeVaultPw = async () => {
@@ -420,6 +490,119 @@ export default function ProfilePage() {
             {pwSaving ? 'Changing...' : 'Change password'}
           </Button>
         </div>
+      </div>
+
+      {/* ── Security Question ────────────────────────────────────────────── */}
+      <div style={{ background: 'var(--parchment)', borderRadius: 12, padding: '24px', marginBottom: 24, border: '1px solid var(--border)' }}>
+        <h6 style={{ color: 'var(--green-900)', marginBottom: 4 }}>Security Question</h6>
+        <p className="text-muted small mb-4">
+          An optional extra check some accounts use during password recovery, on top of the emailed link -
+          never a way to recover your account by itself. Changing it always requires your current password.
+        </p>
+
+        {sqSuccess && <Alert variant="success">{sqSuccess}</Alert>}
+
+        {!showSqForm && !showSqRemove && (
+          <>
+            {securityQuestion ? (
+              <div style={{
+                background: 'var(--green-50)', border: '1px solid var(--green-100)',
+                borderRadius: 8, padding: '14px 16px', marginBottom: 16, fontSize: '0.9rem',
+              }}>
+                <span style={{ color: 'var(--green-800)' }}>🔑 Question set:</span>{' '}
+                <strong style={{ color: 'var(--green-900)' }}>{securityQuestion}</strong>
+              </div>
+            ) : (
+              <div style={{
+                background: '#fff8e6', border: '1px solid #f5d78e', borderRadius: 8,
+                padding: '14px 16px', marginBottom: 16, fontSize: '0.9rem', color: '#8a6416',
+              }}>
+                Not set up yet.
+              </div>
+            )}
+            <div className="d-flex gap-3 flex-wrap">
+              <Button variant="outline-primary" onClick={openSqForm}>
+                {securityQuestion ? 'Change security question' : 'Set up a security question'}
+              </Button>
+              {securityQuestion && (
+                <button className="btn btn-link p-0" style={{ color: '#DC3545', fontSize: '0.85rem' }}
+                  onClick={() => { setShowSqRemove(true); setSqRemoveError(''); setSqRemovePw('') }}>
+                  Remove
+                </button>
+              )}
+            </div>
+          </>
+        )}
+
+        {showSqForm && (
+          <div>
+            {sqError && <Alert variant="danger">{sqError}</Alert>}
+            <Form.Group className="mb-3">
+              <Form.Label style={{ fontWeight: 600 }}>Current password</Form.Label>
+              <Form.Control type="password" autoComplete="current-password" value={sqForm.current_password}
+                onChange={e => setSqForm(f => ({ ...f, current_password: e.target.value }))}
+                placeholder="Required to confirm this change" />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Question</Form.Label>
+              <Form.Select value={sqForm.questionChoice}
+                onChange={e => setSqForm(f => ({ ...f, questionChoice: e.target.value }))}>
+                {SECURITY_QUESTION_PRESETS.map(q => <option key={q} value={q}>{q}</option>)}
+              </Form.Select>
+              {sqForm.questionChoice === CUSTOM_QUESTION && (
+                <Form.Control className="mt-2" value={sqForm.customQuestion}
+                  onChange={e => setSqForm(f => ({ ...f, customQuestion: e.target.value }))}
+                  placeholder="Write your own question" />
+              )}
+            </Form.Group>
+            <Row className="g-3">
+              <Col md={6}>
+                <Form.Label>Answer</Form.Label>
+                <Form.Control value={sqForm.answer}
+                  onChange={e => setSqForm(f => ({ ...f, answer: e.target.value }))}
+                  placeholder="Choose something only you would know" />
+              </Col>
+              <Col md={6}>
+                <Form.Label>Confirm answer</Form.Label>
+                <Form.Control value={sqForm.confirmAnswer}
+                  onChange={e => setSqForm(f => ({ ...f, confirmAnswer: e.target.value }))} />
+              </Col>
+            </Row>
+            <Form.Text className="text-muted">
+              Avoid answers that are easy to look up (e.g. on social media). Not case-sensitive.
+            </Form.Text>
+            <div className="d-flex gap-3 mt-4">
+              <Button variant="primary" onClick={handleSaveSecurityQuestion} disabled={sqSaving}>
+                {sqSaving ? 'Saving...' : 'Save security question'}
+              </Button>
+              <Button variant="outline-secondary" onClick={() => setShowSqForm(false)}>Cancel</Button>
+            </div>
+          </div>
+        )}
+
+        {showSqRemove && (
+          <div style={{ background: '#fff1f2', border: '1px solid #fecdd3', borderRadius: 10, padding: '20px' }}>
+            <p style={{ color: '#9f1239', fontWeight: 600, marginBottom: 8 }}>Remove your security question?</p>
+            <p className="small mb-3" style={{ color: '#7f1d1d' }}>
+              If the site's recovery method is set to security question, you won't be able to
+              use it to reset your password until you set a new one.
+            </p>
+            {sqRemoveError && <Alert variant="danger">{sqRemoveError}</Alert>}
+            <Form.Group className="mb-3">
+              <Form.Label style={{ fontWeight: 600 }}>Confirm with your current password</Form.Label>
+              <Form.Control type="password" value={sqRemovePw}
+                onChange={e => setSqRemovePw(e.target.value)} autoFocus />
+            </Form.Group>
+            <div className="d-flex gap-3">
+              <Button variant="danger" onClick={handleRemoveSecurityQuestion} disabled={sqRemoving}>
+                {sqRemoving ? 'Removing...' : 'Yes, remove it'}
+              </Button>
+              <Button variant="outline-secondary" onClick={() => { setShowSqRemove(false); setSqRemoveError('') }}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Vault Password ───────────────────────────────────────────────── */}

@@ -12,6 +12,14 @@ const PLAN_RATES = {
 
 const PLAN_TIERS = ['starter', 'professional', 'growth'];
 
+// Starter is free, no Stripe price needed. Growth's $3/customer overage isn't
+// a Stripe metered price - see lib/orgBilling.js, it's billed as a one-off
+// invoice item added via the invoice.upcoming webhook instead.
+const ORG_PRICE_IDS = {
+  professional: process.env.STRIPE_ORG_PRICE_PROFESSIONAL,
+  growth:       process.env.STRIPE_ORG_PRICE_GROWTH,
+};
+
 const TIER_LABELS = { starter: 'Starter', professional: 'Professional', growth: 'Growth' };
 
 const { queryOne, queryAll } = require('../db/database');
@@ -44,4 +52,4 @@ async function checkRoleQuota(organizationId, planTier, role) {
   return null;
 }
 
-module.exports = { PLAN_LIMITS, PLAN_RATES, PLAN_TIERS, TIER_LABELS, getActiveRoleCounts, checkRoleQuota };
+module.exports = { PLAN_LIMITS, PLAN_RATES, PLAN_TIERS, TIER_LABELS, ORG_PRICE_IDS, getActiveRoleCounts, checkRoleQuota };

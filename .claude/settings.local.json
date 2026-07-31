@@ -68,7 +68,12 @@
       "Bash(where pg_ctl)",
       "Bash(where docker *)",
       "Bash(tasklist)",
-      "Bash(netstat -ano)"
+      "Bash(netstat -ano)",
+      "Bash(taskkill //F //PID 56096 //T)",
+      "Bash(taskkill //F //PID 29372 //T)",
+      "Bash(taskkill //F //PID 74224 //T)",
+      "Bash(export PGPASSWORD=devlocalpg2026)",
+      "Bash(\"/c/Program Files/PostgreSQL/17/bin/psql.exe\" -U postgres -h localhost -p 5432 -d in_good_hands_dev -c \"UPDATE organizations SET plan_tier = 'professional' WHERE id = 1;\")"
     ]
   }
 }

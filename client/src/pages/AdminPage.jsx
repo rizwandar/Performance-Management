@@ -431,15 +431,17 @@ DEFAULT STACK CHOICES (confirm or change each one before proceeding):
 10. CSS framework: React Bootstrap (react-bootstrap) + custom CSS variables in index.css.
 11. Error monitoring: Sentry. @sentry/node on the backend (instrument.js loaded first, plus the Express error handler), @sentry/react on the frontend (ErrorBoundary with a friendly fallback UI).
 12. Database backups: a daily cron job dumps every table to a gzipped JSON snapshot in R2, retaining the last 14 backups.
+13. Billing: Stripe Checkout for Premium Monthly/Annual subscriptions, with a webhook (mounted before the JSON body parser, using express.raw() for signature verification) keeping a local subscriptions table in sync.
+14. Workflow: a CI pipeline (lint + build + a real smoke test) on every push/PR to staging and main, and a dev -> staging -> main promotion flow (one feature branch per feature, merged via PR, never pushed directly to a shared branch).
 
 Once you have confirmed the stack, here is the full specification for what to build:
 
 APPLICATION PURPOSE:
 ${appName} is a warm, end-of-life planning web application. Users document their wishes, assets, contacts, and messages so loved ones have clarity and comfort when the time comes.
 
-TARGET AUDIENCE: Adults (primarily 40+) in Australia who want to prepare their affairs.
+TARGET AUDIENCE: Adults (primarily 40+). Launch marketing targets the United States specifically (the Privacy Policy is written to lead with CCPA/CPRA), though registration itself stays open worldwide and the Privacy Policy also covers GDPR (EU/UK), PIPEDA (Canada), Quebec Law 25, the Australian Privacy Act, and the NZ Privacy Act for users in those regions.
 
-TONE: Warm, kind, reassuring. Never clinical. Australian English. No em-dashes anywhere in the application.
+TONE: Warm, kind, reassuring. Never clinical. UI copy currently uses Australian English spelling and date formatting (organised, colour, d MMMM YYYY), a holdover that predates the US-first launch pivot and should be migrated to American English (organized, color, en-US dates) - not yet done. No em-dashes anywhere in the application.
 
 COLOUR PALETTE: Earthy, grounded, trustworthy. Forest green (primary), warm gold (accent), parchment backgrounds.
 
@@ -476,9 +478,10 @@ VAULT ENCRYPTION:
 - Key derivation: scrypt (N=16384, r=8, p=1) from vault_password + userId. Salt = "igh-vault-v1-" + userId.
 - Password NEVER stored: verified by decrypting a known constant ("in-good-hands-vault-verified") stored as check_enc in the digital_vault table.
 - Each encrypted field stored as JSON: {ciphertext, iv, tag} all hex-encoded. Fresh random IV per field.
-- Legal Documents, Digital Life, Financial Affairs, Property & Possessions, and Practical Household Information share ONE vault and ONE password.
-- Vault reset: requires account password. Permanently deletes all vault data. Irreversible.
-- After 3 failed vault unlock attempts: force logout. After 5 failed attempts: permanent vault deletion. Each outcome sends a notification email.
+- Legal Documents, Digital Life, Financial Affairs, Property & Possessions, and Practical Household Information share ONE vault and ONE password, and every text field in all five is field-level encrypted (not just Digital Life).
+- Vault reset: user-initiated, requires account password. Permanently deletes all vault data. Irreversible (there is no other way to recover data once the vault password is lost).
+- Failed unlock attempts: after 3, force logout with a warning email. After 5, a 15-minute timed lockout (not deletion) with a notification email; it auto-reopens on its own, and the correct password unlocks immediately even mid-lockout. Nothing is ever deleted for a wrong attempt.
+- Destructive vault operations (deleting a vault-protected record, resetting the vault, changing the vault password) all re-verify the vault password server-side immediately before acting, the same check used for list/create/update on the same routes.
 
 ---
 
@@ -503,8 +506,8 @@ INACTIVITY TIMER:
 
 ADMIN PANEL:
 - Accessible to users with is_admin=1 only.
-- Tabs: Overview (stats), Users (search and manage), Activity (audit log), Appearance (theme/font/icon set), Branding (site name and logo), Settings (password reset method), App Blueprint (this documentation).
-- 8 colour themes, 6 font choices, 3 icon sets. All stored in app_settings key-value table.
+- Tabs: Overview (stats), Users (search and manage, including honorary premium grant/revoke), Activity (audit log), Appearance (theme/font/icon set), Branding (site name and logo), Organizations (funeral-home white-label portal management, gated behind ORG_PORTAL_ENABLED), Settings (password reset method), Versions (client/admin/org_portal semver change log), App Blueprint (this documentation).
+- 9 colour themes (including Keepsake, a tokenized cream/walnut/marigold theme with its own card radius, border style, and button treatment), 6 font choices, 3 icon sets. All stored in app_settings key-value table.
 - Admin can upload a logo via Cloudflare R2 for white-labelling.
 - Admin can change site name (white-label support via BrandingContext).
 
@@ -513,9 +516,9 @@ ADMIN PANEL:
 AUTH SYSTEM:
 - JWT in localStorage, 8-hour expiry, signed with JWT_SECRET env var.
 - bcryptjs for password hashing, salt rounds = 10.
-- Rate limiting: 20 requests per 15 minutes on /api/auth routes, 200 requests per 15 minutes on general /api/ routes.
-- Password reset: two methods (admin-configurable): email link (Resend API) or date-of-birth verification.
-- Audit log: every login_success, login_failed, logout, register, password_changed, password_reset stored in user_audit_logs table.
+- Rate limiting: 20 requests per 15 minutes on /api/auth routes, 200 requests per 15 minutes on general /api/ routes. forgot-password is additionally rate-limited per email address (5 per 15 minutes).
+- Password reset: always by emailed link, single-use, expires in 30 minutes, stored server-side as a SHA-256 hash (never the raw token, never returned in any API response). Admin can optionally also require date of birth or a security question as an extra check before that email is sent - either is only ever an additional signal, never an alternate path to a reset link. Security question answers are stored as a bcrypt hash (users.security_answer_hash), same as passwords. A successful reset (or any password change) bumps users.session_version, which invalidates any other already-issued session token.
+- Audit log: every login_success, login_failed, logout, register, password_changed, password_reset_requested, password_reset_denied stored in user_audit_logs table.
 - Vault failure audit: every failed vault attempt logged with attempt count.
 
 ---
@@ -544,7 +547,7 @@ EMAIL TEMPLATES (all in server/lib/emailTemplates.js, sent via Resend):
 - inactivityReminderEmail: days remaining warning
 - inactivityContactNotificationEmail: sent to trusted contacts when timer expires
 - contactAccessEmail: sent to trusted contact when user manually sends access link
-- vaultAttemptEmail: sent to user on 3rd/5th vault failure
+- vaultAttemptEmail: sent to user on 3rd failed vault attempt (force logout) and 5th (15-minute lockout, not deletion)
 - Footer contact/feedback form: POST /api/contact sends admin notification
 
 ---
@@ -565,7 +568,9 @@ KEY CONSTRAINTS AND DECISIONS:
 ENVIRONMENT VARIABLES NEEDED:
 Server (Render Web Service):
   PORT, DATABASE_URL, JWT_SECRET, CLIENT_URL, RESEND_API_KEY, FROM_EMAIL (optional but important, see Email System),
-  R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME, R2_ENDPOINT, SENTRY_DSN (optional, enables error monitoring)
+  R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME, R2_ENDPOINT, SENTRY_DSN (optional, enables error monitoring),
+  STRIPE_SECRET_KEY, STRIPE_PRICE_MONTHLY, STRIPE_PRICE_ANNUAL, STRIPE_WEBHOOK_SECRET,
+  ORG_PORTAL_ENABLED (optional, default off - set to "true" to register the org/funeral-home portal routes)
 
 Client (Render Static Site, baked in at build time):
   VITE_API_URL, VITE_SENTRY_DSN (optional, enables error monitoring)
@@ -658,7 +663,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
           <div style={card}>
             <BpSection title="Who is it for?">
               <BpTable rows={[
-                ['Primary users', 'Adults aged 40 and above in Australia who want to organise their affairs.'],
+                ['Primary users', 'Adults aged 40 and above. Launch marketing targets the United States specifically; registration itself stays open worldwide.'],
                 ['Secondary users', 'Trusted contacts (family or close friends) who receive secure access to relevant sections when the time comes.'],
                 ['Administrators', 'White-label operators who can customise the site name, logo, colour theme, and fonts through the admin panel.'],
               ]} />
@@ -710,11 +715,12 @@ Please confirm the stack choices above (or tell me which to change), and then we
           <div style={card}>
             <BpSection title="Key Capabilities">
               <BpTable rows={[
-                ['Secure vault', 'Two sections (Legal Documents and Digital Life) are protected by a separate vault password that is never stored on the server. Only the user can unlock their vault.'],
+                ['Secure vault', 'Five sections (Legal Documents, Digital Life, Financial Affairs, Property & Possessions, Practical Household Information) share one vault password that is never stored on the server. Only the user can unlock their vault, and every text field in all five sections is individually encrypted with a key derived from that password.'],
                 ['Trusted contact access', 'Users choose up to 3 trusted contacts and control exactly which sections each one can view. Contacts receive a secure 72-hour link (no login required).'],
                 ['Inactivity timer', 'Users set a period of inactivity (2 to 24 months). If they have not logged in by then, their trusted contacts are automatically notified with access links.'],
                 ['PDF export', 'Users can download a complete PDF summary of all their plans. A full export option includes vault contents if the vault password is provided at download time.'],
-                ['File attachments', 'Upload photos, PDFs, and documents to relevant sections. Stored securely in Cloudflare R2.'],
+                ['File attachments', 'Upload photos and documents (PDF, images, Word docs) to Legal Documents, Financial Affairs, Property & Possessions, and Practical Household Information. Stored securely in Cloudflare R2, access-controlled with short-lived signed URLs.'],
+                ['Premium billing', 'Free plan covers 9 of the 14 sections. Premium ($10/month or $100/year via Stripe Checkout) unlocks the 5 vault-protected sections, document uploads, full (vault-inclusive) PDF export, and the inactivity timer. Users manage or cancel/reinstate their subscription from My Profile; admins can also grant or revoke an honorary premium plan without a real Stripe subscription.'],
                 ['Admin panel', 'Operators can customise colours, fonts, site name, and logo. View all users, audit logs, and manage accounts.'],
                 ['White-label ready', 'The site name and logo can be changed by the admin. All emails and the PDF use the configured name.'],
               ]} />
@@ -726,7 +732,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
               <BpTable rows={[
                 ['Not a legal service', 'The application does not provide legal advice. It is a planning and document-organisation tool only.'],
                 ['Not a will', 'Entries in this application do not replace a legally executed will or any other legal document.'],
-                ['Not encrypted by default', 'Only the Digital Life and Legal Documents sections use encryption. Other sections are stored in plain text in the database, protected only by authentication.'],
+                ['Files are not vault-key-encrypted', 'All five vault-protected sections (Legal Documents, Financial Affairs, Property & Possessions, Digital Life, Practical Household Information) have their text fields encrypted with a vault-password-derived key. Uploaded files (attachments and photos) are access-controlled with short-lived signed URLs and encrypted at rest by Cloudflare R2 as a platform default, but are not additionally encrypted with the vault password.'],
                 ['Not a backup service', 'Physical documents referenced in the app are stored by the user. Only the metadata (where to find them) is recorded here.'],
               ]} />
             </BpSection>
@@ -773,8 +779,9 @@ Please confirm the stack choices above (or tell me which to change), and then we
                 ['Unlocking', 'User enters their vault password. The server attempts to decrypt the verification marker. If it succeeds, the vault is considered unlocked for the session.'],
                 ['Session', 'The vault password is held in React state (memory only). It is never written to localStorage or cookies. Locking the vault clears it from memory.'],
                 ['Failed attempts', '3 failed attempts: force logout, email notification to user. 5 failed attempts: vault temporarily locked for 15 minutes, email notification sent. Nothing is ever deleted for incorrect attempts - the correct password unlocks immediately even mid-lockout.'],
-                ['Reset vault', 'User can reset the vault by confirming their account (login) password. This permanently deletes all vault-protected data.'],
+                ['Reset vault', 'User-initiated only, requires confirming their account (login) password. Permanently deletes all vault-protected data. This is distinct from the failed-attempt lockout above: it is the only path that still deletes data, since there is no other way to recover it once the vault password itself is lost.'],
                 ['Change password', 'User can change the vault password from My Profile. The server decrypts all fields with the old password and re-encrypts with the new one in a single transaction.'],
+                ['Destructive-op re-verification', 'Deleting a vault-protected record, resetting the vault, and changing the vault password all require the vault password to be re-sent and re-verified server-side on that specific request, not just relying on an earlier "unlocked" client state. Applies consistently across Legal Documents, Financial Affairs, Property & Possessions, Digital Life, and Household Info.'],
                 ['Trusted contact exclusion', 'Vault sections are never shown to trusted contacts. The access page explicitly omits them.'],
               ]} />
             </BpSection>
@@ -807,14 +814,28 @@ Please confirm the stack choices above (or tell me which to change), and then we
           </div>
 
           <div style={card}>
+            <BpSection title="Section Detail: Premium Billing">
+              <BpTable rows={[
+                ['Plans', 'Free ($0): 9 non-vault sections plus trusted contacts. Premium Monthly ($10/month) and Premium Annual ($100/year, saves $20 vs monthly): everything in Free plus all 5 vault-protected sections, document uploads, full (vault-inclusive) PDF export, and the inactivity timer. GET /api/billing/plans returns this plan/feature copy for the Upgrade page.'],
+                ['Checkout', 'POST /api/billing/create-checkout-session with {plan: "monthly"|"annual"} creates a Stripe Checkout session and returns its redirect URL. Reuses the caller\'s existing Stripe customer if a prior checkout attempt already created one, so repeat attempts do not create duplicate Stripe customers.'],
+                ['Webhook sync', 'POST /api/billing/webhook is mounted directly in server/index.js with express.raw(), before the global JSON body parser, since Stripe signature verification needs the raw request body. Handles checkout.session.completed, customer.subscription.updated/deleted, and invoice.upcoming, keeping the local subscriptions row in sync via upsertFromSubscription().'],
+                ['Cancel / reinstate', 'POST /api/billing/cancel sets cancel_at_period_end on the Stripe subscription (access continues until the paid period ends, not an immediate cutoff) and also updates the local row directly so a client re-fetch right after the call cannot race ahead of the async webhook. POST /api/billing/reinstate reverses cancel_at_period_end while the subscription is still active; if Stripe has already ended it, the user needs a fresh checkout instead. Both are surfaced on My Profile.'],
+                ['Honorary premium', 'Admin-only alternative to a real Stripe subscription: POST /api/admin/users/:id/grant-premium / revoke-premium sets subscriptions.provider = "admin_grant" and granted_by_admin_id, with no Stripe customer or charge involved. Shown in the Users tab as "Honorary Premium".'],
+                ['Access enforcement', 'server/lib/subscription.js\'s getUserPlan() is the single source of truth for free vs premium; server/middleware/requiresPremium.js gates the vault-protected section routes server-side, so the freemium boundary is not just a client-side UI restriction.'],
+                ['Pricing history', 'Premium was originally $4.99/month and $29.99/year; both were raised to $10/month and $100/year before any live-mode Stripe Price existed, so no price migration for existing customers was needed.'],
+              ]} />
+            </BpSection>
+          </div>
+
+          <div style={card}>
             <BpSection title="Admin Panel Capabilities">
               <BpTable rows={[
                 ['Overview', 'Total users, new registrations this month, logins in the last 7 days, total entries across all section tables.'],
                 ['User management', 'Search users by name or email. View full profile, section completion, and audit log for any user. Reset their password. Delete their account.'],
                 ['Activity log', 'Recent actions across all users: logins, failures, registrations, password changes. Filterable by user.'],
-                ['Appearance', '8 colour themes, 6 font choices, 3 icon sets. Changes apply live via CSS variables and are persisted in app_settings.'],
+                ['Appearance', '9 colour themes, 6 font choices, 3 icon sets. Changes apply live via CSS variables and are persisted in app_settings.'],
                 ['Branding', 'Change the site name (stored in app_settings, displayed via BrandingContext throughout the app and in emails/PDF). Upload a custom logo (stored in R2). Choose from preset logo illustrations.'],
-                ['Settings', 'Toggle password reset method between email link (Resend) and date-of-birth verification.'],
+                ['Settings', 'Toggle whether password reset also requires date-of-birth or security-question confirmation in addition to the emailed link (Resend). The link itself is always required, never optional.'],
                 ['App Blueprint', 'This three-level documentation system. Read-only. Downloadable as PDF and as a rebuild prompt text file.'],
               ]} />
             </BpSection>
@@ -824,11 +845,11 @@ Please confirm the stack choices above (or tell me which to change), and then we
             <BpSection title="Email Communications">
               <BpTable rows={[
                 ['Welcome email', 'Sent on registration. Warm welcome, link to log in.'],
-                ['Password reset', 'Sent on forgot-password request. Reset link valid 1 hour. Alternative: date-of-birth check (no email needed).'],
+                ['Password reset', 'Sent on forgot-password request, always by email, reset link valid 30 minutes. If the site is set to also require date of birth or a security question, that\'s only an additional check before this email is sent, never an alternative to it.'],
                 ['Inactivity reminder', 'Sent to the user as their timer approaches expiry. Days remaining shown clearly. Includes a "reset my timer" CTA (just log in again).'],
                 ['Inactivity notification', 'Sent to trusted contacts when the user\'s timer expires. Warm, gentle tone. Advises contacting the person directly first if possible. Includes the 72-hour access link.'],
                 ['Contact access link', 'Sent to a trusted contact when the user manually clicks "Send access link". Tells them the owner has shared something important.'],
-                ['Vault attempt warning', 'Sent to the user on 3rd failed vault attempt (warning of lockout) and on 5th failed attempt (vault deleted notice).'],
+                ['Vault attempt warning', 'Sent to the user on 3rd failed vault attempt (force logout warning) and on 5th failed attempt (15-minute lockout notice, not a deletion, and it auto-reopens on its own).'],
                 ['Feedback/contact form', 'When a user submits the footer feedback form, an email is sent to the admin address.'],
               ]} />
             </BpSection>
@@ -860,9 +881,9 @@ Please confirm the stack choices above (or tell me which to change), and then we
           <BpTable rows={[
             ['Product name', appName],
             ['Purpose', 'End-of-life planning web application. Users document their wishes, assets, contacts, and messages so loved ones have clarity and comfort when the time comes.'],
-            ['Target audience', 'Adults (primarily 40+) in Australia who want to prepare their affairs and communicate their wishes.'],
+            ['Target audience', 'Adults (primarily 40+). Launch marketing targets the United States specifically (Privacy Policy leads with CCPA/CPRA); registration itself stays open worldwide.'],
             ['Tone of voice', 'Warm, kind, reassuring, end-of-life-aware. Never clinical. No em-dashes anywhere.'],
-            ['Language', 'Australian English. Uses "organised" not "organized", etc.'],
+            ['Language', 'Currently Australian English throughout the UI (organised, colour, en-AU date formatting), a holdover from before the US-first launch pivot. TODO: migrate UI copy and date formatting to American English (organized, color, en-US) to match the current US market focus - not yet done, flagged here so it is not lost.'],
             ['Primary colour metaphor', 'Earthy, grounded, trustworthy. Forest green, warm gold, parchment backgrounds.'],
           ]} />
         </BpSection>
@@ -879,9 +900,11 @@ Please confirm the stack choices above (or tell me which to change), and then we
             ['Auth', 'JWT (jsonwebtoken) stored in localStorage. 8h expiry. bcryptjs for password hashing (10 salt rounds). Rate limited: 20 req/15min on auth routes, 200 req/15min on general API routes.'],
             ['Email', 'Resend API via native fetch (no SDK). Key in RESEND_API_KEY env var.'],
             ['PDF generation', 'PDFKit 0.18. Two-column A4 layout. Generated server-side and streamed to client.'],
+            ['Billing', 'Stripe (stripe npm package). Live-mode Checkout for Premium Monthly ($10/mo) and Annual ($100/yr). Keys/Price IDs in STRIPE_SECRET_KEY, STRIPE_PRICE_MONTHLY, STRIPE_PRICE_ANNUAL, STRIPE_WEBHOOK_SECRET.'],
             ['Error monitoring', 'Sentry. @sentry/node on the server (instrument.js + Express error handler), @sentry/react on the client (ErrorBoundary with fallback UI). DSNs in SENTRY_DSN / VITE_SENTRY_DSN.'],
             ['Backups', 'Daily cron (3am) dumps every table to a gzipped JSON snapshot in R2 (server/lib/backup.js). Retains the last 14 backups. Admin-only endpoints to list/trigger manually.'],
-            ['Deployment', 'Render.com. Frontend: Static Site (needs a Redirects/Rewrites rule: /* to /index.html, action Rewrite, for client-side routing to work on direct navigation). Backend: Web Service.'],
+            ['Deployment', 'Render.com. Frontend: Static Site (needs a Redirects/Rewrites rule: /* to /index.html, action Rewrite, for client-side routing to work on direct navigation). Backend: Web Service. Separate staging and production services/databases, promoted dev -> staging -> main via PR, not pushed directly to production.'],
+            ['CI', '.github/workflows/smoke-test.yml runs on push/PR to main and staging: client lint + build, plus a server smoke test (boots the app against a real Postgres service container and checks /api/health, a bad-request 400/401, and an unauthenticated 401). Report-only, not a hard merge block.'],
             ['Mobile', 'Expo / React Native (built, app store submission in progress).'],
             ['CSS framework', 'React Bootstrap (react-bootstrap) + custom CSS variables in index.css'],
           ]} />
@@ -902,21 +925,30 @@ Please confirm the stack choices above (or tell me which to change), and then we
         LoginPage.jsx, RegisterPage.jsx
         ForgotPasswordPage.jsx, ResetPasswordPage.jsx
         DashboardPage.jsx    # 14 section cards, 4 groups, earthy colours
-        ProfilePage.jsx      # Personal details, password, vault password
+        ProfilePage.jsx      # Personal details, password, vault password, billing management
         AccessPage.jsx       # Public trusted-contact read-only view
         AdminPage.jsx        # Full admin panel
         ExportPage.jsx       # Two-option PDF download page
         sections/            # One page per section (14 files)
+        org/                 # Org/funeral-home portal pages (gated behind ORG_PORTAL_ENABLED)
+        admin/OrganizationsPanel.jsx  # Admin tab for managing organizations
       components/
         VaultGate.jsx        # Shared VaultSetupScreen + VaultLockScreen
+        FileAttachments.jsx  # Shared upload/list/download widget, parameterized by sectionId
+        SectionHero.jsx      # Shared folded-corner hero panel used by all 14 section pages
 
   server/                    # Express 5 backend
     instrument.js            # Sentry init, required first (before any other import)
-    index.js                 # App entry, CORS, routes, error handler, cron
+    index.js                 # App entry, CORS, routes, error handler, cron, ORG_PORTAL_ENABLED gate
     db/database.js           # PostgreSQL pool (pg) + all schema migrations
-    middleware/auth.js       # requireAuth JWT middleware
+    middleware/
+      auth.js                # requireAuth JWT middleware
+      requiresPremium.js     # Gates vault-protected section routes to premium users
     lib/
-      vault.js               # AES-256-GCM encryption helpers
+      vault.js               # AES-256-GCM encryption helpers (deriveKey, encryptField, decryptField)
+      vaultAuth.js           # checkVault() - shared per-request vault password re-verification
+      vaultAttempts.js       # Failed-attempt tracking: force-logout at 3, 15-min lockout at 5
+      stripe.js               # Stripe client + PRICE_IDS from env
       r2.js                  # Cloudflare R2 client (upload/download/delete/buffer/listKeys)
       backup.js              # Nightly cron: dumps all tables to gzipped JSON in R2, prunes old backups
       generatePdf.js         # Two-column PDFKit generator
@@ -929,12 +961,16 @@ Please confirm the stack choices above (or tell me which to change), and then we
       sections.js            # /api/sections: all 14 sections + vault endpoints + completion
       documents.js           # /api/documents: file upload/download/delete + photos
       export.js              # /api/export: GET (standard) + POST (with vault)
-      admin.js               # /api/admin: stats, users, activity log, backups list/trigger
+      admin.js               # /api/admin: stats, users, activity log, versions, backups list/trigger
       settings.js            # /api/settings: app_settings key-value store
       trustedContacts.js     # /api/trusted-contacts: CRUD + send access link
       access.js              # /api/access/:token: public read-only trusted contact view
-      billing.js             # /api/billing: freemium plans, subscription status, upgrade access
-      contact.js             # /api/contact: user feedback form`}
+      billing.js             # /api/billing: plans, checkout session, cancel/reinstate, subscription status
+      stripeWebhook.js       # Stripe webhook handler, mounted separately with express.raw()
+      contact.js             # /api/contact: user feedback form
+      organizations.js, orgPortal.js, orgPublic.js, orgRegister.js
+                             # Org/funeral-home white-label portal - only registered when
+                             # ORG_PORTAL_ENABLED=true (SEC-12); not part of the initial launch`}
           </BpCode>
         </BpSection>
       </div>
@@ -946,15 +982,15 @@ Please confirm the stack choices above (or tell me which to change), and then we
           {[
             {
               table: 'users',
-              fields: 'id, name, email (unique), password_hash, date_of_birth, life_story, about_me, remembered_for, legacy_message, emergency_contact_name, emergency_contact_phone, emergency_contact_email, marital_status, spouse_name, spouse_phone, spouse_email, is_admin (0/1), inactivity_period_months (default 12), last_active_at, reset_token, reset_token_expiry, created_at, plus email verification, privacy consent, and vault attempt tracking fields',
+              fields: 'id, name, email (unique), password_hash, date_of_birth, life_story, about_me, remembered_for, legacy_message, emergency_contact_name, emergency_contact_phone, emergency_contact_email, marital_status, spouse_name, spouse_phone, spouse_email, is_admin (0/1), inactivity_period_months (default 12), last_active_at, reset_token (SHA-256 hash, not the raw token), reset_token_expiry, session_version (bumped on password change/reset, invalidates older JWTs), security_question (plain text, not sensitive), security_answer_hash (bcrypt, never returned to the client), vault_attempts, vault_locked_until (NULL = not locked, future timestamp = locked until then, replaces the old delete-on-5th-attempt behaviour), created_at, plus email verification and privacy consent fields',
             },
             {
               table: 'legal_documents',
-              fields: 'id, user_id, document_type, title, held_by, location, notes, created_at. Vault-protected (password required to list/create/update). Not field-encrypted; access controlled.',
+              fields: 'id, user_id, document_type_enc, title_enc, held_by_enc, location_enc, notes_enc, created_at. Vault-protected (password required to list/create/update/delete). Every text field is AES-256-GCM encrypted with the vault key (SEC-03), not just access-controlled.',
             },
             {
               table: 'financial_items',
-              fields: 'id, user_id, category, institution, account_type, account_reference, contact_name, contact_phone, notes, created_at',
+              fields: 'id, user_id, category_enc, institution_enc, account_type_enc, account_reference_enc, contact_name_enc, contact_phone_enc, notes_enc, created_at. Vault-protected, all text fields field-encrypted (SEC-03), same pattern as legal_documents.',
             },
             {
               table: 'funeral_wishes',
@@ -970,7 +1006,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
             },
             {
               table: 'property_items',
-              fields: 'id, user_id, title, category, description, location, intended_recipient, notes, created_at',
+              fields: 'id, user_id, category_enc, title_enc, description_enc, location_enc, intended_recipient_enc, notes_enc, created_at. Vault-protected, all text fields field-encrypted (SEC-03).',
             },
             {
               table: 'personal_messages',
@@ -986,7 +1022,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
             },
             {
               table: 'household_info',
-              fields: 'id, user_id, title, category, provider, account_reference, contact, notes, created_at',
+              fields: 'id, user_id, category_enc, title_enc, provider_enc, account_reference_enc, contact_enc, notes_enc, created_at. Vault-protected, all text fields field-encrypted (SEC-03).',
             },
             {
               table: 'children_dependants',
@@ -1014,11 +1050,11 @@ Please confirm the stack choices above (or tell me which to change), and then we
             },
             {
               table: 'app_settings',
-              fields: 'id, key (unique), value. Keys: site_theme, site_font, site_icon_set, site_logo (R2 key), password_reset_method (email/dob)',
+              fields: 'id, key (unique), value. Keys: site_theme, site_font, site_icon_set, site_logo (R2 key), password_reset_method (email/dob/security_question)',
             },
             {
               table: 'subscriptions',
-              fields: 'id, user_id (unique), plan (free/premium), status. Backs the freemium billing system (server/routes/billing.js).',
+              fields: "id, user_id (unique), plan (free/premium), status (active/past_due/cancelled/etc, mirrors Stripe's subscription status), trial_ends_at, current_period_start, current_period_end, cancelled_at, provider ('stripe' or 'admin_grant'), provider_customer_id, provider_subscription_id, provider_price_id (which Stripe Price, monthly vs annual), granted_by_admin_id (set when an admin grants honorary premium instead of a real Stripe subscription), created_at, updated_at. Live Stripe billing (server/routes/billing.js, server/routes/stripeWebhook.js).",
             },
           ].map(t => (
             <div key={t.table} style={{ marginBottom: 12 }}>
@@ -1052,11 +1088,11 @@ Please confirm the stack choices above (or tell me which to change), and then we
               { id: 'children-dependants', label: 'Children & Dependants', route: '/sections/children-dependants', note: 'children_dependants table.' },
             ]},
             { group: 'Your Affairs', color: '#8A7A6A', sections: [
-              { id: 'legal_documents', label: 'Personal & Legal Documents', route: '/sections/legal-documents', note: 'Vault-protected. Uses shared vault (digital_vault). Fields not encrypted. Up to 2 file attachments per item via uploaded_documents.' },
-              { id: 'property_items', label: 'Property & Possessions', route: '/sections/property-possessions', note: 'Vault-protected. Uses shared vault (digital_vault). Fields not encrypted. property_items table. Up to 2 file attachments per item via uploaded_documents.' },
-              { id: 'financial_items', label: 'Financial Affairs', route: '/sections/financial-affairs', note: 'Vault-protected. Uses shared vault (digital_vault). Fields not encrypted. financial_items table. Up to 2 file attachments per item via uploaded_documents.' },
+              { id: 'legal_documents', label: 'Personal & Legal Documents', route: '/sections/legal-documents', note: 'Vault-protected. Uses shared vault (digital_vault). Text fields AES-256-GCM encrypted with the vault key. Up to 2 file attachments per item via uploaded_documents (files themselves are access-controlled and R2-at-rest encrypted, not additionally vault-key encrypted).' },
+              { id: 'property_items', label: 'Property & Possessions', route: '/sections/property-possessions', note: 'Vault-protected. Uses shared vault (digital_vault). Text fields AES-256-GCM encrypted with the vault key. property_items table. Up to 2 file attachments per item via uploaded_documents.' },
+              { id: 'financial_items', label: 'Financial Affairs', route: '/sections/financial-affairs', note: 'Vault-protected. Uses shared vault (digital_vault). Text fields AES-256-GCM encrypted with the vault key. financial_items table. Up to 2 file attachments per item via uploaded_documents.' },
               { id: 'digital_credentials', label: 'Digital Life', route: '/sections/digital-life', note: 'Vault-protected. digital_credentials table. Fields AES-256-GCM encrypted. Shares vault with the other Your Affairs sections.' },
-              { id: 'household-info', label: 'Practical Household Information', route: '/sections/household-info', note: 'Vault-protected. Uses shared vault (digital_vault). Fields not encrypted. household_info table. Up to 2 file attachments per item via uploaded_documents.' },
+              { id: 'household-info', label: 'Practical Household Information', route: '/sections/household-info', note: 'Vault-protected. Uses shared vault (digital_vault). Text fields AES-256-GCM encrypted with the vault key. household_info table. Up to 2 file attachments per item via uploaded_documents.' },
             ]},
           ].map(group => (
             <div key={group.group} style={{ marginBottom: 18 }}>
@@ -1081,14 +1117,16 @@ Please confirm the stack choices above (or tell me which to change), and then we
             ['Algorithm', 'AES-256-GCM (authenticated encryption)'],
             ['Key derivation', 'scrypt (N=16384, r=8, p=1) from vault_password + userId. Salt = "igh-vault-v1-" + userId. Produces 32-byte key.'],
             ['Password storage', 'NEVER stored. Not even hashed. Verified by decrypting a known constant (CHECK_CONSTANT = "in-good-hands-vault-verified") stored as check_enc in digital_vault.'],
-            ['Encrypted fields', 'Each field stored as JSON: {ciphertext, iv, tag} all hex-encoded. Fresh random IV per field.'],
-            ['Shared vault', 'Legal Documents and Digital Life share ONE vault. Same password, same digital_vault row.'],
+            ['Encrypted fields', 'Each field stored as JSON: {ciphertext, iv, tag} all hex-encoded. Fresh random IV per field. Covers digital_credentials and, since SEC-03, every text field in legal_documents, financial_items, property_items, and household_info too.'],
+            ['Shared vault', 'Legal Documents, Digital Life, Financial Affairs, Property & Possessions, and Practical Household Information all share ONE vault. Same password, same digital_vault row.'],
             ['Vault setup', 'POST /api/sections/digital-life/vault. Creates check_enc. Only works once per user.'],
             ['Vault verify', 'POST /api/sections/digital-life/vault/verify. Returns 200/401. Used to unlock UI.'],
-            ['Vault reset', 'DELETE /api/sections/digital-life/vault. Requires account password. Deletes all credentials, legal docs, and R2 files for legal section. Irreversible.'],
+            ['Vault reset', 'DELETE /api/sections/digital-life/vault. Requires account password. Deletes digital_credentials, digital_vault, and every row (plus R2 file attachments) across all five vault-protected tables in one transaction. Irreversible.'],
             ['Change password', 'POST /api/sections/digital-life/vault/change. Decrypts all fields with old key, re-encrypts with new key in a single transaction.'],
-            ['PDF full export', 'POST /api/export with vault_password body param. Server decrypts credentials and includes in PDF. Vault password never appears in response.'],
-            ['Helper file', 'server/lib/vault.js exports: deriveKey, encryptField, decryptField, createVaultCheck, verifyVaultPassword'],
+            ['Destructive-op re-verification (SEC-06)', 'DELETE routes on legal-documents, financial-affairs, property-possessions, and household-info now call the same checkVault() helper used by list/create/update, matching the pattern digital-life delete already used. Fixed a gap where those four DELETE routes previously required no vault password at all.'],
+            ['Standard export cannot leak vault data (SEC-02)', 'generatePdf() only ever renders financial_items/property_items/household_info/legal_documents/credentials from a vaultData object populated exclusively by the vault-checked complete-export path; the standard (GET) export never has access to it, so a future code change cannot accidentally render vault content into a standard export the way it once could.'],
+            ['PDF full export', 'POST /api/export with vault_password body param. Server decrypts credentials and vault-protected section data and includes them in the PDF. Vault password never appears in the response. Both export responses send Cache-Control: no-store, private so the PDF is never cached by a browser, proxy, or CDN.'],
+            ['Helper file', 'server/lib/vault.js exports: deriveKey, encryptField, decryptField, createVaultCheck, verifyVaultPassword. server/lib/vaultAuth.js exports the shared checkVault() request guard used across sections.js, documents.js, and export.js.'],
           ]} />
         </BpSection>
       </div>
@@ -1102,10 +1140,12 @@ Please confirm the stack choices above (or tell me which to change), and then we
             ['Rate limiting', '20 requests per 15 minutes on /api/auth routes, 200 per 15 minutes on general /api/ routes (express-rate-limit)'],
             ['CORS', 'Manual CORS implementation in server/index.js. Allows CLIENT_URL env var + localhost origins.'],
             ['Admin account', 'Seeded on startup: email="admin@igh.local", password="Admin1234". is_admin=1 flag on users table.'],
-            ['Protected routes', 'requireAuth middleware in server/middleware/auth.js. Decodes JWT, attaches req.user.'],
-            ['Audit log', 'user_audit_logs table. Logs: login_success, login_failed, logout, register, password_changed, password_reset.'],
+            ['Protected routes', 'requireAuth middleware in server/middleware/auth.js. Decodes JWT, attaches req.user. Also rejects a still-valid token immediately (not just at next login) if: its sv claim no longer matches users.session_version (password changed/reset since issued), the account no longer exists (hard delete), an org-role account has been deactivated (is_active=0) since the token was issued, or is_admin no longer matches the token (no promote/demote feature exists yet, but the check is already in place for when one does).'],
+            ['Audit log', 'user_audit_logs table. Logs: login_success, login_failed, logout, register, password_changed, password_reset_requested, password_reset_denied.'],
             ['Error monitoring', 'Sentry (@sentry/node), initialised in instrument.js before any other import. Server errors reported automatically via the Express error handler.'],
-            ['Password reset', 'Two methods (admin-configurable): email link (via Resend) or date-of-birth verification. Token stored in users.reset_token + reset_token_expiry (1 hour).'],
+            ['Error responses (SEC-08)', 'The global Express error handler (server/index.js) is gated on NODE_ENV: in production (set on both the staging and production Render services) it returns a generic {error: "Something went wrong...", code: "INTERNAL_ERROR"} instead of the raw err.message, since that could otherwise leak SQL fragments, table/column names, or other internal detail. Full detail is still logged server-side via console.error and reported to Sentry either way; only true local development sees the raw message.'],
+            ['Org portal gating (SEC-12)', 'The org/funeral-home portal routes (organizations.js, orgPortal.js, orgPublic.js, orgRegister.js) are only require()\'d and registered at all when process.env.ORG_PORTAL_ENABLED === "true" (server/index.js). Unset in production, so those routes do not exist to be hit rather than merely being auth-rejected. Enabled on staging/local dev for continued testing.'],
+            ['Password reset', 'Always emailed, single-use, expires in 30 minutes. Token stored in users.reset_token as a SHA-256 hash (not the raw value) + reset_token_expiry; never returned in an API response. Admin can optionally also require date of birth or a security question as an additional check before that email is sent, never as an alternate path (fixed under SEC-04, which closed a prior gap where DOB alone could issue a reset token). POST /api/auth/forgot-password/question always returns a question (real or a deterministic decoy) so it can\'t be used to enumerate accounts. Also rate-limited per email address (5 requests / 15 min) independent of the general per-IP auth limiter.'],
           ]} />
         </BpSection>
       </div>
@@ -1170,13 +1210,15 @@ Please confirm the stack choices above (or tell me which to change), and then we
             ['Overview tab', 'Stats: total users, new this month, logins (7 days), total entries across all section tables.'],
             ['Users tab', 'Search users by name/email. Click user to open detail modal: all profile fields, section completion counts, audit log, send access link, reset password, delete account.'],
             ['Activity tab', 'Recent audit log with action labels, IP, and timestamps.'],
-            ['Appearance tab', 'Choose colour theme (8 options), font (6 options), icon set (3 options). Changes apply live via CSS variables.'],
-            ['Settings tab', 'Password reset method: email link or date-of-birth.'],
+            ['Appearance tab', 'Choose colour theme (9 options), font (6 options), icon set (3 options). Changes apply live via CSS variables.'],
+            ['Settings tab', 'Password reset method: email link, optionally plus a date-of-birth or security-question check before the link is sent.'],
             ['App Blueprint tab', 'Three-level documentation: L1 Feature Overview, L2 Product Specification, L3 Technical Reference. PDF download and rebuild prompt download.'],
             ['Theme storage', 'app_settings table keys: site_theme, site_font, site_icon_set, site_logo.'],
-            ['Themes available', 'Forest, Dusk, Terracotta, Ocean, Rose Garden, Midnight, High Contrast, Soft Mist.'],
+            ['Themes available', 'Forest, Dusk, Terracotta, Ocean, Rose Garden, Midnight, High Contrast, Soft Mist, Keepsake.'],
             ['Fonts available', 'Georgia, Lora, Playfair Display, Merriweather, Inter, Open Sans.'],
             ['Icon sets', 'Classic, Heritage, Modern. Applied to dashboard section card icons.'],
+            ['Design tokens', 'Card radius, card border style, button radius/CTA colour, and progress-bar fill colour are all CSS custom properties driven per theme (--card-radius, --card-border-style, --btn-radius, --btn-cta-bg, --progress-fill, etc.), rather than hardcoded per page. Keepsake is the first theme to use a non-default radius/border combination (dotted stitched-border cards, folded-corner hero panel).'],
+            ['SectionHero component', 'client/src/components/SectionHero.jsx gives all 14 section pages (and the Dashboard) the same hero-panel treatment, so a theme like Keepsake can restyle every section consistently from one shared component.'],
           ]} />
         </BpSection>
       </div>
@@ -1186,11 +1228,13 @@ Please confirm the stack choices above (or tell me which to change), and then we
         <BpSection title="12. Key API Endpoints">
           <BpCode>{`AUTH          POST /api/auth/login, /register, /logout
               POST /api/auth/forgot-password, /reset-password
+              POST /api/auth/forgot-password/question (fetch the prompt for security-question mode; always returns a question, real or decoy)
               GET  /api/auth/check (validate JWT)
 
 USERS         GET/PUT /api/users/me (profile)
               PUT /api/users/me/timer (inactivity period)
               PUT /api/users/me/emergency-contact
+              PUT/DELETE /api/users/me/security-question (requires current_password to set/change/remove)
 
 SECTIONS      GET /api/sections/completion (counts per section)
               POST/PUT/DELETE /api/sections/legal-documents
@@ -1237,6 +1281,16 @@ TRUSTED       GET/POST/PUT/DELETE /api/trusted-contacts
 
 ACCESS        GET  /api/access/:token (public)
 
+BILLING       GET  /api/billing/plans (public, plan/feature copy for the Upgrade page)
+              GET  /api/billing/subscription (current user's plan, status, period dates)
+              GET  /api/billing/access (quick {plan, is_premium} check)
+              POST /api/billing/create-checkout-session {plan: 'monthly'|'annual'}
+              POST /api/billing/cancel (sets cancel_at_period_end, access continues to period end)
+              POST /api/billing/reinstate (reverses cancel_at_period_end)
+              GET/DELETE /api/billing/payment-methods
+              POST /api/billing/webhook (Stripe webhook, mounted with express.raw() before
+              the global JSON parser - see server/index.js)
+
 ADMIN         GET  /api/admin/stats
               GET  /api/admin/users, GET /api/admin/users/:id
               GET  /api/admin/users/:id/activity
@@ -1247,6 +1301,7 @@ ADMIN         GET  /api/admin/stats
               DELETE /api/admin/users/:id
               GET  /api/admin/backups (list database backups in R2)
               POST /api/admin/backups/run (manually trigger a backup)
+              GET/POST /api/admin/versions (client/admin/org_portal semver change log)
 
 SETTINGS      GET  /api/settings (public)
               PUT  /api/settings (admin only)
@@ -1264,11 +1319,11 @@ CONTACT       POST /api/contact (footer feedback form)`}
             ['Helper', 'server/lib/sendEmail.js. Silently skips if RESEND_API_KEY not set (dev mode).'],
             ['Templates', 'server/lib/emailTemplates.js. All HTML with inline styles.'],
             ['welcomeEmail', 'Sent on registration. Warm welcome, link to log in.'],
-            ['passwordResetEmail', 'Sent on forgot-password request. Reset link valid 1 hour.'],
+            ['passwordResetEmail', 'Sent on forgot-password request. Reset link valid 30 minutes.'],
             ['inactivityReminderEmail', 'Sent by inactivity timer. Includes days remaining, reset-timer CTA.'],
             ['contactAccessEmail', 'Sent to trusted contact when user clicks "Send access link". 72-hour link.'],
             ['inactivityContactNotificationEmail', 'Sent to trusted contacts when the inactivity timer expires. Warm tone, advises reaching person directly first, includes 72-hour access link.'],
-            ['vaultAttemptEmail', 'Sent to user on 3rd vault failure (lockout warning) and 5th failure (vault deletion notice).'],
+            ['vaultAttemptEmail', 'Sent to user on 3rd vault failure (force-logout warning) and 5th failure (15-minute lockout notice, not deletion).'],
             ['Footer contact form', `POST /api/contact sends admin notification email. Subject: "${appName}: {type}"`],
           ]} />
         </BpSection>
@@ -1291,6 +1346,12 @@ CONTACT       POST /api/contact (footer feedback form)`}
   R2_BUCKET_NAME     Bucket name
   R2_ENDPOINT        https://{account_id}.r2.cloudflarestorage.com
   SENTRY_DSN         [optional] Sentry project DSN, enables server error monitoring
+  STRIPE_SECRET_KEY  Live-mode secret key
+  STRIPE_PRICE_MONTHLY  Price ID for Premium Monthly ($10/mo)
+  STRIPE_PRICE_ANNUAL   Price ID for Premium Annual ($100/yr)
+  STRIPE_WEBHOOK_SECRET Signing secret for the /api/billing/webhook endpoint
+  ORG_PORTAL_ENABLED [optional] "true" to register the org/funeral-home portal
+                     routes; unset (default) in production, "true" on staging
 
 CLIENT (Render Static Site, baked in at build time)
   VITE_API_URL       https://performance-api-djuk.onrender.com/api
@@ -1305,7 +1366,7 @@ CLIENT (Render Static Site, baked in at build time)
           <BpTable rows={[
             ['No em-dashes', 'Never use em-dashes (—) anywhere in the application. Use commas, colons, or periods instead.'],
             ['Vault password not stored', 'The vault password is never stored or hashed on the server. Loss of the vault password means permanent loss of vault data. This is by design and communicated clearly to users.'],
-            ['Shared vault', 'Legal Documents and Digital Life use one vault. One password protects both. Set up via the Digital Life section or Legal Documents section; managed in My Profile.'],
+            ['Shared vault', 'Legal Documents, Digital Life, Financial Affairs, Property & Possessions, and Practical Household Information all use one vault. One password protects all five. Set up via the Digital Life section or Legal Documents section; managed in My Profile.'],
             ['Trusted contact access', 'Only a 72-hour one-time signed link is used. No separate trusted contact login credentials. Trusted contacts cannot access digital credentials (vault) ever.'],
             ['PDF streaming', 'PDFKit pipes directly to the HTTP response stream. No temp files. Vault password for full export comes as POST body, never in URL.'],
             ['PostgreSQL on Render', 'Managed Postgres, paid Basic plan, connected via a pg.Pool connection pool. SSL required for any non-localhost connection.'],
@@ -1938,12 +1999,14 @@ export default function AdminPage() {
         <div style={{ background: 'var(--parchment)', borderRadius: 12, padding: '24px', border: '1px solid var(--border)' }}>
           <h6 style={{ color: 'var(--green-900)', marginBottom: 4 }}>Password Reset Method</h6>
           <p className="text-muted small mb-4">
-            How users prove their identity when resetting their password.
+            How users prove their identity when resetting their password. A reset link is always sent by
+            email, never shown on screen or returned directly, no matter which option is selected below.
           </p>
           <div className="d-flex gap-3 flex-wrap">
             {[
-              { value: 'email', label: 'Email link', desc: 'A reset link is sent to the registered email address' },
-              { value: 'dob',   label: 'Date of birth', desc: 'User must provide their date of birth to reset' },
+              { value: 'email',            label: 'Email link', desc: 'A reset link is sent to the registered email address' },
+              { value: 'dob',              label: 'Email link + date of birth', desc: 'User must also confirm their date of birth before the reset link is emailed' },
+              { value: 'security_question', label: 'Email link + security question', desc: "User must also answer their security question before the reset link is emailed. Only works for users who've set one up in My Profile." },
             ].map(opt => (
               <div key={opt.value}
                 onClick={() => saveSetting('password_reset_method', opt.value)}
