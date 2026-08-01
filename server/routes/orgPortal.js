@@ -14,6 +14,7 @@ const { markUserDeceased } = require('../lib/deceased');
 const { stripe } = require('../lib/stripe');
 const { getOverageConfig } = require('../lib/orgBilling');
 const { setAuthCookies } = require('../lib/authCookies');
+const { matchesExtension } = require('../lib/fileSignature');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } });
 
@@ -551,6 +552,9 @@ router.post('/logo', auth, requireOrgAdmin, upload.single('logo'), async (req, r
   const ALLOWED = { 'image/svg+xml': 'svg', 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' };
   const ext = ALLOWED[mime];
   if (!ext) return res.status(400).json({ error: 'Only SVG, PNG, JPEG, or WebP logos are accepted.' });
+  if (!matchesExtension(req.file.buffer, ext)) {
+    return res.status(400).json({ error: "That file's content doesn't match its type. Please check the file and try again." });
+  }
 
   if (org.logo_url) {
     try { await deleteFile(org.logo_url); } catch { /* ignore */ }
