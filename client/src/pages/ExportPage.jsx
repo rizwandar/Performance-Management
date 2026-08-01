@@ -70,7 +70,7 @@ export default function ExportPage() {
           const text = await err.response.data.text()
           parsedJson = JSON.parse(text)
           message = parsedJson.error || message
-        } catch {}
+        } catch { /* response body wasn't JSON, use the default message */ }
       }
       if (parsedJson?.vault_locked) {
         setVaultError(message)
