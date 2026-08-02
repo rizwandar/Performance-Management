@@ -193,6 +193,34 @@ function inactivityReminderEmail({ name, daysLeft, inactivityPeriodMonths }) {
 }
 
 // ---------------------------------------------------------------------------
+// Trial ending reminder (BIL-04) - sent 2 days before a card-required trial
+// converts to a paid subscription. The FTC's click-to-cancel rule and most
+// state auto-renewal laws require this kind of advance notice before a card
+// already on file gets charged.
+// ---------------------------------------------------------------------------
+function trialEndingReminderEmail({ name, planName, price, chargeDate }) {
+  return layout(`
+    <p>Dear ${name},</p>
+    <p>
+      Your free trial of <strong>${APP_NAME} ${planName}</strong> ends in 2 days, on
+      <strong>${chargeDate}</strong>. After that, your card on file will be charged
+      <strong>${price}</strong> and your subscription will continue automatically.
+    </p>
+    <p style="background:#F0F9FF; border:1px solid #BAE6FD; border-radius:8px; padding:14px 16px; color:#0C4A6E; font-size:14px;">
+      Want to cancel? You can do so anytime before ${chargeDate} in one click, no charge at all.
+    </p>
+    ${button('Manage my subscription', `${APP_URL}/profile/settings`)}
+    <p style="color:#6B7280; font-size:14px;">
+      If you'd like to keep your Premium access, there's nothing you need to do.
+    </p>
+    <p style="color:#6B7280; font-size:14px;">
+      With care,<br/>
+      The ${APP_NAME} team
+    </p>
+  `);
+}
+
+// ---------------------------------------------------------------------------
 // Trusted contact access link email
 // ---------------------------------------------------------------------------
 function contactAccessEmail({ recipientName, ownerName, accessLink, expiresHours }) {
@@ -655,6 +683,7 @@ module.exports = {
   welcomeEmail,
   passwordResetEmail,
   inactivityReminderEmail,
+  trialEndingReminderEmail,
   inactivityContactNotificationEmail,
   executorDesignatedEmail,
   executorInviteEmail,
