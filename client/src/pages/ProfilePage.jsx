@@ -36,7 +36,7 @@ function PasswordRequirements({ password }) {
 }
 
 export default function ProfilePage() {
-  const { user: authUser, login, token, logout } = useAuth()
+  const { user: authUser, login, logout } = useAuth()
   const navigate = useNavigate()
   const [loading, setLoading]   = useState(true)
   const [saving, setSaving]     = useState(false)
@@ -96,6 +96,7 @@ export default function ProfilePage() {
   const [reinstating, setReinstating]       = useState(false)
   const [billingMessage, setBillingMessage] = useState('')
   const [billingError, setBillingError]     = useState('')
+  const [paymentHistory, setPaymentHistory] = useState([])
 
   useEffect(() => {
     const loadProfile = axios.get(`${API}/users/me`)
@@ -133,7 +134,11 @@ export default function ProfilePage() {
       .then(r => setSubscription(r.data))
       .catch(() => {})
 
-    Promise.all([loadProfile, loadTimer, loadVault, loadBilling]).finally(() => setLoading(false))
+    const loadPaymentHistory = axios.get(`${API}/billing/history`)
+      .then(r => setPaymentHistory(r.data.payments || []))
+      .catch(() => {})
+
+    Promise.all([loadProfile, loadTimer, loadVault, loadBilling, loadPaymentHistory]).finally(() => setLoading(false))
   }, [])
 
   const set = field => e => setForm(f => ({ ...f, [field]: e.target.value }))
@@ -145,7 +150,7 @@ export default function ProfilePage() {
     try {
       await axios.put(`${API}/users/me`, form)
       if (authUser && form.name !== authUser.name) {
-        login(token, { ...authUser, name: form.name })
+        login({ ...authUser, name: form.name })
       }
       setSuccess('Profile saved.')
       setTimeout(() => setSuccess(''), 3000)
@@ -820,6 +825,37 @@ export default function ProfilePage() {
           </>
         )}
       </div>
+
+      {/* ── Payment History ──────────────────────────────────────────────── */}
+      {paymentHistory.length > 0 && (
+        <div style={{ background: 'var(--parchment)', borderRadius: 12, padding: '24px', border: '1px solid var(--border)', marginTop: 24 }}>
+          <h6 style={{ color: 'var(--green-900)', marginBottom: 12 }}>Payment History</h6>
+          <div style={{ overflowX: 'auto' }}>
+            <table className="table table-sm mb-0">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Amount</th>
+                  <th>Transaction ID</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paymentHistory.map(p => (
+                  <tr key={p.id}>
+                    <td>{formatDate(p.date)}</td>
+                    <td>${p.amount.toFixed(2)} {p.currency.toUpperCase()}</td>
+                    <td style={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>
+                      {p.receipt_url ? (
+                        <a href={p.receipt_url} target="_blank" rel="noreferrer">{p.id}</a>
+                      ) : p.id}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* ── Delete My Account ────────────────────────────────────────────── */}
       <div style={{ background: 'var(--parchment)', borderRadius: 12, padding: '24px', border: '1px solid var(--border)', marginTop: 24 }}>

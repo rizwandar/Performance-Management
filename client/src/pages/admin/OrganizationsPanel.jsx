@@ -52,7 +52,7 @@ export default function OrganizationsPanel({ showAlert }) {
               <div style={{ fontWeight: 700, color: 'var(--green-900)' }}>{org.name}</div>
               <div className="small text-muted">{org.business_categories.join(', ') || 'No categories set'}</div>
             </div>
-            <Badge style={{ background: 'var(--green-700)' }}>{TIER_LABELS[org.plan_tier] || org.plan_tier}</Badge>
+            <Badge bg={null} style={{ background: 'var(--green-700)', color: '#fff' }}>{TIER_LABELS[org.plan_tier] || org.plan_tier}</Badge>
           </div>
           <div className="small text-muted mt-2">
             {org.location_count} location{org.location_count === 1 ? '' : 's'} · {org.staff_count} staff · {org.active_customer_count} active customer{org.active_customer_count === 1 ? '' : 's'}
@@ -269,7 +269,7 @@ function OrgDetailModal({ orgId, onHide, showAlert }) {
               {org.contacts.map(c => (
                 <div key={c.id} className="small mb-1">
                   {c.name}{c.designation ? ` (${c.designation})` : ''}
-                  {c.is_billing_contact ? <Badge className="ms-2" style={{ background: 'var(--green-700)' }}>Billing</Badge> : null}
+                  {c.is_billing_contact ? <Badge bg={null} className="ms-2" style={{ background: 'var(--green-700)', color: '#fff' }}>Billing</Badge> : null}
                 </div>
               ))}
               <Row className="g-2 mt-1 align-items-center">
@@ -291,7 +291,7 @@ function OrgDetailModal({ orgId, onHide, showAlert }) {
               {org.staff.map(s => (
                 <div key={s.id} className="small mb-1 d-flex align-items-center gap-2">
                   <span>{s.name}, {s.email}</span>
-                  <Badge style={{ background: s.org_role === 'org_admin' ? 'var(--green-800)' : 'var(--text-muted)' }}>
+                  <Badge bg={null} style={{ background: s.org_role === 'org_admin' ? 'var(--green-800)' : 'var(--text-muted)', color: '#fff' }}>
                     {s.org_role === 'org_admin' ? 'Org Admin' : 'Org Staff'}
                   </Badge>
                   {!s.is_active && (

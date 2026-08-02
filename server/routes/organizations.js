@@ -6,6 +6,7 @@ const { queryOne, queryAll, query } = require('../db/database');
 const auth    = require('../middleware/auth');
 const { uploadFile, getDownloadUrl, deleteFile } = require('../lib/r2');
 const { checkRoleQuota } = require('../lib/orgPlanLimits');
+const { matchesExtension } = require('../lib/fileSignature');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } });
 
@@ -120,6 +121,9 @@ router.post('/:id/logo', auth, adminOnly, upload.single('logo'), async (req, res
   const ALLOWED = { 'image/svg+xml': 'svg', 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' };
   const ext = ALLOWED[mime];
   if (!ext) return res.status(400).json({ error: 'Only SVG, PNG, JPEG, or WebP logos are accepted.' });
+  if (!matchesExtension(req.file.buffer, ext)) {
+    return res.status(400).json({ error: "That file's content doesn't match its type. Please check the file and try again." });
+  }
 
   if (org.logo_url) {
     try { await deleteFile(org.logo_url); } catch { /* ignore */ }

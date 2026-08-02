@@ -49,7 +49,7 @@ The client and mobile apps import from `@in-good-hands/shared`. The Vite config 
 **Routes** are in `server/routes/`. One file per domain: `auth.js`, `users.js`, `sections.js`, `trusted-contacts.js`, `documents.js`, `export.js`, `billing.js`, `admin.js`, `deezer.js`, `contact.js`.
 
 **Key middleware:**
-- `server/middleware/auth.js` — JWT verification, attaches `req.user`
+- `server/middleware/auth.js` — JWT verification (from an httpOnly cookie for web, or an `Authorization: Bearer` header for mobile, which has no browser cookie jar), attaches `req.user`. Also enforces CSRF (double-submit cookie) on mutating requests authenticated via cookie, and live-checks session_version/is_active/is_admin against the DB (SEC-04/SEC-10)
 - `server/middleware/adminAuth.js` — requires `req.user.role === 'admin'`
 - Rate limiting: 20 req/15 min on auth routes, 200 req/15 min on API routes
 
@@ -66,7 +66,7 @@ The client and mobile apps import from `@in-good-hands/shared`. The Vite config 
 **Routing:** React Router v6, all routes in `App.jsx`. Protected routes check `AuthContext`.
 
 **Context:**
-- `context/AuthContext.jsx` — JWT storage, login/logout, user state
+- `context/AuthContext.jsx` — login/logout, cached user state. The session JWT itself lives only in an httpOnly cookie set by the server (SEC-09); the client never reads or stores it, only a `csrf_token` cookie value it echoes back as an `X-CSRF-Token` header on mutating requests.
 - `context/SubscriptionContext.jsx` — freemium plan state
 
 **Section pages** follow a consistent pattern: fetch data on mount, render a list of `ItemCard` components, open a `FormModal` for create/edit. The 14 sections are: Legal Documents, Digital Vault, Financial, Medical, Property, Messages, Funeral Wishes, Obituary, Music, Pets, Charities, Biography, Bucket List, Trusted Contacts.

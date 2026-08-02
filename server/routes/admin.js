@@ -6,6 +6,7 @@ const multer  = require('multer');
 const { uploadFile, getDownloadUrl, deleteFile } = require('../lib/r2');
 const { runBackup, listBackups } = require('../lib/backup');
 const { checkInactivity } = require('../lib/inactivityTimer');
+const { matchesExtension } = require('../lib/fileSignature');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } });
 
@@ -307,6 +308,9 @@ router.post('/branding/logo', auth, adminOnly, upload.single('logo'), async (req
   const ALLOWED = { 'image/svg+xml': 'svg', 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' };
   const ext = ALLOWED[mime];
   if (!ext) return res.status(400).json({ error: 'Only SVG, PNG, JPEG, or WebP logos are accepted.' });
+  if (!matchesExtension(req.file.buffer, ext)) {
+    return res.status(400).json({ error: "That file's content doesn't match its type. Please check the file and try again." });
+  }
 
   const existing = await queryOne("SELECT value FROM app_settings WHERE key = 'site_logo_custom_key'");
   if (existing?.value) {

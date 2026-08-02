@@ -1,12 +1,11 @@
 import { useNavigate } from 'react-router-dom'
-import { useAuth, parseJwt } from '../context/AuthContext'
+import { useAuth } from '../context/AuthContext'
 
 export default function ViewAsBanner() {
-  const { token, exitViewAs } = useAuth()
+  const { isViewAs, exitViewAs } = useAuth()
   const navigate = useNavigate()
 
-  const decoded = token ? parseJwt(token) : null
-  if (!decoded?.viewAs) return null
+  if (!isViewAs) return null
 
   const customerName = localStorage.getItem('viewAsCustomerName') || 'this customer'
 

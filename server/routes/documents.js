@@ -7,6 +7,7 @@ const requireAuth = require('../middleware/auth');
 const { uploadFile, getDownloadUrl, deleteFile } = require('../lib/r2');
 const { checkVault } = require('../lib/vaultAuth');
 const { isVaultProtectedSection } = require('../lib/vaultSections');
+const { matchesExtension } = require('../lib/fileSignature');
 
 // Signed URLs for vault-protected documents get a much shorter lifetime than
 // the default 1 hour used for non-vault attachments (funeral photos, admin logo).
@@ -64,6 +65,12 @@ router.post('/upload', requireAuth, (req, res, next) => {
 
     const ext    = req.file.originalname.split('.').pop();
     const safeExt = ext.replace(/[^a-zA-Z0-9]/g, '');
+    // fileFilter only checked what the client claimed (mimetype + extension,
+    // both attacker-controlled) - this confirms the bytes we're about to
+    // store actually match, so a renamed executable can't ride in as a PDF.
+    if (!matchesExtension(req.file.buffer, safeExt)) {
+      return res.status(400).json({ error: "That file's content doesn't match its extension. Please check the file and try again." });
+    }
     const key    = `${userId}/${section_id}/${uuidv4()}.${safeExt}`;
 
     await uploadFile({ key, buffer: req.file.buffer, mimeType: req.file.mimetype });
@@ -190,6 +197,9 @@ router.post('/photos/upload', requireAuth, (req, res, next) => {
 
     const ext     = req.file.originalname.split('.').pop()?.toLowerCase() || 'jpg';
     const safeExt = ext.replace(/[^a-zA-Z0-9]/g, '');
+    if (!matchesExtension(req.file.buffer, safeExt)) {
+      return res.status(400).json({ error: "That photo's content doesn't match its extension. Please check the file and try again." });
+    }
     const key     = `${userId}/${section_id}/photos/${uuidv4()}.${safeExt}`;
 
     await uploadFile({ key, buffer: req.file.buffer, mimeType: req.file.mimetype });

@@ -4,6 +4,7 @@ import axios from 'axios'
 import { applyTheme, applyFont } from '../App'
 import { useBranding } from '../context/BrandingContext'
 import OrganizationsPanel from './admin/OrganizationsPanel'
+import LegalPanel from './admin/LegalPanel'
 import { formatPhone } from '@in-good-hands/shared/format'
 
 const API = import.meta.env.VITE_API_URL
@@ -69,7 +70,7 @@ const SECTION_LABELS = {
 // ---------------------------------------------------------------------------
 // Tab navigation
 // ---------------------------------------------------------------------------
-const TABS = ['Overview', 'Users', 'Activity', 'Appearance', 'Branding', 'Organizations', 'Settings', 'Versions', 'App Blueprint']
+const TABS = ['Overview', 'Users', 'Activity', 'Appearance', 'Branding', 'Organizations', 'Settings', 'Legal', 'Versions', 'App Blueprint']
 
 const VERSION_MODULES = [
   { id: 'client',     label: 'Client App' },
@@ -423,7 +424,7 @@ DEFAULT STACK CHOICES (confirm or change each one before proceeding):
 2. Backend: Express 5 + Node.js (port 3001 in dev)
 3. Database: PostgreSQL via pg (node-postgres). Hosted on Render's managed Postgres (paid plan). No ORM.
 4. File storage: Cloudflare R2 (S3-compatible, no egress fees). Used for uploaded documents, photos, logo, and database backups.
-5. Authentication: JWT in localStorage (8-hour expiry) + bcryptjs for password hashing. No third-party auth provider.
+5. Authentication: JWT (8-hour expiry) + bcryptjs for password hashing. No third-party auth provider. Web carries the JWT in an httpOnly, SameSite=None, Secure cookie (never readable by client JS, SEC-09) with a double-submit CSRF cookie for mutating requests; mobile has no browser cookie jar and keeps using an Authorization Bearer header exactly as before, stored in expo-secure-store.
 6. Email: Resend API via native fetch (no SDK). Transactional emails only.
 7. PDF generation: PDFKit, server-side, streamed to the client.
 8. Deployment: Render.com. Frontend as a Static Site (with a Redirects/Rewrites rule: /* to /index.html, Rewrite action, so client-side routing works on direct navigation). Backend as a Web Service.
@@ -514,7 +515,8 @@ ADMIN PANEL:
 ---
 
 AUTH SYSTEM:
-- JWT in localStorage, 8-hour expiry, signed with JWT_SECRET env var.
+- JWT, 8-hour expiry, signed with JWT_SECRET env var. Web: httpOnly, Secure, SameSite=None cookie (client and API are on different subdomains, so this is a genuinely cross-site relationship, not just cross-origin) - client JS can never read it (SEC-09). Mobile: Authorization Bearer header from expo-secure-store, unchanged and unaffected by the cookie work since it has no browser cookie jar.
+- CSRF: double-submit cookie. A second, non-httpOnly csrf_token cookie is set alongside the session cookie; the client echoes its value back as an X-CSRF-Token header on every mutating (non-GET/HEAD/OPTIONS) request, checked in server/middleware/auth.js. Only applies to cookie-authenticated requests - a Bearer-header request (mobile) is exempt, since CSRF is a browser/cookie phenomenon.
 - bcryptjs for password hashing, salt rounds = 10.
 - Rate limiting: 20 requests per 15 minutes on /api/auth routes, 200 requests per 15 minutes on general /api/ routes. forgot-password is additionally rate-limited per email address (5 per 15 minutes).
 - Password reset: always by emailed link, single-use, expires in 30 minutes, stored server-side as a SHA-256 hash (never the raw token, never returned in any API response). Admin can optionally also require date of birth or a security question as an extra check before that email is sent - either is only ever an additional signal, never an alternate path to a reset link. Security question answers are stored as a bcrypt hash (users.security_answer_hash), same as passwords. A successful reset (or any password change) bumps users.session_version, which invalidates any other already-issued session token.
@@ -897,7 +899,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
             ['Backend', 'Express 5 + Node.js (server/), port 3001 in dev'],
             ['Database', 'PostgreSQL via pg (node-postgres). Render managed Postgres, paid Basic plan. Connection string in DATABASE_URL, SSL required outside localhost.'],
             ['File storage', 'Cloudflare R2 (S3-compatible). No egress fees. Keys in R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME, R2_ENDPOINT env vars. Also stores nightly database backups.'],
-            ['Auth', 'JWT (jsonwebtoken) stored in localStorage. 8h expiry. bcryptjs for password hashing (10 salt rounds). Rate limited: 20 req/15min on auth routes, 200 req/15min on general API routes.'],
+            ['Auth', 'JWT (jsonwebtoken), 8h expiry. Web: httpOnly/Secure/SameSite=None cookie + double-submit CSRF cookie, client JS never sees the token. Mobile: Authorization Bearer header (expo-secure-store), unaffected. bcryptjs for password hashing (10 salt rounds). Rate limited: 20 req/15min on auth routes, 200 req/15min on general API routes.'],
             ['Email', 'Resend API via native fetch (no SDK). Key in RESEND_API_KEY env var.'],
             ['PDF generation', 'PDFKit 0.18. Two-column A4 layout. Generated server-side and streamed to client.'],
             ['Billing', 'Stripe (stripe npm package). Live-mode Checkout for Premium Monthly ($10/mo) and Annual ($100/yr). Keys/Price IDs in STRIPE_SECRET_KEY, STRIPE_PRICE_MONTHLY, STRIPE_PRICE_ANNUAL, STRIPE_WEBHOOK_SECRET.'],
@@ -1135,12 +1137,12 @@ Please confirm the stack choices above (or tell me which to change), and then we
       <div style={card}>
         <BpSection title="7. Authentication & Security">
           <BpTable rows={[
-            ['Auth method', 'JWT in localStorage. 8-hour expiry. Signed with JWT_SECRET env var.'],
+            ['Auth method', 'JWT, 8-hour expiry, signed with JWT_SECRET env var. Web: httpOnly/Secure/SameSite=None cookie, never readable by client JS. Mobile: Authorization Bearer header, unchanged. See "AUTH SYSTEM" in the L2 tab for the CSRF design that goes with the cookie.'],
             ['Password hashing', 'bcryptjs, salt rounds = 10'],
             ['Rate limiting', '20 requests per 15 minutes on /api/auth routes, 200 per 15 minutes on general /api/ routes (express-rate-limit)'],
             ['CORS', 'Manual CORS implementation in server/index.js. Allows CLIENT_URL env var + localhost origins.'],
             ['Admin account', 'Seeded on startup: email="admin@igh.local", password="Admin1234". is_admin=1 flag on users table.'],
-            ['Protected routes', 'requireAuth middleware in server/middleware/auth.js. Decodes JWT, attaches req.user. Also rejects a still-valid token immediately (not just at next login) if: its sv claim no longer matches users.session_version (password changed/reset since issued), the account no longer exists (hard delete), an org-role account has been deactivated (is_active=0) since the token was issued, or is_admin no longer matches the token (no promote/demote feature exists yet, but the check is already in place for when one does).'],
+            ['Protected routes', 'requireAuth middleware in server/middleware/auth.js. Reads the JWT from an httpOnly cookie first, falling back to an Authorization Bearer header (mobile). Decodes it, attaches req.user. For cookie-authenticated mutating requests, also requires a matching X-CSRF-Token header against the csrf_token cookie (double-submit, SEC-09) - Bearer-header requests are exempt. Also rejects a still-valid token immediately (not just at next login) if: its sv claim no longer matches users.session_version (password changed/reset since issued), the account no longer exists (hard delete), an org-role account has been deactivated (is_active=0) since the token was issued, or is_admin no longer matches the token (no promote/demote feature exists yet, but the check is already in place for when one does).'],
             ['Audit log', 'user_audit_logs table. Logs: login_success, login_failed, logout, register, password_changed, password_reset_requested, password_reset_denied.'],
             ['Error monitoring', 'Sentry (@sentry/node), initialised in instrument.js before any other import. Server errors reported automatically via the Express error handler.'],
             ['Error responses (SEC-08)', 'The global Express error handler (server/index.js) is gated on NODE_ENV: in production (set on both the staging and production Render services) it returns a generic {error: "Something went wrong...", code: "INTERNAL_ERROR"} instead of the raw err.message, since that could otherwise leak SQL fragments, table/column names, or other internal detail. Full detail is still logged server-side via console.error and reported to Sentry either way; only true local development sees the raw message.'],
@@ -1226,7 +1228,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
       {/* 12. API reference */}
       <div style={card}>
         <BpSection title="12. Key API Endpoints">
-          <BpCode>{`AUTH          POST /api/auth/login, /register, /logout
+          <BpCode>{`AUTH          POST /api/auth/login, /register, /logout (login/register set the httpOnly session cookie + csrf_token cookie; logout clears both; the response body still includes the raw token too, for mobile only - web ignores it)
               POST /api/auth/forgot-password, /reset-password
               POST /api/auth/forgot-password/question (fetch the prompt for security-question mode; always returns a question, real or decoy)
               GET  /api/auth/check (validate JWT)
@@ -2221,6 +2223,8 @@ export default function AdminPage() {
 
       {/* ── Organizations ──────────────────────────────────────────────────── */}
       {tab === 'Organizations' && <OrganizationsPanel showAlert={showAlert} />}
+
+      {tab === 'Legal' && <LegalPanel showAlert={showAlert} />}
 
       {/* ── Versions ───────────────────────────────────────────────────────── */}
       {tab === 'Versions' && (

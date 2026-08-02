@@ -197,6 +197,38 @@ router.post('/reinstate', auth, async (req, res) => {
   }
 });
 
+// Payment history: date, amount charged, and transaction ID per line item
+// (WEB-05). Stripe invoices are the source of truth here rather than
+// charges, since each subscription renewal produces one invoice with a
+// clean paid amount, whereas charges can include uncaptured/failed
+// attempts that would be confusing to show as "payment history".
+router.get('/history', auth, async (req, res) => {
+  const sub = await queryOne(
+    'SELECT provider, provider_customer_id FROM subscriptions WHERE user_id = $1',
+    [req.user.id]
+  );
+  if (!sub || sub.provider !== 'stripe' || !sub.provider_customer_id) {
+    return res.json({ payments: [] });
+  }
+  try {
+    const invoices = await stripe.invoices.list({ customer: sub.provider_customer_id, limit: 100 });
+    const payments = invoices.data
+      .filter(inv => inv.amount_paid > 0)
+      .map(inv => ({
+        id:          inv.id,
+        amount:      inv.amount_paid / 100,
+        currency:    inv.currency,
+        date:        new Date((inv.status_transitions?.paid_at || inv.created) * 1000).toISOString(),
+        receipt_url: inv.hosted_invoice_url || null,
+      }))
+      .sort((a, b) => new Date(b.date) - new Date(a.date));
+    res.json({ payments });
+  } catch (err) {
+    console.error('[billing] Payment history fetch failed:', err.message);
+    res.status(500).json({ error: 'Could not load your payment history. Please try again.' });
+  }
+});
+
 router.get('/payment-methods', auth, async (req, res) => {
   const methods = await queryAll(
     'SELECT id, card_brand, card_last4, card_exp_month, card_exp_year, is_default FROM payment_methods WHERE user_id = $1',

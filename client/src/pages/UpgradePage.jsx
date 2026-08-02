@@ -77,7 +77,6 @@ function PlanCard({ title, price, period, note, features, highlight, badge, chec
 }
 
 function CheckoutButton({ label, planId, trialEligible }) {
-  const { token } = useAuth()
   const [loading, setLoading]     = useState(false)
   const [error, setError]         = useState('')
   const [skipTrial, setSkipTrial] = useState(false)
@@ -86,9 +85,7 @@ function CheckoutButton({ label, planId, trialEligible }) {
     setLoading(true)
     setError('')
     try {
-      const r = await axios.post(`${API}/billing/create-checkout-session`, { plan: planId, skipTrial }, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      const r = await axios.post(`${API}/billing/create-checkout-session`, { plan: planId, skipTrial })
       window.location.href = r.data.url
     } catch (err) {
       setError(err.response?.data?.error || 'Could not start checkout. Please try again.')
@@ -123,7 +120,7 @@ function CheckoutButton({ label, planId, trialEligible }) {
 
 export default function UpgradePage() {
   const { isPremium, plan, refresh } = useSubscription()
-  const { token } = useAuth()
+  const { user } = useAuth()
   const [subscription, setSubscription] = useState(null)
   const [checkoutStatus, setCheckoutStatus] = useState(null)
 
@@ -138,11 +135,11 @@ export default function UpgradePage() {
   }, [refresh])
 
   useEffect(() => {
-    if (!token) return
-    axios.get(`${API}/billing/subscription`, { headers: { Authorization: `Bearer ${token}` } })
+    if (!user) return
+    axios.get(`${API}/billing/subscription`)
       .then(r => setSubscription(r.data))
       .catch(() => {})
-  }, [token, plan])
+  }, [user, plan])
 
   // BIL-04: a 14-day card-required trial, once per account. subscription is
   // null until the request above resolves, so this defaults to eligible

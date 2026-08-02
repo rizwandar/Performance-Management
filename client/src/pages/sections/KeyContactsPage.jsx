@@ -60,6 +60,19 @@ export default function KeyContactsPage() {
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting, setDeleting]         = useState(false)
 
+  const loadContacts = () => {
+    setTcLoading(true)
+    setTcError('')
+    const fetchOnce = () => axios.get(`${API}/trusted-contacts`)
+    // Most failures here are a brief blip, not a real problem, so retry once
+    // silently before bothering the user with anything.
+    fetchOnce()
+      .catch(() => fetchOnce())
+      .then(r => setContacts(r.data))
+      .catch(() => setTcError('Your trusted contacts are taking a moment to load.'))
+      .finally(() => setTcLoading(false))
+  }
+
   // ── Load both on mount ─────────────────────────────────────────────────────
   useEffect(() => {
     axios.get(`${API}/users/me`)
@@ -73,19 +86,6 @@ export default function KeyContactsPage() {
 
     loadContacts()
   }, [])
-
-  const loadContacts = () => {
-    setTcLoading(true)
-    setTcError('')
-    const fetchOnce = () => axios.get(`${API}/trusted-contacts`)
-    // Most failures here are a brief blip, not a real problem, so retry once
-    // silently before bothering the user with anything.
-    fetchOnce()
-      .catch(() => fetchOnce())
-      .then(r => setContacts(r.data))
-      .catch(() => setTcError('Your trusted contacts are taking a moment to load.'))
-      .finally(() => setTcLoading(false))
-  }
 
   // ── Emergency contact save ─────────────────────────────────────────────────
   const saveEcForm = async () => {
@@ -319,7 +319,7 @@ export default function KeyContactsPage() {
                                 <span className="text-muted small">({contact.relationship})</span>
                               )}
                               {!!contact.is_executor && (
-                                <Badge style={{ background: 'var(--green-800)', color: '#fff', fontWeight: 600 }}>
+                                <Badge bg={null} style={{ background: 'var(--green-800)', color: '#fff', fontWeight: 600 }}>
                                   Executor
                                 </Badge>
                               )}
@@ -333,7 +333,7 @@ export default function KeyContactsPage() {
                                 {contact.visible_sections.map(sid => {
                                   const s = SECTIONS.find(x => x.id === sid)
                                   return s ? (
-                                    <Badge key={sid} style={{ background: '#fff', color: 'var(--green-900)', border: '1px solid var(--green-100)', fontWeight: 500, fontSize: '0.75rem' }}>
+                                    <Badge key={sid} bg={null} style={{ background: '#fff', color: 'var(--green-900)', border: '1px solid var(--green-100)', fontWeight: 500, fontSize: '0.75rem' }}>
                                       {s.label}
                                     </Badge>
                                   ) : null

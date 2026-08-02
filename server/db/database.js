@@ -1,5 +1,6 @@
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
+const { PRIVACY_V1_HTML, TOS_V1_HTML } = require('./legalSeed');
 
 const url = process.env.DATABASE_URL || '';
 const ssl = url && !url.includes('localhost') && !url.includes('127.0.0.1')
@@ -616,6 +617,55 @@ async function init() {
       user_id     INTEGER REFERENCES users(id) ON DELETE SET NULL,
       created_at  TIMESTAMPTZ DEFAULT NOW()
     )
+  `);
+
+  // Legal content versioning (FEAT-04/05): Privacy Policy and Terms of Service
+  // are now admin-published, versioned records instead of hardcoded page
+  // content, so there is a permanent record of exactly what was in effect at
+  // any point in time. Mirrors the app_versions module convention above.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS policy_versions (
+      id                     SERIAL PRIMARY KEY,
+      module                 TEXT NOT NULL CHECK (module IN ('privacy', 'tos')),
+      version                INTEGER NOT NULL,
+      content_html           TEXT NOT NULL,
+      summary                TEXT,
+      published_by_admin_id  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      published_at           TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE (module, version)
+    )
+  `);
+
+  // Which version of each policy this user last consented to. Privacy and ToS
+  // consent is a single combined action (one checkbox agrees to both), so
+  // these two columns are always written together, never independently.
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS privacy_version_consented INTEGER`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS tos_version_consented INTEGER`);
+
+  // Seed version 1 of each policy from the content that used to be hardcoded
+  // in TermsPage.jsx/PrivacyPage.jsx, so existing installs get a real v1
+  // record instead of starting from an empty history.
+  const existingPrivacyVersion = await queryOne("SELECT id FROM policy_versions WHERE module = 'privacy' LIMIT 1");
+  if (!existingPrivacyVersion) {
+    await pool.query(
+      `INSERT INTO policy_versions (module, version, content_html, summary) VALUES ('privacy', 1, $1, 'Initial recorded version.')`,
+      [PRIVACY_V1_HTML]
+    );
+  }
+  const existingTosVersion = await queryOne("SELECT id FROM policy_versions WHERE module = 'tos' LIMIT 1");
+  if (!existingTosVersion) {
+    await pool.query(
+      `INSERT INTO policy_versions (module, version, content_html, summary) VALUES ('tos', 1, $1, 'Initial recorded version.')`,
+      [TOS_V1_HTML]
+    );
+  }
+
+  // Backfill: anyone who already consented before version tracking existed is
+  // treated as having consented to v1 of both, so this migration doesn't
+  // retroactively flag every existing user for re-consent.
+  await pool.query(`
+    UPDATE users SET privacy_version_consented = 1, tos_version_consented = 1
+    WHERE privacy_consent = 1 AND privacy_version_consented IS NULL
   `);
 
   // Seed default settings
