@@ -41,7 +41,7 @@ export default function OrgAdminInviteCompletePage() {
     setError('')
     try {
       const r = await axios.post(`${API}/org-register/${token}/complete`, { plan_tier: planTier, password, privacy_consent: consent })
-      login(r.data.token, r.data.user)
+      login(r.data.user)
       navigate('/org')
     } catch (err) {
       setError(err.response?.data?.error || 'Could not complete setup. Please try again.')

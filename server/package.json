@@ -15,6 +15,7 @@
     "@aws-sdk/s3-request-presigner": "^3.1030.0",
     "@sentry/node": "^10.65.0",
     "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "express-rate-limit": "^8.3.2",

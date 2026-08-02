@@ -9,6 +9,7 @@ const { queryOne, query } = require('../db/database');
 const { sendEmail } = require('../lib/sendEmail');
 const { welcomeEmail, passwordResetEmail, emailVerificationEmail } = require('../lib/emailTemplates');
 const { validate } = require('../middleware/validate');
+const { setAuthCookies, clearAuthCookies } = require('../lib/authCookies');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
 
@@ -129,12 +130,23 @@ router.post('/register', registerRules, validate, async (req, res) => {
     const verifyToken  = crypto.randomBytes(32).toString('hex');
     const verifyExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
+    // The single privacy_consent checkbox agrees to both the Privacy Policy
+    // and Terms of Service at once (FEAT-04/05), so record which published
+    // version of each was current at signup - null if neither has been
+    // published yet (e.g. a fresh install before any admin publish action).
+    const [privacyVersion, tosVersion] = await Promise.all([
+      queryOne("SELECT version FROM policy_versions WHERE module = 'privacy' ORDER BY version DESC LIMIT 1"),
+      queryOne("SELECT version FROM policy_versions WHERE module = 'tos' ORDER BY version DESC LIMIT 1"),
+    ]);
+
     const result = await query(`
       INSERT INTO users (name, email, password_hash, date_of_birth, country_code, privacy_consent,
-                         privacy_consent_at, email_verified, email_verification_token, email_verification_expires_at)
-      VALUES ($1, $2, $3, $4, $5, 1, NOW(), 0, $6, $7)
+                         privacy_consent_at, privacy_version_consented, tos_version_consented,
+                         email_verified, email_verification_token, email_verification_expires_at)
+      VALUES ($1, $2, $3, $4, $5, 1, NOW(), $6, $7, 0, $8, $9)
       RETURNING id
-    `, [name, email, hash, date_of_birth || null, country_code || null, verifyToken, verifyExpiry]);
+    `, [name, email, hash, date_of_birth || null, country_code || null,
+        privacyVersion?.version ?? null, tosVersion?.version ?? null, verifyToken, verifyExpiry]);
 
     const newId = result.rows[0].id;
 
@@ -153,6 +165,11 @@ router.post('/register', registerRules, validate, async (req, res) => {
     auditLog(newId, 'register', req);
 
     const token = jwt.sign({ id: newId, email, is_admin: 0, sv: 1 }, JWT_SECRET, { expiresIn: '8h' });
+    // SEC-09: the cookie is what the web client actually relies on now - it
+    // never reads or stores `token` from this body. Still returned in the
+    // body unchanged for mobile, which has no browser cookie jar and keeps
+    // using this exactly as before, storing it in expo-secure-store itself.
+    setAuthCookies(res, token);
     res.status(201).json({
       id: newId,
       token,
@@ -205,6 +222,9 @@ router.post('/login', loginRules, validate, async (req, res) => {
     JWT_SECRET,
     { expiresIn: '8h' }
   );
+  // See the matching comment in /register - cookie is authoritative for web,
+  // the body's token field is kept only for mobile's benefit.
+  setAuthCookies(res, token);
   res.json({
     token,
     user: {
@@ -380,6 +400,7 @@ router.post('/resend-verification', auth, async (req, res) => {
 
 router.post('/logout', auth, (req, res) => {
   auditLog(req.user.id, 'logout', req);
+  clearAuthCookies(res);
   res.json({ success: true });
 });
 

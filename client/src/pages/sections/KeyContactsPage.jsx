@@ -319,7 +319,7 @@ export default function KeyContactsPage() {
                                 <span className="text-muted small">({contact.relationship})</span>
                               )}
                               {!!contact.is_executor && (
-                                <Badge style={{ background: 'var(--green-800)', color: '#fff', fontWeight: 600 }}>
+                                <Badge bg={null} style={{ background: 'var(--green-800)', color: '#fff', fontWeight: 600 }}>
                                   Executor
                                 </Badge>
                               )}
@@ -333,7 +333,7 @@ export default function KeyContactsPage() {
                                 {contact.visible_sections.map(sid => {
                                   const s = SECTIONS.find(x => x.id === sid)
                                   return s ? (
-                                    <Badge key={sid} style={{ background: '#fff', color: 'var(--green-900)', border: '1px solid var(--green-100)', fontWeight: 500, fontSize: '0.75rem' }}>
+                                    <Badge key={sid} bg={null} style={{ background: '#fff', color: 'var(--green-900)', border: '1px solid var(--green-100)', fontWeight: 500, fontSize: '0.75rem' }}>
                                       {s.label}
                                     </Badge>
                                   ) : null

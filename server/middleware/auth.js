@@ -41,17 +41,44 @@ async function applyViewAs(req, decoded) {
   return { user: { id: customerId, email: null, is_admin: 0 } };
 }
 
+// SEC-09: the web client no longer holds a readable copy of the session
+// token at all - it lives only in an httpOnly cookie, sent automatically by
+// the browser. Mobile has no meaningful browser cookie jar, so it keeps
+// sending the token it already stores in expo-secure-store as a Bearer
+// header exactly as before; that path is completely unaffected by any of
+// this. Cookie first, header as the fallback, so a request carrying both
+// (shouldn't normally happen) prefers the cookie.
 module.exports = async (req, res, next) => {
+  const cookieToken = req.cookies?.token;
   const header = req.headers.authorization;
-  if (!header || !header.startsWith('Bearer ')) {
+  const headerToken = header?.startsWith('Bearer ') ? header.slice(7) : null;
+  const token = cookieToken || headerToken;
+  const authViaCookie = !!cookieToken;
+
+  if (!token) {
     return res.status(401).json({ error: 'Unauthorized', session_expired: true });
   }
-  const token = header.split(' ')[1];
   let decoded;
   try {
     decoded = jwt.verify(token, JWT_SECRET);
   } catch {
     return res.status(401).json({ error: 'Invalid or expired token', session_expired: true });
+  }
+
+  // CSRF only matters for cookie-authenticated requests - a cross-site page
+  // can make the browser attach the cookie automatically, but can't read the
+  // separate csrf_token cookie to echo it back (same-origin policy), so a
+  // forged request fails this check even with valid session cookies riding
+  // along. Bearer-header requests (mobile, or any non-browser client) aren't
+  // reachable by a malicious web page in the first place, so they're exempt.
+  // Safe methods are exempt since they don't change state.
+  const isMutating = !['GET', 'HEAD', 'OPTIONS'].includes(req.method);
+  if (authViaCookie && isMutating) {
+    const csrfCookie = req.cookies?.csrf_token;
+    const csrfHeader = req.headers['x-csrf-token'];
+    if (!csrfCookie || !csrfHeader || csrfCookie !== csrfHeader) {
+      return res.status(403).json({ error: 'Invalid or missing CSRF token.' });
+    }
   }
 
   if (decoded.viewAs) {
