@@ -69,7 +69,7 @@ export default function OrgCustomersPage() {
               <div style={{ fontWeight: 700, color: 'var(--green-900)' }}>{c.user_name || c.invited_name}</div>
               <div className="small text-muted">{c.user_email || c.invited_email}{c.location_name ? ` · ${c.location_name}` : ''}</div>
             </div>
-            <Badge style={{ background: STATUS_COLORS[c.lifecycle_status] }}>{STATUS_LABELS[c.lifecycle_status]}</Badge>
+            <Badge bg={null} style={{ background: STATUS_COLORS[c.lifecycle_status], color: '#fff' }}>{STATUS_LABELS[c.lifecycle_status]}</Badge>
           </div>
         </div>
       ))}
