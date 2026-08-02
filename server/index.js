@@ -3,6 +3,7 @@ require('./instrument');
 const Sentry = require('@sentry/node');
 const express = require('express');
 const helmet  = require('helmet');
+const cookieParser = require('cookie-parser');
 const rateLimit = require('express-rate-limit');
 const { init: initDb, queryOne } = require('./db/database');
 const app = express();
@@ -28,7 +29,7 @@ app.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Credentials', 'true');
   }
   res.setHeader('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-CSRF-Token');
   if (req.method === 'OPTIONS') return res.status(204).end();
   next();
 });
@@ -38,6 +39,7 @@ app.use((req, res, next) => {
 app.post('/api/billing/webhook', express.raw({ type: 'application/json' }), require('./routes/stripeWebhook').handler);
 
 app.use(express.json({ limit: '10kb' }));
+app.use(cookieParser());
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -67,7 +69,12 @@ app.use(async (req, res, next) => {
     const setting = await queryOne("SELECT value FROM app_settings WHERE key = 'maintenance_mode'");
     if (setting?.value !== '1') return next();
     const jwt = require('jsonwebtoken');
-    const token = req.headers.authorization?.split(' ')[1];
+    // SEC-09: web no longer sends an Authorization header at all - the admin
+    // bypass here needs the same cookie-first, header-fallback lookup
+    // middleware/auth.js uses, or a logged-in admin's own cookie-based
+    // session would never be recognized here and everyone would see the
+    // maintenance page, admins included.
+    const token = req.cookies?.token || req.headers.authorization?.split(' ')[1];
     if (token) {
       try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);

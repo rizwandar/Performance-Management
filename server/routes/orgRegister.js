@@ -7,6 +7,7 @@ const { queryOne, query } = require('../db/database');
 const { PLAN_TIERS, PLAN_RATES } = require('../lib/orgPlanLimits');
 const { sendEmail } = require('../lib/sendEmail');
 const { orgAdminInviteEmail } = require('../lib/emailTemplates');
+const { setAuthCookies } = require('../lib/authCookies');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
 
@@ -123,6 +124,7 @@ router.post('/:token/complete', async (req, res) => {
     JWT_SECRET,
     { expiresIn: '8h' }
   );
+  setAuthCookies(res, token); // web-only flow (org self-registration), same as /auth/register
   res.status(201).json({
     token,
     user: { id: userId, name: invite.name, email: invite.email, is_admin: 0, org_role: 'org_admin', organization_id: invite.organization_id },
