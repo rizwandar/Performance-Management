@@ -46,9 +46,10 @@ export function VaultSetupScreen({ onSetup }) {
           Set up your vault password
         </h5>
         <p className="text-muted small text-center mb-4">
-          Your most sensitive information (legal documents and digital credentials) is
+          Your most sensitive information (Personal &amp; Legal Documents, Digital Vault credentials,
+          Financial Affairs, Property &amp; Possessions, and Household Information) is
           protected by a separate vault password that only you know.
-          Once set, it applies to both sections.
+          Once set, it applies to all five sections.
         </p>
 
         {error && <Alert variant="danger">{error}</Alert>}
@@ -59,8 +60,9 @@ export function VaultSetupScreen({ onSetup }) {
         }}>
           <strong>Important:</strong> Your vault password is never stored on our servers.
           If you forget it, your vault-protected data cannot be recovered.
-          Resetting your vault <strong>permanently deletes</strong> all legal documents and digital credentials.
-          Keep your vault password somewhere safe.
+          Resetting your vault <strong>permanently deletes</strong> all five vault-protected sections.
+          Keep your vault password somewhere safe, or use Settings to change it any time while
+          you still remember it.
         </div>
 
         <Form.Group className="mb-3">
@@ -107,7 +109,9 @@ export function VaultLockScreen({ onUnlock, onReset }) {
   const [pw, setPw]             = useState('')
   const [checking, setChecking] = useState(false)
   const [error, setError]       = useState('')
-  const [showReset, setShowReset] = useState(false)
+  // 'none' -> locked screen, 'choice' -> "do you still remember an earlier password?",
+  // 'confirm' -> the destructive delete-everything screen
+  const [resetStep, setResetStep] = useState('none')
   const [lockedUntil, setLockedUntil] = useState(null)
 
   // Reset flow
@@ -165,15 +169,53 @@ export function VaultLockScreen({ onUnlock, onReset }) {
 
   const isLocked = lockedUntil && new Date(lockedUntil) > new Date()
 
-  if (showReset) {
+  if (resetStep === 'choice') {
+    return (
+      <div style={{ maxWidth: 440, margin: '0 auto' }}>
+        <div style={{
+          background: 'var(--parchment)', borderRadius: 12,
+          padding: '32px 36px', border: '1px solid var(--border)',
+        }}>
+          <div style={{ fontSize: '2.5rem', textAlign: 'center', marginBottom: 12 }}>🔑</div>
+          <h5 style={{ color: 'var(--green-900)', textAlign: 'center', marginBottom: 8 }}>
+            Forgot your vault password?
+          </h5>
+          <p className="text-muted small text-center mb-4">
+            Do you still remember an earlier vault password, even if the attempt you just made
+            didn't work? A typo is easy to fix without losing anything.
+          </p>
+
+          <Button variant="primary" className="w-100 mb-2" onClick={() => navigate('/profile/settings')}>
+            Yes, take me to Settings to change it
+          </Button>
+          <p className="text-muted small text-center mb-4" style={{ fontSize: '0.8rem' }}>
+            Settings lets you change your vault password using your current one. Nothing is deleted.
+          </p>
+
+          <Button variant="outline-danger" className="w-100 mb-3" onClick={() => setResetStep('confirm')}>
+            No, I've completely forgotten it
+          </Button>
+
+          <button className="btn btn-link w-100 p-0"
+            style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}
+            onClick={() => setResetStep('none')}>
+            Go back
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (resetStep === 'confirm') {
     return (
       <div style={{ maxWidth: 440, margin: '0 auto' }}>
         <div style={{ background: '#fff1f2', border: '1px solid #fecdd3', borderRadius: 12, padding: '32px 36px' }}>
           <div style={{ fontSize: '2.5rem', textAlign: 'center', marginBottom: 12 }}>⚠️</div>
           <h5 style={{ color: '#9f1239', textAlign: 'center', marginBottom: 8 }}>Reset your vault</h5>
           <p className="small text-center mb-4" style={{ color: '#7f1d1d' }}>
-            This will <strong>permanently delete all vault-protected data</strong>, including your legal
-            document records and digital credentials. This cannot be undone.
+            This will <strong>permanently delete all vault-protected data</strong>: Personal &amp; Legal
+            Documents, Digital Vault credentials, Financial Affairs, Property &amp; Possessions, and
+            Household Information. This cannot be undone.
             You will be able to set a new vault password afterwards.
           </p>
 
@@ -196,7 +238,7 @@ export function VaultLockScreen({ onUnlock, onReset }) {
           </Button>
           <button className="btn btn-link w-100 p-0"
             style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}
-            onClick={() => { setShowReset(false); setResetError(''); setAccountPw('') }}>
+            onClick={() => { setResetStep('choice'); setResetError(''); setAccountPw('') }}>
             Go back
           </button>
         </div>
@@ -252,7 +294,7 @@ export function VaultLockScreen({ onUnlock, onReset }) {
         <div className="text-center">
           <button className="btn btn-link p-0"
             style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}
-            onClick={() => setShowReset(true)}>
+            onClick={() => setResetStep('choice')}>
             Forgot your vault password?
           </button>
         </div>
