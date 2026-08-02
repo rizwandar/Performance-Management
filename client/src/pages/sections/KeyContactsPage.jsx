@@ -60,6 +60,19 @@ export default function KeyContactsPage() {
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting, setDeleting]         = useState(false)
 
+  const loadContacts = () => {
+    setTcLoading(true)
+    setTcError('')
+    const fetchOnce = () => axios.get(`${API}/trusted-contacts`)
+    // Most failures here are a brief blip, not a real problem, so retry once
+    // silently before bothering the user with anything.
+    fetchOnce()
+      .catch(() => fetchOnce())
+      .then(r => setContacts(r.data))
+      .catch(() => setTcError('Your trusted contacts are taking a moment to load.'))
+      .finally(() => setTcLoading(false))
+  }
+
   // ── Load both on mount ─────────────────────────────────────────────────────
   useEffect(() => {
     axios.get(`${API}/users/me`)
@@ -73,19 +86,6 @@ export default function KeyContactsPage() {
 
     loadContacts()
   }, [])
-
-  const loadContacts = () => {
-    setTcLoading(true)
-    setTcError('')
-    const fetchOnce = () => axios.get(`${API}/trusted-contacts`)
-    // Most failures here are a brief blip, not a real problem, so retry once
-    // silently before bothering the user with anything.
-    fetchOnce()
-      .catch(() => fetchOnce())
-      .then(r => setContacts(r.data))
-      .catch(() => setTcError('Your trusted contacts are taking a moment to load.'))
-      .finally(() => setTcLoading(false))
-  }
 
   // ── Emergency contact save ─────────────────────────────────────────────────
   const saveEcForm = async () => {
