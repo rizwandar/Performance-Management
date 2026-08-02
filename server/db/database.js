@@ -592,6 +592,32 @@ async function init() {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS security_question TEXT`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS security_answer_hash TEXT`);
 
+  // BIL-04: 14-day card-required free trial. trial_used_at lives on users (not
+  // subscriptions) because the subscriptions row is upserted on every webhook
+  // event and would otherwise lose the "ever had a trial" fact across a
+  // cancel-then-resubscribe cycle; this column is set once and never cleared.
+  // trial_skipped(_at) records the "pay now, skip the trial" choice for the
+  // current subscription, for audit/traceability per the agreed spec.
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_used_at TIMESTAMPTZ`);
+  await pool.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS trial_skipped BOOLEAN DEFAULT false`);
+  await pool.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS trial_skipped_at TIMESTAMPTZ`);
+  // Tracks whether the "your trial ends in 2 days" reminder has already gone
+  // out for the current trial, so the daily cron doesn't resend it.
+  await pool.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS trial_reminder_sent_at TIMESTAMPTZ`);
+
+  // One-trial-per-person enforcement, card side: every Stripe card fingerprint
+  // that has ever been granted a trial. Checked in the checkout.session.completed
+  // webhook so a cancel-and-resignup-under-a-new-email doesn't grant a second
+  // trial on the same physical card. Email/account-side dedupe is users.trial_used_at.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS used_trial_fingerprints (
+      id          SERIAL PRIMARY KEY,
+      fingerprint TEXT UNIQUE NOT NULL,
+      user_id     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at  TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
   // Seed default settings
   for (const [key, value] of [
     ['password_reset_method', 'email'],

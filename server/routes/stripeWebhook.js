@@ -27,6 +27,7 @@ async function upsertFromSubscription(subscription, userId) {
   // as of recent Stripe API versions (the older top-level fields were removed).
   const periodStart = item?.current_period_start;
   const periodEnd   = item?.current_period_end;
+  const trialSkipped = subscription.metadata?.trial_skipped === '1';
 
   let resolvedUserId = userId;
   if (!resolvedUserId) {
@@ -44,8 +45,9 @@ async function upsertFromSubscription(subscription, userId) {
   await query(
     `INSERT INTO subscriptions
        (user_id, plan, status, provider, provider_customer_id, provider_subscription_id,
-        provider_price_id, current_period_start, current_period_end, cancelled_at)
-     VALUES ($1, $2, $3, 'stripe', $4, $5, $6, $7, $8, $9)
+        provider_price_id, current_period_start, current_period_end, cancelled_at,
+        trial_ends_at, trial_skipped, trial_skipped_at)
+     VALUES ($1, $2, $3, 'stripe', $4, $5, $6, $7, $8, $9, $10, $11, $12)
      ON CONFLICT (user_id) DO UPDATE SET
        plan = EXCLUDED.plan,
        status = EXCLUDED.status,
@@ -56,6 +58,9 @@ async function upsertFromSubscription(subscription, userId) {
        current_period_start = EXCLUDED.current_period_start,
        current_period_end = EXCLUDED.current_period_end,
        cancelled_at = EXCLUDED.cancelled_at,
+       trial_ends_at = EXCLUDED.trial_ends_at,
+       trial_skipped = EXCLUDED.trial_skipped,
+       trial_skipped_at = EXCLUDED.trial_skipped_at,
        updated_at = NOW()`,
     [
       resolvedUserId,
@@ -67,8 +72,56 @@ async function upsertFromSubscription(subscription, userId) {
       toTimestamp(periodStart),
       toTimestamp(periodEnd),
       subscription.canceled_at ? toTimestamp(subscription.canceled_at) : null,
+      toTimestamp(subscription.trial_end),
+      trialSkipped,
+      trialSkipped ? new Date().toISOString() : null,
     ]
   );
+
+  // Durable "this account has had a trial" flag, set once and never cleared -
+  // see the schema comment in database.js for why this can't just live on
+  // the subscriptions row.
+  if (subscription.trial_end) {
+    await query(
+      'UPDATE users SET trial_used_at = NOW() WHERE id = $1 AND trial_used_at IS NULL',
+      [resolvedUserId]
+    );
+  }
+}
+
+// One-trial-per-person enforcement, card side (BIL-04). Checkout Sessions
+// can't check the card fingerprint before granting a trial - the card isn't
+// collected until the customer fills out Stripe's hosted page, after the
+// session (and its trial_period_days) was already created. So the trial is
+// granted optimistically at checkout, and revoked here, right after the card
+// is known, if that exact card has already been used for a trial on a
+// different account. This is Stripe's own recommended pattern: not a hard
+// signup block, the user just doesn't get a second free trial and is
+// charged immediately instead.
+async function enforceOneTrialPerCard(subscription, userId) {
+  const pm = subscription.default_payment_method;
+  const fingerprint = pm && typeof pm === 'object' ? pm.card?.fingerprint : null;
+  if (!fingerprint) return subscription;
+
+  const priorUse = await queryOne(
+    'SELECT user_id FROM used_trial_fingerprints WHERE fingerprint = $1',
+    [fingerprint]
+  );
+
+  if (priorUse && String(priorUse.user_id) !== String(userId)) {
+    console.log(`[billing] Duplicate trial card for user ${userId} (already used for a trial by user ${priorUse.user_id}) - ending trial immediately`);
+    await query(
+      'INSERT INTO user_audit_logs (user_id, action, metadata) VALUES ($1, $2, $3)',
+      [userId, 'trial_denied_duplicate_card', JSON.stringify({ fingerprint })]
+    );
+    return stripe.subscriptions.update(subscription.id, { trial_end: 'now' });
+  }
+
+  await query(
+    'INSERT INTO used_trial_fingerprints (fingerprint, user_id) VALUES ($1, $2) ON CONFLICT (fingerprint) DO NOTHING',
+    [fingerprint, userId]
+  );
+  return subscription;
 }
 
 // Orgs going back to Starter (free) on cancellation - Starter has no Stripe
@@ -157,10 +210,15 @@ module.exports.handler = async (req, res) => {
       case 'checkout.session.completed': {
         const session = event.data.object;
         if (session.mode === 'subscription') {
-          const subscription = await stripe.subscriptions.retrieve(session.subscription);
+          let subscription = await stripe.subscriptions.retrieve(session.subscription, {
+            expand: ['default_payment_method'],
+          });
           if (session.metadata?.organization_id) {
             await upsertOrgFromSubscription(subscription, session.metadata.organization_id);
           } else {
+            if (subscription.status === 'trialing') {
+              subscription = await enforceOneTrialPerCard(subscription, session.client_reference_id);
+            }
             await upsertFromSubscription(subscription, session.client_reference_id);
           }
         }
