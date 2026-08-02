@@ -142,8 +142,9 @@ router.post('/register', registerRules, validate, async (req, res) => {
     const result = await query(`
       INSERT INTO users (name, email, password_hash, date_of_birth, country_code, privacy_consent,
                          privacy_consent_at, privacy_version_consented, tos_version_consented,
-                         email_verified, email_verification_token, email_verification_expires_at)
-      VALUES ($1, $2, $3, $4, $5, 1, NOW(), $6, $7, 0, $8, $9)
+                         email_verified, email_verification_token, email_verification_expires_at,
+                         must_set_security_question)
+      VALUES ($1, $2, $3, $4, $5, 1, NOW(), $6, $7, 0, $8, $9, 1)
       RETURNING id
     `, [name, email, hash, date_of_birth || null, country_code || null,
         privacyVersion?.version ?? null, tosVersion?.version ?? null, verifyToken, verifyExpiry]);

@@ -33,7 +33,7 @@ router.get('/me', auth, async (req, res) => {
            emergency_contact_name, emergency_contact_phone, emergency_contact_email,
            marital_status, spouse_name, spouse_phone, spouse_email,
            songs_enabled, bucket_list_enabled, is_admin, created_at,
-           security_question
+           security_question, must_set_security_question
     FROM users WHERE id = $1
   `, [req.user.id]);
   if (!user) return res.status(404).json({ error: 'User not found' });
@@ -43,7 +43,15 @@ router.get('/me', auth, async (req, res) => {
 
   // security_question text is fine to return (it's not sensitive); the answer
   // hash is never selected above in the first place, let alone returned.
-  res.json({ ...user, has_security_question: !!user.security_question, songs, bucket_list });
+  // must_set_security_question resolves itself once a question is set, so the
+  // client only needs this one combined flag to decide whether to block.
+  res.json({
+    ...user,
+    has_security_question: !!user.security_question,
+    must_set_security_question: !!(user.must_set_security_question && !user.security_question),
+    songs,
+    bucket_list,
+  });
 });
 
 router.put('/me', auth, async (req, res) => {

@@ -7,8 +7,8 @@ import OrgConsentPanel from '../components/OrgConsentPanel'
 
 const API = import.meta.env.VITE_API_URL
 
-const CUSTOM_QUESTION = 'Other (write my own)'
-const SECURITY_QUESTION_PRESETS = [
+export const CUSTOM_QUESTION = 'Other (write my own)'
+export const SECURITY_QUESTION_PRESETS = [
   'What was the name of your first pet?',
   'What was the make and model of your first car?',
   'In what city did your parents meet?',

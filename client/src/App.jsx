@@ -32,6 +32,7 @@ import OrgStaffPage           from './pages/org/OrgStaffPage'
 import OrgSettingsPage        from './pages/org/OrgSettingsPage'
 import OrgTokenPage           from './pages/org/OrgTokenPage'
 import ViewAsBanner           from './components/ViewAsBanner'
+import SecurityQuestionOnboarding from './components/SecurityQuestionOnboarding'
 import SecurityPage           from './pages/SecurityPage'
 import NotFoundPage           from './pages/NotFoundPage'
 import LegalDocumentsPage     from './pages/sections/LegalDocumentsPage'
@@ -694,6 +695,7 @@ function AppContent() {
         Skip to main content
       </a>
       <NavBar />
+      <SecurityQuestionOnboarding />
       <ViewAsBanner />
       <UnverifiedEmailBanner />
       <RecoveryCompletionBanner />

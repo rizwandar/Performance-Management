@@ -593,6 +593,16 @@ async function init() {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS security_question TEXT`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS security_answer_hash TEXT`);
 
+  // Set to 1 only at registration for accounts created after this flag was
+  // introduced (FEAT-06) - it drives a one-time blocking onboarding step that
+  // requires setting a security question before the account can be used.
+  // Defaulting to 0 means ADD COLUMN doesn't retroactively force this on
+  // existing users, who keep the pre-existing non-blocking nudge instead
+  // (RecoveryCompletionBanner, client-side). The gate itself is computed as
+  // must_set_security_question AND security_question IS NULL, so it resolves
+  // itself the moment the question is set - nothing needs to clear this flag.
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS must_set_security_question INTEGER DEFAULT 0`);
+
   // Legal content versioning (FEAT-04/05): Privacy Policy and Terms of Service
   // are now admin-published, versioned records instead of hardcoded page
   // content, so there is a permanent record of exactly what was in effect at
