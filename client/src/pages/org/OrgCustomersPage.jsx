@@ -156,7 +156,7 @@ function CustomerDetailModal({ customer, onHide, showAlert }) {
     setStartingViewAs(true)
     try {
       const r = await axios.post(`${API}/org-portal/customers/${customer.id}/view-as`)
-      startViewAs(r.data.token, r.data.customer_name)
+      startViewAs(r.data.customer_name, r.data.edit_allowed)
       navigate('/profile')
     } catch (err) {
       showAlert('danger', err.response?.data?.error || 'Could not start view-as.')

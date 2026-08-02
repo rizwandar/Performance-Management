@@ -2,6 +2,7 @@ const express = require('express');
 const router  = express.Router();
 const bcrypt  = require('bcryptjs');
 const { queryOne, query } = require('../db/database');
+const { setAuthCookies } = require('../lib/authCookies');
 
 const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000;
 
@@ -90,6 +91,7 @@ router.post('/:token/complete-invite', async (req, res) => {
   const jwt = require('jsonwebtoken');
   const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
   const token = jwt.sign({ id: userId, email: row.invited_email, is_admin: 0 }, JWT_SECRET, { expiresIn: '8h' });
+  setAuthCookies(res, token); // web-only flow (org customer onboarding), same as /auth/register
   res.status(201).json({ success: true, token, user: { id: userId, name: row.invited_name, email: row.invited_email, is_admin: 0 } });
 });
 

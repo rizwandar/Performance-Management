@@ -5,12 +5,12 @@ import { useAuth } from '../context/AuthContext'
 import { useBranding } from '../context/BrandingContext'
 
 export default function LandingPage() {
-  const { isTokenValid, user } = useAuth()
+  const { isLoggedIn, user } = useAuth()
   const { siteName, logoUrl } = useBranding()
   const navigate = useNavigate()
 
   useEffect(() => {
-    if (isTokenValid()) {
+    if (isLoggedIn()) {
       navigate(user?.is_admin ? '/admin' : '/profile')
     }
   }, [])

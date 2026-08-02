@@ -36,7 +36,7 @@ function PasswordRequirements({ password }) {
 }
 
 export default function ProfilePage() {
-  const { user: authUser, login, token, logout } = useAuth()
+  const { user: authUser, login, logout } = useAuth()
   const navigate = useNavigate()
   const [loading, setLoading]   = useState(true)
   const [saving, setSaving]     = useState(false)
@@ -150,7 +150,7 @@ export default function ProfilePage() {
     try {
       await axios.put(`${API}/users/me`, form)
       if (authUser && form.name !== authUser.name) {
-        login(token, { ...authUser, name: form.name })
+        login({ ...authUser, name: form.name })
       }
       setSuccess('Profile saved.')
       setTimeout(() => setSuccess(''), 3000)

@@ -77,7 +77,6 @@ function PlanCard({ title, price, period, note, features, highlight, badge, chec
 }
 
 function CheckoutButton({ label, planId }) {
-  const { token } = useAuth()
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState('')
 
@@ -85,9 +84,7 @@ function CheckoutButton({ label, planId }) {
     setLoading(true)
     setError('')
     try {
-      const r = await axios.post(`${API}/billing/create-checkout-session`, { plan: planId }, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      const r = await axios.post(`${API}/billing/create-checkout-session`, { plan: planId })
       window.location.href = r.data.url
     } catch (err) {
       setError(err.response?.data?.error || 'Could not start checkout. Please try again.')
@@ -116,7 +113,7 @@ function CheckoutButton({ label, planId }) {
 
 export default function UpgradePage() {
   const { isPremium, plan, refresh } = useSubscription()
-  const { token } = useAuth()
+  const { user } = useAuth()
   const [subscription, setSubscription] = useState(null)
   const [checkoutStatus, setCheckoutStatus] = useState(null)
 
@@ -131,11 +128,11 @@ export default function UpgradePage() {
   }, [refresh])
 
   useEffect(() => {
-    if (!token) return
-    axios.get(`${API}/billing/subscription`, { headers: { Authorization: `Bearer ${token}` } })
+    if (!user) return
+    axios.get(`${API}/billing/subscription`)
       .then(r => setSubscription(r.data))
       .catch(() => {})
-  }, [token, plan])
+  }, [user, plan])
 
   return (
     <div style={{ maxWidth: 1180, margin: '0 auto' }}>

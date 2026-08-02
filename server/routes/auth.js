@@ -9,6 +9,7 @@ const { queryOne, query } = require('../db/database');
 const { sendEmail } = require('../lib/sendEmail');
 const { welcomeEmail, passwordResetEmail, emailVerificationEmail } = require('../lib/emailTemplates');
 const { validate } = require('../middleware/validate');
+const { setAuthCookies, clearAuthCookies } = require('../lib/authCookies');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
 
@@ -153,6 +154,11 @@ router.post('/register', registerRules, validate, async (req, res) => {
     auditLog(newId, 'register', req);
 
     const token = jwt.sign({ id: newId, email, is_admin: 0, sv: 1 }, JWT_SECRET, { expiresIn: '8h' });
+    // SEC-09: the cookie is what the web client actually relies on now - it
+    // never reads or stores `token` from this body. Still returned in the
+    // body unchanged for mobile, which has no browser cookie jar and keeps
+    // using this exactly as before, storing it in expo-secure-store itself.
+    setAuthCookies(res, token);
     res.status(201).json({
       id: newId,
       token,
@@ -205,6 +211,9 @@ router.post('/login', loginRules, validate, async (req, res) => {
     JWT_SECRET,
     { expiresIn: '8h' }
   );
+  // See the matching comment in /register - cookie is authoritative for web,
+  // the body's token field is kept only for mobile's benefit.
+  setAuthCookies(res, token);
   res.json({
     token,
     user: {
@@ -380,6 +389,7 @@ router.post('/resend-verification', auth, async (req, res) => {
 
 router.post('/logout', auth, (req, res) => {
   auditLog(req.user.id, 'logout', req);
+  clearAuthCookies(res);
   res.json({ success: true });
 });
 
