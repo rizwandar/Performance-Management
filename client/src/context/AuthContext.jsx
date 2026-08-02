@@ -70,6 +70,20 @@ export function AuthProvider({ children }) {
     return stored ? JSON.parse(stored) : null
   })
 
+  const logout = () => {
+    // Fire-and-forget: tell the server so the logout is audit-logged.
+    // Do this before clearing state so the interceptor can still attach the token.
+    const t = localStorage.getItem('token')
+    if (t) {
+      axios.post(`${import.meta.env.VITE_API_URL}/auth/logout`)
+        .catch(() => {/* best-effort — never block the client logout */})
+    }
+    localStorage.removeItem('token')
+    localStorage.removeItem('user')
+    setToken(null)
+    setUser(null)
+  }
+
   useEffect(() => {
     const handler = (action, realToken, realUser) => {
       if (action === 'restoreReal') {
@@ -126,20 +140,6 @@ export function AuthProvider({ children }) {
     } else {
       logout()
     }
-  }
-
-  const logout = () => {
-    // Fire-and-forget: tell the server so the logout is audit-logged.
-    // Do this before clearing state so the interceptor can still attach the token.
-    const t = localStorage.getItem('token')
-    if (t) {
-      axios.post(`${import.meta.env.VITE_API_URL}/auth/logout`)
-        .catch(() => {/* best-effort — never block the client logout */})
-    }
-    localStorage.removeItem('token')
-    localStorage.removeItem('user')
-    setToken(null)
-    setUser(null)
   }
 
   const isTokenValid = () => {
