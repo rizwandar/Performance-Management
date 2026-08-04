@@ -30,6 +30,15 @@ cd client && npm run lint
 
 No test framework is configured.
 
+## Production Safety Gate
+
+**Before promoting any code to production** (merging a `staging` → `main` PR, or any other action that pushes changes into the live production branch/environment), run an adversarial security review of the changes being promoted first:
+
+1. Run the `/security-review` skill against the full diff going into production (compare against `main`, not just the latest commit — a promotion can carry forward several commits).
+2. Review adversarially: actively look for ways a real attacker could hack, leak, or corrupt user data, not just style or correctness issues. Pay particular attention to authorization/access-control bypasses, cross-user data leakage (IDOR), injection, unvalidated/unsanitized input, insecure file uploads, secrets or vault-protected data leaking into logs/responses/error messages, and any change touching auth, vault encryption, billing, or the org portal.
+3. Severity gate: low/informational findings can be noted and the promotion can proceed. Any finding at **medium severity or above must pause the promotion** — report it and get explicit user sign-off before merging or deploying, do not resolve that judgment call unilaterally.
+4. This gate applies specifically to production promotions. It is not required for every regular commit on a feature/dev branch.
+
 ## Architecture
 
 ### Monorepo Workspaces

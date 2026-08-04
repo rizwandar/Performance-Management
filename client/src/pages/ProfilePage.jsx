@@ -614,9 +614,11 @@ export default function ProfilePage() {
       <div style={{ background: 'var(--parchment)', borderRadius: 12, padding: '24px', marginBottom: 24, border: '1px solid var(--border)' }}>
         <h6 style={{ color: 'var(--green-900)', marginBottom: 4 }}>Vault Password</h6>
         <p className="text-muted small mb-4">
-          Your vault password protects your most sensitive sections: Personal &amp; Legal Documents
-          and Digital Life. It is never stored on our servers. If you forget it, the only option
-          is a full vault reset, which permanently deletes all vault-protected content.
+          Your vault password protects your most sensitive sections: Personal &amp; Legal Documents,
+          Digital Life, Financial Affairs, Property &amp; Possessions, and Household Information.
+          It is never stored on our servers. If you remember it, use <strong>Change vault password</strong>{' '}
+          below, nothing is deleted. If you've completely forgotten it, the only option is a full
+          vault reset, which permanently deletes all vault-protected content.
         </p>
 
         {vaultExists === false && (
@@ -628,8 +630,9 @@ export default function ProfilePage() {
               🔐 No vault set up yet.
             </span>
             <p className="text-muted small mb-0 mt-1">
-              Your vault password will be created the first time you open the
-              Personal & Legal Documents or Digital Life sections.
+              Your vault password will be created the first time you open any vault-protected
+              section: Personal & Legal Documents, Digital Life, Financial Affairs,
+              Property & Possessions, or Household Information.
             </p>
           </div>
         )}
@@ -641,7 +644,8 @@ export default function ProfilePage() {
               borderRadius: 8, padding: '10px 16px', marginBottom: 20, fontSize: '0.85rem',
               color: 'var(--green-800)',
             }}>
-              🔒 Vault is active. Your legal documents and digital credentials are protected.
+              🔒 Vault is active. Your legal documents, digital credentials, financial, property, and
+              household information are protected.
             </div>
 
             {vaultPwSuccess && <Alert variant="success">{vaultPwSuccess}</Alert>}
@@ -705,8 +709,11 @@ export default function ProfilePage() {
           <div style={{ background: '#fff1f2', border: '1px solid #fecdd3', borderRadius: 10, padding: '20px' }}>
             <p style={{ color: '#9f1239', fontWeight: 600, marginBottom: 8 }}>⚠️ Reset your vault</p>
             <p className="small mb-3" style={{ color: '#7f1d1d' }}>
-              This permanently deletes <strong>all</strong> vault-protected data, including legal documents and
-              digital credentials. This action cannot be undone. You can set a new vault password afterwards.
+              This permanently deletes <strong>all</strong> vault-protected data: Personal &amp; Legal
+              Documents, Digital Vault credentials, Financial Affairs, Property &amp; Possessions, and
+              Household Information. This action cannot be undone. You can set a new vault password
+              afterwards. If you still remember your current vault password, use{' '}
+              <strong>Change vault password</strong> above instead, nothing will be deleted.
             </p>
             {vaultResetError && <Alert variant="danger">{vaultResetError}</Alert>}
             <Form.Group className="mb-3">
