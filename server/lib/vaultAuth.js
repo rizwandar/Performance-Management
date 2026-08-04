@@ -1,6 +1,6 @@
 const { queryOne } = require('../db/database');
 const { deriveKey, verifyVaultPassword } = require('./vault');
-const { recordVaultAttempt, getVaultLockStatus, resetVaultAttempts } = require('./vaultAttempts');
+const { recordVaultAttempt, getVaultLockStatus, resetVaultAttempts, DEFAULT_DESTROY_AFTER } = require('./vaultAttempts');
 
 // Shared vault-password check used by every route that touches vault-protected
 // data (sections.js, documents.js). Centralized so the lockout/attempt-counter
@@ -11,7 +11,7 @@ async function checkVault(vault_password, userId, res, req) {
     res.status(400).json({ error: 'vault_password is required.' });
     return false;
   }
-  const vault = await queryOne('SELECT check_enc FROM digital_vault WHERE user_id = $1', [userId]);
+  const vault = await queryOne('SELECT check_enc, destroy_after_attempts FROM digital_vault WHERE user_id = $1', [userId]);
   if (!vault) {
     res.status(403).json({ error: 'No vault found. Please set up your vault password first.' });
     return false;
@@ -37,13 +37,23 @@ async function checkVault(vault_password, userId, res, req) {
     return false;
   }
 
-  await _sendVaultFailResponse(userId, res, req);
+  await _sendVaultFailResponse(userId, res, req, vault.destroy_after_attempts || DEFAULT_DESTROY_AFTER);
   return false;
 }
 
-async function _sendVaultFailResponse(userId, res, req) {
-  const { attempts, shouldLogout, vaultLocked, lockedUntil } = await recordVaultAttempt(userId, req);
-  const remaining = Math.max(0, 5 - attempts);
+async function _sendVaultFailResponse(userId, res, req, destroyAfter) {
+  const { attempts, shouldLogout, vaultLocked, vaultDestroyed, lockedUntil } = await recordVaultAttempt(userId, req);
+
+  if (vaultDestroyed) {
+    res.status(410).json({
+      error: `Too many incorrect attempts (${attempts}). This account's vault has been permanently deleted, as configured. You can set up a new vault password any time.`,
+      vault_destroyed: true,
+      force_logout: true,
+    });
+    return;
+  }
+
+  const remaining = Math.max(0, destroyAfter - attempts);
   if (vaultLocked) {
     res.status(423).json({
       error: `Too many incorrect attempts. Your vault has been temporarily locked until ${lockedUntil.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}. Nothing has been deleted - enter the correct password any time to unlock it immediately.`,
@@ -52,12 +62,12 @@ async function _sendVaultFailResponse(userId, res, req) {
     });
   } else if (shouldLogout) {
     res.status(403).json({
-      error: `Incorrect vault password. For your security, you have been signed out. Please sign in again. (${attempts} of 5 attempts used.)`,
+      error: `Incorrect vault password. For your security, you have been signed out. Please sign in again. (${attempts} of ${destroyAfter} attempts used.)`,
       force_logout: true, attempts,
     });
   } else {
     res.status(401).json({
-      error: `Incorrect vault password. ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining. After 3 incorrect attempts you will be signed out. After 5, your vault will be temporarily locked for 15 minutes.`,
+      error: `Incorrect vault password. ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining before your vault is permanently deleted. After 3 incorrect attempts you will be signed out; every 5, your vault is temporarily locked for 15 minutes.`,
       attempts, remaining,
     });
   }
