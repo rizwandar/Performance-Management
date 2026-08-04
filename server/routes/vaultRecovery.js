@@ -11,6 +11,7 @@ const { escrowAllPairs, tryRecoverKey } = require('../lib/vaultRecovery');
 // GET /api/sections/digital-life/recovery/questions
 // No vault unlock required - that's the entire point of this endpoint.
 router.get('/questions', requireAuth, async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, private');
   const vault = await queryOne('SELECT id, recovery_enabled FROM digital_vault WHERE user_id = $1', [req.user.id]);
   if (!vault || !vault.recovery_enabled) {
     return res.json({ recovery_enabled: false, questions: [] });

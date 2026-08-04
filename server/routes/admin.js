@@ -237,7 +237,7 @@ router.get('/vault-audit', auth, adminOnly, async (req, res) => {
   const [rows, totalRow] = await Promise.all([
     queryAll(
       `SELECT l.action, l.ip_address, l.user_agent, l.metadata, l.created_at, u.id as user_id, u.name, u.email
-       FROM user_audit_logs l JOIN users u ON u.id = l.user_id
+       FROM user_audit_logs l LEFT JOIN users u ON u.id = l.user_id
        WHERE l.action = ANY($1)
        ORDER BY l.created_at DESC LIMIT $2 OFFSET $3`,
       [VAULT_AUDIT_ACTIONS, limit, offset]
