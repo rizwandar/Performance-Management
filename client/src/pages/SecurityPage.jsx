@@ -25,7 +25,7 @@ export default function SecurityPage() {
           Security
         </h2>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-          Last updated: July 2026. This page describes the security measures protecting your data in In Good Hands.
+          Last updated: August 2026. This page describes the security measures protecting your data in In Good Hands.
         </p>
       </div>
 
@@ -38,19 +38,24 @@ export default function SecurityPage() {
       </>)}
 
       {section('vault', '3. The Digital Vault', <>
-        {p('Your digital credentials, legal document records, financial affairs, property and possessions, and practical household information are all protected by a separate vault password, in addition to your account password. These sections use field-level encryption designed so that even we cannot read your vault contents:')}
+        {p('Your digital credentials, legal document records, financial affairs, property and possessions, and practical household information are all protected by a separate vault password, in addition to your account password. These sections use field-level encryption:')}
         {li([
           'Vault data is encrypted with AES-256-GCM, an authenticated encryption algorithm that detects tampering as well as protecting confidentiality.',
           'The encryption key is derived from your vault password using scrypt, a memory-hard key derivation function designed to resist brute-force attacks.',
           'Your vault password itself is never transmitted to us in a form we store, and it is never saved in our database, not even hashed. It exists only for the moment it is needed to derive the encryption key.',
           'Each encrypted value has its own random initialisation vector and authentication tag, so identical values do not produce identical ciphertext.',
         ])}
-        {p('Because we never store your vault password, we cannot recover it for you. If it is lost, your vault must be reset, which permanently deletes vault-protected content. This trade-off is deliberate: it means a breach of our database alone cannot expose your vault data.')}
+        {p('When you set up your vault, you choose what happens if you ever forget the password, and you can change this choice any time from Profile > Vault Settings:')}
+        {li([
+          'Full reset only (default): we never store your vault password, so we cannot recover it for you. If it is lost, your vault must be reset, which permanently deletes vault-protected content. This is the strongest guarantee: a breach of our database alone can never expose your vault data.',
+          'Recovery via security questions (optional): you set up 3-5 vault-specific security questions. If you forget your password, answering at least 2 of them correctly recovers access without deleting anything. Choosing this option means your vault confidentiality is only as strong as those answers, not "even we cannot read it" - a database breach combined with guessable or known answers could expose your vault data. We never store the answers themselves, only encrypted material that can only be unlocked by supplying at least 2 correct answers.',
+        ])}
         {p('This field-level encryption applies to the text you enter directly (credentials, document details, notes). Files you upload as attachments (for example, a scanned document or photo) are handled differently: see "Infrastructure" below for how those are protected.')}
       </>)}
 
       {section('vaultattempts', '4. Vault Attempt Protection', <>
-        {p('Failed vault password attempts are tracked per account. Each failed attempt triggers a security email so you know if someone is trying to access your vault. After 5 consecutive failed attempts, the vault is temporarily locked for 15 minutes as protection against sustained guessing attacks. No vault data is ever deleted for incorrect attempts - entering the correct password unlocks it immediately, even during a lockout.')}
+        {p('Failed vault password attempts are tracked per account. Each failed attempt triggers a security email so you know if someone is trying to access your vault. After 3 consecutive failed attempts you are signed out and must log in again before trying more. Every 5 failed attempts, the vault is temporarily locked for 15 minutes as protection against sustained guessing.')}
+        {p('Unlike earlier versions of this page, incorrect attempts can eventually result in permanent deletion. Every vault has an auto-destroy threshold (default 100 consecutive wrong attempts, adjustable down to a minimum of 3 or up to 1000 from Profile > Vault Settings): once reached, all vault-protected data is automatically and permanently deleted, regardless of which forgot-password option you chose. This is a deliberate safety measure against someone with access to your account, but not your vault password, guessing indefinitely - not a hidden change in behavior. A correct password always unlocks the vault immediately, even mid-lockout, and resets the attempt count to zero.')}
       </>)}
 
       {section('accounts', '5. Account Security', <>
