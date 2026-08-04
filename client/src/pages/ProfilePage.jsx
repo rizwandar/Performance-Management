@@ -5,6 +5,9 @@ import axios from 'axios'
 import { useAuth } from '../context/AuthContext'
 import { useSubscription } from '../context/SubscriptionContext'
 import OrgConsentPanel from '../components/OrgConsentPanel'
+import VaultRecoveryQuestionsForm, {
+  defaultRecoveryQuestions, validateRecoveryQuestions, toApiQuestions,
+} from '../components/VaultRecoveryQuestionsForm'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -87,6 +90,25 @@ export default function ProfilePage() {
   const [vaultResetting, setVaultResetting]   = useState(false)
   const [vaultResetError, setVaultResetError] = useState('')
 
+  // Vault recovery settings (security questions + auto-destroy threshold)
+  const [recoveryEnabled, setRecoveryEnabled]       = useState(false)
+  const [destroyAfter, setDestroyAfter]             = useState(100)
+  const [showRecoverySetup, setShowRecoverySetup]   = useState(false)
+  const [recoverySetupPw, setRecoverySetupPw]       = useState('')
+  const [recoveryQuestions, setRecoveryQuestions]   = useState(defaultRecoveryQuestions())
+  const [recoverySaving, setRecoverySaving]         = useState(false)
+  const [recoveryError, setRecoveryError]           = useState('')
+  const [recoverySuccess, setRecoverySuccess]       = useState('')
+  const [showRecoveryDisable, setShowRecoveryDisable] = useState(false)
+  const [recoveryDisablePw, setRecoveryDisablePw]     = useState('')
+  const [recoveryDisabling, setRecoveryDisabling]     = useState(false)
+  const [recoveryDisableError, setRecoveryDisableError] = useState('')
+  const [destroyThresholdInput, setDestroyThresholdInput] = useState(100)
+  const [destroyThresholdPw, setDestroyThresholdPw]       = useState('')
+  const [savingThreshold, setSavingThreshold]             = useState(false)
+  const [thresholdError, setThresholdError]               = useState('')
+  const [thresholdSuccess, setThresholdSuccess]           = useState('')
+
   // Delete account state
   const [showDeleteAccount, setShowDeleteAccount] = useState(false)
   const [deleteForm, setDeleteForm] = useState({ password: '', vault_password: '' })
@@ -134,6 +156,11 @@ export default function ProfilePage() {
       .then(r => {
         setVaultExists(r.data.exists)
         if (r.data.hint) setVaultPwForm(f => ({ ...f, hint: r.data.hint }))
+        setRecoveryEnabled(r.data.recovery_enabled)
+        if (r.data.destroy_after_attempts) {
+          setDestroyAfter(r.data.destroy_after_attempts)
+          setDestroyThresholdInput(r.data.destroy_after_attempts)
+        }
       })
       .catch(() => setVaultExists(false))
 
@@ -277,14 +304,80 @@ export default function ProfilePage() {
     if (new_password !== confirm) return setVaultPwError('New passwords do not match.')
     setVaultPwSaving(true)
     try {
-      await axios.put(`${API}/sections/digital-life/vault`, { old_password, new_password, password_hint: hint })
+      const { data } = await axios.put(`${API}/sections/digital-life/vault`, { old_password, new_password, password_hint: hint })
       setVaultPwForm({ old_password: '', new_password: '', confirm: '', hint })
-      setVaultPwSuccess('Vault password changed. All credentials re-encrypted with the new password.')
-      setTimeout(() => setVaultPwSuccess(''), 5000)
+      if (data.recovery_disabled) {
+        setRecoveryEnabled(false)
+        setVaultPwSuccess('Vault password changed. All credentials re-encrypted with the new password. Your recovery questions were reset since they were tied to the old password - set them up again below if you\'d like recovery enabled.')
+      } else {
+        setVaultPwSuccess('Vault password changed. All credentials re-encrypted with the new password.')
+      }
+      setTimeout(() => setVaultPwSuccess(''), 8000)
     } catch (err) {
       setVaultPwError(err.response?.data?.error || 'Could not change vault password. Please try again.')
     }
     setVaultPwSaving(false)
+  }
+
+  const handleSetupRecovery = async () => {
+    setRecoveryError('')
+    if (!recoverySetupPw) return setRecoveryError('Please enter your current vault password to confirm.')
+    const validationError = validateRecoveryQuestions(recoveryQuestions)
+    if (validationError) return setRecoveryError(validationError)
+    setRecoverySaving(true)
+    try {
+      await axios.put(`${API}/sections/digital-life/recovery/setup`, {
+        vault_password: recoverySetupPw,
+        questions: toApiQuestions(recoveryQuestions),
+      })
+      setRecoveryEnabled(true)
+      setShowRecoverySetup(false)
+      setRecoverySetupPw('')
+      setRecoveryQuestions(defaultRecoveryQuestions())
+      setRecoverySuccess('Recovery questions saved. You can now recover your vault password by answering at least 2 of them.')
+      setTimeout(() => setRecoverySuccess(''), 6000)
+    } catch (err) {
+      setRecoveryError(err.response?.data?.error || 'Could not save your recovery questions. Please try again.')
+    }
+    setRecoverySaving(false)
+  }
+
+  const handleDisableRecovery = async () => {
+    setRecoveryDisableError('')
+    if (!recoveryDisablePw) return setRecoveryDisableError('Please enter your current vault password to confirm.')
+    setRecoveryDisabling(true)
+    try {
+      await axios.delete(`${API}/sections/digital-life/recovery/setup`, { data: { vault_password: recoveryDisablePw } })
+      setRecoveryEnabled(false)
+      setShowRecoveryDisable(false)
+      setRecoveryDisablePw('')
+      setRecoverySuccess('Recovery questions removed. If you forget your vault password now, a full reset will be required.')
+      setTimeout(() => setRecoverySuccess(''), 6000)
+    } catch (err) {
+      setRecoveryDisableError(err.response?.data?.error || 'Could not remove recovery questions. Please try again.')
+    }
+    setRecoveryDisabling(false)
+  }
+
+  const handleSaveThreshold = async () => {
+    setThresholdError('')
+    if (!destroyThresholdPw) return setThresholdError('Please enter your current vault password to confirm.')
+    const n = parseInt(destroyThresholdInput, 10)
+    if (!Number.isInteger(n) || n < 3 || n > 1000) return setThresholdError('Please choose a value between 3 and 1000.')
+    setSavingThreshold(true)
+    try {
+      await axios.put(`${API}/sections/digital-life/recovery/destroy-threshold`, {
+        vault_password: destroyThresholdPw,
+        destroy_after_attempts: n,
+      })
+      setDestroyAfter(n)
+      setDestroyThresholdPw('')
+      setThresholdSuccess('Saved.')
+      setTimeout(() => setThresholdSuccess(''), 4000)
+    } catch (err) {
+      setThresholdError(err.response?.data?.error || 'Could not save this setting. Please try again.')
+    }
+    setSavingThreshold(false)
   }
 
   const handleResetVault = async () => {
@@ -821,6 +914,122 @@ export default function ProfilePage() {
           </div>
         )}
       </div>
+
+      {/* ── Vault Recovery Settings ─────────────────────────────────────────── */}
+      {vaultExists === true && (
+        <div style={{ background: 'var(--parchment)', borderRadius: 12, padding: '24px', marginBottom: 24, border: '1px solid var(--border)' }}>
+          <h6 style={{ color: 'var(--green-900)', marginBottom: 4 }}>Vault Settings</h6>
+          <p className="text-muted small mb-4">
+            Choose what happens if you ever forget your vault password, and how many wrong tries
+            your vault can survive before it's automatically deleted for safety.
+          </p>
+
+          {recoverySuccess && <Alert variant="success">{recoverySuccess}</Alert>}
+
+          <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 8, padding: '14px 16px', marginBottom: 16 }}>
+            <p className="mb-2" style={{ fontWeight: 600 }}>
+              Forgot-password recovery: {recoveryEnabled ? 'security questions enabled' : 'full reset only'}
+            </p>
+
+            {!showRecoverySetup && !showRecoveryDisable && (
+              <div className="d-flex gap-3 flex-wrap">
+                <Button variant="outline-primary" size="sm" onClick={() => {
+                  setRecoveryQuestions(defaultRecoveryQuestions()); setRecoverySetupPw(''); setRecoveryError(''); setShowRecoverySetup(true)
+                }}>
+                  {recoveryEnabled ? 'Replace recovery questions' : 'Set up recovery questions'}
+                </Button>
+                {recoveryEnabled && (
+                  <button className="btn btn-link btn-sm p-0 text-danger" onClick={() => {
+                    setRecoveryDisablePw(''); setRecoveryDisableError(''); setShowRecoveryDisable(true)
+                  }}>
+                    Turn off recovery
+                  </button>
+                )}
+              </div>
+            )}
+
+            {showRecoverySetup && (
+              <div className="mt-2">
+                <p className="text-muted small">
+                  These questions are separate from your account's own security question and are used
+                  only to recover this vault. You'll need to answer at least 2 correctly to recover.
+                </p>
+                {recoveryError && <Alert variant="danger">{recoveryError}</Alert>}
+                <Form.Group className="mb-3">
+                  <Form.Label style={{ fontWeight: 600 }}>Current vault password</Form.Label>
+                  <Form.Control type="password" value={recoverySetupPw}
+                    onChange={e => setRecoverySetupPw(e.target.value)}
+                    placeholder="Required to confirm you still know it" />
+                </Form.Group>
+                <VaultRecoveryQuestionsForm questions={recoveryQuestions} setQuestions={setRecoveryQuestions} />
+                <div className="d-flex gap-3 mt-3">
+                  <Button variant="primary" size="sm" onClick={handleSetupRecovery} disabled={recoverySaving}>
+                    {recoverySaving ? 'Saving...' : 'Save recovery questions'}
+                  </Button>
+                  <Button variant="outline-secondary" size="sm" onClick={() => setShowRecoverySetup(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {showRecoveryDisable && (
+              <div className="mt-2">
+                <p className="small" style={{ color: '#7f1d1d' }}>
+                  Turning this off deletes your saved recovery questions. If you forget your vault
+                  password afterwards, a full reset (deleting all vault data) will be the only option.
+                </p>
+                {recoveryDisableError && <Alert variant="danger">{recoveryDisableError}</Alert>}
+                <Form.Group className="mb-3">
+                  <Form.Label style={{ fontWeight: 600 }}>Current vault password</Form.Label>
+                  <Form.Control type="password" value={recoveryDisablePw}
+                    onChange={e => setRecoveryDisablePw(e.target.value)}
+                    placeholder="Required to confirm" />
+                </Form.Group>
+                <div className="d-flex gap-3">
+                  <Button variant="danger" size="sm" onClick={handleDisableRecovery} disabled={recoveryDisabling}>
+                    {recoveryDisabling ? 'Turning off...' : 'Turn off recovery'}
+                  </Button>
+                  <Button variant="outline-secondary" size="sm" onClick={() => setShowRecoveryDisable(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 8, padding: '14px 16px' }}>
+            <p className="mb-2" style={{ fontWeight: 600, color: '#92400E' }}>
+              Auto-destroy after failed attempts (currently: {destroyAfter})
+            </p>
+            <p className="text-muted small mb-3">
+              If your vault password is entered incorrectly this many times in a row, your vault data
+              is automatically and permanently deleted, to protect it from someone repeatedly guessing.
+              This applies no matter which recovery option you chose above. Minimum 3, default 100.
+            </p>
+            {thresholdError && <Alert variant="danger">{thresholdError}</Alert>}
+            {thresholdSuccess && <Alert variant="success">{thresholdSuccess}</Alert>}
+            <Row className="g-2 align-items-end">
+              <Col xs={4} md={3}>
+                <Form.Label className="small">Attempts</Form.Label>
+                <Form.Control type="number" min={3} max={1000} value={destroyThresholdInput}
+                  onChange={e => setDestroyThresholdInput(e.target.value)} />
+              </Col>
+              <Col xs={8} md={6}>
+                <Form.Label className="small">Current vault password</Form.Label>
+                <Form.Control type="password" value={destroyThresholdPw}
+                  onChange={e => setDestroyThresholdPw(e.target.value)}
+                  placeholder="Required to confirm" />
+              </Col>
+              <Col xs={12} md={3}>
+                <Button variant="outline-primary" size="sm" className="w-100" onClick={handleSaveThreshold} disabled={savingThreshold}>
+                  {savingThreshold ? 'Saving...' : 'Save'}
+                </Button>
+              </Col>
+            </Row>
+          </div>
+        </div>
+      )}
 
       {/* ── Inactivity Timer ──────────────────────────────────────────────── */}
       {timerData && (
