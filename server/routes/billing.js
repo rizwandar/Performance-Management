@@ -7,9 +7,13 @@ const { stripe, PRICE_IDS } = require('../lib/stripe');
 const { upsertFromSubscription } = require('./stripeWebhook');
 
 router.get('/subscription', auth, async (req, res) => {
+  const user = await queryOne('SELECT trial_used_at FROM users WHERE id = $1', [req.user.id]);
   const sub = await queryOne('SELECT * FROM subscriptions WHERE user_id = $1', [req.user.id]);
   if (!sub) {
-    return res.json({ plan: 'free', status: 'active', trial_ends_at: null, current_period_end: null });
+    return res.json({
+      plan: 'free', status: 'active', trial_ends_at: null, current_period_end: null,
+      trial_used: !!user?.trial_used_at,
+    });
   }
   const planId = Object.entries(PRICE_IDS).find(([, priceId]) => priceId === sub.provider_price_id)?.[0] || null;
   res.json({
@@ -18,6 +22,8 @@ router.get('/subscription', auth, async (req, res) => {
     status:               sub.status,
     provider:             sub.provider,
     trial_ends_at:        sub.trial_ends_at,
+    trial_skipped:        sub.trial_skipped,
+    trial_used:           !!user?.trial_used_at,
     current_period_start: sub.current_period_start,
     current_period_end:   sub.current_period_end,
     cancelled_at:         sub.cancelled_at,
@@ -81,19 +87,28 @@ router.get('/plans', (req, res) => {
   });
 });
 
+const TRIAL_DAYS = 14;
+
 // Creates a Stripe Checkout session for the given plan and returns its
 // redirect URL. Reuses the caller's existing Stripe customer if one was
 // already created by a prior checkout attempt, rather than creating a
 // duplicate customer per attempt.
+//
+// BIL-04: grants a 14-day card-required trial unless the user already had
+// one (users.trial_used_at) or explicitly chose to skip it. The card itself
+// can't be fingerprint-checked yet at this point - it isn't collected until
+// the customer fills out Stripe's hosted page - so the trial is granted
+// optimistically here and the one-card-one-trial check happens in the
+// checkout.session.completed webhook, after the card is known.
 router.post('/create-checkout-session', auth, async (req, res) => {
-  const { plan } = req.body;
+  const { plan, skipTrial } = req.body;
   const priceId = PRICE_IDS[plan];
   if (!priceId) {
     return res.status(400).json({ error: 'Invalid plan selected.' });
   }
 
   try {
-    const user = await queryOne('SELECT id, email, name FROM users WHERE id = $1', [req.user.id]);
+    const user = await queryOne('SELECT id, email, name, trial_used_at FROM users WHERE id = $1', [req.user.id]);
     if (!user) return res.status(404).json({ error: 'User not found.' });
 
     const existingSub = await queryOne('SELECT * FROM subscriptions WHERE user_id = $1', [req.user.id]);
@@ -108,13 +123,26 @@ router.post('/create-checkout-session', auth, async (req, res) => {
       customerId = customer.id;
     }
 
+    const eligibleForTrial = !skipTrial && !user.trial_used_at;
+
+    const subscriptionData = { metadata: { user_id: String(user.id), trial_skipped: skipTrial ? '1' : '0' } };
+    if (eligibleForTrial) {
+      subscriptionData.trial_period_days = TRIAL_DAYS;
+    }
+
     const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       customer: customerId,
       client_reference_id: String(user.id),
       line_items: [{ price: priceId, quantity: 1 }],
-      subscription_data: { metadata: { user_id: String(user.id) } },
+      subscription_data: subscriptionData,
+      // Collect a card even though nothing is due today during a trial -
+      // BIL-04 is explicitly a card-required trial, not a no-card trial.
+      // (No custom_text here: this Stripe account has Managed Payments
+      // enabled, which rejects custom_text outright - the reassurance copy
+      // lives on the Upgrade page instead, right above these buttons.)
+      payment_method_collection: 'always',
       success_url: `${clientUrl}/upgrade?checkout=success`,
       cancel_url: `${clientUrl}/upgrade?checkout=cancelled`,
     });

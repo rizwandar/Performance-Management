@@ -76,15 +76,16 @@ function PlanCard({ title, price, period, note, features, highlight, badge, chec
   )
 }
 
-function CheckoutButton({ label, planId }) {
-  const [loading, setLoading] = useState(false)
-  const [error, setError]     = useState('')
+function CheckoutButton({ label, planId, trialEligible }) {
+  const [loading, setLoading]     = useState(false)
+  const [error, setError]         = useState('')
+  const [skipTrial, setSkipTrial] = useState(false)
 
   const startCheckout = async () => {
     setLoading(true)
     setError('')
     try {
-      const r = await axios.post(`${API}/billing/create-checkout-session`, { plan: planId })
+      const r = await axios.post(`${API}/billing/create-checkout-session`, { plan: planId, skipTrial })
       window.location.href = r.data.url
     } catch (err) {
       setError(err.response?.data?.error || 'Could not start checkout. Please try again.')
@@ -104,8 +105,14 @@ function CheckoutButton({ label, planId }) {
           cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.7 : 1,
         }}
       >
-        {loading ? 'Redirecting to checkout...' : label}
+        {loading ? 'Redirecting to checkout...' : (trialEligible && !skipTrial ? `${label} (start free trial)` : label)}
       </button>
+      {trialEligible && (
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 10, fontSize: '0.8rem', color: 'var(--text-muted)', cursor: 'pointer' }}>
+          <input type="checkbox" checked={skipTrial} onChange={e => setSkipTrial(e.target.checked)} disabled={loading} />
+          Skip the free trial and pay now instead
+        </label>
+      )}
       {error && <p style={{ color: '#b3261e', fontSize: '0.82rem', marginTop: 8, marginBottom: 0 }}>{error}</p>}
     </div>
   )
@@ -133,6 +140,11 @@ export default function UpgradePage() {
       .then(r => setSubscription(r.data))
       .catch(() => {})
   }, [user, plan])
+
+  // BIL-04: a 14-day card-required trial, once per account. subscription is
+  // null until the request above resolves, so this defaults to eligible
+  // rather than flashing "start free trial" and then hiding it.
+  const trialEligible = !subscription?.trial_used
 
   return (
     <div style={{ maxWidth: 1180, margin: '0 auto' }}>
@@ -197,28 +209,36 @@ export default function UpgradePage() {
           title="Premium Monthly"
           price="$10"
           period="/ month"
+          note={trialEligible ? '14-day free trial, cancel anytime' : undefined}
           features={PREMIUM_FEATURES}
           highlight
           badge="MOST POPULAR"
           cta={
             subscription?.plan_id === 'monthly'
               ? <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem', padding: '10px 0' }}>Your current plan</div>
-              : <CheckoutButton label="Subscribe Monthly" planId="monthly" />
+              : <CheckoutButton label="Subscribe Monthly" planId="monthly" trialEligible={trialEligible} />
           }
         />
         <PlanCard
           title="Premium Annual"
           price="$100"
           period="/ year"
-          note="That's just $8.33 per month, saving $20"
+          note={trialEligible ? "That's just $8.33 per month, saving $20. 14-day free trial, cancel anytime." : "That's just $8.33 per month, saving $20"}
           features={PREMIUM_FEATURES}
           cta={
             subscription?.plan_id === 'annual'
               ? <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem', padding: '10px 0' }}>Your current plan</div>
-              : <CheckoutButton label="Subscribe Annually" planId="annual" />
+              : <CheckoutButton label="Subscribe Annually" planId="annual" trialEligible={trialEligible} />
           }
         />
       </div>
+
+      {trialEligible && (
+        <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem', maxWidth: 560, margin: '-24px auto 0', lineHeight: 1.6 }}>
+          Try everything free for 14 days. We'll email you 2 days before your trial ends, and your card
+          won't be charged until then. Cancel anytime before that in one click, no charge at all.
+        </p>
+      )}
     </div>
   )
 }
