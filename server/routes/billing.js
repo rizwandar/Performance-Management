@@ -143,7 +143,10 @@ router.post('/create-checkout-session', auth, async (req, res) => {
       // enabled, which rejects custom_text outright - the reassurance copy
       // lives on the Upgrade page instead, right above these buttons.)
       payment_method_collection: 'always',
-      success_url: `${clientUrl}/upgrade?checkout=success`,
+      // Land on My Profile, not back on the plan-selection page just paid
+      // past (IDEA-11) - the Billing & Subscription section there is also
+      // where ongoing plan management already lives.
+      success_url: `${clientUrl}/profile/settings?checkout=success`,
       cancel_url: `${clientUrl}/upgrade?checkout=cancelled`,
     });
 
