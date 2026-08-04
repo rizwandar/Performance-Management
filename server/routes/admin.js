@@ -226,6 +226,28 @@ router.get('/users/:id/activity', auth, adminOnly, async (req, res) => {
   res.json({ user: { id: user.id, name: user.name, email: user.email }, rows, total: totalRow.c, limit, offset });
 });
 
+// Global (not per-user) audit trail for vault destruction/recovery events,
+// so an admin can see who lost data, when, and why without looking up each
+// user individually. Same query shape as GET /users/:id/activity above.
+const VAULT_AUDIT_ACTIONS = ['vault_destroyed_manual', 'vault_destroyed_max_attempts', 'vault_recovered_via_security_questions'];
+router.get('/vault-audit', auth, adminOnly, async (req, res) => {
+  const limit  = Math.min(Number(req.query.limit)  || 50, 200);
+  const offset = Number(req.query.offset) || 0;
+
+  const [rows, totalRow] = await Promise.all([
+    queryAll(
+      `SELECT l.action, l.ip_address, l.user_agent, l.metadata, l.created_at, u.id as user_id, u.name, u.email
+       FROM user_audit_logs l JOIN users u ON u.id = l.user_id
+       WHERE l.action = ANY($1)
+       ORDER BY l.created_at DESC LIMIT $2 OFFSET $3`,
+      [VAULT_AUDIT_ACTIONS, limit, offset]
+    ),
+    queryOne(`SELECT COUNT(*)::int as c FROM user_audit_logs WHERE action = ANY($1)`, [VAULT_AUDIT_ACTIONS]),
+  ]);
+
+  res.json({ rows, total: totalRow.c, limit, offset });
+});
+
 router.post('/users/:id/verify-email', auth, adminOnly, async (req, res) => {
   const user = await queryOne('SELECT id FROM users WHERE id = $1 AND is_admin = 0', [req.params.id]);
   if (!user) return res.status(404).json({ error: 'User not found.' });
