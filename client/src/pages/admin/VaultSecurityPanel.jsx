@@ -62,7 +62,11 @@ export default function VaultSecurityPanel() {
                       <td style={{ color: conf.color || 'var(--text)', fontWeight: 500 }}>
                         {conf.label || row.action.replace(/_/g, ' ')}
                       </td>
-                      <td>{row.name} <span className="text-muted small">{row.email}</span></td>
+                      <td>
+                        {row.user_id
+                          ? <>{row.name} <span className="text-muted small">{row.email}</span></>
+                          : <span className="text-muted fst-italic">Deleted user</span>}
+                      </td>
                       <td className="text-muted">{row.ip_address || 'N/A'}</td>
                       <td className="text-muted">
                         {metadata.attempts ? `${metadata.attempts} attempts` : ''}
