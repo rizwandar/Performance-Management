@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Button, Form, Row, Col, Alert, Spinner, InputGroup } from 'react-bootstrap'
 import axios from 'axios'
 import { useAuth } from '../context/AuthContext'
+import { useSubscription } from '../context/SubscriptionContext'
 import OrgConsentPanel from '../components/OrgConsentPanel'
 
 const API = import.meta.env.VITE_API_URL
@@ -37,11 +38,13 @@ function PasswordRequirements({ password }) {
 
 export default function ProfilePage() {
   const { user: authUser, login, logout } = useAuth()
+  const { refresh: refreshSubscription } = useSubscription()
   const navigate = useNavigate()
   const [loading, setLoading]   = useState(true)
   const [saving, setSaving]     = useState(false)
   const [error, setError]       = useState('')
   const [success, setSuccess]   = useState('')
+  const [checkoutSuccess, setCheckoutSuccess] = useState(false)
 
   const [form, setForm] = useState({
     name: '', email: '', date_of_birth: '',
@@ -139,6 +142,19 @@ export default function ProfilePage() {
       .catch(() => {})
 
     Promise.all([loadProfile, loadTimer, loadVault, loadBilling, loadPaymentHistory]).finally(() => setLoading(false))
+  }, [])
+
+  // Landed here fresh from a successful Stripe checkout (IDEA-11) - the
+  // subscription context still has the pre-checkout plan cached, so it needs
+  // an explicit refresh rather than waiting for its own next natural refetch.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('checkout') === 'success') {
+      setCheckoutSuccess(true)
+      window.history.replaceState({}, '', '/profile/settings')
+      refreshSubscription()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const set = field => e => setForm(f => ({ ...f, [field]: e.target.value }))
@@ -396,6 +412,21 @@ export default function ProfilePage() {
         <h3 style={{ color: 'var(--green-900)', fontFamily: 'Georgia, serif' }}>My Profile</h3>
         <p className="text-muted">Your account details and security settings.</p>
       </div>
+
+      {checkoutSuccess && (
+        <div style={{
+          background: 'var(--green-700)', color: '#fff', borderRadius: 12,
+          padding: '20px 24px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 16,
+        }}>
+          <span style={{ fontSize: '1.8rem', lineHeight: 1 }}>🎉</span>
+          <div>
+            <p style={{ fontWeight: 700, fontSize: '1.05rem', marginBottom: 2 }}>You're on Premium!</p>
+            <p style={{ margin: 0, opacity: 0.92, fontSize: '0.9rem' }}>
+              Thank you for subscribing. Every section is unlocked, right below in Billing &amp; Subscription.
+            </p>
+          </div>
+        </div>
+      )}
 
       {success && <Alert variant="success">{success}</Alert>}
       {error   && <Alert variant="danger">{error}</Alert>}

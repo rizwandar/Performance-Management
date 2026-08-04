@@ -119,20 +119,21 @@ function CheckoutButton({ label, planId, trialEligible }) {
 }
 
 export default function UpgradePage() {
-  const { isPremium, plan, refresh } = useSubscription()
+  const { isPremium, plan } = useSubscription()
   const { user } = useAuth()
   const [subscription, setSubscription] = useState(null)
-  const [checkoutStatus, setCheckoutStatus] = useState(null)
+  // Only 'cancelled' ever lands here now - a successful checkout redirects to
+  // My Profile instead (IDEA-11), so there's a bigger, better-placed
+  // thank-you there rather than a small pill on the page just paid past.
+  const [checkoutCancelled, setCheckoutCancelled] = useState(false)
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
-    const status = params.get('checkout')
-    if (status) {
-      setCheckoutStatus(status)
+    if (params.get('checkout') === 'cancelled') {
+      setCheckoutCancelled(true)
       window.history.replaceState({}, '', '/upgrade')
-      if (status === 'success') refresh()
     }
-  }, [refresh])
+  }, [])
 
   useEffect(() => {
     if (!user) return
@@ -156,16 +157,7 @@ export default function UpgradePage() {
           In Good Hands is free to start. Upgrade to unlock every section and keep everything your loved ones will need in one place.
         </p>
 
-        {checkoutStatus === 'success' && (
-          <div style={{
-            display: 'inline-block', marginTop: 16,
-            background: 'var(--green-50)', border: '1px solid var(--green-100)',
-            borderRadius: 8, padding: '8px 20px', color: 'var(--green-800)', fontSize: '0.9rem',
-          }}>
-            Thank you! Your Premium subscription is now active.
-          </div>
-        )}
-        {checkoutStatus === 'cancelled' && (
+        {checkoutCancelled && (
           <div style={{
             display: 'inline-block', marginTop: 16,
             background: 'var(--parchment-dark)', border: '1px solid var(--border)',
@@ -175,7 +167,7 @@ export default function UpgradePage() {
           </div>
         )}
 
-        {isPremium && !checkoutStatus && (
+        {isPremium && !checkoutCancelled && (
           <div style={{
             display: 'inline-block', marginTop: 16,
             background: 'var(--green-50)', border: '1px solid var(--green-100)',
