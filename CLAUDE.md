@@ -53,7 +53,7 @@ The client and mobile apps import from `@in-good-hands/shared`. The Vite config 
 - `server/middleware/adminAuth.js` — requires `req.user.role === 'admin'`
 - Rate limiting: 20 req/15 min on auth routes, 200 req/15 min on API routes
 
-**Vault encryption:** `server/lib/vault.js` — AES-256-GCM encryption for digital credentials (Section 3). Encryption key derived from `VAULT_KEY` env var.
+**Vault encryption:** `server/lib/vault.js` — AES-256-GCM encryption for digital credentials (Section 3). There is no server-side master key: the encryption key is derived per-request via scrypt from the user's own vault password plus their user ID (`SALT_PREFIX` + userId as the deterministic salt), so the vault password is never stored (not even hashed) and the server can only decrypt vault data while actively handling a request that carries the correct password. `render.yaml` deliberately provisions no `VAULT_KEY` secret for this reason.
 
 **File uploads:** `server/lib/r2.js` — Cloudflare R2 via AWS S3 SDK. Env vars: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`.
 
@@ -98,7 +98,6 @@ R2_ACCESS_KEY_ID=
 R2_SECRET_ACCESS_KEY=
 R2_BUCKET_NAME=
 RESEND_API_KEY=
-VAULT_KEY=
 ```
 
 Optional: `ORG_PORTAL_ENABLED=true` registers the org/funeral-home portal routes (`organizations.js`, `orgPortal.js`, `orgPublic.js`, `orgRegister.js`). Unset or any other value keeps them unregistered entirely, not merely rejected (SEC-12) - this is the default in production since the org portal isn't part of the initial end-user launch. Set to `true` on staging/local dev to keep testing it.
