@@ -148,6 +148,14 @@ export default function LegalDocumentsPage() {
     />
   )
 
+  const disclaimer = (
+    <Alert variant="info" className="mb-4">
+      In Good Hands does not provide legal advice. This section only helps you record where your
+      documents are kept, please consult a solicitor or estate planning lawyer for anything related
+      to your will, power of attorney, or other legal matters.
+    </Alert>
+  )
+
   // ── Vault states ───────────────────────────────────────────────────────────
   if (vaultState === 'loading') {
     return (
@@ -166,6 +174,7 @@ export default function LegalDocumentsPage() {
       <div style={{ maxWidth: 800, margin: '0 auto' }}>
         {backLink}
       {hero}
+        {disclaimer}
         <VaultSetupScreen onSetup={() => setVaultState('locked')} />
       </div>
     )
@@ -176,6 +185,7 @@ export default function LegalDocumentsPage() {
       <div style={{ maxWidth: 800, margin: '0 auto' }}>
         {backLink}
       {hero}
+        {disclaimer}
         <VaultLockScreen onUnlock={handleUnlock} onReset={handleVaultReset} />
       </div>
     )
@@ -186,6 +196,7 @@ export default function LegalDocumentsPage() {
     <div style={{ maxWidth: 800, margin: '0 auto' }}>
       {backLink}
       {hero}
+      {disclaimer}
 
       {/* Vault status bar */}
       <div style={{
