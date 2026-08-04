@@ -294,6 +294,51 @@ async function init() {
     )
   `);
 
+  // Opt-in, per-vault forgot-password behavior: recovery_enabled turns on
+  // security-question-based recovery (see vault_recovery_questions/shares
+  // below); destroy_after_attempts is an independent safety setting - the
+  // vault is auto-destroyed after this many consecutive wrong password
+  // attempts, regardless of recovery mode, protecting against someone with
+  // account access but not the vault password guessing indefinitely.
+  await pool.query(`ALTER TABLE digital_vault ADD COLUMN IF NOT EXISTS recovery_enabled BOOLEAN NOT NULL DEFAULT false`);
+  await pool.query(`ALTER TABLE digital_vault ADD COLUMN IF NOT EXISTS destroy_after_attempts INTEGER NOT NULL DEFAULT 100`);
+
+  // The questions a user configured for vault-specific security-question
+  // recovery. question_index is a stable 1..5 ordinal used to pair answers
+  // with their escrowed shares below - it is NOT related to the account-level
+  // security_question column on users, which stays fully separate.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS vault_recovery_questions (
+      id                SERIAL PRIMARY KEY,
+      digital_vault_id  INTEGER NOT NULL REFERENCES digital_vault(id) ON DELETE CASCADE,
+      question_index    INTEGER NOT NULL,
+      question_text     TEXT NOT NULL,
+      is_mandatory      BOOLEAN NOT NULL DEFAULT true,
+      created_at        TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(digital_vault_id, question_index)
+    )
+  `);
+
+  // Pairwise escrow: the vault key, encrypted under a key derived from the
+  // answers to questions (index_a, index_b), for every pair of configured
+  // questions. Answering any 2 correctly successfully decrypts exactly one
+  // row (AES-GCM auth tag only validates for the right pair), which recovers
+  // the vault key without ever storing the key or password unencrypted.
+  // FK to digital_vault(id) with CASCADE so a vault reset (which deletes the
+  // digital_vault row) automatically invalidates any old escrow - correct,
+  // since the escrowed key no longer exists after a reset.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS vault_recovery_shares (
+      id                SERIAL PRIMARY KEY,
+      digital_vault_id  INTEGER NOT NULL REFERENCES digital_vault(id) ON DELETE CASCADE,
+      question_index_a  INTEGER NOT NULL,
+      question_index_b  INTEGER NOT NULL,
+      key_enc           TEXT NOT NULL,
+      created_at        TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(digital_vault_id, question_index_a, question_index_b)
+    )
+  `);
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS digital_credentials (
       id           SERIAL PRIMARY KEY,
