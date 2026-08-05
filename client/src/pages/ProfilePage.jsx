@@ -157,6 +157,17 @@ export default function ProfilePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Lets other pages deep-link here (e.g. Trusted Contacts links to
+  // #inactivity-timer so a user can jump straight to changing their
+  // configured period). A client-side route push doesn't trigger the
+  // browser's own hash-scroll behavior the way a hard navigation would, so
+  // this has to happen manually once the section has actually rendered.
+  useEffect(() => {
+    if (loading || !window.location.hash) return
+    const el = document.querySelector(window.location.hash)
+    el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [loading])
+
   const set = field => e => setForm(f => ({ ...f, [field]: e.target.value }))
 
   const handleSave = async () => {
@@ -771,7 +782,7 @@ export default function ProfilePage() {
 
       {/* ── Inactivity Timer ──────────────────────────────────────────────── */}
       {timerData && (
-        <div style={{ background: 'var(--parchment)', borderRadius: 12, padding: '24px', border: '1px solid var(--border)' }}>
+        <div id="inactivity-timer" style={{ background: 'var(--parchment)', borderRadius: 12, padding: '24px', border: '1px solid var(--border)' }}>
           <h6 style={{ color: 'var(--green-900)', marginBottom: 4 }}>Inactivity Timer</h6>
           <p className="text-muted small mb-4">
             If you don't log in within this period, your trusted contacts will be notified.
