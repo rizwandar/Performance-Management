@@ -285,7 +285,24 @@ router.post('/users/:id/revoke-premium', auth, adminOnly, async (req, res) => {
 router.delete('/users/:id', auth, adminOnly, async (req, res) => {
   const user = await queryOne('SELECT id FROM users WHERE id = $1 AND is_admin = 0', [req.params.id]);
   if (!user) return res.status(404).json({ error: 'User not found' });
+
+  // uploaded_documents rows (legal documents, funeral photos, etc.) are
+  // removed from the database via ON DELETE CASCADE, but that only ever
+  // touches the database - the actual files stay in R2 forever unless we
+  // explicitly delete them here too. Read the keys before the cascade wipes
+  // the rows out from under us.
+  const docs = await queryAll('SELECT r2_key FROM uploaded_documents WHERE user_id = $1', [user.id]);
+
   await query('DELETE FROM users WHERE id = $1', [req.params.id]);
+
+  // Best-effort, after the account is already gone: the admin's request was
+  // to delete the account and everything in it, so a transient R2 failure
+  // shouldn't leave the account undeletable. Any file that fails here is
+  // orphaned storage, not orphaned personal data tied to a live account.
+  await Promise.all(docs.map(d => deleteFile(d.r2_key).catch(err =>
+    console.error('[admin] Failed to delete R2 file for removed user', user.id, ':', err.message)
+  )));
+
   res.json({ success: true });
 });
 
