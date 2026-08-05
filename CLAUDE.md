@@ -123,3 +123,13 @@ Whenever a change is pushed that touches one of these areas, add a version entry
 | `org_portal` | Org/funeral-home portal pages, `server/routes/orgPortal.js`, `server/routes/organizations.js` |
 
 Bump PATCH for fixes, MINOR for new backwards-compatible features, MAJOR for breaking changes. Insert via a one-off script (`query('INSERT INTO app_versions (module, version, summary) VALUES ($1, $2, $3)', [...])`) or the admin UI form.
+
+### Security findings log
+
+Security review results (audits, authorization/IDOR probes, infra reviews, secrets/session/vault-handling decisions) are logged to the `security_findings` table, not just left in chat history — the whole point is that they survive past whatever session produced them and are readable in dev, staging, and production alike. Visible in the admin panel's **Security** tab (`GET/POST/PUT /api/admin/security-findings`, admin-only).
+
+**When to check it:** at the start of a security-related task, `GET /api/admin/security-findings` (or query the table directly) before re-deriving findings from scratch — a prior review may already cover it.
+
+**When to add to it:** after any nontrivial security review, decision, or fix — not just vulnerabilities found, but "checked X, it's clean" results and explicit decisions (e.g. "not pursuing RLS, relying on the authz-probe CI check instead") are worth logging too, so a future review doesn't re-litigate the same question from zero.
+
+Each row has: `title`, `category` (`authorization` / `injection` / `xss` / `secrets` / `infrastructure` / `session` / `documentation` / `ci-cd` / `other`), `severity` (`info` / `low` / `medium` / `high` / `critical`), `status` (`open` / `monitoring` / `resolved` / `accepted_risk`), `summary`, optional `details`, optional `source` (e.g. `"Claude Code security review, 2026-08-05"`), optional `related_link` (e.g. a GitHub issue URL), `discovered_at`, `resolved_at`.
