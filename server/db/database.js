@@ -852,6 +852,16 @@ async function init() {
   await pool.query(`ALTER TABLE property_items   ALTER COLUMN title DROP NOT NULL`);
   await pool.query(`ALTER TABLE household_info   ALTER COLUMN title DROP NOT NULL`);
 
+  // Spouse-as-executor (OPS-15): a checkbox on the Profile page next to the
+  // existing spouse/partner fields lets an owner designate their spouse as
+  // executor directly, instead of re-entering the same person on the Trusted
+  // Contacts page. spouse_is_executor just remembers the checkbox state;
+  // linked_to_profile_spouse marks which trusted_contacts row (if any) is
+  // being kept in sync with it, so re-saving the profile updates that same
+  // record instead of creating a duplicate or guessing by name match.
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS spouse_is_executor BOOLEAN DEFAULT false`);
+  await pool.query(`ALTER TABLE trusted_contacts ADD COLUMN IF NOT EXISTS linked_to_profile_spouse BOOLEAN DEFAULT false`);
+
   console.log('[db] PostgreSQL schema ready');
 }
 

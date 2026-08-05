@@ -2,15 +2,16 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt    = require('jsonwebtoken');
-const { queryOne, queryAll, query } = require('../db/database');
+const { queryOne, queryAll, query, transaction } = require('../db/database');
 const auth = require('../middleware/auth');
 const { deriveKey, verifyVaultPassword } = require('../lib/vault');
 const { deleteFile, getDownloadUrl } = require('../lib/r2');
 const { sendEmail } = require('../lib/sendEmail');
-const { accountDeletionConfirmEmail } = require('../lib/emailTemplates');
+const { accountDeletionConfirmEmail, executorDesignatedEmail } = require('../lib/emailTemplates');
 const { stripe } = require('../lib/stripe');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
+const JWT_SECRET  = process.env.JWT_SECRET  || 'dev-secret-change-in-production';
+const CLIENT_URL  = process.env.CLIENT_URL  || 'http://localhost:5173';
 
 // Account-level changes (password, profile fields, account deletion) are out of
 // scope for view-as, which only grants access to the plan's sections. GET /me is
@@ -31,7 +32,7 @@ router.get('/me', auth, async (req, res) => {
     SELECT id, name, email, date_of_birth, about_me, legacy_message,
            life_story, remembered_for, country_code,
            emergency_contact_name, emergency_contact_phone, emergency_contact_email,
-           marital_status, spouse_name, spouse_phone, spouse_email,
+           marital_status, spouse_name, spouse_phone, spouse_email, spouse_is_executor,
            songs_enabled, bucket_list_enabled, is_admin, created_at,
            security_question
     FROM users WHERE id = $1
@@ -46,19 +47,83 @@ router.get('/me', auth, async (req, res) => {
   res.json({ ...user, has_security_question: !!user.security_question, songs, bucket_list });
 });
 
+// OPS-15: keeps the Profile page's "designate my spouse as executor" checkbox
+// in sync with a trusted_contacts row, without duplicating the executor logic
+// already in trustedContacts.js. Runs after the users row is saved, using the
+// values just written. Only ever touches the one row flagged
+// linked_to_profile_spouse for this user, so it never collides with contacts
+// the owner added by hand on the Trusted Contacts page (even one that happens
+// to also be named after their spouse).
+async function syncSpouseExecutor(userId, { marital_status, spouse_name, spouse_email, spouse_phone, spouse_is_executor }) {
+  const eligible = ['Married', 'Common-law / Domestic Partner'].includes(marital_status)
+    && !!spouse_name && !!spouse_is_executor;
+
+  const linked = await queryOne(
+    'SELECT * FROM trusted_contacts WHERE user_id = $1 AND linked_to_profile_spouse = true',
+    [userId]
+  );
+
+  if (!eligible) {
+    // Box unchecked, or the spouse fields no longer apply (e.g. marital
+    // status changed). Leave the contact record itself alone, an owner may
+    // still want their spouse listed as a contact, just not as executor.
+    if (linked && linked.is_executor) {
+      await query('UPDATE trusted_contacts SET is_executor = 0 WHERE id = $1', [linked.id]);
+    }
+    return null;
+  }
+
+  if (linked) {
+    const wasExecutor = !!linked.is_executor;
+    await transaction(async (client) => {
+      await client.query('UPDATE trusted_contacts SET is_executor = 0 WHERE user_id = $1', [userId]);
+      await client.query(
+        `UPDATE trusted_contacts SET name = $1, relationship = $2, email = $3, phone = $4, is_executor = 1 WHERE id = $5`,
+        [spouse_name, 'Spouse', spouse_email || null, spouse_phone || null, linked.id]
+      );
+    });
+    // Only report back (and email) if this save is what newly turned the
+    // flag on, resaving an already-executor spouse shouldn't re-notify them.
+    return wasExecutor ? null : { name: spouse_name, email: spouse_email || null };
+  }
+
+  // No linked contact yet. Trusted Contacts caps at 3 (sequence 1-3); if the
+  // owner already used all 3 slots on other people, don't silently fail the
+  // whole profile save, just skip the executor sync and tell the client why.
+  const count = await queryOne('SELECT COUNT(*)::int as c FROM trusted_contacts WHERE user_id = $1', [userId]);
+  if (count.c >= 3) return { blocked: true };
+
+  const taken = new Set(
+    (await queryAll('SELECT sequence FROM trusted_contacts WHERE user_id = $1', [userId])).map(r => r.sequence)
+  );
+  const sequence = [1, 2, 3].find(s => !taken.has(s));
+
+  await transaction(async (client) => {
+    await client.query('UPDATE trusted_contacts SET is_executor = 0 WHERE user_id = $1', [userId]);
+    await client.query(`
+      INSERT INTO trusted_contacts
+        (user_id, sequence, name, relationship, email, phone, is_executor, linked_to_profile_spouse)
+      VALUES ($1, $2, $3, 'Spouse', $4, $5, 1, true)
+    `, [userId, sequence, spouse_name, spouse_email || null, spouse_phone || null]);
+  });
+
+  return { name: spouse_name, email: spouse_email || null };
+}
+
 router.put('/me', auth, async (req, res) => {
   const { name, email, date_of_birth, about_me, legacy_message,
           life_story, remembered_for,
           emergency_contact_name, emergency_contact_phone, emergency_contact_email,
-          marital_status, spouse_name, spouse_phone, spouse_email } = req.body;
+          marital_status, spouse_name, spouse_phone, spouse_email, spouse_is_executor } = req.body;
   try {
     const existing = await queryOne('SELECT name, email FROM users WHERE id = $1', [req.user.id]);
     await query(`
       UPDATE users SET name=$1, email=$2, date_of_birth=$3, about_me=$4, legacy_message=$5,
         life_story=$6, remembered_for=$7,
         emergency_contact_name=$8, emergency_contact_phone=$9, emergency_contact_email=$10,
-        marital_status=$11, spouse_name=$12, spouse_phone=$13, spouse_email=$14
-      WHERE id=$15
+        marital_status=$11, spouse_name=$12, spouse_phone=$13, spouse_email=$14,
+        spouse_is_executor=$15
+      WHERE id=$16
     `, [
       name  ?? existing.name,
       email ?? existing.email,
@@ -67,9 +132,40 @@ router.put('/me', auth, async (req, res) => {
       emergency_contact_name || null, emergency_contact_phone || null,
       emergency_contact_email || null,
       marital_status || null, spouse_name || null, spouse_phone || null, spouse_email || null,
+      !!spouse_is_executor,
       req.user.id,
     ]);
-    res.json({ success: true });
+
+    const syncResult = await syncSpouseExecutor(req.user.id, {
+      marital_status, spouse_name, spouse_email, spouse_phone, spouse_is_executor,
+    });
+
+    const responseExtra = {};
+    if (syncResult?.blocked) {
+      responseExtra.spouse_executor_blocked = true;
+    } else if (syncResult) {
+      if (syncResult.email) {
+        const owner = await queryOne('SELECT name, inactivity_period_months FROM users WHERE id = $1', [req.user.id]);
+        try {
+          await sendEmail({
+            to:      syncResult.email,
+            subject: `You have been named ${owner.name}'s executor on In Good Hands`,
+            html:    executorDesignatedEmail({
+              recipientName:          syncResult.name,
+              ownerName:              owner.name,
+              inactivityPeriodMonths: owner.inactivity_period_months || 12,
+              reportDeathLink:        `${CLIENT_URL}/report-passing`,
+            }),
+          });
+        } catch (err) {
+          console.error('[users] Spouse executor designation email failed:', err.message);
+        }
+      } else {
+        responseExtra.spouse_executor_email_skipped = true;
+      }
+    }
+
+    res.json({ success: true, ...responseExtra });
   } catch (err) {
     if (err.code === '23505') {
       return res.status(409).json({ error: 'That email address is already registered to another account.' });
