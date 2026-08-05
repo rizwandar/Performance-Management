@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { Button, Form, Row, Col, Alert, Modal, Spinner, Badge } from 'react-bootstrap'
 import axios from 'axios'
 import { useAuth } from '../../context/AuthContext'
@@ -60,6 +60,11 @@ export default function KeyContactsPage() {
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting, setDeleting]         = useState(false)
 
+  // Defaults to 12 (the server's own fallback in GET /users/me/timer) so the
+  // explanatory copy below reads correctly even before the fetch resolves,
+  // rather than showing a placeholder or nothing.
+  const [inactivityMonths, setInactivityMonths] = useState(12)
+
   const loadContacts = () => {
     setTcLoading(true)
     setTcError('')
@@ -83,6 +88,10 @@ export default function KeyContactsPage() {
       }))
       .catch(() => {})
       .finally(() => setEcLoading(false))
+
+    axios.get(`${API}/users/me/timer`)
+      .then(r => setInactivityMonths(r.data.inactivity_period_months || 12))
+      .catch(() => {})
 
     loadContacts()
   }, [])
@@ -279,6 +288,8 @@ export default function KeyContactsPage() {
           first if you stop logging in. They can view everything you've recorded except your
           vault, and are the one who confirms what's happened. Only then are your other trusted
           contacts and the people you've listed to notify actually informed.
+          {' '}Making someone your executor emails them <strong>right away</strong> to explain the role,
+          not only if the inactivity timer ever lapses.
         </p>
       </div>
 
@@ -389,10 +400,11 @@ export default function KeyContactsPage() {
               <li>Your digital credentials (passwords) are never included. They are encrypted and only accessible by you.</li>
               <li>You can send a new link at any time. A new link invalidates the previous one.</li>
               <li>
-                If you haven't logged in within your chosen inactivity period, your <strong>executor</strong>
-                {' '}is notified first and can confirm what's happened. Only then are your other trusted
-                contacts emailed automatically. If you haven't designated an executor, all trusted
-                contacts are notified directly instead.
+                If you haven't logged in within <strong>{inactivityMonths} month{inactivityMonths === 1 ? '' : 's'}</strong>,
+                your <strong>executor</strong> is notified first and can confirm what's happened. Only then are your
+                other trusted contacts emailed automatically. If you haven't designated an executor, all trusted
+                contacts are notified directly instead. You can change this period any time in{' '}
+                <Link to="/profile/settings#inactivity-timer">your profile</Link>.
               </li>
             </ul>
           </div>
