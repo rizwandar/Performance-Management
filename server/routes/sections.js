@@ -608,14 +608,18 @@ router.delete('/children-dependants/:id', requireAuth, async (req, res) => {
 // Section 3 — Digital Life (encrypted vault)
 // ---------------------------------------------------------------------------
 router.get('/digital-life/vault', requireAuth, async (req, res) => {
-  const vault = await queryOne('SELECT id FROM digital_vault WHERE user_id = $1', [req.user.id]);
-  res.json({ exists: !!vault });
+  const vault = await queryOne('SELECT id, password_hint FROM digital_vault WHERE user_id = $1', [req.user.id]);
+  res.json({ exists: !!vault, hint: vault?.password_hint || null });
 });
 
 router.post('/digital-life/vault', requireAuth, requirePremium, async (req, res) => {
-  const { vault_password } = req.body;
+  const { vault_password, password_hint } = req.body;
   if (!vault_password || vault_password.length < 8) {
     return res.status(400).json({ error: 'Vault password must be at least 8 characters.' });
+  }
+  const hint = (password_hint || '').trim().slice(0, 200) || null;
+  if (hint && vault_password.toLowerCase().includes(hint.toLowerCase())) {
+    return res.status(400).json({ error: "Your hint shouldn't contain your actual vault password." });
   }
   const existing = await queryOne('SELECT id FROM digital_vault WHERE user_id = $1', [req.user.id]);
   if (existing) {
@@ -623,18 +627,27 @@ router.post('/digital-life/vault', requireAuth, requirePremium, async (req, res)
   }
   const key      = deriveKey(vault_password, req.user.id);
   const checkEnc = createVaultCheck(key);
-  await query('INSERT INTO digital_vault (user_id, check_enc) VALUES ($1, $2)', [req.user.id, checkEnc]);
+  await query('INSERT INTO digital_vault (user_id, check_enc, password_hint) VALUES ($1, $2, $3)', [req.user.id, checkEnc, hint]);
   res.status(201).json({ success: true });
 });
 
 router.put('/digital-life/vault', requireAuth, async (req, res) => {
-  const { old_password, new_password } = req.body;
+  const { old_password, new_password, password_hint } = req.body;
   if (!old_password) return res.status(400).json({ error: 'old_password is required.' });
   if (!new_password || new_password.length < 8) return res.status(400).json({ error: 'New password must be at least 8 characters.' });
   if (old_password === new_password) return res.status(400).json({ error: 'New password must be different from the current one.' });
 
   const vault = await queryOne('SELECT check_enc FROM digital_vault WHERE user_id = $1', [req.user.id]);
   if (!vault) return res.status(404).json({ error: 'No vault found.' });
+
+  // password_hint is optional here: undefined leaves the existing hint
+  // untouched (most password changes aren't also updating the hint), an
+  // empty string clears it, anything else replaces it.
+  const hintProvided = password_hint !== undefined;
+  const newHint = hintProvided ? ((password_hint || '').trim().slice(0, 200) || null) : undefined;
+  if (newHint && new_password.toLowerCase().includes(newHint.toLowerCase())) {
+    return res.status(400).json({ error: "Your hint shouldn't contain your actual vault password." });
+  }
 
   const oldKey = deriveKey(old_password, req.user.id);
   if (!verifyVaultPassword(vault.check_enc, oldKey)) {
@@ -678,7 +691,11 @@ router.put('/digital-life/vault', requireAuth, async (req, res) => {
       }
     }
 
-    await client.query('UPDATE digital_vault SET check_enc=$1 WHERE user_id=$2', [newCheck, req.user.id]);
+    if (hintProvided) {
+      await client.query('UPDATE digital_vault SET check_enc=$1, password_hint=$2 WHERE user_id=$3', [newCheck, newHint, req.user.id]);
+    } else {
+      await client.query('UPDATE digital_vault SET check_enc=$1 WHERE user_id=$2', [newCheck, req.user.id]);
+    }
   });
 
   res.json({ success: true });
