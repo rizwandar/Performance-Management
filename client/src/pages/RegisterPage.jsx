@@ -172,7 +172,10 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="d-flex justify-content-center pt-4">
+    <div className="d-flex flex-column align-items-center pt-4">
+      <p className="text-muted text-center mb-3" style={{ maxWidth: 380, fontSize: '0.92rem' }}>
+        Everything in good hands.
+      </p>
       <Card style={{ width: '100%', maxWidth: 540 }}>
         <Card.Header><h5 className="mb-0">Begin your journey</h5></Card.Header>
         <Card.Body>
