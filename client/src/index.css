@@ -19,6 +19,14 @@
   --border:      #E0DDD5;
   --success:     #2D6B4A;
 
+  /* Vault-area accent: a deliberate cool contrast to the site's warm palette
+     above, so entering a vault-protected area (unlock/setup) reads as a
+     distinct security boundary rather than just another green CTA. Kept to
+     buttons in VaultGate.jsx, not applied to the surrounding box/border, per
+     an explicit "slight difference" request rather than a full re-theme. */
+  --vault-navy:      #1E3A5F;
+  --vault-navy-dark: #16293F;
+
   --bs-primary:          #2D5A3D;
   --bs-primary-rgb:      45, 90, 61;
   --bs-link-color:       #2D5A3D;
@@ -89,6 +97,22 @@ body {
 .btn-accent:hover {
   background: #b07d3a;
   border-color: #b07d3a;
+  color: #fff;
+}
+
+/* Vault-area button: deliberately cool/navy rather than the warm palette
+   above, so unlocking or setting up the vault reads as a distinct security
+   boundary rather than just another green CTA. See VaultGate.jsx. */
+.btn-vault {
+  background: var(--vault-navy);
+  border-color: var(--vault-navy);
+  color: #fff;
+  border-radius: var(--btn-radius, 6px);
+  font-family: inherit;
+}
+.btn-vault:hover, .btn-vault:focus {
+  background: var(--vault-navy-dark);
+  border-color: var(--vault-navy-dark);
   color: #fff;
 }
 
