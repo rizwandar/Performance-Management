@@ -1409,6 +1409,7 @@ export default function AdminPage() {
   const [resetPwSaving, setResetPwSaving]     = useState(false)
   const [resetPwError, setResetPwError]       = useState('')
   const [premiumSaving, setPremiumSaving]     = useState(false)
+  const [verifyingEmail, setVerifyingEmail]   = useState(false)
 
   // Activity tab state
   const [activityQuery, setActivityQuery]   = useState('')
@@ -1534,8 +1535,8 @@ export default function AdminPage() {
       setSelectedUser(r.data)
       setUsers(u => u.map(x => x.id === id ? { ...x, plan: 'premium', is_honorary: true } : x))
       showAlert('success', 'Honorary premium granted.')
-    } catch {
-      showAlert('danger', "Couldn't grant premium.")
+    } catch (err) {
+      showAlert('danger', err.response?.data?.error || "Couldn't grant premium.")
     }
     setPremiumSaving(false)
   }
@@ -1548,8 +1549,8 @@ export default function AdminPage() {
       setSelectedUser(r.data)
       setUsers(u => u.map(x => x.id === id ? { ...x, plan: 'free', is_honorary: false } : x))
       showAlert('success', 'Premium revoked.')
-    } catch {
-      showAlert('danger', "Couldn't revoke premium.")
+    } catch (err) {
+      showAlert('danger', err.response?.data?.error || "Couldn't revoke premium.")
     }
     setPremiumSaving(false)
   }
@@ -2037,6 +2038,16 @@ export default function AdminPage() {
           </Modal.Title>
         </Modal.Header>
         <Modal.Body>
+          {/* Actions taken from this modal (verify email, grant/revoke premium, revert
+              deceased) call the same showAlert() as the rest of the page, but the page-level
+              banner near the top renders behind this modal's backdrop, so it was never visible
+              while the modal was open - clicking a button looked like it did nothing even when
+              it succeeded or failed with a real error. Mirroring the alert here fixes that. */}
+          {alert && (
+            <Alert variant={alert.type} dismissible onClose={() => setAlert(null)} className="mb-3">
+              {alert.msg}
+            </Alert>
+          )}
           {loadingUser && !selectedUser ? (
             <div className="text-center py-4"><Spinner animation="border" style={{ color: 'var(--green-800)' }} /></div>
           ) : selectedUser ? (
@@ -2054,6 +2065,12 @@ export default function AdminPage() {
                 <Col md={3}>
                   <p className="text-muted small mb-1">Member since</p>
                   <p style={{ fontWeight: 500 }}>{formatDate(selectedUser.created_at)}</p>
+                </Col>
+                <Col md={3}>
+                  <p className="text-muted small mb-1">Email status</p>
+                  <p style={{ fontWeight: 500, color: selectedUser.email_verified ? 'var(--green-800)' : 'var(--text-muted)' }}>
+                    {selectedUser.email_verified ? 'Verified' : 'Not verified'}
+                  </p>
                 </Col>
               </Row>
 
@@ -2155,17 +2172,24 @@ export default function AdminPage() {
               onClick={() => { setResetPwUser(selectedUser); setResetPwValue(''); setResetPwConfirm(''); setResetPwError('') }}>
               Reset password
             </Button>
-            <Button variant="outline-success" size="sm"
-              onClick={async () => {
-                try {
-                  await axios.post(`${API}/admin/users/${selectedUser.id}/verify-email`)
-                  showAlert('success', `Email verified for ${selectedUser.name}.`)
-                } catch {
-                  showAlert('danger', 'Could not verify email.')
-                }
-              }}>
-              Verify email
-            </Button>
+            {!selectedUser.email_verified && (
+              <Button variant="outline-success" size="sm" disabled={verifyingEmail}
+                onClick={async () => {
+                  setVerifyingEmail(true)
+                  try {
+                    await axios.post(`${API}/admin/users/${selectedUser.id}/verify-email`)
+                    const r = await axios.get(`${API}/admin/users/${selectedUser.id}`)
+                    setSelectedUser(r.data)
+                    setUsers(u => u.map(x => x.id === selectedUser.id ? { ...x, email_verified: true } : x))
+                    showAlert('success', `Email verified for ${selectedUser.name}.`)
+                  } catch (err) {
+                    showAlert('danger', err.response?.data?.error || 'Could not verify email.')
+                  }
+                  setVerifyingEmail(false)
+                }}>
+                {verifyingEmail ? 'Verifying…' : 'Verify email'}
+              </Button>
+            )}
             {selectedUser.plan === 'premium' && selectedUser.is_honorary ? (
               <Button variant="outline-warning" size="sm" disabled={premiumSaving}
                 onClick={() => revokePremium(selectedUser.id)}>
