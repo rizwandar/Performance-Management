@@ -581,6 +581,7 @@ function LegalReconsentBanner() {
   const location = useLocation()
   const [needsReconsent, setNeedsReconsent] = useState(false)
   const [agreeing, setAgreeing] = useState(false)
+  const [error, setError] = useState('')
 
   const checkStatus = () => {
     if (!user) return
@@ -593,10 +594,16 @@ function LegalReconsentBanner() {
 
   if (!user || !needsReconsent) return null
 
+  // Previously had no .catch() at all - a failed request left the banner
+  // stuck forever with zero feedback, indistinguishable from the button
+  // doing nothing (OPS-09). needsReconsent is only ever cleared on a
+  // confirmed server success, never optimistically.
   const handleAgree = () => {
     setAgreeing(true)
+    setError('')
     axios.post(`${API}/legal/consent`)
       .then(() => setNeedsReconsent(false))
+      .catch(err => setError(err.response?.data?.error || "Couldn't save your agreement. Please try again."))
       .finally(() => setAgreeing(false))
   }
 
@@ -617,6 +624,7 @@ function LegalReconsentBanner() {
         >
           {agreeing ? 'Saving…' : 'I agree'}
         </button>
+        {error && <span style={{ color: '#B91C1C', fontSize: '0.82rem' }}>{error}</span>}
       </div>
     </div>
   )
