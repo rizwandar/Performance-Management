@@ -206,12 +206,20 @@ router.post('/login', loginRules, validate, async (req, res) => {
     auditLog(user.id, 'login_failed', req, { email, reason: 'deactivated' });
     return res.status(403).json({ error: 'This account has been deactivated. Contact your organization administrator.' });
   }
+  // vault_attempts is deliberately NOT reset here (it used to be, bundled in
+  // with the other session-refresh fields below) - it's a security counter,
+  // not session state, and account re-login is trivially available to
+  // anyone who knows the account password. Resetting it on login meant the
+  // 3-attempt forced-logout was toothless: log back in, get 3 more tries,
+  // repeat indefinitely. It now only resets on a correct vault password
+  // (see vaultAuth.js's resetVaultAttempts call) or a lockout naturally
+  // expiring, matching what a security counter is supposed to guarantee.
+  // Found live 2026-08-05 - the user hit exactly this loophole while testing.
   await query(`
     UPDATE users
     SET last_active_at = NOW(),
         last_reminder_sent_at = NULL,
-        inactivity_contacts_notified_at = NULL,
-        vault_attempts = 0
+        inactivity_contacts_notified_at = NULL
     WHERE id = $1
   `, [user.id]);
   auditLog(user.id, 'login_success', req);
