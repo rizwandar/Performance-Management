@@ -862,6 +862,14 @@ async function init() {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS spouse_is_executor BOOLEAN DEFAULT false`);
   await pool.query(`ALTER TABLE trusted_contacts ADD COLUMN IF NOT EXISTS linked_to_profile_spouse BOOLEAN DEFAULT false`);
 
+  // IDEA-15: an optional, plaintext hint the owner can set alongside their vault
+  // password, e.g. "childhood pet's name", to jog their own memory later. It is
+  // never the password itself and is never encrypted, it's meant to be readable
+  // (only by the owner, on the locked-vault screen) precisely when the real
+  // password has been forgotten and vault-encrypted data would otherwise be
+  // unrecoverable.
+  await pool.query(`ALTER TABLE digital_vault ADD COLUMN IF NOT EXISTS password_hint TEXT`);
+
   console.log('[db] PostgreSQL schema ready');
 }
 
