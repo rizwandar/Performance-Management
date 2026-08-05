@@ -22,7 +22,7 @@ export default function LoginPage() {
     setLoading(true)
     try {
       const res = await axios.post(`${API}/auth/login`, form)
-      login(res.data.user)
+      login(res.data.user, res.data.csrf_token)
       navigate(res.data.user.is_admin ? '/admin' : res.data.user.org_role ? '/org' : '/profile')
     } catch (err) {
       if (!err.response) {

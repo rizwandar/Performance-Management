@@ -169,10 +169,14 @@ router.post('/register', registerRules, validate, async (req, res) => {
     // never reads or stores `token` from this body. Still returned in the
     // body unchanged for mobile, which has no browser cookie jar and keeps
     // using this exactly as before, storing it in expo-secure-store itself.
-    setAuthCookies(res, token);
+    // csrf_token is returned here for the same reason it wasn't reliable as
+    // a client-read cookie in the first place (see authCookies.js) - the web
+    // client stores this value in memory and echoes it back as a header.
+    const csrfToken = setAuthCookies(res, token);
     res.status(201).json({
       id: newId,
       token,
+      csrf_token: csrfToken,
       user: { id: newId, name, email, is_admin: 0, email_verified: 0, songs_enabled: 0, bucket_list_enabled: 0 },
     });
   } catch (err) {
@@ -223,10 +227,12 @@ router.post('/login', loginRules, validate, async (req, res) => {
     { expiresIn: '8h' }
   );
   // See the matching comment in /register - cookie is authoritative for web,
-  // the body's token field is kept only for mobile's benefit.
-  setAuthCookies(res, token);
+  // the body's token field is kept only for mobile's benefit. csrf_token is
+  // returned so the web client can store it in memory (see AuthContext.jsx).
+  const csrfToken = setAuthCookies(res, token);
   res.json({
     token,
+    csrf_token: csrfToken,
     user: {
       id:                  user.id,
       name:                user.name,
@@ -396,6 +402,19 @@ router.post('/resend-verification', auth, async (req, res) => {
     console.error('[auth] Resend verification email failed:', err.message);
     res.status(500).json({ error: 'Could not send verification email. Please try again shortly.' });
   }
+});
+
+// The web client only ever learns the CSRF value from a login/register/etc.
+// response body (see the matching comment in authCookies.js for why it can't
+// just read the cookie back) - that value lives in an in-memory JS variable,
+// so a full page reload loses it even though the httpOnly session cookie
+// itself survives fine. This lets AuthProvider re-fetch it on mount when a
+// cached user looks logged in, without forcing a fresh login. GET, so it's
+// exempt from the CSRF check itself (see middleware/auth.js) - nothing to
+// bootstrap circularly here. Simply echoes back whatever the cookie already
+// holds; the server-side value was never the broken half of this mechanism.
+router.get('/csrf-token', auth, (req, res) => {
+  res.json({ csrf_token: req.cookies?.csrf_token || null });
 });
 
 router.post('/logout', auth, (req, res) => {
