@@ -178,6 +178,13 @@ export default function KeyContactsPage() {
   }
 
   const [executorSaving, setExecutorSaving] = useState(false)
+  // Only used for the "make executor" direction - removing someone as
+  // executor is low-stakes and reversible, so that action stays a single
+  // click. Making someone executor fires an immediate email to a third
+  // party, which deserves a confirm step right where the action happens,
+  // not just an explanation paragraph elsewhere on the page a user could
+  // click past without reading (OPS-19 found exactly that gap live).
+  const [executorConfirmTarget, setExecutorConfirmTarget] = useState(null)
 
   const handleToggleExecutor = async (contact) => {
     setExecutorSaving(true)
@@ -189,6 +196,7 @@ export default function KeyContactsPage() {
     } catch (err) {
       setTcError(err.response?.data?.error || "We couldn't update this. Please try again.")
     }
+    setExecutorConfirmTarget(null)
     setExecutorSaving(false)
   }
 
@@ -363,7 +371,8 @@ export default function KeyContactsPage() {
                               Send access link
                             </Button>
                             <Button size="sm" variant={contact.is_executor ? 'outline-secondary' : 'outline-success'}
-                              onClick={() => handleToggleExecutor(contact)} disabled={executorSaving}>
+                              onClick={() => contact.is_executor ? handleToggleExecutor(contact) : setExecutorConfirmTarget(contact)}
+                              disabled={executorSaving}>
                               {contact.is_executor ? 'Remove as executor' : 'Make executor'}
                             </Button>
                             <Button size="sm" variant="outline-danger" onClick={() => setDeleteTarget(contact)}>Remove</Button>
@@ -534,6 +543,28 @@ export default function KeyContactsPage() {
           ) : (
             <Button variant="outline-secondary" onClick={() => setShowLinkModal(false)}>Close</Button>
           )}
+        </Modal.Footer>
+      </Modal>
+
+      {/* ── Make Executor Confirmation ──────────────────────────────────────── */}
+      <Modal show={!!executorConfirmTarget} onHide={() => setExecutorConfirmTarget(null)} centered>
+        <Modal.Header closeButton>
+          <Modal.Title style={{ fontSize: '1.05rem' }}>Make {executorConfirmTarget?.name} your executor?</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          They can view everything you've recorded except your vault, and are the one who
+          confirms what's happened if you stop logging in. Only then are your other trusted
+          contacts and the people you've listed to notify actually informed.
+          <p className="mb-0 mt-3" style={{ fontWeight: 600 }}>
+            They will be emailed right away to explain the role - not only if the inactivity
+            timer ever lapses.
+          </p>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="outline-secondary" onClick={() => setExecutorConfirmTarget(null)}>Cancel</Button>
+          <Button variant="success" onClick={() => handleToggleExecutor(executorConfirmTarget)} disabled={executorSaving}>
+            {executorSaving ? 'Saving…' : 'Yes, make executor'}
+          </Button>
         </Modal.Footer>
       </Modal>
 
