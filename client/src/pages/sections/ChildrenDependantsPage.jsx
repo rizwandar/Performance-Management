@@ -102,7 +102,7 @@ export default function ChildrenDependantsPage() {
 
   const formatDob = dob => {
     if (!dob) return null
-    try { return new Date(`${dob}T00:00:00`).toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' }) }
+    try { return new Date(`${dob}T00:00:00`).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' }) }
     catch { return dob }
   }
 
@@ -272,7 +272,7 @@ export default function ChildrenDependantsPage() {
               <Form.Label>Additional notes</Form.Label>
               <Form.Control as="textarea" rows={2} value={form.notes}
                 onChange={e => setForm({ ...form, notes: e.target.value })}
-                placeholder="School, childcare, favourite things, any other important instructions…" />
+                placeholder="School, childcare, favorite things, any other important instructions…" />
             </Form.Group>
           </Form>
         </Modal.Body>

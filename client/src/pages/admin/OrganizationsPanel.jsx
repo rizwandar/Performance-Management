@@ -328,7 +328,7 @@ function OrgDetailModal({ orgId, onHide, showAlert }) {
               )}
               {org.billingEvents?.map(ev => (
                 <div key={ev.id} className="small mb-1">
-                  {new Date(ev.created_at).toLocaleDateString()}: {ev.old_plan_tier ? `${ev.old_plan_tier} → ` : ''}{ev.new_plan_tier}
+                  {new Date(ev.created_at).toLocaleDateString('en-US')}: {ev.old_plan_tier ? `${ev.old_plan_tier} → ` : ''}{ev.new_plan_tier}
                   {ev.rate_snapshot ? ` (${ev.rate_snapshot})` : ''}
                   {ev.changed_by_name ? `, by ${ev.changed_by_name}` : ''}
                 </div>
