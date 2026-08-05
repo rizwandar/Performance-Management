@@ -11,7 +11,10 @@ const MODULES = [
 
 function formatDate(iso) {
   if (!iso) return ''
-  return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+  // Explicit en-US rather than the visitor's browser locale (undefined),
+  // matching the app's US-first date-formatting convention everywhere else
+  // (OPS-02) - a non-US admin's browser shouldn't see different formatting.
+  return new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
 // Publishing a new version replaces what TermsPage.jsx/PrivacyPage.jsx render
