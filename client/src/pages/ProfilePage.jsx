@@ -366,7 +366,7 @@ export default function ProfilePage() {
 
   const formatDate = iso => {
     if (!iso) return 'Not set'
-    try { return new Date(iso).toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' }) }
+    try { return new Date(iso).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' }) }
     catch { return iso }
   }
 

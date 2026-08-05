@@ -37,7 +37,7 @@ const ICON_SETS = [
   {
     id: 'classic',
     name: 'Classic',
-    description: 'Familiar, universally recognised symbols',
+    description: 'Familiar, universally recognized symbols',
     preview: ['📄', '💼', '💻', '🕊️', '💌', '🎵'],
   },
   {
@@ -95,7 +95,7 @@ const PRESET_LOGOS = [
   { id: 'hands-heart',   name: 'Hands and Heart',  desc: 'Cupped hands holding a heart (default)' },
   { id: 'leaf-heart',    name: 'Leaf and Heart',    desc: 'A heart with a new leaf sprouting upward' },
   { id: 'shield-heart',  name: 'Shield and Heart',  desc: 'A protective shield carrying a heart' },
-  { id: 'infinity-heart',name: 'Infinity Heart',    desc: 'An infinity loop with a heart at its centre' },
+  { id: 'infinity-heart',name: 'Infinity Heart',    desc: 'An infinity loop with a heart at its center' },
   { id: 'tree',          name: 'Tree of Life',      desc: 'A tree with roots and a heart in the canopy' },
   { id: 'dove',          name: 'Dove',              desc: 'A gentle dove carrying a small heart' },
   { id: 'book',          name: 'Open Book',         desc: 'An open book, a life story above a heart' },
@@ -442,9 +442,9 @@ ${appName} is a warm, end-of-life planning web application. Users document their
 
 TARGET AUDIENCE: Adults (primarily 40+). Launch marketing targets the United States specifically (the Privacy Policy is written to lead with CCPA/CPRA), though registration itself stays open worldwide and the Privacy Policy also covers GDPR (EU/UK), PIPEDA (Canada), Quebec Law 25, the Australian Privacy Act, and the NZ Privacy Act for users in those regions.
 
-TONE: Warm, kind, reassuring. Never clinical. UI copy currently uses Australian English spelling and date formatting (organised, colour, d MMMM YYYY), a holdover that predates the US-first launch pivot and should be migrated to American English (organized, color, en-US dates) - not yet done. No em-dashes anywhere in the application.
+TONE: Warm, kind, reassuring. Never clinical. UI copy uses American English spelling and en-US date formatting throughout (migrated 2026-08-05 from an earlier Australian English holdover that predated the US-first launch pivot - see OPS-02). No em-dashes anywhere in the application.
 
-COLOUR PALETTE: Earthy, grounded, trustworthy. Forest green (primary), warm gold (accent), parchment backgrounds.
+COLOR PALETTE: Earthy, grounded, trustworthy. Forest green (primary), warm gold (accent), parchment backgrounds.
 
 ---
 
@@ -508,7 +508,7 @@ INACTIVITY TIMER:
 ADMIN PANEL:
 - Accessible to users with is_admin=1 only.
 - Tabs: Overview (stats), Users (search and manage, including honorary premium grant/revoke), Activity (audit log), Appearance (theme/font/icon set), Branding (site name and logo), Organizations (funeral-home white-label portal management, gated behind ORG_PORTAL_ENABLED), Settings (password reset method), Versions (client/admin/org_portal semver change log), App Blueprint (this documentation).
-- 9 colour themes (including Keepsake, a tokenized cream/walnut/marigold theme with its own card radius, border style, and button treatment), 6 font choices, 3 icon sets. All stored in app_settings key-value table.
+- 9 color themes (including Keepsake, a tokenized cream/walnut/marigold theme with its own card radius, border style, and button treatment), 6 font choices, 3 icon sets. All stored in app_settings key-value table.
 - Admin can upload a logo via Cloudflare R2 for white-labelling.
 - Admin can change site name (white-label support via BrandingContext).
 
@@ -556,7 +556,7 @@ EMAIL TEMPLATES (all in server/lib/emailTemplates.js, sent via Resend):
 
 KEY CONSTRAINTS AND DECISIONS:
 - No em-dashes anywhere in the application (UI, emails, PDFs, code comments, documentation).
-- Australian English throughout (organised, recognised, etc.).
+- American English throughout (organized, recognized, etc.) - migrated 2026-08-05 from an earlier Australian English holdover (OPS-02).
 - Vault password never stored or recoverable. Loss = permanent data loss. This is communicated clearly to users.
 - No admin panel on mobile (mobile app is user-facing only, not yet built in this version).
 - Deezer search proxied through backend to avoid CORS.
@@ -667,14 +667,14 @@ Please confirm the stack choices above (or tell me which to change), and then we
               <BpTable rows={[
                 ['Primary users', 'Adults aged 40 and above. Launch marketing targets the United States specifically; registration itself stays open worldwide.'],
                 ['Secondary users', 'Trusted contacts (family or close friends) who receive secure access to relevant sections when the time comes.'],
-                ['Administrators', 'White-label operators who can customise the site name, logo, colour theme, and fonts through the admin panel.'],
+                ['Administrators', 'White-label operators who can customize the site name, logo, color theme, and fonts through the admin panel.'],
               ]} />
             </BpSection>
           </div>
 
           <div style={card}>
             <BpSection title="The 14 Sections at a Glance">
-              <p className="text-muted small mb-3">Organised into four groups on the dashboard. Users fill in as much or as little as they choose.</p>
+              <p className="text-muted small mb-3">Organized into four groups on the dashboard. Users fill in as much or as little as they choose.</p>
               {[
                 { group: 'Your Legacy', color: '#C9A84C', icon: '✨', sections: [
                   { label: 'How I\'d Like to Be Remembered', desc: 'Your life story, what you want to be remembered for, and a final message.' },
@@ -723,7 +723,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
                 ['PDF export', 'Users can download a complete PDF summary of all their plans. A full export option includes vault contents if the vault password is provided at download time.'],
                 ['File attachments', 'Upload photos and documents (PDF, images, Word docs) to Legal Documents, Financial Affairs, Property & Possessions, and Practical Household Information. Stored securely in Cloudflare R2, access-controlled with short-lived signed URLs.'],
                 ['Premium billing', 'Free plan covers 9 of the 14 sections. Premium ($10/month or $100/year via Stripe Checkout) unlocks the 5 vault-protected sections, document uploads, full (vault-inclusive) PDF export, and the inactivity timer. Users manage or cancel/reinstate their subscription from My Profile; admins can also grant or revoke an honorary premium plan without a real Stripe subscription.'],
-                ['Admin panel', 'Operators can customise colours, fonts, site name, and logo. View all users, audit logs, and manage accounts.'],
+                ['Admin panel', 'Operators can customize colors, fonts, site name, and logo. View all users, audit logs, and manage accounts.'],
                 ['White-label ready', 'The site name and logo can be changed by the admin. All emails and the PDF use the configured name.'],
               ]} />
             </BpSection>
@@ -732,7 +732,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
           <div style={card}>
             <BpSection title="What it is NOT">
               <BpTable rows={[
-                ['Not a legal service', 'The application does not provide legal advice. It is a planning and document-organisation tool only.'],
+                ['Not a legal service', 'The application does not provide legal advice. It is a planning and document-organization tool only.'],
                 ['Not a will', 'Entries in this application do not replace a legally executed will or any other legal document.'],
                 ['Files are not vault-key-encrypted', 'All five vault-protected sections (Legal Documents, Financial Affairs, Property & Possessions, Digital Life, Practical Household Information) have their text fields encrypted with a vault-password-derived key. Uploaded files (attachments and photos) are access-controlled with short-lived signed URLs and encrypted at rest by Cloudflare R2 as a platform default, but are not additionally encrypted with the vault password.'],
                 ['Not a backup service', 'Physical documents referenced in the app are stored by the user. Only the metadata (where to find them) is recorded here.'],
@@ -749,7 +749,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
             <BpSection title="User Journey">
               <BpTable rows={[
                 ['Registration', 'User provides name, email, date of birth, and password. A welcome email is sent. They land on the dashboard.'],
-                ['Dashboard', 'Shows 14 section cards grouped into 4 colour-coded groups. Each card shows completion status (Not started, In progress, Done). A progress bar shows overall completion.'],
+                ['Dashboard', 'Shows 14 section cards grouped into 4 color-coded groups. Each card shows completion status (Not started, In progress, Done). A progress bar shows overall completion.'],
                 ['First visit', 'New users see a welcome card with four suggested starting sections. Returning users see "Welcome back".'],
                 ['Filling sections', 'Each section has its own page with a form or list UI. Changes are saved immediately or via explicit Save buttons.'],
                 ['Vault setup', 'The first time a user visits Digital Life or Legal Documents, they are prompted to create a vault password. This password is separate from their account password and is never stored.'],
@@ -810,7 +810,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
                 ['What is included', 'All 14 sections. Cover page with logo, user name, and date. Grouped logically across content pages.'],
                 ['Layout', 'A4 two-column layout. Each item rendered as a card. Page breaks handled automatically.'],
                 ['Branding', 'The current theme and font from app_settings are applied. Logo is fetched from R2 and embedded on the cover page.'],
-                ['Download behaviour', 'The browser receives the PDF as a stream and downloads it as a file. No temp files are created on the server.'],
+                ['Download behavior', 'The browser receives the PDF as a stream and downloads it as a file. No temp files are created on the server.'],
               ]} />
             </BpSection>
           </div>
@@ -835,7 +835,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
                 ['Overview', 'Total users, new registrations this month, logins in the last 7 days, total entries across all section tables.'],
                 ['User management', 'Search users by name or email. View full profile, section completion, and audit log for any user. Reset their password. Delete their account.'],
                 ['Activity log', 'Recent actions across all users: logins, failures, registrations, password changes. Filterable by user.'],
-                ['Appearance', '9 colour themes, 6 font choices, 3 icon sets. Changes apply live via CSS variables and are persisted in app_settings.'],
+                ['Appearance', '9 color themes, 6 font choices, 3 icon sets. Changes apply live via CSS variables and are persisted in app_settings.'],
                 ['Branding', 'Change the site name (stored in app_settings, displayed via BrandingContext throughout the app and in emails/PDF). Upload a custom logo (stored in R2). Choose from preset logo illustrations.'],
                 ['Settings', 'Toggle whether password reset also requires date-of-birth or security-question confirmation in addition to the emailed link (Resend). The link itself is always required, never optional.'],
                 ['App Blueprint', 'This three-level documentation system. Read-only. Downloadable as PDF and as a rebuild prompt text file.'],
@@ -861,7 +861,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
             <BpSection title="Design Principles and Constraints">
               <BpTable rows={[
                 ['No em-dashes', 'Never use em-dashes (—) anywhere: UI text, emails, PDF content, code comments, or documentation. Use commas, colons, or periods instead.'],
-                ['Australian English', 'Organised, recognised, colour, favour, apologise. Date format: d MMMM YYYY. toLocaleDateString("en-AU").'],
+                ['American English', 'Organized, recognized, color, favor, apologize. Date format: toLocaleDateString("en-US"). Migrated 2026-08-05 from an earlier Australian English holdover (OPS-02).'],
                 ['Warm tone', 'The app is used by people thinking about death and their legacy. Every word should feel kind, not clinical. Never alarming. Never transactional.'],
                 ['Vault honesty', 'Users are told clearly at setup: if you forget your vault password, your data cannot be recovered. This is by design and cannot be changed without breaking the security model.'],
                 ['Trusted contact simplicity', 'Contacts receive a link. They do not need to create an account. The experience is frictionless for someone who may be grieving.'],
@@ -885,8 +885,8 @@ Please confirm the stack choices above (or tell me which to change), and then we
             ['Purpose', 'End-of-life planning web application. Users document their wishes, assets, contacts, and messages so loved ones have clarity and comfort when the time comes.'],
             ['Target audience', 'Adults (primarily 40+). Launch marketing targets the United States specifically (Privacy Policy leads with CCPA/CPRA); registration itself stays open worldwide.'],
             ['Tone of voice', 'Warm, kind, reassuring, end-of-life-aware. Never clinical. No em-dashes anywhere.'],
-            ['Language', 'Currently Australian English throughout the UI (organised, colour, en-AU date formatting), a holdover from before the US-first launch pivot. TODO: migrate UI copy and date formatting to American English (organized, color, en-US) to match the current US market focus - not yet done, flagged here so it is not lost.'],
-            ['Primary colour metaphor', 'Earthy, grounded, trustworthy. Forest green, warm gold, parchment backgrounds.'],
+            ['Language', 'American English throughout the UI (organized, color, en-US date formatting), matching the US-first launch. Migrated 2026-08-05 from an earlier Australian English holdover (OPS-02).'],
+            ['Primary color metaphor', 'Earthy, grounded, trustworthy. Forest green, warm gold, parchment backgrounds.'],
           ]} />
         </BpSection>
       </div>
@@ -926,7 +926,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
         LandingPage.jsx
         LoginPage.jsx, RegisterPage.jsx
         ForgotPasswordPage.jsx, ResetPasswordPage.jsx
-        DashboardPage.jsx    # 14 section cards, 4 groups, earthy colours
+        DashboardPage.jsx    # 14 section cards, 4 groups, earthy colors
         ProfilePage.jsx      # Personal details, password, vault password, billing management
         AccessPage.jsx       # Public trusted-contact read-only view
         AdminPage.jsx        # Full admin panel
@@ -984,7 +984,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
           {[
             {
               table: 'users',
-              fields: 'id, name, email (unique), password_hash, date_of_birth, life_story, about_me, remembered_for, legacy_message, emergency_contact_name, emergency_contact_phone, emergency_contact_email, marital_status, spouse_name, spouse_phone, spouse_email, is_admin (0/1), inactivity_period_months (default 12), last_active_at, reset_token (SHA-256 hash, not the raw token), reset_token_expiry, session_version (bumped on password change/reset, invalidates older JWTs), security_question (plain text, not sensitive), security_answer_hash (bcrypt, never returned to the client), vault_attempts, vault_locked_until (NULL = not locked, future timestamp = locked until then, replaces the old delete-on-5th-attempt behaviour), created_at, plus email verification and privacy consent fields',
+              fields: 'id, name, email (unique), password_hash, date_of_birth, life_story, about_me, remembered_for, legacy_message, emergency_contact_name, emergency_contact_phone, emergency_contact_email, marital_status, spouse_name, spouse_phone, spouse_email, is_admin (0/1), inactivity_period_months (default 12), last_active_at, reset_token (SHA-256 hash, not the raw token), reset_token_expiry, session_version (bumped on password change/reset, invalidates older JWTs), security_question (plain text, not sensitive), security_answer_hash (bcrypt, never returned to the client), vault_attempts, vault_locked_until (NULL = not locked, future timestamp = locked until then, replaces the old delete-on-5th-attempt behavior), created_at, plus email verification and privacy consent fields',
             },
             {
               table: 'legal_documents',
@@ -1212,14 +1212,14 @@ Please confirm the stack choices above (or tell me which to change), and then we
             ['Overview tab', 'Stats: total users, new this month, logins (7 days), total entries across all section tables.'],
             ['Users tab', 'Search users by name/email. Click user to open detail modal: all profile fields, section completion counts, audit log, send access link, reset password, delete account.'],
             ['Activity tab', 'Recent audit log with action labels, IP, and timestamps.'],
-            ['Appearance tab', 'Choose colour theme (9 options), font (6 options), icon set (3 options). Changes apply live via CSS variables.'],
+            ['Appearance tab', 'Choose color theme (9 options), font (6 options), icon set (3 options). Changes apply live via CSS variables.'],
             ['Settings tab', 'Password reset method: email link, optionally plus a date-of-birth or security-question check before the link is sent.'],
             ['App Blueprint tab', 'Three-level documentation: L1 Feature Overview, L2 Product Specification, L3 Technical Reference. PDF download and rebuild prompt download.'],
             ['Theme storage', 'app_settings table keys: site_theme, site_font, site_icon_set, site_logo.'],
             ['Themes available', 'Forest, Dusk, Terracotta, Ocean, Rose Garden, Midnight, High Contrast, Soft Mist, Keepsake.'],
             ['Fonts available', 'Georgia, Lora, Playfair Display, Merriweather, Inter, Open Sans.'],
             ['Icon sets', 'Classic, Heritage, Modern. Applied to dashboard section card icons.'],
-            ['Design tokens', 'Card radius, card border style, button radius/CTA colour, and progress-bar fill colour are all CSS custom properties driven per theme (--card-radius, --card-border-style, --btn-radius, --btn-cta-bg, --progress-fill, etc.), rather than hardcoded per page. Keepsake is the first theme to use a non-default radius/border combination (dotted stitched-border cards, folded-corner hero panel).'],
+            ['Design tokens', 'Card radius, card border style, button radius/CTA color, and progress-bar fill color are all CSS custom properties driven per theme (--card-radius, --card-border-style, --btn-radius, --btn-cta-bg, --progress-fill, etc.), rather than hardcoded per page. Keepsake is the first theme to use a non-default radius/border combination (dotted stitched-border cards, folded-corner hero panel).'],
             ['SectionHero component', 'client/src/components/SectionHero.jsx gives all 14 section pages (and the Dashboard) the same hero-panel treatment, so a theme like Keepsake can restyle every section consistently from one shared component.'],
           ]} />
         </BpSection>
@@ -1377,7 +1377,7 @@ CLIENT (Render Static Site, baked in at build time)
             ['Static site direct navigation', 'Render static sites need an explicit Redirects/Rewrites rule (/* to /index.html, action Rewrite) in the dashboard. A _redirects file alone is not sufficient; without the dashboard rule, direct navigation to any client route 404s.'],
             ['No admin panel in mobile', 'Admin features are web-only. Mobile app (Expo) is user-facing only.'],
             ['Deezer music search', 'Proxied via /api/deezer to avoid CORS and hide any future API keys. Songs used for "Songs That Define Me" section, not funeral songs (different section).'],
-            ['Australian English', 'All copy uses Australian spelling and date formats. Dates formatted with toLocaleDateString("en-AU").'],
+            ['American English', 'All copy uses American spelling and en-US date formats (toLocaleDateString("en-US")). Migrated 2026-08-05 from an earlier Australian English holdover (OPS-02).'],
             ['Bootstrap primary', '--bs-primary and --bs-primary-rgb CSS vars overridden per theme so Bootstrap components (buttons, links) match the chosen palette.'],
           ]} />
         </BpSection>
@@ -1634,7 +1634,7 @@ export default function AdminPage() {
     if (!iso) return 'N/A'
     try {
       const d = /^\d{4}-\d{2}-\d{2}$/.test(iso) ? new Date(`${iso}T00:00:00`) : new Date(iso)
-      return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
+      return d.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })
     }
     catch { return iso }
   }
@@ -1827,7 +1827,7 @@ export default function AdminPage() {
                               </td>
                               <td className="text-muted">{row.ip_address || 'N/A'}</td>
                               <td className="text-muted">
-                                {row.created_at ? new Date(row.created_at).toLocaleString('en-AU', {
+                                {row.created_at ? new Date(row.created_at).toLocaleString('en-US', {
                                   day: 'numeric', month: 'short', year: 'numeric',
                                   hour: '2-digit', minute: '2-digit'
                                 }) : 'N/A'}
@@ -1850,8 +1850,8 @@ export default function AdminPage() {
         <div>
           {/* Themes */}
           <div style={{ background: 'var(--parchment)', borderRadius: 12, padding: '24px', marginBottom: 24, border: '1px solid var(--border)' }}>
-            <h6 style={{ color: 'var(--green-900)', marginBottom: 4 }}>Colour Theme</h6>
-            <p className="text-muted small mb-4">Choose the colour palette used across the site. Changes apply immediately.</p>
+            <h6 style={{ color: 'var(--green-900)', marginBottom: 4 }}>Color Theme</h6>
+            <p className="text-muted small mb-4">Choose the color palette used across the site. Changes apply immediately.</p>
             <Row className="g-3">
               {THEMES.map(theme => (
                 <Col key={theme.id} xs={12} md={4}>

@@ -40,7 +40,7 @@ export default function AccessibilityPage() {
           'A "Skip to main content" link is available at the top of every page for keyboard and screen reader users.',
           'A High Contrast theme is available and can be set as the default for all users from the Admin panel.',
           'Font size and typeface can be changed for the whole app from the Admin panel, for users who need larger or simpler text.',
-          'Colour is never used as the only way to convey information (for example, locked or premium sections are marked with both an icon and text, not colour alone).',
+          'Color is never used as the only way to convey information (for example, locked or premium sections are marked with both an icon and text, not color alone).',
           'Forms provide clear error messages and label every input field.',
           'The site is built with semantic HTML and standard interactive components, so it works with common screen readers such as VoiceOver and NVDA.',
           'The layout is responsive and usable when zoomed up to 200%.',
@@ -51,7 +51,7 @@ export default function AccessibilityPage() {
         {p('We are aware of areas that still need improvement, including:')}
         {li([
           'Some data tables and modal dialogs have not yet been fully audited with a screen reader.',
-          'Colour contrast in the default warm themes has not been formally tested against WCAG AA ratios in every combination; the High Contrast theme is the safest choice if you rely on high contrast.',
+          'Color contrast in the default warm themes has not been formally tested against WCAG AA ratios in every combination; the High Contrast theme is the safest choice if you rely on high contrast.',
           'Some third-party components (such as the music search) may not be fully keyboard-navigable.',
         ])}
         {p('We are working through these as part of our ongoing development.')}

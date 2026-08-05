@@ -64,7 +64,7 @@ const ICON_SETS = {
 }
 
 // ---------------------------------------------------------------------------
-// Section groups — logical groupings with earthy colour palette
+// Section groups — logical groupings with earthy color palette
 // ---------------------------------------------------------------------------
 const GROUPS = [
   {
@@ -179,7 +179,7 @@ const SECTIONS = [
   {
     id: 'legal_documents', label: 'Personal & Legal Documents',
     icon: '📄', route: '/sections/legal-documents', group: 'affairs',
-    description: 'Your will, powers of attorney, and identity documents, safely organised and easy to locate.',
+    description: 'Your will, powers of attorney, and identity documents, safely organized and easy to locate.',
   },
   {
     id: 'property_items', label: 'Property & Possessions',
