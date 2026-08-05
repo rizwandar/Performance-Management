@@ -18,7 +18,7 @@ const GENERIC_RESPONSE = {
 };
 
 router.post('/', async (req, res) => {
-  const { owner_email, reporter_name, reporter_email } = req.body;
+  const { owner_email, reporter_name, reporter_email, reporter_relationship, reporter_phone } = req.body;
 
   if (!owner_email || !EMAIL_RE.test(owner_email)) {
     return res.status(400).json({ error: "Please enter the account holder's email address." });
@@ -62,13 +62,20 @@ router.post('/', async (req, res) => {
 
       await query(
         'INSERT INTO user_audit_logs (user_id, action, metadata) VALUES ($1, $2, $3)',
-        [owner.id, 'death_reported', JSON.stringify({ reporter_name, reporter_email, matched_executor: !!executor?.email })]
+        [owner.id, 'death_reported', JSON.stringify({
+          reporter_name, reporter_email,
+          reporter_relationship: reporter_relationship || null,
+          reporter_phone:        reporter_phone || null,
+          matched_executor: !!executor?.email,
+        })]
       );
     } else {
       await query(
         'INSERT INTO user_audit_logs (user_id, action, metadata) VALUES ($1, $2, $3)',
         [owner?.id || null, 'death_reported', JSON.stringify({
           reporter_name, reporter_email, owner_email,
+          reporter_relationship: reporter_relationship || null,
+          reporter_phone:        reporter_phone || null,
           reason: owner ? 'already_marked_deceased' : 'no_matching_account',
         })]
       );
