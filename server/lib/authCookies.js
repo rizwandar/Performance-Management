@@ -28,6 +28,27 @@ const COOKIE_OPTS = {
   path: '/',
 };
 
+// `Partitioned` is part of a cookie's storage identity, not just an extra
+// flag on the same cookie - a browser that already had an unpartitioned
+// token/csrf_token from before this attribute was added does NOT treat the
+// new partitioned Set-Cookie as replacing it. Both coexist and both get sent
+// on every request. The server's cookie parser and the client's document.cookie
+// read don't necessarily resolve duplicate same-named cookies the same way,
+// so the two csrf_token values can mismatch even on a freshly issued login -
+// producing "Invalid or missing CSRF token" every time, not intermittently.
+// Found live 2026-08-05 by inspecting the actual failing request's Cookie
+// header, which showed two token and two csrf_token values sent at once.
+// This shape (no `partitioned`) targets exactly that stale entry so it can
+// be explicitly cleared - Secure/SameSite=None still have to match for the
+// browser to recognize it as the same cookie to clear, but Partitioned does
+// not carry over from COOKIE_OPTS here, which is the whole point.
+const LEGACY_COOKIE_OPTS = {
+  httpOnly: true,
+  secure: true,
+  sameSite: 'none',
+  path: '/',
+};
+
 // Sets the session cookie (httpOnly - never readable by client JS, that's the
 // entire point of SEC-09) plus a second, deliberately NOT-httpOnly cookie
 // carrying a fresh random CSRF token. A cross-site attacker's page can make
@@ -36,6 +57,8 @@ const COOKIE_OPTS = {
 // double-submit check in middleware/auth.js.
 function setAuthCookies(res, token) {
   const csrfToken = crypto.randomBytes(32).toString('hex');
+  res.clearCookie('token', LEGACY_COOKIE_OPTS);
+  res.clearCookie('csrf_token', { ...LEGACY_COOKIE_OPTS, httpOnly: false });
   res.cookie('token', token, COOKIE_OPTS);
   res.cookie('csrf_token', csrfToken, { ...COOKIE_OPTS, httpOnly: false });
 }
@@ -43,6 +66,8 @@ function setAuthCookies(res, token) {
 function clearAuthCookies(res) {
   res.clearCookie('token', { ...COOKIE_OPTS, maxAge: undefined });
   res.clearCookie('csrf_token', { ...COOKIE_OPTS, httpOnly: false, maxAge: undefined });
+  res.clearCookie('token', LEGACY_COOKIE_OPTS);
+  res.clearCookie('csrf_token', { ...LEGACY_COOKIE_OPTS, httpOnly: false });
 }
 
 module.exports = { setAuthCookies, clearAuthCookies };
