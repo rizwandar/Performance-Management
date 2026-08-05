@@ -38,7 +38,7 @@ router.get('/:token', async (req, res) => {
       )).map(p => p.section_id);
 
   const owner = await queryOne(
-    'SELECT name, date_of_birth, about_me, legacy_message, country_code FROM users WHERE id = $1',
+    'SELECT name, date_of_birth, about_me, legacy_message, country_code, is_deceased FROM users WHERE id = $1',
     [tokenRow.user_id]
   );
 
@@ -116,6 +116,7 @@ router.get('/:token', async (req, res) => {
       about_me:       owner.about_me,
       legacy_message: owner.legacy_message,
       country_code:   owner.country_code,
+      is_deceased:    !!owner.is_deceased,
     },
     visible_sections: permissions,
     data,
