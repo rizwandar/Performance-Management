@@ -195,6 +195,63 @@ function LifeWishes({ data }) {
 }
 
 // ---------------------------------------------------------------------------
+// Executor task checklist (IDEA-06) — general starting points shown once an
+// executor has confirmed the passing, not legal advice, and not tracked or
+// saved anywhere (no backend for this yet, just a reference list to help
+// someone who may be doing this for the first time and isn't sure where to
+// start). Ordered roughly by urgency.
+// ---------------------------------------------------------------------------
+const EXECUTOR_CHECKLIST = [
+  {
+    group: 'In the first few days',
+    items: [
+      'Request several certified copies of the death certificate. Most institutions below will each need their own copy.',
+      'Secure the home and any vehicles, and check on pets or dependants using the Care Instructions and People to Notify sections above.',
+      'Contact the funeral home or provider named under Funeral Wishes above, if one was already arranged.',
+      'Notify close family and the people listed under People to Notify, if you have not already.',
+    ],
+  },
+  {
+    group: 'Within the first couple of weeks',
+    items: [
+      'Contact the banks, financial institutions, and account holders listed under Financial Affairs above to inform them and ask about next steps.',
+      'Notify any insurance providers (life, home, auto) to begin a claim or update the policy.',
+      'Redirect or pause mail, and cancel or transfer subscriptions and utility accounts where relevant.',
+      'Locate the will and any documents listed under Legal Documents above, and contact the lawyer or firm holding them if one is named.',
+    ],
+  },
+  {
+    group: 'When you are ready',
+    items: [
+      'Ask a lawyer or the local probate court whether formal probate is required. This depends on where they lived and what they owned, and this list is not a substitute for that advice.',
+      'Notify government agencies (tax, benefits, motor vehicle registration) as required in your area.',
+      'Settle outstanding debts and close remaining accounts once you are authorized to do so.',
+    ],
+  },
+]
+
+function ExecutorChecklist() {
+  return (
+    <div style={{ background: '#fff', border: '1px solid var(--green-100)', borderRadius: 10, padding: '18px 20px', marginTop: 16 }}>
+      <p style={{ fontWeight: 700, color: 'var(--green-900)', marginBottom: 4 }}>Getting started as executor</p>
+      <p className="text-muted small mb-3">
+        General starting points for someone acting as executor, not legal advice specific to your
+        situation. Everything referenced below is available in the sections shared with you further
+        down this page.
+      </p>
+      {EXECUTOR_CHECKLIST.map(({ group, items }) => (
+        <div key={group} className="mb-3">
+          <p className="small mb-2" style={{ fontWeight: 600, color: 'var(--green-900)' }}>{group}</p>
+          <ul className="small mb-0" style={{ paddingLeft: 20, color: 'var(--text)', lineHeight: 1.7 }}>
+            {items.map(item => <li key={item}>{item}</li>)}
+          </ul>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Section label map
 // ---------------------------------------------------------------------------
 const SECTION_CONFIG = {
@@ -225,7 +282,14 @@ export default function AccessPage() {
 
   useEffect(() => {
     axios.get(`${API}/access/${token}`)
-      .then(r => setPayload(r.data))
+      .then(r => {
+        setPayload(r.data)
+        // An executor may revisit this link over several days (funerals often
+        // happen within days of the confirmation), so a fresh page load should
+        // still show the thank-you state and checklist rather than prompting
+        // them to reconfirm something already done.
+        if (r.data.owner?.is_deceased) setMarkedDemised(true)
+      })
       .catch(err => setError(err.response?.data?.error || 'This link is no longer valid.'))
       .finally(() => setLoading(false))
   }, [token])
@@ -278,10 +342,13 @@ export default function AccessPage() {
       {is_executor && (
         <div style={{ background: 'var(--green-50)', border: '1px solid var(--green-800)', borderRadius: 10, padding: '18px 20px', marginBottom: 32 }}>
           {markedDemised ? (
-            <Alert variant="success" className="mb-0">
-              Thank you. We've let {owner.name}'s other trusted contacts and the people they
-              asked to be told know. This link will remain available to you.
-            </Alert>
+            <>
+              <Alert variant="success" className="mb-0">
+                Thank you. We've let {owner.name}'s other trusted contacts and the people they
+                asked to be told know. This link will remain available to you.
+              </Alert>
+              <ExecutorChecklist />
+            </>
           ) : (
             <>
               <p style={{ fontWeight: 700, color: 'var(--green-900)', marginBottom: 6 }}>
