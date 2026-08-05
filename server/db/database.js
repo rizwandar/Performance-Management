@@ -732,6 +732,25 @@ async function init() {
     }
   }
 
+  // Added individually (not part of the bulk backfill above, which only
+  // fires once against a fully empty table) so it still lands even on a
+  // database that already had findings before this decision was made.
+  const infisicalFinding = await queryOne(
+    "SELECT id FROM security_findings WHERE title = 'Secrets migration to Infisical started'"
+  );
+  if (!infisicalFinding) {
+    await pool.query(
+      `INSERT INTO security_findings (title, category, severity, status, summary, details, source)
+       VALUES ($1, 'secrets', 'medium', 'monitoring', $2, $3, $4)`,
+      [
+        'Secrets migration to Infisical started',
+        'Moving off plaintext .env files / manually-pasted Render dashboard values to Infisical (managed cloud), chosen over Doppler for its free self-hosting fallback. Addresses the duplicated-JWT-fallback and hardcoded-seed-account findings above by making rotation and audit logging possible going forward.',
+        'Repo side is done: npm run dev:server:infisical, CLAUDE.md "Secrets management (Infisical)" section, and the CI secrets-action pattern are all in place. Still needs the user to create the Infisical account/project, enter the real secret values into its UI, and connect the Render sync - none of that can happen from inside a coding session. Flip to resolved once staging is confirmed pulling from Infisical instead of its manually-set env vars.',
+        'Claude Code security review, 2026-08-05',
+      ]
+    );
+  }
+
   // Seed default settings
   for (const [key, value] of [
     ['password_reset_method', 'email'],
