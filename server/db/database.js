@@ -386,7 +386,7 @@ async function init() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS favourite_songs (
       id        SERIAL PRIMARY KEY,
-      user_id   INTEGER NOT NULL REFERENCES users(id),
+      user_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       deezer_id TEXT,
       title     TEXT NOT NULL,
       artist    TEXT NOT NULL,
@@ -398,13 +398,26 @@ async function init() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS bucket_list_items (
       id          SERIAL PRIMARY KEY,
-      user_id     INTEGER NOT NULL REFERENCES users(id),
+      user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       title       TEXT NOT NULL,
       description TEXT,
       planning    TEXT,
       added_at    TIMESTAMPTZ DEFAULT NOW()
     )
   `);
+
+  // favourite_songs/bucket_list_items originally had no ON DELETE action on
+  // their user_id foreign key (every other user-data table has CASCADE) - a
+  // real bug, not intentional: deleting a user who had ever added a song or
+  // bucket-list item threw a foreign key violation and the whole delete
+  // failed outright. CREATE TABLE IF NOT EXISTS above only fixes fresh
+  // installs, so existing deployments need the constraint actually replaced.
+  // Named to match Postgres's own auto-generated default name for a
+  // single-column FK declared inline, so this only ever targets that FK.
+  await pool.query(`ALTER TABLE favourite_songs DROP CONSTRAINT IF EXISTS favourite_songs_user_id_fkey`);
+  await pool.query(`ALTER TABLE favourite_songs ADD CONSTRAINT favourite_songs_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE`);
+  await pool.query(`ALTER TABLE bucket_list_items DROP CONSTRAINT IF EXISTS bucket_list_items_user_id_fkey`);
+  await pool.query(`ALTER TABLE bucket_list_items ADD CONSTRAINT bucket_list_items_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE`);
 
   // Organization portal (funeral home white label)
   await pool.query(`
