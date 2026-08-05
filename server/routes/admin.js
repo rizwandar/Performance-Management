@@ -45,7 +45,7 @@ router.get('/users', auth, adminOnly, async (req, res) => {
   const { q } = req.query;
   let sql = `
     SELECT u.id, u.name, u.email, u.date_of_birth, u.created_at, u.last_active_at,
-           u.inactivity_period_months, u.is_deceased, u.deceased_at,
+           u.inactivity_period_months, u.is_deceased, u.deceased_at, u.email_verified,
            (SELECT MAX(created_at) FROM user_audit_logs WHERE user_id = u.id AND action = 'login_success') as last_login,
            (
              (SELECT COUNT(*) FROM legal_documents     WHERE user_id = u.id) +
@@ -81,7 +81,7 @@ router.get('/users/:id', auth, adminOnly, async (req, res) => {
   const user = await queryOne(`
     SELECT u.id, u.name, u.email, u.date_of_birth, u.about_me, u.legacy_message, u.country_code,
            u.emergency_contact_name, u.emergency_contact_phone, u.emergency_contact_email,
-           u.last_active_at, u.inactivity_period_months, u.created_at,
+           u.last_active_at, u.inactivity_period_months, u.created_at, u.email_verified,
            u.is_deceased, u.deceased_at, u.deceased_by,
            COALESCE(s.plan, 'free') as plan,
            (s.provider = 'admin_grant') as is_honorary,
