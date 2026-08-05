@@ -267,8 +267,8 @@ router.post('/customers/:id/view-as', auth, requireOrgUser, async (req, res) => 
   // overwriting the org admin's own token cookie for the duration of the
   // view-as session, rather than returned here for the client to stash in
   // localStorage and swap in manually.
-  setAuthCookies(res, viewAsToken);
-  res.json({ customer_name: customerUser?.name, edit_allowed: !!customer.edit_consent });
+  const csrfToken = setAuthCookies(res, viewAsToken);
+  res.json({ customer_name: customerUser?.name, edit_allowed: !!customer.edit_consent, csrf_token: csrfToken });
 });
 
 router.post('/view-as/end', auth, async (req, res) => {
@@ -297,9 +297,10 @@ router.post('/view-as/end', auth, async (req, res) => {
     JWT_SECRET,
     { expiresIn: '8h' }
   );
-  setAuthCookies(res, restoredToken);
+  const csrfToken = setAuthCookies(res, restoredToken);
   res.json({
     success: true,
+    csrf_token: csrfToken,
     user: {
       id: admin.id, name: admin.name, email: admin.email, is_admin: admin.is_admin,
       email_verified: admin.email_verified ?? 1, songs_enabled: admin.songs_enabled, bucket_list_enabled: admin.bucket_list_enabled,
