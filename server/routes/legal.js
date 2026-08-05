@@ -51,6 +51,20 @@ router.get('/:module/current', validModule, async (req, res) => {
 // last-consented version is behind whatever is currently published. Drives
 // the LegalReconsentBanner in App.jsx.
 router.get('/status', auth, async (req, res) => {
+  // Admin accounts (including the seeded admin@igh.local, and any other
+  // account created directly by an INSERT rather than through /auth/register
+  // - see database.js's admin/demo seed data) never go through the signup
+  // consent checkbox, so their privacy_version_consented/tos_version_consented
+  // are permanently NULL. That's indistinguishable from "consented to an
+  // older version" in the comparison below, so every admin session
+  // perpetually saw the re-consent banner (OPS-09) - found live 2026-08-05.
+  // An admin operating the platform isn't a "user" accepting the end-user
+  // Privacy Policy/ToS in the first place, so the correct fix is exempting
+  // them here, not patching seed data to fake a consent that never happened.
+  if (req.user.is_admin) {
+    return res.json({ needs_reconsent: false, privacy: null, tos: null });
+  }
+
   const user = await queryOne(
     'SELECT privacy_version_consented, tos_version_consented FROM users WHERE id = $1',
     [req.user.id]

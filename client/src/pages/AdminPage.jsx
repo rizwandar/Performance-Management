@@ -2190,11 +2190,19 @@ export default function AdminPage() {
                 {verifyingEmail ? 'Verifying…' : 'Verify email'}
               </Button>
             )}
-            {selectedUser.plan === 'premium' && selectedUser.is_honorary ? (
-              <Button variant="outline-warning" size="sm" disabled={premiumSaving}
-                onClick={() => revokePremium(selectedUser.id)}>
-                {premiumSaving ? 'Revoking…' : 'Revoke honorary premium'}
-              </Button>
+            {selectedUser.plan === 'premium' ? (
+              // A paying customer (premium but not honorary) doesn't need
+              // "Grant honorary premium" at all - they're already premium
+              // via their own real subscription, and the button was
+              // confusing/redundant there. Only honorary grants get a
+              // reverse action; a real subscription is managed by the user
+              // themselves (or via Stripe), not this admin toggle.
+              selectedUser.is_honorary && (
+                <Button variant="outline-warning" size="sm" disabled={premiumSaving}
+                  onClick={() => revokePremium(selectedUser.id)}>
+                  {premiumSaving ? 'Revoking…' : 'Revoke honorary premium'}
+                </Button>
+              )
             ) : (
               <Button variant="outline-primary" size="sm" disabled={premiumSaving}
                 onClick={() => grantPremium(selectedUser.id)}>
