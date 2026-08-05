@@ -76,7 +76,7 @@ export default function ProfilePage() {
 
   // Vault password state
   const [vaultExists, setVaultExists]       = useState(null)  // null = loading, true/false
-  const [vaultPwForm, setVaultPwForm]       = useState({ old_password: '', new_password: '', confirm: '' })
+  const [vaultPwForm, setVaultPwForm]       = useState({ old_password: '', new_password: '', confirm: '', hint: '' })
   const [showVaultFields, setShowVaultFields] = useState({ old: false, new: false })
   const [vaultPwSaving, setVaultPwSaving]   = useState(false)
   const [vaultPwError, setVaultPwError]     = useState('')
@@ -131,7 +131,10 @@ export default function ProfilePage() {
       .catch(() => {})
 
     const loadVault = axios.get(`${API}/sections/digital-life/vault`)
-      .then(r => setVaultExists(r.data.exists))
+      .then(r => {
+        setVaultExists(r.data.exists)
+        if (r.data.hint) setVaultPwForm(f => ({ ...f, hint: r.data.hint }))
+      })
       .catch(() => setVaultExists(false))
 
     const loadBilling = axios.get(`${API}/billing/subscription`)
@@ -267,15 +270,15 @@ export default function ProfilePage() {
   }
 
   const handleChangeVaultPw = async () => {
-    const { old_password, new_password, confirm } = vaultPwForm
+    const { old_password, new_password, confirm, hint } = vaultPwForm
     setVaultPwError('')
     if (!old_password) return setVaultPwError('Please enter your current vault password.')
     if (!new_password || new_password.length < 8) return setVaultPwError('New vault password must be at least 8 characters.')
     if (new_password !== confirm) return setVaultPwError('New passwords do not match.')
     setVaultPwSaving(true)
     try {
-      await axios.put(`${API}/sections/digital-life/vault`, { old_password, new_password })
-      setVaultPwForm({ old_password: '', new_password: '', confirm: '' })
+      await axios.put(`${API}/sections/digital-life/vault`, { old_password, new_password, password_hint: hint })
+      setVaultPwForm({ old_password: '', new_password: '', confirm: '', hint })
       setVaultPwSuccess('Vault password changed. All credentials re-encrypted with the new password.')
       setTimeout(() => setVaultPwSuccess(''), 5000)
     } catch (err) {
@@ -760,6 +763,19 @@ export default function ProfilePage() {
                 />
               </Col>
             </Row>
+            <Form.Group className="mb-3">
+              <Form.Label>Password hint <span className="text-muted" style={{ fontWeight: 400 }}>(optional)</span></Form.Label>
+              <Form.Control
+                value={vaultPwForm.hint}
+                onChange={e => setVaultPwForm(f => ({ ...f, hint: e.target.value }))}
+                placeholder="e.g. childhood pet's name"
+                maxLength={200}
+              />
+              <Form.Text className="text-muted">
+                Shown to you only, on the locked-vault screen, if you ever forget your password.
+                Leave as-is to keep your current hint, or clear it to remove it.
+              </Form.Text>
+            </Form.Group>
             <div className="d-flex gap-3 align-items-center flex-wrap mt-4">
               <Button variant="outline-primary" onClick={handleChangeVaultPw} disabled={vaultPwSaving}>
                 {vaultPwSaving ? 'Changing...' : 'Change vault password'}

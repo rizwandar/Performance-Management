@@ -3,7 +3,7 @@
  * Both sections use the same vault (digital_vault table), so these
  * screens hit the same endpoints regardless of which section renders them.
  */
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Form, Alert, InputGroup, Spinner } from 'react-bootstrap'
 import axios from 'axios'
@@ -17,6 +17,7 @@ const API = import.meta.env.VITE_API_URL
 export function VaultSetupScreen({ onSetup }) {
   const [pw, setPw]           = useState('')
   const [confirm, setConfirm] = useState('')
+  const [hint, setHint]       = useState('')
   const [saving, setSaving]   = useState(false)
   const [error, setError]     = useState('')
   const [showPw, setShowPw]   = useState(false)
@@ -27,7 +28,7 @@ export function VaultSetupScreen({ onSetup }) {
     setError('')
     setSaving(true)
     try {
-      await axios.post(`${API}/sections/digital-life/vault`, { vault_password: pw })
+      await axios.post(`${API}/sections/digital-life/vault`, { vault_password: pw, password_hint: hint })
       onSetup()
     } catch (err) {
       setError(err.response?.data?.error || 'Setup failed. Please try again.')
@@ -58,11 +59,11 @@ export function VaultSetupScreen({ onSetup }) {
           background: '#FEF3C7', border: '1px solid #F59E0B',
           borderRadius: 8, padding: '12px 16px', marginBottom: 20, fontSize: '0.85rem',
         }}>
-          <strong>Important:</strong> Your vault password is never stored on our servers.
-          If you forget it, your vault-protected data cannot be recovered.
+          <strong>Important: there is no way to recover this password.</strong> It is never stored
+          on our servers, so if you forget it, your vault-protected data cannot be decrypted.
           Resetting your vault <strong>permanently deletes</strong> all five vault-protected sections.
-          Keep your vault password somewhere safe, or use Settings to change it any time while
-          you still remember it.
+          Keep your vault password somewhere safe, and consider setting an optional hint below,
+          or use Settings to change it any time while you still remember it.
         </div>
 
         <Form.Group className="mb-3">
@@ -80,15 +81,29 @@ export function VaultSetupScreen({ onSetup }) {
           </InputGroup>
         </Form.Group>
 
-        <Form.Group className="mb-4">
+        <Form.Group className="mb-3">
           <Form.Label style={{ fontWeight: 600 }}>Confirm vault password</Form.Label>
           <Form.Control
             type="password"
             value={confirm}
             onChange={e => setConfirm(e.target.value)}
             placeholder="Type it again"
+          />
+        </Form.Group>
+
+        <Form.Group className="mb-4">
+          <Form.Label style={{ fontWeight: 600 }}>Password hint <span className="text-muted" style={{ fontWeight: 400 }}>(optional)</span></Form.Label>
+          <Form.Control
+            value={hint}
+            onChange={e => setHint(e.target.value)}
+            placeholder="e.g. childhood pet's name"
+            maxLength={200}
             onKeyDown={e => e.key === 'Enter' && handleSetup()}
           />
+          <Form.Text className="text-muted">
+            Shown to you only, on the locked-vault screen, if you ever forget your password.
+            Don't put the password itself here.
+          </Form.Text>
         </Form.Group>
 
         <Button variant="primary" className="btn-vault w-100" onClick={handleSetup} disabled={saving}>
@@ -113,6 +128,17 @@ export function VaultLockScreen({ onUnlock, onReset }) {
   // 'confirm' -> the destructive delete-everything screen
   const [resetStep, setResetStep] = useState('none')
   const [lockedUntil, setLockedUntil] = useState(null)
+  const [hint, setHint]         = useState(null)
+
+  // The owner's own optional hint (IDEA-15), set at vault creation. Fetched
+  // here rather than threaded down as a prop so every page that renders this
+  // shared screen (Digital Life, Legal Documents, Financial Affairs, Property,
+  // Household Info) doesn't need its own copy of this logic.
+  useEffect(() => {
+    axios.get(`${API}/sections/digital-life/vault`)
+      .then(r => setHint(r.data.hint || null))
+      .catch(() => {})
+  }, [])
 
   // Reset flow
   const [accountPw, setAccountPw]   = useState('')
@@ -282,6 +308,11 @@ export function VaultLockScreen({ onUnlock, onReset }) {
             autoFocus
             aria-label="Vault password"
           />
+          {hint && (
+            <Form.Text className="text-muted">
+              Your hint: <em>{hint}</em>
+            </Form.Text>
+          )}
         </Form.Group>
 
         <Button variant="primary" className="btn-vault w-100 mb-3" onClick={handleUnlock} disabled={checking}>
