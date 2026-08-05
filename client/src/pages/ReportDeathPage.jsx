@@ -6,7 +6,10 @@ import axios from 'axios'
 const API = import.meta.env.VITE_API_URL
 
 export default function ReportDeathPage() {
-  const [form, setForm] = useState({ owner_email: '', reporter_name: '', reporter_email: '' })
+  const [form, setForm] = useState({
+    owner_email: '', reporter_name: '', reporter_email: '',
+    reporter_relationship: '', reporter_phone: '',
+  })
   const [status, setStatus] = useState(null)
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(false)
@@ -70,7 +73,15 @@ export default function ReportDeathPage() {
                 required
               />
             </Form.Group>
-            <Form.Group className="mb-4">
+            <Form.Group className="mb-3">
+              <Form.Label>Your relationship to them <span className="text-muted">(optional)</span></Form.Label>
+              <Form.Control
+                value={form.reporter_relationship}
+                onChange={e => setForm({ ...form, reporter_relationship: e.target.value })}
+                placeholder="e.g. spouse, sibling, friend, colleague"
+              />
+            </Form.Group>
+            <Form.Group className="mb-3">
               <Form.Label>Your email address</Form.Label>
               <Form.Control
                 type="email"
@@ -78,6 +89,15 @@ export default function ReportDeathPage() {
                 onChange={e => setForm({ ...form, reporter_email: e.target.value })}
                 placeholder="In case we need to follow up with you"
                 required
+              />
+            </Form.Group>
+            <Form.Group className="mb-4">
+              <Form.Label>Your phone number <span className="text-muted">(optional)</span></Form.Label>
+              <Form.Control
+                type="tel"
+                value={form.reporter_phone}
+                onChange={e => setForm({ ...form, reporter_phone: e.target.value })}
+                placeholder="In case email isn't the fastest way to reach you"
               />
             </Form.Group>
             <Button type="submit" variant="primary" className="w-100" disabled={loading}>
