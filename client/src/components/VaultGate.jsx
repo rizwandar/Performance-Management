@@ -91,7 +91,7 @@ export function VaultSetupScreen({ onSetup }) {
           />
         </Form.Group>
 
-        <Button variant="primary" className="w-100" onClick={handleSetup} disabled={saving}>
+        <Button variant="primary" className="btn-vault w-100" onClick={handleSetup} disabled={saving}>
           {saving ? 'Setting up...' : 'Create my vault'}
         </Button>
       </div>
@@ -284,7 +284,7 @@ export function VaultLockScreen({ onUnlock, onReset }) {
           />
         </Form.Group>
 
-        <Button variant="primary" className="w-100 mb-3" onClick={handleUnlock} disabled={checking}>
+        <Button variant="primary" className="btn-vault w-100 mb-3" onClick={handleUnlock} disabled={checking}>
           {checking
             ? <><Spinner size="sm" animation="border" className="me-2" aria-hidden="true" />Unlocking...</>
             : 'Unlock vault'

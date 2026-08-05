@@ -4,6 +4,10 @@ import axios from 'axios'
 const API = import.meta.env.VITE_API_URL
 
 export const MAX_FILES_PER_ITEM = 2
+// Must match the multer limit on POST /documents/upload (server/routes/documents.js) -
+// there's no shared-constants file wiring this to the client build, so keep
+// these two numbers in sync by hand if the server limit ever changes.
+const MAX_FILE_SIZE_MB = 20
 
 // Shared file-attachment widget for premium sections that let a user attach
 // a scan/photo to an item (e.g. a policy document, a property deed). Files
@@ -102,7 +106,9 @@ export default function FileAttachments({ sectionId, itemId, sectionDocs, onUplo
             onClick={() => fileRef.current?.click()}
             disabled={uploading}
           >
-            {uploading ? 'Uploading...' : `+ Attach file${attached.length > 0 ? ` (${MAX_FILES_PER_ITEM - attached.length} remaining)` : ' (up to 2)'}`}
+            {uploading
+              ? 'Uploading...'
+              : `+ Attach file${attached.length > 0 ? ` (${MAX_FILES_PER_ITEM - attached.length} remaining` : ` (up to ${MAX_FILES_PER_ITEM}`}, max ${MAX_FILE_SIZE_MB}MB each)`}
           </button>
         </div>
       )}
