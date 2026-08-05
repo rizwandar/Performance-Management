@@ -48,7 +48,7 @@ export default function ProfilePage() {
 
   const [form, setForm] = useState({
     name: '', email: '', date_of_birth: '',
-    marital_status: '', spouse_name: '', spouse_phone: '', spouse_email: '',
+    marital_status: '', spouse_name: '', spouse_phone: '', spouse_email: '', spouse_is_executor: false,
   })
 
   // Change password state
@@ -106,13 +106,14 @@ export default function ProfilePage() {
       .then(r => {
         const u = r.data
         setForm({
-          name:           u.name           || '',
-          email:          u.email          || '',
-          date_of_birth:  u.date_of_birth  || '',
-          marital_status: u.marital_status || '',
-          spouse_name:    u.spouse_name    || '',
-          spouse_phone:   u.spouse_phone   || '',
-          spouse_email:   u.spouse_email   || '',
+          name:               u.name               || '',
+          email:              u.email              || '',
+          date_of_birth:      u.date_of_birth       || '',
+          marital_status:     u.marital_status      || '',
+          spouse_name:        u.spouse_name         || '',
+          spouse_phone:       u.spouse_phone        || '',
+          spouse_email:       u.spouse_email        || '',
+          spouse_is_executor: !!u.spouse_is_executor,
         })
         setSecurityQuestion(u.security_question || null)
       })
@@ -121,7 +122,7 @@ export default function ProfilePage() {
           name:           authUser?.name  || '',
           email:          authUser?.email || '',
           date_of_birth:  '',
-          marital_status: '', spouse_name: '', spouse_phone: '', spouse_email: '',
+          marital_status: '', spouse_name: '', spouse_phone: '', spouse_email: '', spouse_is_executor: false,
         })
       })
 
@@ -175,12 +176,20 @@ export default function ProfilePage() {
     setError('')
     setSaving(true)
     try {
-      await axios.put(`${API}/users/me`, form)
+      const res = await axios.put(`${API}/users/me`, form)
       if (authUser && form.name !== authUser.name) {
         login({ ...authUser, name: form.name })
       }
-      setSuccess('Profile saved.')
-      setTimeout(() => setSuccess(''), 3000)
+      if (res.data?.spouse_executor_blocked) {
+        // Profile fields still saved, only the executor sync was skipped, so
+        // this is a warning alongside the save, not a failure of the save.
+        setSuccess('Profile saved. Your spouse could not be added as executor: you already have 3 trusted contacts. Remove one on the Trusted Contacts page first, then try again.')
+      } else if (res.data?.spouse_executor_email_skipped) {
+        setSuccess("Profile saved. Your spouse has been added as executor, but they weren't notified by email since no email address is on file for them.")
+      } else {
+        setSuccess('Profile saved.')
+      }
+      setTimeout(() => setSuccess(''), res.data?.spouse_executor_blocked || res.data?.spouse_executor_email_skipped ? 6000 : 3000)
     } catch (err) {
       setError(err.response?.data?.error || "We couldn't save your profile. Please try again.")
     }
@@ -477,20 +486,37 @@ export default function ProfilePage() {
         </Form.Group>
 
         {['Married', 'Common-law / Domestic Partner'].includes(form.marital_status) && (
-          <Row className="g-3 mb-1">
-            <Col md={4}>
-              <Form.Label>Spouse / partner name</Form.Label>
-              <Form.Control value={form.spouse_name} onChange={set('spouse_name')} placeholder="Their full name" />
-            </Col>
-            <Col md={4}>
-              <Form.Label>Their phone</Form.Label>
-              <Form.Control value={form.spouse_phone} onChange={set('spouse_phone')} placeholder="Optional" />
-            </Col>
-            <Col md={4}>
-              <Form.Label>Their email</Form.Label>
-              <Form.Control type="email" value={form.spouse_email} onChange={set('spouse_email')} placeholder="Optional" />
-            </Col>
-          </Row>
+          <>
+            <Row className="g-3 mb-1">
+              <Col md={4}>
+                <Form.Label>Spouse / partner name</Form.Label>
+                <Form.Control value={form.spouse_name} onChange={set('spouse_name')} placeholder="Their full name" />
+              </Col>
+              <Col md={4}>
+                <Form.Label>Their phone</Form.Label>
+                <Form.Control value={form.spouse_phone} onChange={set('spouse_phone')} placeholder="Optional" />
+              </Col>
+              <Col md={4}>
+                <Form.Label>Their email</Form.Label>
+                <Form.Control type="email" value={form.spouse_email} onChange={set('spouse_email')} placeholder="Optional" />
+              </Col>
+            </Row>
+            <Form.Group className="mt-3">
+              <Form.Check
+                type="checkbox"
+                id="spouse-is-executor"
+                label="Also make my spouse / partner my executor"
+                checked={form.spouse_is_executor}
+                disabled={!form.spouse_name.trim()}
+                onChange={e => setForm(f => ({ ...f, spouse_is_executor: e.target.checked }))}
+              />
+              <Form.Text className="text-muted">
+                {form.spouse_name.trim()
+                  ? "They'll be added to your Trusted Contacts as executor and, if you've given an email above, notified right away. You can manage this further on the Trusted Contacts page."
+                  : 'Enter their name above first.'}
+              </Form.Text>
+            </Form.Group>
+          </>
         )}
 
         <div className="mt-4">
