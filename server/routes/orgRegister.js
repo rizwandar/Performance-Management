@@ -129,9 +129,10 @@ router.post('/:token/complete', async (req, res) => {
     JWT_SECRET,
     { expiresIn: '8h' }
   );
-  setAuthCookies(res, token); // web-only flow (org self-registration), same as /auth/register
+  const csrfToken = setAuthCookies(res, token); // web-only flow (org self-registration), same as /auth/register
   res.status(201).json({
     token,
+    csrf_token: csrfToken,
     user: { id: userId, name: invite.name, email: invite.email, is_admin: 0, org_role: 'org_admin', organization_id: invite.organization_id },
   });
 });

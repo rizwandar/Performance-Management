@@ -51,16 +51,35 @@ const LEGACY_COOKIE_OPTS = {
 
 // Sets the session cookie (httpOnly - never readable by client JS, that's the
 // entire point of SEC-09) plus a second, deliberately NOT-httpOnly cookie
-// carrying a fresh random CSRF token. A cross-site attacker's page can make
-// the browser send both cookies automatically, but same-origin policy stops
-// it reading the csrf_token value to echo back in a header - see the
-// double-submit check in middleware/auth.js.
+// carrying a fresh random CSRF token, still compared server-side in
+// middleware/auth.js exactly as before.
+//
+// CORRECTION, found live 2026-08-05: the original design assumed the web
+// client could read this cookie back via document.cookie to echo it in a
+// header (the standard double-submit pattern). That assumption doesn't hold
+// here - client and API are on different registrable domains, and
+// document.cookie only ever exposes cookies belonging to the CURRENT page's
+// own origin. A cookie set by the API is simply never visible to
+// document.cookie on the client's page, for any client, regardless of
+// SameSite/Secure/Partitioned - this has nothing to do with Chrome's CHIPS
+// policy (the real cause of the two long comments below, since superseded).
+// That means getCookie('csrf_token') in AuthContext.jsx could never have
+// worked at all: it silently returned null on every request, so the header
+// was never sent, so every mutating cookie-authenticated request has been
+// failing CSRF since SEC-09 shipped, not just after Chrome's later CHIPS
+// enforcement. The actual fix (this function now returning csrfToken so
+// callers can also hand it to the client directly in the response body,
+// instead of relying on the client re-reading a cookie it can never see) is
+// in the callers of setAuthCookies and in AuthContext.jsx, not here - this
+// function still sets the cookie exactly as before, since the server's own
+// read of it (req.cookies.csrf_token) was never the broken half.
 function setAuthCookies(res, token) {
   const csrfToken = crypto.randomBytes(32).toString('hex');
   res.clearCookie('token', LEGACY_COOKIE_OPTS);
   res.clearCookie('csrf_token', { ...LEGACY_COOKIE_OPTS, httpOnly: false });
   res.cookie('token', token, COOKIE_OPTS);
   res.cookie('csrf_token', csrfToken, { ...COOKIE_OPTS, httpOnly: false });
+  return csrfToken;
 }
 
 function clearAuthCookies(res) {
