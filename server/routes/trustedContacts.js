@@ -135,6 +135,13 @@ router.put('/:id/executor', requireAuth, async (req, res) => {
     if (is_executor) {
       await client.query('UPDATE trusted_contacts SET is_executor = 1 WHERE id = $1', [contact.id]);
     }
+    // Keep the Profile page's "designate my spouse as executor" checkbox
+    // (OPS-15) truthful if this contact is the one it's linked to, otherwise
+    // saving the profile again would silently re-apply the checkbox's stale
+    // state over whatever was just set here.
+    if (contact.linked_to_profile_spouse) {
+      await client.query('UPDATE users SET spouse_is_executor = $1 WHERE id = $2', [!!is_executor, req.user.id]);
+    }
   });
 
   const updated = await queryOne('SELECT * FROM trusted_contacts WHERE id = $1', [contact.id]);
