@@ -15,11 +15,13 @@ const EXECUTOR_SECTIONS = [
 ];
 
 async function loadTokenRow(token) {
+  // expires_at IS NULL means "never expires" - currently only ever set that way
+  // for an executor's link (see lib/inactivityTimer.js's generateAccessLink).
   return queryOne(`
     SELECT tct.*, tc.user_id, tc.name AS contact_name, tc.id AS contact_id, tc.is_executor
     FROM trusted_contact_tokens tct
     JOIN trusted_contacts tc ON tc.id = tct.contact_id
-    WHERE tct.token = $1 AND tct.expires_at > NOW()
+    WHERE tct.token = $1 AND (tct.expires_at IS NULL OR tct.expires_at > NOW())
   `, [token]);
 }
 

@@ -224,6 +224,13 @@ function trialEndingReminderEmail({ name, planName, price, chargeDate }) {
 // Trusted contact access link email
 // ---------------------------------------------------------------------------
 function contactAccessEmail({ recipientName, ownerName, accessLink, expiresHours }) {
+  const validityLine = expiresHours
+    ? `The link is valid for <strong>${expiresHours} hours</strong>.`
+    : `This link does not expire.`;
+  const expiryFootnote = expiresHours
+    ? `This link is unique to you and will expire after ${expiresHours} hours.
+       If you need access again, ${ownerName} can generate a new link from their account.`
+    : `This link is unique to you and does not expire.`;
   return layout(`
     <p>Dear ${recipientName},</p>
     <p>
@@ -232,13 +239,11 @@ function contactAccessEmail({ recipientName, ownerName, accessLink, expiresHours
     </p>
     <p>
       This is a secure, read-only link. It allows you to view the information
-      ${ownerName} has chosen to share with you. The link is valid for
-      <strong>${expiresHours} hours</strong>.
+      ${ownerName} has chosen to share with you. ${validityLine}
     </p>
     ${button('View shared information', accessLink)}
     <p style="color:#6B7280; font-size:14px;">
-      This link is unique to you and will expire after ${expiresHours} hours.
-      If you need access again, ${ownerName} can generate a new link from their account.
+      ${expiryFootnote}
     </p>
     <p style="color:#6B7280; font-size:14px;">
       If you were not expecting this message, you can safely ignore it.
@@ -363,7 +368,9 @@ function inactivityContactNotificationEmail({ recipientName, ownerName, accessLi
     </p>
     <p>
       When you are ready, you can view the information ${ownerName} has chosen to share with
-      you using the secure link below. The link is valid for <strong>${expiresHours} hours</strong>.
+      you using the secure link below. ${expiresHours
+        ? `The link is valid for <strong>${expiresHours} hours</strong>.`
+        : `This link does not expire.`}
     </p>
     ${button('View shared information', accessLink)}
     <p style="color:#6B7280; font-size:14px;">
@@ -431,7 +438,7 @@ function executorDesignatedEmail({ recipientName, ownerName, inactivityPeriodMon
 // confirm the owner has passed away, which is what actually triggers the
 // notifications to the owner's other trusted contacts and people to notify.
 // ---------------------------------------------------------------------------
-function executorInviteEmail({ recipientName, ownerName, accessLink, expiresHours }) {
+function executorInviteEmail({ recipientName, ownerName, accessLink }) {
   return layout(`
     <p>Dear ${recipientName},</p>
     <p>
@@ -456,9 +463,8 @@ function executorInviteEmail({ recipientName, ownerName, accessLink, expiresHour
     </p>
     ${button('View information and respond', accessLink)}
     <p style="color:#6B7280; font-size:14px;">
-      This link is valid for <strong>${expiresHours} hours</strong>. If you need longer, or
-      if ${ownerName} turns out to be fine, please contact us using the form at the bottom of
-      the site.
+      This link does not expire. If ${ownerName} turns out to be fine, please contact us
+      using the form at the bottom of the site.
     </p>
     <p style="color:#6B7280; font-size:14px;">
       With care,<br/>
@@ -473,7 +479,7 @@ function executorInviteEmail({ recipientName, ownerName, accessLink, expiresHour
 // access and confirm-demise capability as executorInviteEmail, but the wording
 // doesn't imply the owner has gone quiet, since that isn't why this one fires.
 // ---------------------------------------------------------------------------
-function executorReportedInviteEmail({ recipientName, ownerName, accessLink, expiresHours }) {
+function executorReportedInviteEmail({ recipientName, ownerName, accessLink }) {
   return layout(`
     <p>Dear ${recipientName},</p>
     <p>
@@ -490,9 +496,8 @@ function executorReportedInviteEmail({ recipientName, ownerName, accessLink, exp
     </p>
     ${button('View information and respond', accessLink)}
     <p style="color:#6B7280; font-size:14px;">
-      This link is valid for <strong>${expiresHours} hours</strong>. If this message reached
-      you unexpectedly, or ${ownerName} is in fact fine, please contact us using the form at
-      the bottom of the site.
+      This link does not expire. If this message reached you unexpectedly, or ${ownerName}
+      is in fact fine, please contact us using the form at the bottom of the site.
     </p>
     <p style="color:#6B7280; font-size:14px;">
       With care,<br/>

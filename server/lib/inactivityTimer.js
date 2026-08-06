@@ -40,9 +40,15 @@ function computeExpiresAt(user, lastActive) {
   return addMonths(lastActive, user.inactivity_period_months);
 }
 
+// An executor's link never expires (contact.is_executor) - the owner, who'd
+// normally be the one to resend an expired link, is by definition unreachable
+// once the plan is actually triggered. The other two trusted-contact slots
+// keep the original 72-hour window, resendable by the owner at any time.
 async function generateAccessLink(contact) {
   const token     = crypto.randomBytes(32).toString('hex');
-  const expiresAt = new Date(Date.now() + EXPIRES_HOURS * 60 * 60 * 1000).toISOString();
+  const expiresAt = contact.is_executor
+    ? null
+    : new Date(Date.now() + EXPIRES_HOURS * 60 * 60 * 1000).toISOString();
   await query('DELETE FROM trusted_contact_tokens WHERE contact_id = $1', [contact.id]);
   await query(
     'INSERT INTO trusted_contact_tokens (contact_id, token, expires_at) VALUES ($1, $2, $3)',
@@ -60,11 +66,16 @@ async function notifyTrustedContacts(user) {
   if (contacts.length === 0) return;
 
   for (const contact of contacts) {
-    const permissions = await queryAll(
-      'SELECT section_id FROM trusted_contact_permissions WHERE contact_id = $1',
-      [contact.id]
-    );
-    if (permissions.length === 0) continue;
+    // Sections don't apply to an executor (they get EXECUTOR_SECTIONS
+    // regardless, see routes/access.js), so the "at least one granted
+    // section" requirement below only makes sense for the other two slots.
+    if (!contact.is_executor) {
+      const permissions = await queryAll(
+        'SELECT section_id FROM trusted_contact_permissions WHERE contact_id = $1',
+        [contact.id]
+      );
+      if (permissions.length === 0) continue;
+    }
 
     const accessLink = await generateAccessLink(contact);
     try {
@@ -75,7 +86,7 @@ async function notifyTrustedContacts(user) {
           recipientName: contact.name,
           ownerName:     user.name,
           accessLink,
-          expiresHours:  EXPIRES_HOURS,
+          expiresHours:  contact.is_executor ? null : EXPIRES_HOURS,
         }),
       });
       console.log(`[inactivity] Notified trusted contact ${contact.email} for user ${user.id}`);
@@ -107,7 +118,6 @@ async function notifyExecutor(user, contact) {
         recipientName: contact.name,
         ownerName:     user.name,
         accessLink,
-        expiresHours:  EXPIRES_HOURS,
       }),
     });
     console.log(`[inactivity] Notified executor ${contact.email} for user ${user.id}`);
