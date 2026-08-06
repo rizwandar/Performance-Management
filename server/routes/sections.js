@@ -618,7 +618,7 @@ router.post('/digital-life/vault', requireAuth, requirePremium, async (req, res)
     return res.status(400).json({ error: 'Vault password must be at least 8 characters.' });
   }
   const hint = (password_hint || '').trim().slice(0, 200) || null;
-  if (hint && vault_password.toLowerCase().includes(hint.toLowerCase())) {
+  if (hint && hint.toLowerCase().includes(vault_password.toLowerCase())) {
     return res.status(400).json({ error: "Your hint shouldn't contain your actual vault password." });
   }
   const existing = await queryOne('SELECT id FROM digital_vault WHERE user_id = $1', [req.user.id]);
@@ -645,7 +645,7 @@ router.put('/digital-life/vault', requireAuth, async (req, res) => {
   // empty string clears it, anything else replaces it.
   const hintProvided = password_hint !== undefined;
   const newHint = hintProvided ? ((password_hint || '').trim().slice(0, 200) || null) : undefined;
-  if (newHint && new_password.toLowerCase().includes(newHint.toLowerCase())) {
+  if (newHint && newHint.toLowerCase().includes(new_password.toLowerCase())) {
     return res.status(400).json({ error: "Your hint shouldn't contain your actual vault password." });
   }
 
