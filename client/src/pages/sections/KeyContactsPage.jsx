@@ -409,8 +409,9 @@ export default function KeyContactsPage() {
           <div style={{ background: 'var(--gold-50)', border: '1px solid var(--gold-light)', borderRadius: 10, padding: '16px 20px' }}>
             <p style={{ fontWeight: 600, color: 'var(--green-900)', marginBottom: 6 }}>How trusted contact access works</p>
             <ul className="text-muted small mb-0" style={{ paddingLeft: '1.2rem', lineHeight: 1.8 }}>
-              <li>Click <strong>Send access link</strong> to email a secure, time-limited link to your contact.</li>
-              <li>The link is valid for <strong>72 hours</strong> and gives read-only access to the sections you select.</li>
+              <li>Click <strong>Send access link</strong> to email a secure link to your contact.</li>
+              <li>For your two non-executor contacts, the link is valid for <strong>72 hours</strong> and gives read-only access to the sections you select.</li>
+              <li>Your <strong>executor</strong>'s link is different: it doesn't expire, and gives read-only access to everything except your vault, since sections don't apply to their role.</li>
               <li>Your digital credentials (passwords) are never included. They are encrypted and only accessible by you.</li>
               <li>You can send a new link at any time. A new link invalidates the previous one.</li>
               <li>
@@ -522,8 +523,8 @@ export default function KeyContactsPage() {
               {linkContact?.is_executor ? (
                 <p className="text-muted small">
                   As your executor, the link gives <strong>{linkContact?.name}</strong> read-only access
-                  to everything you've recorded except your vault, for <strong>72 hours</strong>. Any
-                  previous link will be invalidated.
+                  to everything you've recorded except your vault, and <strong>does not expire</strong>.
+                  Any previous link will be invalidated.
                 </p>
               ) : (
                 <>
@@ -542,7 +543,9 @@ export default function KeyContactsPage() {
           ) : (
             <Alert variant="success">
               <p className="mb-1 fw-bold">Link sent to {linkContact?.email}</p>
-              <p className="mb-0 small">The link expires in 72 hours. Resend at any time.</p>
+              <p className="mb-0 small">
+                {linkResult?.expires_at ? 'The link expires in 72 hours. Resend at any time.' : 'This link does not expire. Resend at any time.'}
+              </p>
             </Alert>
           )}
         </Modal.Body>
