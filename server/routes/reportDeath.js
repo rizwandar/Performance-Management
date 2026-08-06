@@ -3,7 +3,7 @@ const router  = express.Router();
 const { queryOne, query } = require('../db/database');
 const { sendEmail } = require('../lib/sendEmail');
 const { executorReportedInviteEmail } = require('../lib/emailTemplates');
-const { generateAccessLink, EXPIRES_HOURS } = require('../lib/inactivityTimer');
+const { generateAccessLink } = require('../lib/inactivityTimer');
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -38,7 +38,7 @@ router.post('/', async (req, res) => {
 
     if (owner && !owner.is_deceased) {
       const executor = await queryOne(
-        'SELECT id, name, email FROM trusted_contacts WHERE user_id = $1 AND is_executor = 1',
+        'SELECT id, name, email, is_executor FROM trusted_contacts WHERE user_id = $1 AND is_executor = 1',
         [owner.id]
       );
 
@@ -52,7 +52,6 @@ router.post('/', async (req, res) => {
               recipientName: executor.name,
               ownerName:     owner.name,
               accessLink,
-              expiresHours:  EXPIRES_HOURS,
             }),
           });
         } catch (err) {
