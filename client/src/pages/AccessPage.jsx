@@ -335,7 +335,9 @@ export default function AccessPage() {
           Shared information from <strong>{owner.name}</strong>, for <strong>{contact_name}</strong>
         </p>
         <p className="text-muted" style={{ fontSize: '0.78rem' }}>
-          This link expires {new Date(expires_at).toLocaleString()}
+          {expires_at
+            ? `This link expires ${new Date(expires_at).toLocaleString()}`
+            : 'This link does not expire.'}
         </p>
       </div>
 

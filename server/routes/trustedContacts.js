@@ -1,10 +1,10 @@
 const express = require('express');
 const router  = express.Router();
-const crypto  = require('crypto');
 const { queryOne, queryAll, query, transaction } = require('../db/database');
 const requireAuth = require('../middleware/auth');
 const { sendEmail } = require('../lib/sendEmail');
 const { contactAccessEmail, executorDesignatedEmail } = require('../lib/emailTemplates');
+const { generateAccessLink } = require('../lib/inactivityTimer');
 
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
 
@@ -192,23 +192,24 @@ router.post('/:id/access-link', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'This contact has an invalid email address. Please update it before sending a link.' });
   }
 
-  const permissions = await queryAll(
-    'SELECT section_id FROM trusted_contact_permissions WHERE contact_id = $1',
-    [contact.id]
-  );
-  if (permissions.length === 0) return res.status(400).json({ error: 'Please grant this contact access to at least one section before sending a link.' });
+  // An executor's access link ignores individually-granted permissions
+  // entirely and gets EXECUTOR_SECTIONS (see routes/access.js), so the
+  // "at least one section" requirement below only makes sense for a
+  // non-executor contact - an executor with zero individually-granted
+  // sections is still fully entitled to a link.
+  if (!contact.is_executor) {
+    const permissions = await queryAll(
+      'SELECT section_id FROM trusted_contact_permissions WHERE contact_id = $1',
+      [contact.id]
+    );
+    if (permissions.length === 0) return res.status(400).json({ error: 'Please grant this contact access to at least one section before sending a link.' });
+  }
 
-  const EXPIRES_HOURS = 72;
-  const token     = crypto.randomBytes(32).toString('hex');
-  const expiresAt = new Date(Date.now() + EXPIRES_HOURS * 60 * 60 * 1000).toISOString();
-
-  await query('DELETE FROM trusted_contact_tokens WHERE contact_id = $1', [contact.id]);
-  await query(
-    'INSERT INTO trusted_contact_tokens (contact_id, token, expires_at) VALUES ($1, $2, $3)',
-    [contact.id, token, expiresAt]
-  );
-
-  const accessLink = `${process.env.CLIENT_URL || 'http://localhost:5173'}/access/${token}`;
+  // Reuses the same helper the automatic inactivity/report-death paths use,
+  // so an executor's manually-sent link is non-expiring for the same reason
+  // theirs are: sections don't apply to them, and once they're the one being
+  // relied on, there may be no one left to resend an expired link.
+  const accessLink = await generateAccessLink(contact);
   const owner = await queryOne('SELECT name FROM users WHERE id = $1', [req.user.id]);
 
   try {
@@ -219,14 +220,15 @@ router.post('/:id/access-link', requireAuth, async (req, res) => {
         recipientName: contact.name,
         ownerName:     owner.name,
         accessLink,
-        expiresHours:  EXPIRES_HOURS,
+        expiresHours:  contact.is_executor ? null : 72,
       }),
     });
   } catch (err) {
     console.error('[trusted-contacts] Email send failed:', err.message);
   }
 
-  res.json({ success: true, token, expires_at: expiresAt, access_link: accessLink });
+  const tokenRow = await queryOne('SELECT token, expires_at FROM trusted_contact_tokens WHERE contact_id = $1', [contact.id]);
+  res.json({ success: true, token: tokenRow.token, expires_at: tokenRow.expires_at, access_link: accessLink });
 });
 
 module.exports = router;

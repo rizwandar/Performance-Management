@@ -862,6 +862,15 @@ async function init() {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS spouse_is_executor BOOLEAN DEFAULT false`);
   await pool.query(`ALTER TABLE trusted_contacts ADD COLUMN IF NOT EXISTS linked_to_profile_spouse BOOLEAN DEFAULT false`);
 
+  // An executor's access link never expires (found live 2026-08-05: the owner,
+  // who'd normally be the one to resend an expired link, is by definition
+  // unreachable once the plan is actually triggered - a 72-hour window left the
+  // executor permanently locked out with no self-service recovery). Loosening
+  // this NOT NULL, rather than dropping/renaming the column, keeps the existing
+  // 72-hour behavior for the other two trusted-contact slots unchanged; NULL
+  // here specifically means "never expires", checked in routes/access.js.
+  await pool.query(`ALTER TABLE trusted_contact_tokens ALTER COLUMN expires_at DROP NOT NULL`);
+
   // IDEA-15: an optional, plaintext hint the owner can set alongside their vault
   // password, e.g. "childhood pet's name", to jog their own memory later. It is
   // never the password itself and is never encrypted, it's meant to be readable
