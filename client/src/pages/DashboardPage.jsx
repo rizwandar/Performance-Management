@@ -28,6 +28,7 @@ const ICON_SETS = {
     life_wishes:          '✨',
     'household-info':     '🔑',
     'children-dependants':'👶',
+    'pet-care':            '🐾',
   },
   heritage: {
     how_to_be_remembered: '🕯️',
@@ -44,6 +45,7 @@ const ICON_SETS = {
     life_wishes:          '🌟',
     'household-info':     '🏠',
     'children-dependants':'👨‍👩‍👧',
+    'pet-care':            '🐕',
   },
   modern: {
     how_to_be_remembered: '🕯️',
@@ -60,6 +62,7 @@ const ICON_SETS = {
     life_wishes:          '🎯',
     'household-info':     '⚙️',
     'children-dependants':'🎒',
+    'pet-care':            '🐶',
   },
 }
 
@@ -115,6 +118,7 @@ const FREE_ROUTES = new Set([
   '/sections/key-contacts',
   '/sections/people-to-notify',
   '/sections/children-dependants',
+  '/sections/pet-care',
 ])
 
 // First group id after which all remaining sections are premium-only.
@@ -173,6 +177,11 @@ const SECTIONS = [
     id: 'children-dependants', label: 'Children & Dependants',
     icon: '👶', route: '/sections/children-dependants', group: 'people',
     description: 'Everything your loved ones need to know about caring for your children and those who depend on you.',
+  },
+  {
+    id: 'pet-care', label: 'Pet Care',
+    icon: '🐾', route: '/sections/pet-care', group: 'people',
+    description: 'Feeding routines, vet details, and caretaker wishes so your pets are looked after too.',
   },
 
   // ── Your Affairs ───────────────────────────────────────────────────────────

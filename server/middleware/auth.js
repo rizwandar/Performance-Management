@@ -10,7 +10,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
 // a `viewAs` claim instead of acting as a normal session. Every request using one
 // is re-checked against live consent here (revocation must take effect immediately,
 // not just at mint time), then req.user is swapped to the customer so the rest of
-// the app — all 14 section routes included — reads req.user.id exactly as it
+// the app — all 15 section routes included — reads req.user.id exactly as it
 // already does, with zero changes needed elsewhere. Vault access is still hard
 // blocked separately in routes/sections.js; this only grants section-level access.
 async function applyViewAs(req, decoded) {

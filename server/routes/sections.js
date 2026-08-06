@@ -56,7 +56,7 @@ router.get('/completion', requireAuth, async (req, res) => {
 
   const [
     userProfile, tcCount,
-    ld, fi, fw, mw, ptn, pi, pm, dc, stm, lw, hi, cd,
+    ld, fi, fw, mw, ptn, pi, pm, dc, stm, lw, hi, cd, pet,
   ] = await Promise.all([
     queryOne('SELECT about_me, legacy_message, life_story, remembered_for, emergency_contact_name FROM users WHERE id = $1', [uid]),
     queryOne('SELECT COUNT(*)::int as c FROM trusted_contacts WHERE user_id = $1', [uid]),
@@ -72,6 +72,7 @@ router.get('/completion', requireAuth, async (req, res) => {
     queryOne('SELECT COUNT(*)::int as c FROM life_wishes        WHERE user_id = $1', [uid]),
     queryOne('SELECT COUNT(*)::int as c FROM household_info     WHERE user_id = $1', [uid]),
     queryOne('SELECT COUNT(*)::int as c FROM children_dependants WHERE user_id = $1', [uid]),
+    queryOne('SELECT COUNT(*)::int as c FROM pets                WHERE user_id = $1', [uid]),
   ]);
 
   const howToBeRememberedStarted = [
@@ -94,6 +95,7 @@ router.get('/completion', requireAuth, async (req, res) => {
     life_wishes:           lw.c,
     'household-info':      hi.c,
     'children-dependants': cd.c,
+    'pet-care':             pet.c,
   });
 });
 
@@ -601,6 +603,49 @@ router.delete('/children-dependants/:id', requireAuth, async (req, res) => {
   const item = await queryOne('SELECT id FROM children_dependants WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
   await query('DELETE FROM children_dependants WHERE id = $1', [item.id]);
+  res.json({ success: true });
+});
+
+// ---------------------------------------------------------------------------
+// Section 15 — Pet Care (IDEA-18: split out of Children & Dependants)
+// ---------------------------------------------------------------------------
+router.get('/pets', requireAuth, async (req, res) => {
+  res.json(await queryAll('SELECT * FROM pets WHERE user_id = $1 ORDER BY name', [req.user.id]));
+});
+
+router.post('/pets', requireAuth, async (req, res) => {
+  const { name, age, special_needs, preferred_caretaker, caretaker_contact, alternate_caretaker, alternate_contact, notes } = req.body;
+  if (!name) return res.status(400).json({ error: 'A name is required.' });
+  const result = await query(`
+    INSERT INTO pets
+      (user_id, name, age, special_needs, preferred_caretaker, caretaker_contact, alternate_caretaker, alternate_contact, notes)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id
+  `, [req.user.id, name, age || null, special_needs || null,
+      preferred_caretaker || null, caretaker_contact || null,
+      alternate_caretaker || null, alternate_contact || null, notes || null]);
+  res.status(201).json({ id: result.rows[0].id });
+});
+
+router.put('/pets/:id', requireAuth, async (req, res) => {
+  const item = await queryOne('SELECT * FROM pets WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
+  if (!item) return res.status(404).json({ error: 'Item not found.' });
+  const { name, age, special_needs, preferred_caretaker, caretaker_contact, alternate_caretaker, alternate_contact, notes } = req.body;
+  await query(`
+    UPDATE pets
+    SET name=$1, age=$2, special_needs=$3, preferred_caretaker=$4,
+        caretaker_contact=$5, alternate_caretaker=$6, alternate_contact=$7, notes=$8
+    WHERE id=$9
+  `, [name ?? item.name, age ?? item.age, special_needs ?? item.special_needs,
+      preferred_caretaker ?? item.preferred_caretaker, caretaker_contact ?? item.caretaker_contact,
+      alternate_caretaker ?? item.alternate_caretaker, alternate_contact ?? item.alternate_contact,
+      notes ?? item.notes, item.id]);
+  res.json({ success: true });
+});
+
+router.delete('/pets/:id', requireAuth, async (req, res) => {
+  const item = await queryOne('SELECT id FROM pets WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
+  if (!item) return res.status(404).json({ error: 'Item not found.' });
+  await query('DELETE FROM pets WHERE id = $1', [item.id]);
   res.json({ success: true });
 });
 
