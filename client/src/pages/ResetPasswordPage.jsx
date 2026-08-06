@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { Card, Form, Button, Alert } from 'react-bootstrap'
 import axios from 'axios'
+import { getRetryAfterSeconds, rateLimitMessage, useCountdown } from '../utils/rateLimit'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -30,6 +31,9 @@ export default function ResetPasswordPage() {
   const [status, setStatus] = useState(null)
   const [done, setDone]     = useState(false)
   const [loading, setLoading] = useState(false)
+  const [retryAfterSeconds, setRetryAfterSeconds] = useState(null)
+  const countdown = useCountdown(retryAfterSeconds)
+  const rateLimited = retryAfterSeconds != null && countdown > 0
 
   if (!token) return (
     <div className="d-flex justify-content-center pt-4">
@@ -62,11 +66,16 @@ export default function ResetPasswordPage() {
     }
     setLoading(true)
     setStatus(null)
+    setRetryAfterSeconds(null)
     try {
       await axios.post(`${API}/auth/reset-password`, { token, password: form.password })
       setDone(true)
     } catch (err) {
-      setStatus({ type: 'danger', msg: err.response?.data?.error || 'We couldn\'t reset your password. Please try again.' })
+      if (err.response?.status === 429) {
+        setRetryAfterSeconds(getRetryAfterSeconds(err))
+      } else {
+        setStatus({ type: 'danger', msg: err.response?.data?.error || 'We couldn\'t reset your password. Please try again.' })
+      }
     }
     setLoading(false)
   }
@@ -76,7 +85,8 @@ export default function ResetPasswordPage() {
       <Card style={{ width: '100%', maxWidth: 420 }}>
         <Card.Header><h5 className="mb-0">Choose a new password</h5></Card.Header>
         <Card.Body>
-          {status && <Alert variant={status.type}>{status.msg}</Alert>}
+          {rateLimited && <Alert variant="danger">{rateLimitMessage(countdown)}</Alert>}
+          {!rateLimited && status && <Alert variant={status.type}>{status.msg}</Alert>}
           <Form onSubmit={handleSubmit}>
             <Form.Group className="mb-3">
               <Form.Label>New password</Form.Label>
@@ -99,7 +109,7 @@ export default function ResetPasswordPage() {
                 autoComplete="new-password"
               />
             </Form.Group>
-            <Button type="submit" variant="primary" className="w-100" disabled={loading}>
+            <Button type="submit" variant="primary" className="w-100" disabled={loading || rateLimited}>
               {loading ? 'Updating...' : 'Update my password'}
             </Button>
           </Form>
