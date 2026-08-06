@@ -448,7 +448,7 @@ COLOR PALETTE: Earthy, grounded, trustworthy. Forest green (primary), warm gold 
 
 ---
 
-THE 14 SECTIONS (grouped into 4 dashboard groups):
+THE 15 SECTIONS (grouped into 4 dashboard groups):
 
 YOUR LEGACY:
 - How I'd Like to Be Remembered: life story, about me, what I want to be remembered for, a legacy message. Fields stored directly on the users table.
@@ -463,7 +463,8 @@ YOUR WISHES:
 YOUR PEOPLE:
 - Key Contacts: emergency contact stored on the users table (name, phone, email). Trusted contacts in a separate trusted_contacts table (max 3 per user, with sequence 1/2/3). Trusted contacts get 72-hour access links to view permitted sections, except the designated executor, whose link never expires.
 - People to Notify: people_to_notify table. People who should be contacted when the user passes. Name, relationship, email, phone, notified_by, notes.
-- Children and Dependants: children_dependants table. Name, type (child/pet/other), DOB, special needs, preferred guardian, alternate guardian, notes.
+- Children and Dependants: children_dependants table. Name, type (child/elderly_parent/other), DOB, special needs, preferred guardian, alternate guardian, notes.
+- Pet Care: pets table (IDEA-18, split out of Children & Dependants). Name, age, special needs/care instructions, preferred caretaker + contact, alternate caretaker + contact, notes.
 
 YOUR AFFAIRS:
 - Personal and Legal Documents: vault-protected (shared vault). legal_documents table: document_type, title, held_by, location, notes. Up to 2 file attachments per item via R2.
@@ -488,7 +489,7 @@ VAULT ENCRYPTION:
 
 TRUSTED CONTACTS SYSTEM:
 - Up to 3 trusted contacts per user.
-- Each contact has section-level permissions (which of the 14 sections they can view).
+- Each contact has section-level permissions (which of the 15 sections they can view).
 - Access via a signed link emailed to the contact. No separate login required. Valid 72 hours for the two non-executor slots; the executor's link never expires (found and fixed 2026-08-06: the owner, who'd normally resend an expired link, is by definition unreachable once the plan is actually triggered).
 - Tokens stored in trusted_contact_tokens table (contact_id, token, expires_at). expires_at is NULL for an executor's token, meaning it never expires.
 - Digital credentials (vault) are NEVER accessible to trusted contacts, executor included.
@@ -538,7 +539,7 @@ PDF EXPORT:
 - PDFKit, A4 two-column layout, streamed to client.
 - Standard export (GET): excludes vault sections (shown as locked notice).
 - Full export (POST with vault_password): includes decrypted vault content. Sensitive data warning box shown.
-- Covers all 14 sections across 6 content pages.
+- Covers all 15 sections across 6 content pages.
 - Reads site_theme and site_font from app_settings for styled output.
 
 ---
@@ -673,7 +674,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
           </div>
 
           <div style={card}>
-            <BpSection title="The 14 Sections at a Glance">
+            <BpSection title="The 15 Sections at a Glance">
               <p className="text-muted small mb-3">Organized into four groups on the dashboard. Users fill in as much or as little as they choose.</p>
               {[
                 { group: 'Your Legacy', color: '#C9A84C', icon: '✨', sections: [
@@ -689,7 +690,8 @@ Please confirm the stack choices above (or tell me which to change), and then we
                 { group: 'Your People', color: '#B87A50', icon: '🤝', sections: [
                   { label: 'Key Contacts', desc: 'An emergency contact and up to three trusted contacts who can securely view your plans.' },
                   { label: 'People to Notify', desc: 'A list of people who should be contacted when you pass, and who should contact them.' },
-                  { label: 'Children and Dependants', desc: 'Details for children, pets, or other dependants including preferred guardians.' },
+                  { label: 'Children and Dependants', desc: 'Details for children or other dependants including preferred guardians.' },
+                  { label: 'Pet Care', desc: 'Feeding routines, vet details, and preferred caretakers for your pets.' },
                 ]},
                 { group: 'Your Affairs', color: '#8A7A6A', icon: '📋', sections: [
                   { label: 'Personal and Legal Documents', desc: 'Where to find your will, power of attorney, and other important papers. Vault-protected.' },
@@ -722,7 +724,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
                 ['Inactivity timer', 'Users set a period of inactivity (2 to 24 months). If they have not logged in by then, their trusted contacts are automatically notified with access links.'],
                 ['PDF export', 'Users can download a complete PDF summary of all their plans. A full export option includes vault contents if the vault password is provided at download time.'],
                 ['File attachments', 'Upload photos and documents (PDF, images, Word docs) to Legal Documents, Financial Affairs, Property & Possessions, and Practical Household Information. Stored securely in Cloudflare R2, access-controlled with short-lived signed URLs.'],
-                ['Premium billing', 'Free plan covers 9 of the 14 sections. Premium ($10/month or $100/year via Stripe Checkout) unlocks the 5 vault-protected sections, document uploads, full (vault-inclusive) PDF export, and the inactivity timer. Users manage or cancel/reinstate their subscription from My Profile; admins can also grant or revoke an honorary premium plan without a real Stripe subscription.'],
+                ['Premium billing', 'Free plan covers 10 of the 15 sections. Premium ($10/month or $100/year via Stripe Checkout) unlocks the 5 vault-protected sections, document uploads, full (vault-inclusive) PDF export, and the inactivity timer. Users manage or cancel/reinstate their subscription from My Profile; admins can also grant or revoke an honorary premium plan without a real Stripe subscription.'],
                 ['Admin panel', 'Operators can customize colors, fonts, site name, and logo. View all users, audit logs, and manage accounts.'],
                 ['White-label ready', 'The site name and logo can be changed by the admin. All emails and the PDF use the configured name.'],
               ]} />
@@ -749,7 +751,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
             <BpSection title="User Journey">
               <BpTable rows={[
                 ['Registration', 'User provides name, email, date of birth, and password. A welcome email is sent. They land on the dashboard.'],
-                ['Dashboard', 'Shows 14 section cards grouped into 4 color-coded groups. Each card shows completion status (Not started, In progress, Done). A progress bar shows overall completion.'],
+                ['Dashboard', 'Shows 15 section cards grouped into 4 color-coded groups. Each card shows completion status (Not started, In progress, Done). A progress bar shows overall completion.'],
                 ['First visit', 'New users see a welcome card with four suggested starting sections. Returning users see "Welcome back".'],
                 ['Filling sections', 'Each section has its own page with a form or list UI. Changes are saved immediately or via explicit Save buttons.'],
                 ['Vault setup', 'The first time a user visits Digital Life or Legal Documents, they are prompted to create a vault password. This password is separate from their account password and is never stored.'],
@@ -766,7 +768,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
               <BpTable rows={[
                 ['Emergency contact', 'A single person to call in an emergency. Stored on the users table (emergency_contact_name, emergency_contact_phone, emergency_contact_email). Does NOT receive plan access.'],
                 ['Trusted contacts', 'Up to 3 people who can view the user\'s plans. Stored in trusted_contacts table with sequence 1, 2, or 3.'],
-                ['Section permissions', 'For each trusted contact, the user selects which of the 14 sections that person can see. Stored in trusted_contact_permissions table.'],
+                ['Section permissions', 'For each trusted contact, the user selects which of the 15 sections that person can see. Stored in trusted_contact_permissions table.'],
                 ['Access links', 'A signed link is emailed to the contact, giving read-only access to permitted sections (or everything except the vault, for the executor). No account or login needed. 72-hour validity for non-executor contacts, non-expiring for the executor.'],
                 ['Token storage', 'Tokens stored in trusted_contact_tokens table (contact_id, token, expires_at). Old token replaced when a new link is sent.'],
                 ['Expired access', 'The access page checks token expiry and shows a friendly expired message if the link is too old.'],
@@ -807,7 +809,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
               <BpTable rows={[
                 ['Standard export', 'GET /api/export. No vault password needed. Vault sections show a "protected" notice.'],
                 ['Full export', 'POST /api/export with vault_password in the request body. Vault sections fully included. A sensitive data warning box appears in the PDF.'],
-                ['What is included', 'All 14 sections. Cover page with logo, user name, and date. Grouped logically across content pages.'],
+                ['What is included', 'All 15 sections. Cover page with logo, user name, and date. Grouped logically across content pages.'],
                 ['Layout', 'A4 two-column layout. Each item rendered as a card. Page breaks handled automatically.'],
                 ['Branding', 'The current theme and font from app_settings are applied. Logo is fetched from R2 and embedded on the cover page.'],
                 ['Download behavior', 'The browser receives the PDF as a stream and downloads it as a file. No temp files are created on the server.'],
@@ -926,18 +928,18 @@ Please confirm the stack choices above (or tell me which to change), and then we
         LandingPage.jsx
         LoginPage.jsx, RegisterPage.jsx
         ForgotPasswordPage.jsx, ResetPasswordPage.jsx
-        DashboardPage.jsx    # 14 section cards, 4 groups, earthy colors
+        DashboardPage.jsx    # 15 section cards, 4 groups, earthy colors
         ProfilePage.jsx      # Personal details, password, vault password, billing management
         AccessPage.jsx       # Public trusted-contact read-only view
         AdminPage.jsx        # Full admin panel
         ExportPage.jsx       # Two-option PDF download page
-        sections/            # One page per section (14 files)
+        sections/            # One page per section (15 files)
         org/                 # Org/funeral-home portal pages (gated behind ORG_PORTAL_ENABLED)
         admin/OrganizationsPanel.jsx  # Admin tab for managing organizations
       components/
         VaultGate.jsx        # Shared VaultSetupScreen + VaultLockScreen
         FileAttachments.jsx  # Shared upload/list/download widget, parameterized by sectionId
-        SectionHero.jsx      # Shared folded-corner hero panel used by all 14 section pages
+        SectionHero.jsx      # Shared folded-corner hero panel used by all 15 section pages
 
   server/                    # Express 5 backend
     instrument.js            # Sentry init, required first (before any other import)
@@ -960,7 +962,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
     routes/
       auth.js                # /api/auth: login, register, logout, forgot/reset password
       users.js               # /api/users/me: profile, timer, emergency contact
-      sections.js            # /api/sections: all 14 sections + vault endpoints + completion
+      sections.js            # /api/sections: all 15 sections + vault endpoints + completion
       documents.js           # /api/documents: file upload/download/delete + photos
       export.js              # /api/export: GET (standard) + POST (with vault)
       admin.js               # /api/admin: stats, users, activity log, versions, backups list/trigger
@@ -1069,9 +1071,9 @@ Please confirm the stack choices above (or tell me which to change), and then we
         </BpSection>
       </div>
 
-      {/* 5. The 14 sections */}
+      {/* 5. The 15 sections */}
       <div style={card}>
-        <BpSection title="5. The 14 User Sections">
+        <BpSection title="5. The 15 User Sections">
           <p className="text-muted small mb-3">Grouped into 4 dashboard groups. Each section has its own route and full CRUD via /api/sections.</p>
           {[
             { group: 'Your Legacy', color: '#C9A84C', sections: [
@@ -1088,6 +1090,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
               { id: 'key_contacts', label: 'Key Contacts', route: '/sections/key-contacts', note: 'Emergency contact on users table. Trusted contacts in trusted_contacts table (max 3, sequence 1-3).' },
               { id: 'people_to_notify', label: 'People to Notify', route: '/sections/people-to-notify', note: 'people_to_notify table.' },
               { id: 'children-dependants', label: 'Children & Dependants', route: '/sections/children-dependants', note: 'children_dependants table.' },
+              { id: 'pet-care', label: 'Pet Care', route: '/sections/pet-care', note: 'pets table (IDEA-18, split out of Children & Dependants).' },
             ]},
             { group: 'Your Affairs', color: '#8A7A6A', sections: [
               { id: 'legal_documents', label: 'Personal & Legal Documents', route: '/sections/legal-documents', note: 'Vault-protected. Uses shared vault (digital_vault). Text fields AES-256-GCM encrypted with the vault key. Up to 2 file attachments per item via uploaded_documents (files themselves are access-controlled and R2-at-rest encrypted, not additionally vault-key encrypted).' },
@@ -1180,7 +1183,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
             ['Theme support', 'Reads site_theme and site_font from app_settings. THEME_PALETTES and getFonts() in generatePdf.js map to PDFKit built-in fonts (Times/Helvetica).'],
             ['Logo support', 'Reads site_logo from app_settings, fetches buffer via getFileBuffer(), embeds on cover page.'],
             ['Cover page', 'Dark header band, logo/brand name, user name, document date, legal disclaimer.'],
-            ['Content pages', '6 pages covering all 14 sections grouped logically.'],
+            ['Content pages', '6 pages covering all 15 sections grouped logically.'],
             ['Item cards', 'renderCardAt() renders a single item card at explicit (x,y). renderCards() places cards in 2-column grid with page-break logic.'],
             ['UI for export', 'ExportPage.jsx at /export. Two cards: standard and complete. Warm language and sensitive data warning.'],
           ]} />
@@ -1220,7 +1223,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
             ['Fonts available', 'Georgia, Lora, Playfair Display, Merriweather, Inter, Open Sans.'],
             ['Icon sets', 'Classic, Heritage, Modern. Applied to dashboard section card icons.'],
             ['Design tokens', 'Card radius, card border style, button radius/CTA color, and progress-bar fill color are all CSS custom properties driven per theme (--card-radius, --card-border-style, --btn-radius, --btn-cta-bg, --progress-fill, etc.), rather than hardcoded per page. Keepsake is the first theme to use a non-default radius/border combination (dotted stitched-border cards, folded-corner hero panel).'],
-            ['SectionHero component', 'client/src/components/SectionHero.jsx gives all 14 section pages (and the Dashboard) the same hero-panel treatment, so a theme like Keepsake can restyle every section consistently from one shared component.'],
+            ['SectionHero component', 'client/src/components/SectionHero.jsx gives all 15 section pages (and the Dashboard) the same hero-panel treatment, so a theme like Keepsake can restyle every section consistently from one shared component.'],
           ]} />
         </BpSection>
       </div>

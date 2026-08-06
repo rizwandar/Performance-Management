@@ -46,6 +46,7 @@ import SongsThatDefineMePage      from './pages/sections/SongsThatDefineMePage'
 import LifesWishesPage            from './pages/sections/LifesWishesPage'
 import HouseholdInfoPage          from './pages/sections/HouseholdInfoPage'
 import ChildrenDependantsPage     from './pages/sections/ChildrenDependantsPage'
+import PetCarePage                from './pages/sections/PetCarePage'
 import HowToBeRememberedPage      from './pages/sections/HowToBeRememberedPage'
 import KeyContactsPage            from './pages/sections/KeyContactsPage'
 import UpgradePage                from './pages/UpgradePage'
@@ -746,6 +747,7 @@ function AppContent() {
 
           <Route path="/sections/household-info"        element={<ProtectedRoute><HouseholdInfoPage /></ProtectedRoute>} />
           <Route path="/sections/children-dependants"  element={<ProtectedRoute><ChildrenDependantsPage /></ProtectedRoute>} />
+          <Route path="/sections/pet-care"             element={<ProtectedRoute><PetCarePage /></ProtectedRoute>} />
           <Route path="/sections/how-to-be-remembered" element={<ProtectedRoute><HowToBeRememberedPage /></ProtectedRoute>} />
           <Route path="/sections/key-contacts"         element={<ProtectedRoute><KeyContactsPage /></ProtectedRoute>} />
 
