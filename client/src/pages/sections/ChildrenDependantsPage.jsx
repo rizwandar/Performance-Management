@@ -8,7 +8,6 @@ const API = import.meta.env.VITE_API_URL
 
 const TYPES = [
   { value: 'child',           label: 'Child' },
-  { value: 'pet',             label: 'Pet' },
   { value: 'elderly_parent',  label: 'Elderly parent / relative' },
   { value: 'other',           label: 'Other dependant' },
 ]
@@ -17,7 +16,6 @@ const TYPE_LABELS  = Object.fromEntries(TYPES.map(t => [t.value, t.label]))
 
 const TYPE_ICONS = {
   child:          '👶',
-  pet:            '🐾',
   elderly_parent: '🤍',
   other:          '🤝',
 }
@@ -118,7 +116,7 @@ export default function ChildrenDependantsPage() {
         eyebrow="Your People"
         headline="Care instructions for those who depend on you"
         highlight="depend on you"
-        subtext="Record care arrangements for anyone who depends on you, including children, pets, or elderly relatives. Include guardianship wishes and any special care needs so your loved ones know exactly what to do."
+        subtext="Record care arrangements for anyone who depends on you, including children or elderly relatives. Include guardianship wishes and any special care needs so your loved ones know exactly what to do. Looking for pet care instructions? Those now have their own dedicated section."
         cta={{ label: '+ Add a dependant', onClick: openAdd }}
       />
 
@@ -136,7 +134,7 @@ export default function ChildrenDependantsPage() {
           <p style={{ fontSize: '2rem', marginBottom: 8 }}>👶</p>
           <p className="mb-1" style={{ fontWeight: 600 }}>No dependants recorded yet</p>
           <p className="text-muted small mb-0">
-            Add anyone who would need care if you were no longer able to provide it, such as children, pets, or relatives.
+            Add anyone who would need care if you were no longer able to provide it, such as children or relatives.
           </p>
         </div>
       ) : (

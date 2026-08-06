@@ -54,13 +54,14 @@ router.get('/plans', (req, res) => {
           'Key Contacts',
           'People to Notify',
           'Children and Dependants',
+          'Pet Care',
           'Trusted contacts with access permissions',
         ],
       },
       {
         id:            'monthly',
         name:          'Premium Monthly',
-        description:   'Full access to all 14 sections, billed monthly',
+        description:   'Full access to all 15 sections, billed monthly',
         price_monthly: 10,
         price_annual:  null,
         features: [

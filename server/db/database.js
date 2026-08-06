@@ -879,6 +879,39 @@ async function init() {
   // unrecoverable.
   await pool.query(`ALTER TABLE digital_vault ADD COLUMN IF NOT EXISTS password_hint TEXT`);
 
+  // IDEA-18: Pet Care split out of Children & Dependants into its own
+  // standalone section (14 sections becomes 15). pets mirrors the same
+  // care-instruction shape children_dependants already had for the 'pet'
+  // type, just with date_of_birth renamed to the looser free-text age.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS pets (
+      id                   SERIAL PRIMARY KEY,
+      user_id              INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      name                 TEXT NOT NULL,
+      age                  TEXT,
+      special_needs        TEXT,
+      preferred_caretaker  TEXT,
+      caretaker_contact    TEXT,
+      alternate_caretaker  TEXT,
+      alternate_contact    TEXT,
+      notes                TEXT,
+      created_at           TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  // One-time backfill of existing type='pet' rows out of children_dependants.
+  // Guarded on pets being empty rather than a separate flag column, since
+  // this only ever needs to run once and pets starts out with nothing in it.
+  const petsAlreadyMigrated = await queryOne('SELECT id FROM pets LIMIT 1');
+  if (!petsAlreadyMigrated) {
+    await pool.query(`
+      INSERT INTO pets
+        (user_id, name, age, special_needs, preferred_caretaker, caretaker_contact, alternate_caretaker, alternate_contact, notes, created_at)
+      SELECT user_id, name, date_of_birth, special_needs, preferred_guardian, guardian_contact, alternate_guardian, alternate_contact, notes, created_at
+      FROM children_dependants WHERE type = 'pet'
+    `);
+    await pool.query(`DELETE FROM children_dependants WHERE type = 'pet'`);
+  }
+
   console.log('[db] PostgreSQL schema ready');
 }
 
