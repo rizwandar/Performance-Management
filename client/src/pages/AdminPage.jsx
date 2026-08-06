@@ -8,6 +8,7 @@ import LegalPanel from './admin/LegalPanel'
 import { formatPhone } from '@in-good-hands/shared/format'
 
 const API = import.meta.env.VITE_API_URL
+const USERS_PAGE_SIZE = 20
 
 // ---------------------------------------------------------------------------
 // Theme & font definitions
@@ -1210,7 +1211,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
           <BpTable rows={[
             ['Access', 'is_admin=1 users only. Redirects to /profile for regular users. Admin nav link shown in NavBar.'],
             ['Overview tab', 'Stats: total users, new this month, logins (7 days), total entries across all section tables.'],
-            ['Users tab', 'Search users by name/email. Click user to open detail modal: all profile fields, section completion counts, audit log, send access link, reset password, delete account.'],
+            ['Users tab', 'Sorted newest signup first, paginated 20 per page with Previous/Next. Search by name/email resets to page 1. Click user to open detail modal: all profile fields, section completion counts, audit log, send access link, reset password, delete account.'],
             ['Activity tab', 'Recent audit log with action labels, IP, and timestamps.'],
             ['Appearance tab', 'Choose color theme (9 options), font (6 options), icon set (3 options). Changes apply live via CSS variables.'],
             ['Settings tab', 'Password reset method: email link, optionally plus a date-of-birth or security-question check before the link is sent.'],
@@ -1398,6 +1399,8 @@ export default function AdminPage() {
   const [stats, setStats]       = useState(null)
   const [users, setUsers]       = useState([])
   const [query, setQuery]       = useState('')
+  const [usersOffset, setUsersOffset] = useState(0)
+  const [usersTotal, setUsersTotal]   = useState(0)
   const [loadingUsers, setLoadingUsers] = useState(false)
   const [settings, setSettings] = useState({})
   const [alert, setAlert]       = useState(null)
@@ -1458,15 +1461,23 @@ export default function AdminPage() {
     }).catch(() => showAlert('danger', "Couldn't load admin data."))
   }, [])
 
-  // Load users when switching to Users tab or searching
+  // Load users when switching to Users tab, searching, or paging
   useEffect(() => {
     if (tab !== 'Users') return
     setLoadingUsers(true)
-    axios.get(`${API}/admin/users`, { params: { q: query || undefined } })
-      .then(r => setUsers(r.data))
+    axios.get(`${API}/admin/users`, {
+      params: { q: query || undefined, limit: USERS_PAGE_SIZE, offset: usersOffset }
+    })
+      .then(r => { setUsers(r.data.users); setUsersTotal(r.data.total) })
       .catch(() => showAlert('danger', "Couldn't load users."))
       .finally(() => setLoadingUsers(false))
-  }, [tab, query])
+  }, [tab, query, usersOffset])
+
+  // A new search should always land back on page 1.
+  const updateUserSearch = (value) => {
+    setQuery(value)
+    setUsersOffset(0)
+  }
 
   // Load version log when switching to Versions tab
   useEffect(() => {
@@ -1521,6 +1532,7 @@ export default function AdminPage() {
       setConfirmDelete(null)
       setSelectedUser(null)
       setUsers(u => u.filter(x => x.id !== id))
+      setUsersTotal(t => Math.max(0, t - 1))
       setStats(s => s ? { ...s, total_users: s.total_users - 1 } : s)
       showAlert('success', 'User deleted.')
     } catch {
@@ -1590,8 +1602,10 @@ export default function AdminPage() {
     if (!q.trim()) { setActivityUsers([]); return }
     activityTimeout.current = setTimeout(() => {
       setLoadingActivity(true)
-      axios.get(`${API}/admin/users`, { params: { q } })
-        .then(r => setActivityUsers(r.data))
+      // High limit here: this is a quick-pick search, not the paginated
+      // Users tab list, so it should keep showing every match at once.
+      axios.get(`${API}/admin/users`, { params: { q, limit: 200 } })
+        .then(r => setActivityUsers(r.data.users))
         .catch(() => {})
         .finally(() => setLoadingActivity(false))
     }, 300)
@@ -1703,7 +1717,7 @@ export default function AdminPage() {
             <Form.Control
               placeholder="Search by name or email..."
               value={query}
-              onChange={e => setQuery(e.target.value)}
+              onChange={e => updateUserSearch(e.target.value)}
             />
           </div>
 
@@ -1739,6 +1753,30 @@ export default function AdminPage() {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+
+          {!loadingUsers && usersTotal > USERS_PAGE_SIZE && (
+            <div className="d-flex justify-content-between align-items-center mt-3">
+              <span className="text-muted small">
+                Showing {usersOffset + 1}-{Math.min(usersOffset + USERS_PAGE_SIZE, usersTotal)} of {usersTotal}
+              </span>
+              <div className="d-flex gap-2">
+                <button
+                  className="btn btn-sm btn-outline-secondary"
+                  disabled={usersOffset === 0}
+                  onClick={() => setUsersOffset(o => Math.max(0, o - USERS_PAGE_SIZE))}
+                >
+                  ← Previous
+                </button>
+                <button
+                  className="btn btn-sm btn-outline-secondary"
+                  disabled={usersOffset + USERS_PAGE_SIZE >= usersTotal}
+                  onClick={() => setUsersOffset(o => o + USERS_PAGE_SIZE)}
+                >
+                  Next →
+                </button>
+              </div>
             </div>
           )}
         </div>
