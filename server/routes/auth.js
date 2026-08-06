@@ -88,6 +88,23 @@ const forgotPasswordQuestionLimiter = rateLimit({
   handler: (req, res) => res.json({ question: decoyQuestionForEmail((req.body?.email || '').toLowerCase().trim()) }),
 });
 
+// SEC-14: reset-password used to only inherit the shared per-IP authLimiter
+// mounted on all of /api/auth/. Now that forgot-password/reset-password are
+// exempted from that shared bucket (see server/index.js) so a login lockout
+// can't also block recovery, this endpoint needs its own budget rather than
+// none at all. It doesn't need to be as tight as the login/register limiter -
+// the token itself is a 256-bit random value emailed only to the account
+// owner, so brute-forcing it isn't a realistic threat this limiter is
+// defending against. It's defense-in-depth against automated abuse of the
+// endpoint generally (e.g. hammering it after a token leak).
+const resetPasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many attempts. Please wait a few minutes and try again.' },
+});
+
 async function auditLog(userId, action, req, metadata) {
   try {
     const ip = req.headers['x-forwarded-for']?.split(',')[0].trim()
@@ -341,7 +358,7 @@ const resetRules = [
     .matches(/[A-Z]/).withMessage('Password must contain at least one uppercase letter.')
     .matches(/[0-9]/).withMessage('Password must contain at least one number.'),
 ];
-router.post('/reset-password', resetRules, validate, async (req, res) => {
+router.post('/reset-password', resetPasswordLimiter, resetRules, validate, async (req, res) => {
   const { token, password } = req.body;
   if (!token || !password) return res.status(400).json({ error: 'Token and password are required' });
 
