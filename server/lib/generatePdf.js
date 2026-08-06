@@ -298,6 +298,7 @@ function generatePdf(data, outputStream) {
     lifeWishes      = [],
     trustedContacts = [],
     childrenDependants = [],
+    pets            = [],
     // legalDocs, financialItems, propertyItems, householdInfo, and credentials
     // are all vault-protected - only ever present inside vaultData, never at
     // the top level, so a standard (non-vault) export can't render them by
@@ -532,7 +533,7 @@ function generatePdf(data, outputStream) {
 
   addPageFooter(doc, pageNum, palette, fonts);
 
-  // ── Page 5: Children & Dependants ───────────────────────────────────────────
+  // ── Page 5: Children & Dependants + Pet Care ────────────────────────────────
   // Financial Affairs and Practical Household Information are vault-protected -
   // rendered on the vault page below.
   doc.addPage();
@@ -550,6 +551,24 @@ function generatePdf(data, outputStream) {
       { label: 'Guardian contact',   value: item.guardian_contact },
       { label: 'Alternate guardian', value: item.alternate_guardian },
       { label: 'Notes',              value: item.notes },
+    ]), palette, fonts);
+  }
+
+  // IDEA-18: Pet Care, split out into its own section, but sharing this page
+  // with Children & Dependants (sectionHeader flows to a new page on its own
+  // if there isn't room, same as every other multi-section page in this PDF).
+  sectionHeader(doc, 'Pet Care', palette, fonts);
+  if (!pets.length) {
+    noData(doc, fonts);
+  } else {
+    renderCards(doc, pets.map(item => [
+      { label: '',                     value: item.name },
+      { label: 'Age',                  value: item.age },
+      { label: 'Special needs / care', value: item.special_needs },
+      { label: 'Preferred caretaker',  value: item.preferred_caretaker },
+      { label: 'Caretaker contact',    value: item.caretaker_contact },
+      { label: 'Alternate caretaker',  value: item.alternate_caretaker },
+      { label: 'Notes',                value: item.notes },
     ]), palette, fonts);
   }
 

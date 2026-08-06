@@ -16,6 +16,7 @@ const FREE_FEATURES = [
   'Key Contacts',
   'People to Notify',
   'Children and Dependants',
+  'Pet Care',
   'Trusted contact access permissions',
 ]
 
