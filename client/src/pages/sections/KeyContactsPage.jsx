@@ -347,7 +347,12 @@ export default function KeyContactsPage() {
                               {contact.email && <span className="me-3">✉ {contact.email}</span>}
                               {contact.phone && <span>📞 {formatPhone(contact.phone, user?.country_code)}</span>}
                             </div>
-                            {contact.visible_sections?.length > 0 ? (
+                            {contact.is_executor ? (
+                              <p className="text-muted small mb-0" style={{ paddingLeft: 34, marginTop: 6 }}>
+                                As executor, sees everything you've recorded except your vault, regardless
+                                of the sections picked below.
+                              </p>
+                            ) : contact.visible_sections?.length > 0 ? (
                               <div style={{ paddingLeft: 34, marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                                 {contact.visible_sections.map(sid => {
                                   const s = SECTIONS.find(x => x.id === sid)
@@ -514,14 +519,24 @@ export default function KeyContactsPage() {
           {!linkResult ? (
             <>
               <p>This will generate a secure link and send it to <strong>{linkContact?.email}</strong>.</p>
-              <p className="text-muted small">
-                The link gives <strong>{linkContact?.name}</strong> read-only access to the sections
-                you have selected, for <strong>72 hours</strong>. Any previous link will be invalidated.
-              </p>
-              {linkContact?.visible_sections?.length === 0 && (
-                <Alert variant="info" className="mb-0">
-                  You haven't granted this contact access to any sections yet. Edit their details first.
-                </Alert>
+              {linkContact?.is_executor ? (
+                <p className="text-muted small">
+                  As your executor, the link gives <strong>{linkContact?.name}</strong> read-only access
+                  to everything you've recorded except your vault, for <strong>72 hours</strong>. Any
+                  previous link will be invalidated.
+                </p>
+              ) : (
+                <>
+                  <p className="text-muted small">
+                    The link gives <strong>{linkContact?.name}</strong> read-only access to the sections
+                    you have selected, for <strong>72 hours</strong>. Any previous link will be invalidated.
+                  </p>
+                  {linkContact?.visible_sections?.length === 0 && (
+                    <Alert variant="info" className="mb-0">
+                      You haven't granted this contact access to any sections yet. Edit their details first.
+                    </Alert>
+                  )}
+                </>
               )}
             </>
           ) : (
@@ -536,7 +551,7 @@ export default function KeyContactsPage() {
             <>
               <Button variant="outline-secondary" onClick={() => setShowLinkModal(false)}>Cancel</Button>
               <Button variant="primary" onClick={handleSendLink}
-                disabled={sendingLink || linkContact?.visible_sections?.length === 0}>
+                disabled={sendingLink || (!linkContact?.is_executor && linkContact?.visible_sections?.length === 0)}>
                 {sendingLink ? <><Spinner size="sm" animation="border" className="me-2" />Sending…</> : 'Send link'}
               </Button>
             </>
