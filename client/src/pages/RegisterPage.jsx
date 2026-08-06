@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { Card, Form, Button, Alert, Row, Col } from 'react-bootstrap'
 import axios from 'axios'
+import { getRetryAfterSeconds, rateLimitMessage, useCountdown } from '../utils/rateLimit'
 
 // ISO 3166-1 alpha-2 country list with compliance regime tags
 // regime: gdpr | pipeda | privacy_act | nz | ccpa | general | restricted
@@ -115,6 +116,9 @@ export default function RegisterPage() {
   const [error, setError]           = useState('')
   const [saving, setSaving]         = useState(false)
   const [detectingCountry, setDetectingCountry] = useState(true)
+  const [retryAfterSeconds, setRetryAfterSeconds] = useState(null)
+  const countdown = useCountdown(retryAfterSeconds)
+  const rateLimited = retryAfterSeconds != null && countdown > 0
 
   // Auto-detect country on mount
   useEffect(() => {
@@ -135,6 +139,7 @@ export default function RegisterPage() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
+    setRetryAfterSeconds(null)
 
     if (!form.name.trim()) return setError('Please enter your full name.')
     if (!form.email.trim()) return setError('Please enter your email address.')
@@ -163,7 +168,7 @@ export default function RegisterPage() {
       } else if (err.response.status === 409) {
         setError('That email address is already registered. Try signing in instead, or use the forgot password link.')
       } else if (err.response.status === 429) {
-        setError('Too many attempts. Please wait a moment and try again.')
+        setRetryAfterSeconds(getRetryAfterSeconds(err))
       } else {
         setError(err.response?.data?.error || 'Registration failed. Please check your details and try again.')
       }
@@ -182,7 +187,8 @@ export default function RegisterPage() {
           <p className="text-muted small mb-3">
             Create your account to start gathering everything your loved ones will need.
           </p>
-          {error && <Alert variant="danger">{error}</Alert>}
+          {rateLimited && <Alert variant="danger">{rateLimitMessage(countdown)}</Alert>}
+          {!rateLimited && error && <Alert variant="danger">{error}</Alert>}
           <Form onSubmit={handleSubmit}>
 
             <Form.Group className="mb-3">
@@ -314,7 +320,7 @@ export default function RegisterPage() {
             </div>
 
             <Button type="submit" variant="primary" className="w-100"
-              disabled={saving || !form.privacy_consent || (regime === 'gdpr' && !form.gdpr_age_consent)}>
+              disabled={saving || rateLimited || !form.privacy_consent || (regime === 'gdpr' && !form.gdpr_age_consent)}>
               {saving ? 'Creating your account…' : 'Create my account'}
             </Button>
           </Form>

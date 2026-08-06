@@ -3,33 +3,46 @@ import { useNavigate, Link, useLocation } from 'react-router-dom'
 import { Card, Form, Button, Alert } from 'react-bootstrap'
 import axios from 'axios'
 import { useAuth } from '../context/AuthContext'
+import { getRetryAfterSeconds, rateLimitMessage, useCountdown } from '../utils/rateLimit'
 
 const API = import.meta.env.VITE_API_URL
+
+// Show a soft warning before a lockout actually happens, once a few
+// consecutive attempts have failed, and point straight at the way out
+// (SEC-14) rather than letting the next failure be the first anyone hears
+// of it.
+const EARLY_WARNING_THRESHOLD = 3
 
 export default function LoginPage() {
   const [form, setForm] = useState({ email: '', password: '' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [failedAttempts, setFailedAttempts] = useState(0)
+  const [retryAfterSeconds, setRetryAfterSeconds] = useState(null)
   const { login } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
 
+  const countdown = useCountdown(retryAfterSeconds)
   const registered = location.state?.registered
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
+    setRetryAfterSeconds(null)
     setLoading(true)
     try {
       const res = await axios.post(`${API}/auth/login`, form)
+      setFailedAttempts(0)
       login(res.data.user, res.data.csrf_token)
       navigate(res.data.user.is_admin ? '/admin' : res.data.user.org_role ? '/org' : '/profile')
     } catch (err) {
       if (!err.response) {
         setError("We couldn't reach the server. Please check your connection and try again.")
       } else if (err.response.status === 429) {
-        setError('Too many sign-in attempts. Please wait 15 minutes and try again.')
+        setRetryAfterSeconds(getRetryAfterSeconds(err))
       } else if (err.response.status === 401) {
+        setFailedAttempts(n => n + 1)
         setError('Incorrect email or password. Please check your details and try again.')
       } else {
         setError(err.response?.data?.error || 'Sign in failed. Please try again.')
@@ -37,6 +50,11 @@ export default function LoginPage() {
     }
     setLoading(false)
   }
+
+  // Once the countdown reaches 0 the window has reset server-side too, so
+  // drop back to the normal form instead of leaving a stale "0:00" message up.
+  const rateLimited = retryAfterSeconds != null && countdown > 0
+  const showEarlyWarning = !rateLimited && !error && failedAttempts >= EARLY_WARNING_THRESHOLD
 
   return (
     <div className="d-flex flex-column align-items-center pt-4">
@@ -52,7 +70,14 @@ export default function LoginPage() {
               Once verified, you can sign in here.
             </Alert>
           )}
-          {error && <Alert variant="danger">{error}</Alert>}
+          {rateLimited && <Alert variant="danger">{rateLimitMessage(countdown)}</Alert>}
+          {!rateLimited && error && <Alert variant="danger">{error}</Alert>}
+          {showEarlyWarning && (
+            <Alert variant="warning">
+              A few more failed attempts will temporarily lock sign-in from this device.{' '}
+              <Link to="/forgot-password">Forgot your password?</Link>
+            </Alert>
+          )}
           <Form onSubmit={handleSubmit}>
             <Form.Group className="mb-3">
               <Form.Label>Email</Form.Label>
@@ -75,7 +100,7 @@ export default function LoginPage() {
                 autoComplete="current-password"
               />
             </Form.Group>
-            <Button type="submit" variant="primary" className="w-100" disabled={loading}>
+            <Button type="submit" variant="primary" className="w-100" disabled={loading || rateLimited}>
               {loading ? 'Signing in...' : 'Sign in'}
             </Button>
           </Form>

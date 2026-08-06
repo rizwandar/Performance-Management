@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { Card, Form, Button, Alert } from 'react-bootstrap'
 import axios from 'axios'
+import { getRetryAfterSeconds, rateLimitMessage } from '../utils/rateLimit'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -47,7 +48,16 @@ export default function ForgotPasswordPage() {
       setStatus({ type: 'success', msg: res.data.message })
       setSubmitted(true)
     } catch (err) {
-      setStatus({ type: 'danger', msg: err.response?.data?.error || 'Something went wrong' })
+      // The per-email limiter behind this endpoint deliberately disguises a
+      // block as the same generic 200 everyone else gets (so being throttled
+      // isn't itself a signal an account exists) - a true 429 here would only
+      // come from something upstream of that, e.g. general API abuse. Still
+      // worth a real message rather than silence or a raw fallback (SEC-14).
+      if (err.response?.status === 429) {
+        setStatus({ type: 'danger', msg: rateLimitMessage(getRetryAfterSeconds(err)) })
+      } else {
+        setStatus({ type: 'danger', msg: err.response?.data?.error || 'Something went wrong' })
+      }
     }
     setLoading(false)
   }
