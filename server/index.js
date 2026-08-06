@@ -30,6 +30,10 @@ app.use((req, res, next) => {
   }
   res.setHeader('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-CSRF-Token');
+  // Retry-After isn't on the CORS default-exposed response-header list, so
+  // without this the browser silently hides it from client JS on a 429 -
+  // the dynamic wait-time countdown (SEC-14) needs it to actually read.
+  res.setHeader('Access-Control-Expose-Headers', 'Retry-After');
   if (req.method === 'OPTIONS') return res.status(204).end();
   next();
 });
@@ -44,9 +48,18 @@ app.use(cookieParser());
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 20,
-  message: { error: 'Too many attempts. Please wait a moment and try again.' },
+  message: { error: 'Too many attempts. Please wait a few minutes and try again.' },
   standardHeaders: true,
   legacyHeaders: false,
+  // SEC-14: forgot-password and reset-password are exempted from this shared
+  // IP bucket - they used to share it with /login, so a login lockout also
+  // blocked the exact recovery path a locked-out user needs. Both already
+  // have their own dedicated limiters downstream (forgotPasswordLimiter,
+  // forgotPasswordQuestionLimiter and resetPasswordLimiter in auth.js), so
+  // this isn't removing a check, it's removing a redundant one that was
+  // causing collateral lockouts. req.path is relative to this middleware's
+  // '/api/auth/' mount point (e.g. '/login', '/forgot-password').
+  skip: (req) => req.path.startsWith('/forgot-password') || req.path === '/reset-password',
 });
 
 const apiLimiter = rateLimit({
