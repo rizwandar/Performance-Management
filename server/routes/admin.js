@@ -43,7 +43,24 @@ router.get('/stats', auth, adminOnly, async (req, res) => {
 
 router.get('/users', auth, adminOnly, async (req, res) => {
   const { q } = req.query;
-  let sql = `
+  // Same limit/offset pagination convention as GET /users/:id/activity below,
+  // just applied to the top-level user list instead of one user's log.
+  const limit  = Math.min(Number(req.query.limit)  || 20, 200);
+  const offset = Number(req.query.offset) || 0;
+
+  let fromWhere = `
+    FROM users u
+    LEFT JOIN subscriptions s      ON s.user_id = u.id
+    LEFT JOIN users granter        ON granter.id = s.granted_by_admin_id
+    WHERE u.is_admin = 0
+  `;
+  const args = [];
+  if (q) {
+    args.push(`%${q}%`);
+    fromWhere += ` AND (u.name ILIKE $1 OR u.email ILIKE $1)`;
+  }
+
+  const rowsSql = `
     SELECT u.id, u.name, u.email, u.date_of_birth, u.created_at, u.last_active_at,
            u.inactivity_period_months, u.is_deceased, u.deceased_at, u.email_verified,
            (SELECT MAX(created_at) FROM user_audit_logs WHERE user_id = u.id AND action = 'login_success') as last_login,
@@ -62,19 +79,18 @@ router.get('/users', auth, adminOnly, async (req, res) => {
            COALESCE(s.plan, 'free') as plan,
            (s.provider = 'admin_grant') as is_honorary,
            granter.name as granted_by_admin_name
-    FROM users u
-    LEFT JOIN subscriptions s      ON s.user_id = u.id
-    LEFT JOIN users granter        ON granter.id = s.granted_by_admin_id
-    WHERE u.is_admin = 0
+    ${fromWhere}
+    ORDER BY u.created_at DESC
+    LIMIT $${args.length + 1} OFFSET $${args.length + 2}
   `;
-  const args = [];
-  if (q) {
-    args.push(`%${q}%`);
-    sql += ` AND (u.name ILIKE $1 OR u.email ILIKE $1)`;
-  }
-  sql += ' ORDER BY u.name';
-  const users = await queryAll(sql, args);
-  res.json(users);
+  const totalSql = `SELECT COUNT(*)::int as c ${fromWhere}`;
+
+  const [users, totalRow] = await Promise.all([
+    queryAll(rowsSql, [...args, limit, offset]),
+    queryOne(totalSql, args),
+  ]);
+
+  res.json({ users, total: totalRow.c, limit, offset });
 });
 
 router.get('/users/:id', auth, adminOnly, async (req, res) => {
