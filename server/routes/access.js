@@ -109,9 +109,10 @@ router.get('/:token', async (req, res) => {
   }
 
   res.json({
-    contact_name:     tokenRow.contact_name,
-    expires_at:       tokenRow.expires_at,
-    is_executor:      !!tokenRow.is_executor,
+    contact_name:        tokenRow.contact_name,
+    expires_at:          tokenRow.expires_at,
+    is_executor:         !!tokenRow.is_executor,
+    can_confirm_demise:  tokenRow.allow_demise_confirm !== false,
     owner: {
       name:           owner.name,
       date_of_birth:  owner.date_of_birth,
@@ -139,6 +140,13 @@ router.post('/:token/mark-demised', async (req, res) => {
   }
   if (!tokenRow.is_executor) {
     return res.status(403).json({ error: 'Only the designated executor can take this action.' });
+  }
+  // OPS-20: the 14-day preview link sent alongside the designation email is
+  // deliberately read-only and cannot confirm a passing, even though it
+  // otherwise behaves like a full executor token. Enforced here server-side,
+  // not just by hiding the button on the client.
+  if (tokenRow.allow_demise_confirm === false) {
+    return res.status(403).json({ error: 'This link is for reference only and cannot be used to report a passing. Please use the Report a Passing page instead.' });
   }
 
   await markUserDeceased(tokenRow.user_id, { markedByType: 'executor', markedById: tokenRow.contact_id });
