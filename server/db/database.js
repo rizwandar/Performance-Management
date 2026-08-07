@@ -912,6 +912,15 @@ async function init() {
     await pool.query(`DELETE FROM children_dependants WHERE type = 'pet'`);
   }
 
+  // OPS-20: the executor-designation email now includes an immediate,
+  // read-only preview link (14-day expiry) so an executor has what they need
+  // for funeral/practical arrangements without waiting out the owner's full
+  // inactivity period. That link must NOT be able to confirm a passing, only
+  // the later triggered links (inactivity timeout, Report a Passing) can -
+  // allow_demise_confirm defaults true so every existing link keeps its
+  // current behavior, and is only ever set false for this one new case.
+  await pool.query(`ALTER TABLE trusted_contact_tokens ADD COLUMN IF NOT EXISTS allow_demise_confirm BOOLEAN DEFAULT true`);
+
   console.log('[db] PostgreSQL schema ready');
 }
 

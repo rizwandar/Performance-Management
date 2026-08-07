@@ -323,7 +323,7 @@ export default function AccessPage() {
     </div>
   )
 
-  const { owner, contact_name, expires_at, visible_sections, data, is_executor } = payload
+  const { owner, contact_name, expires_at, visible_sections, data, is_executor, can_confirm_demise } = payload
 
   return (
     <div style={{ maxWidth: 760, margin: '0 auto', padding: '20px 16px 60px' }}>
@@ -343,7 +343,22 @@ export default function AccessPage() {
 
       {is_executor && (
         <div style={{ background: 'var(--green-50)', border: '1px solid var(--green-800)', borderRadius: 10, padding: '18px 20px', marginBottom: 32 }}>
-          {markedDemised ? (
+          {!can_confirm_demise ? (
+            <>
+              <p style={{ fontWeight: 700, color: 'var(--green-900)', marginBottom: 6 }}>
+                You are {owner.name}'s executor
+              </p>
+              <p className="text-muted small mb-0">
+                This is a preview link so you have what you need on hand, for funeral and other
+                practical arrangements, without waiting. You can see everything {owner.name}{' '}
+                recorded here, except their private vault credentials, which are never shared
+                this way. This link is for your reference only and can't be used to report a
+                passing. If {owner.name} doesn't log in for their configured period, or if
+                someone lets us know they've passed away, you'll receive a separate link that
+                also lets you confirm what's happened.
+              </p>
+            </>
+          ) : markedDemised ? (
             <>
               <Alert variant="success" className="mb-0">
                 Thank you. We've let {owner.name}'s other trusted contacts and the people they

@@ -391,11 +391,16 @@ function inactivityContactNotificationEmail({ recipientName, ownerName, accessLi
 
 // ---------------------------------------------------------------------------
 // Executor designation — sent the moment an owner makes someone their executor,
-// well before anything has happened. Purely informational: explains the role,
-// the automatic timer as a fallback, and that they can report a passing directly
-// at any time rather than waiting, since funerals often happen within days.
+// well before anything has happened. Introduces the service itself (this may
+// be the recipient's first-ever contact with In Good Hands), explains the
+// role, includes an immediate 14-day read-only preview link (accessLink, see
+// generateAccessLink's 'executor_preview' purpose) so an executor has what
+// they need for funeral/practical arrangements without waiting out the
+// owner's full inactivity period, and separately covers both the automatic
+// timer and reporting a passing directly, since funerals often happen within
+// days.
 // ---------------------------------------------------------------------------
-function executorDesignatedEmail({ recipientName, ownerName, inactivityPeriodMonths, reportDeathLink }) {
+function executorDesignatedEmail({ recipientName, ownerName, inactivityPeriodMonths, accessLink, reportDeathLink }) {
   return layout(`
     <p>Dear ${recipientName},</p>
     <p>
@@ -404,21 +409,32 @@ function executorDesignatedEmail({ recipientName, ownerName, inactivityPeriodMon
       means and what to expect.
     </p>
     <p>
-      If ${ownerName} does not log into their account for <strong>${inactivityPeriodMonths} months</strong>,
-      you will automatically receive an email with a secure link giving you access to
-      everything they recorded, except their private vault credentials, which are never
-      shared this way. From that link, you can also let us know if they have passed away,
-      which notifies their other trusted contacts and the people they asked to be told.
+      ${APP_NAME} is a service people use to record their wishes and important information
+      ahead of time: legal documents, financial and medical details, funeral wishes, and
+      personal messages for the people they care about. ${ownerName} set this up so that if
+      something happened to them, the people they trust most, including you, would have what
+      they need.
     </p>
     <p>
-      You do not have to wait for that automatic email. If you already know ${ownerName} has
-      passed away, since funerals often need to happen within days, you can report it
-      directly and get access right away, without any delay:
+      As executor, you may need this information on short notice, for funeral arrangements
+      and other practical matters, so we're giving you read-only access right away rather than
+      making you wait. The link below lets you view everything ${ownerName} has recorded,
+      except their private vault credentials, which are never shared this way.
+      <strong>It's valid for 14 days and is for your reference only</strong>, it does not let
+      you report anything.
+    </p>
+    ${button('View shared information', accessLink)}
+    <p>
+      If ${ownerName} does not log into their account for <strong>${inactivityPeriodMonths} months</strong>,
+      or if someone lets us know they have passed away, you will receive a separate email with
+      a new link. That one works the same way but also lets you confirm what has happened,
+      which is what actually notifies their other trusted contacts and the people they asked
+      to be told.
     </p>
     ${button('Report a passing', reportDeathLink)}
     <p style="color:#6B7280; font-size:14px;">
-      It's worth keeping ${ownerName}'s account email address handy, since that is what
-      you will need to use the link above.
+      It's worth keeping ${ownerName}'s account email address handy, since that's what
+      you'll need to use the link above.
     </p>
     <p style="color:#6B7280; font-size:14px;">
       If you were not expecting this message or believe it has been sent in error, please

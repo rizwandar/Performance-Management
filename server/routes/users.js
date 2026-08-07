@@ -8,6 +8,7 @@ const { deriveKey, verifyVaultPassword } = require('../lib/vault');
 const { deleteFile, getDownloadUrl } = require('../lib/r2');
 const { sendEmail } = require('../lib/sendEmail');
 const { accountDeletionConfirmEmail, executorDesignatedEmail } = require('../lib/emailTemplates');
+const { generateAccessLink } = require('../lib/inactivityTimer');
 const { stripe } = require('../lib/stripe');
 
 const JWT_SECRET  = process.env.JWT_SECRET  || 'dev-secret-change-in-production';
@@ -84,7 +85,7 @@ async function syncSpouseExecutor(userId, { marital_status, spouse_name, spouse_
     });
     // Only report back (and email) if this save is what newly turned the
     // flag on, resaving an already-executor spouse shouldn't re-notify them.
-    return wasExecutor ? null : { name: spouse_name, email: spouse_email || null };
+    return wasExecutor ? null : { id: linked.id, name: spouse_name, email: spouse_email || null };
   }
 
   // No linked contact yet. Trusted Contacts caps at 3 (sequence 1-3); if the
@@ -98,16 +99,18 @@ async function syncSpouseExecutor(userId, { marital_status, spouse_name, spouse_
   );
   const sequence = [1, 2, 3].find(s => !taken.has(s));
 
-  await transaction(async (client) => {
+  const newContactId = await transaction(async (client) => {
     await client.query('UPDATE trusted_contacts SET is_executor = 0 WHERE user_id = $1', [userId]);
-    await client.query(`
+    const r = await client.query(`
       INSERT INTO trusted_contacts
         (user_id, sequence, name, relationship, email, phone, is_executor, linked_to_profile_spouse)
       VALUES ($1, $2, $3, 'Spouse', $4, $5, 1, true)
+      RETURNING id
     `, [userId, sequence, spouse_name, spouse_email || null, spouse_phone || null]);
+    return r.rows[0].id;
   });
 
-  return { name: spouse_name, email: spouse_email || null };
+  return { id: newContactId, name: spouse_name, email: spouse_email || null };
 }
 
 router.put('/me', auth, async (req, res) => {
@@ -147,6 +150,10 @@ router.put('/me', auth, async (req, res) => {
       if (syncResult.email) {
         const owner = await queryOne('SELECT name, inactivity_period_months FROM users WHERE id = $1', [req.user.id]);
         try {
+          const previewLink = await generateAccessLink(
+            { id: syncResult.id, is_executor: true },
+            { purpose: 'executor_preview' }
+          );
           await sendEmail({
             to:      syncResult.email,
             subject: `You have been named ${owner.name}'s executor on In Good Hands`,
@@ -154,6 +161,7 @@ router.put('/me', auth, async (req, res) => {
               recipientName:          syncResult.name,
               ownerName:              owner.name,
               inactivityPeriodMonths: owner.inactivity_period_months || 12,
+              accessLink:             previewLink,
               reportDeathLink:        `${CLIENT_URL}/report-passing`,
             }),
           });

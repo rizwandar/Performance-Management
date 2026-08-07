@@ -19,6 +19,7 @@ async function sendPushNotification(expoPushToken, title, body) {
 const CLIENT_URL   = process.env.CLIENT_URL || 'http://localhost:5173';
 const EXPIRES_HOURS  = 72;
 const RENOTIFY_DAYS  = 30;
+const EXECUTOR_PREVIEW_DAYS = 14;
 
 function addMonths(date, months) {
   const d = new Date(date);
@@ -44,15 +45,30 @@ function computeExpiresAt(user, lastActive) {
 // normally be the one to resend an expired link, is by definition unreachable
 // once the plan is actually triggered. The other two trusted-contact slots
 // keep the original 72-hour window, resendable by the owner at any time.
-async function generateAccessLink(contact) {
-  const token     = crypto.randomBytes(32).toString('hex');
-  const expiresAt = contact.is_executor
-    ? null
-    : new Date(Date.now() + EXPIRES_HOURS * 60 * 60 * 1000).toISOString();
+//
+// purpose: 'executor_preview' is the one exception (OPS-20) - the link sent
+// immediately alongside executorDesignatedEmail, before anything has actually
+// happened. An executor may need this information on short notice for
+// funeral/practical arrangements, so they shouldn't have to wait out the full
+// inactivity period for any access at all - but this early link must not be
+// able to confirm a passing, only the later triggered links (inactivity
+// timeout, Report a Passing) can. 14 days, read-only, no demise-confirm.
+async function generateAccessLink(contact, { purpose } = {}) {
+  const token = crypto.randomBytes(32).toString('hex');
+  let expiresAt;
+  let allowDemiseConfirm = true;
+  if (purpose === 'executor_preview') {
+    expiresAt = new Date(Date.now() + EXECUTOR_PREVIEW_DAYS * 24 * 60 * 60 * 1000).toISOString();
+    allowDemiseConfirm = false;
+  } else if (contact.is_executor) {
+    expiresAt = null;
+  } else {
+    expiresAt = new Date(Date.now() + EXPIRES_HOURS * 60 * 60 * 1000).toISOString();
+  }
   await query('DELETE FROM trusted_contact_tokens WHERE contact_id = $1', [contact.id]);
   await query(
-    'INSERT INTO trusted_contact_tokens (contact_id, token, expires_at) VALUES ($1, $2, $3)',
-    [contact.id, token, expiresAt]
+    'INSERT INTO trusted_contact_tokens (contact_id, token, expires_at, allow_demise_confirm) VALUES ($1, $2, $3, $4)',
+    [contact.id, token, expiresAt, allowDemiseConfirm]
   );
   return `${CLIENT_URL}/access/${token}`;
 }
