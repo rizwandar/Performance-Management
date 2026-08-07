@@ -153,6 +153,7 @@ router.put('/:id/executor', requireAuth, async (req, res) => {
   if (is_executor && updated.email) {
     const owner = await queryOne('SELECT name, inactivity_period_months FROM users WHERE id = $1', [req.user.id]);
     try {
+      const previewLink = await generateAccessLink(updated, { purpose: 'executor_preview' });
       await sendEmail({
         to:      updated.email,
         subject: `You have been named ${owner.name}'s executor on In Good Hands`,
@@ -160,6 +161,7 @@ router.put('/:id/executor', requireAuth, async (req, res) => {
           recipientName:          updated.name,
           ownerName:              owner.name,
           inactivityPeriodMonths: owner.inactivity_period_months || 12,
+          accessLink:             previewLink,
           reportDeathLink:        `${CLIENT_URL}/report-passing`,
         }),
       });
