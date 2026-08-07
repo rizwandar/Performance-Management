@@ -54,7 +54,13 @@ export default function LoginPage() {
   // Once the countdown reaches 0 the window has reset server-side too, so
   // drop back to the normal form instead of leaving a stale "0:00" message up.
   const rateLimited = retryAfterSeconds != null && countdown > 0
-  const showEarlyWarning = !rateLimited && !error && failedAttempts >= EARLY_WARNING_THRESHOLD
+  // Show alongside the "incorrect password" error, not instead of it - every
+  // failed attempt sets `error`, so gating this on `!error` (as originally
+  // shipped) meant it could only ever appear in the brief loading window of
+  // the *next* submit, before that attempt's own response overwrote it again.
+  // Found live on production 2026-08-07: the banner never actually rendered
+  // in practice. failedAttempts alone is the right signal.
+  const showEarlyWarning = !rateLimited && failedAttempts >= EARLY_WARNING_THRESHOLD
 
   return (
     <div className="d-flex flex-column align-items-center pt-4">
