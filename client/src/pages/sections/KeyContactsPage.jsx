@@ -191,7 +191,7 @@ export default function KeyContactsPage() {
     setExecutorSaving(true)
     try {
       await axios.put(`${API}/trusted-contacts/${contact.id}/executor`, { is_executor: !contact.is_executor })
-      setTcSuccess(contact.is_executor ? `${contact.name} is no longer your executor.` : `${contact.name} is now your executor and has been emailed about it.`)
+      setTcSuccess(contact.is_executor ? `${contact.name} is no longer your Legacy Contact.` : `${contact.name} is now your Legacy Contact and has been emailed about it.`)
       loadContacts()
       setTimeout(() => setTcSuccess(''), 3000)
     } catch (err) {
@@ -293,11 +293,11 @@ export default function KeyContactsPage() {
           Unlike your emergency contact, trusted contacts receive a secure link to read your plans. You control what each person can access.
         </p>
         <p className="text-muted small mb-0" style={{ fontStyle: 'italic' }}>
-          One of these three can also be made your <strong>Executor</strong>: the person notified
+          One of these three can also be made your <strong>Legacy Contact</strong>: the person notified
           first if you stop logging in. They can view everything you've recorded except your
           vault, and are the one who confirms what's happened. Only then are your other trusted
           contacts and the people you've listed to notify actually informed.
-          {' '}Making someone your executor emails them <strong>right away</strong> to explain the role,
+          {' '}Making someone your Legacy Contact emails them <strong>right away</strong> to explain the role,
           not only if the inactivity timer ever lapses.
         </p>
       </div>
@@ -340,7 +340,7 @@ export default function KeyContactsPage() {
                               )}
                               {!!contact.is_executor && (
                                 <Badge bg={null} style={{ background: 'var(--green-800)', color: '#fff', fontWeight: 600 }}>
-                                  Executor
+                                  Legacy Contact
                                 </Badge>
                               )}
                             </div>
@@ -350,7 +350,7 @@ export default function KeyContactsPage() {
                             </div>
                             {contact.is_executor ? (
                               <p className="text-muted small mb-0" style={{ paddingLeft: 34, marginTop: 6 }}>
-                                As executor, sees everything you've recorded except your vault, regardless
+                                As Legacy Contact, sees everything you've recorded except your vault, regardless
                                 of the sections picked below.
                               </p>
                             ) : contact.visible_sections?.length > 0 ? (
@@ -379,7 +379,7 @@ export default function KeyContactsPage() {
                             <Button size="sm" variant={contact.is_executor ? 'outline-secondary' : 'outline-success'}
                               onClick={() => contact.is_executor ? handleToggleExecutor(contact) : setExecutorConfirmTarget(contact)}
                               disabled={executorSaving}>
-                              {contact.is_executor ? 'Remove as executor' : 'Make executor'}
+                              {contact.is_executor ? 'Remove as Legacy Contact' : 'Make Legacy Contact'}
                             </Button>
                             <Button size="sm" variant="outline-danger" onClick={() => setDeleteTarget(contact)}>Remove</Button>
                           </div>
@@ -411,14 +411,14 @@ export default function KeyContactsPage() {
             <p style={{ fontWeight: 600, color: 'var(--green-900)', marginBottom: 6 }}>How trusted contact access works</p>
             <ul className="text-muted small mb-0" style={{ paddingLeft: '1.2rem', lineHeight: 1.8 }}>
               <li>Click <strong>Send access link</strong> to email a secure link to your contact.</li>
-              <li>For your two non-executor contacts, the link is valid for <strong>72 hours</strong> and gives read-only access to the sections you select.</li>
-              <li>Your <strong>executor</strong>'s link is different: it doesn't expire, and gives read-only access to everything except your vault, since sections don't apply to their role.</li>
+              <li>For your two non-Legacy-Contact contacts, the link is valid for <strong>72 hours</strong> and gives read-only access to the sections you select.</li>
+              <li>Your <strong>Legacy Contact</strong>'s link is different: it doesn't expire, and gives read-only access to everything except your vault, since sections don't apply to their role.</li>
               <li>Your digital credentials (passwords) are never included. They are encrypted and only accessible by you.</li>
               <li>You can send a new link at any time. A new link invalidates the previous one.</li>
               <li>
                 If you haven't logged in within <strong>{inactivityMonths} month{inactivityMonths === 1 ? '' : 's'}</strong>,
-                your <strong>executor</strong> is notified first and can confirm what's happened. Only then are your
-                other trusted contacts emailed automatically. If you haven't designated an executor, all trusted
+                your <strong>Legacy Contact</strong> is notified first and can confirm what's happened. Only then are your
+                other trusted contacts emailed automatically. If you haven't designated a Legacy Contact, all trusted
                 contacts are notified directly instead. You can change this period any time in{' '}
                 <Link to="/profile/settings#inactivity-timer">your profile</Link>.
               </li>
@@ -523,7 +523,7 @@ export default function KeyContactsPage() {
               <p>This will generate a secure link and send it to <strong>{linkContact?.email}</strong>.</p>
               {linkContact?.is_executor ? (
                 <p className="text-muted small">
-                  As your executor, the link gives <strong>{linkContact?.name}</strong> read-only access
+                  As your Legacy Contact, the link gives <strong>{linkContact?.name}</strong> read-only access
                   to everything you've recorded except your vault, and <strong>does not expire</strong>.
                   Any previous link will be invalidated.
                 </p>
@@ -565,10 +565,10 @@ export default function KeyContactsPage() {
         </Modal.Footer>
       </Modal>
 
-      {/* ── Make Executor Confirmation ──────────────────────────────────────── */}
+      {/* ── Make Legacy Contact Confirmation ──────────────────────────────────── */}
       <Modal show={!!executorConfirmTarget} onHide={() => setExecutorConfirmTarget(null)} centered>
         <Modal.Header closeButton>
-          <Modal.Title style={{ fontSize: '1.05rem' }}>Make {executorConfirmTarget?.name} your executor?</Modal.Title>
+          <Modal.Title style={{ fontSize: '1.05rem' }}>Make {executorConfirmTarget?.name} your Legacy Contact?</Modal.Title>
         </Modal.Header>
         <Modal.Body>
           They can view everything you've recorded except your vault, and are the one who
@@ -582,7 +582,7 @@ export default function KeyContactsPage() {
         <Modal.Footer>
           <Button variant="outline-secondary" onClick={() => setExecutorConfirmTarget(null)}>Cancel</Button>
           <Button variant="success" onClick={() => handleToggleExecutor(executorConfirmTarget)} disabled={executorSaving}>
-            {executorSaving ? 'Saving…' : 'Yes, make executor'}
+            {executorSaving ? 'Saving…' : 'Yes, make Legacy Contact'}
           </Button>
         </Modal.Footer>
       </Modal>

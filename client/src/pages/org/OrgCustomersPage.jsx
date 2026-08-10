@@ -204,7 +204,7 @@ function CustomerDetailModal({ customer, onHide, showAlert }) {
     setMarkingDeceased(true)
     try {
       await axios.post(`${API}/org-portal/customers/${customer.id}/deceased`, { confirm: true })
-      showAlert('success', 'Customer marked deceased. Their executor has been notified if one was designated.')
+      showAlert('success', 'Customer marked deceased. Their Legacy Contact has been notified if one was designated.')
       onHide()
     } catch (err) {
       showAlert('danger', err.response?.data?.error || 'Could not update this customer.')
@@ -275,7 +275,7 @@ function CustomerDetailModal({ customer, onHide, showAlert }) {
               <Alert variant="danger" className="small">
                 <p className="mb-2">
                   This will permanently lock {customer.user_name || customer.invited_name}'s plan from further edits
-                  and notify their designated executor, if one exists. This cannot be undone except by the IGHP
+                  and notify their designated Legacy Contact, if one exists. This cannot be undone except by the IGHP
                   Administrator.
                 </p>
                 <div className="d-flex gap-2">

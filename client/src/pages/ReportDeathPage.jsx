@@ -47,9 +47,9 @@ export default function ReportDeathPage() {
         <Card.Body>
           <p className="text-muted small mb-4">
             If someone you know who used In Good Hands has passed away, and you have been
-            named their executor, use this form to get access right away rather than waiting.
-            If you're not their executor, this won't grant you access, but their designated
-            executor will be notified.
+            named their Legacy Contact, use this form to get access right away rather than waiting.
+            If you're not their Legacy Contact, this won't grant you access, but their designated
+            Legacy Contact will be notified.
           </p>
 
           {status && <Alert variant={status.type}>{status.msg}</Alert>}
