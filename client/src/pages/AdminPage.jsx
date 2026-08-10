@@ -462,7 +462,7 @@ YOUR WISHES:
 - Medical and Care Wishes: single record per user. Organ donation preference, advance care directive flag and location, DNR preference, GP details, hospital preference, current medications, medical conditions, notes.
 
 YOUR PEOPLE:
-- Key Contacts: emergency contact stored on the users table (name, phone, email). Trusted contacts in a separate trusted_contacts table (max 3 per user, with sequence 1/2/3). Trusted contacts get 72-hour access links to view permitted sections, except the designated executor, whose link never expires.
+- Key Contacts: emergency contact stored on the users table (name, phone, email). Trusted contacts in a separate trusted_contacts table (max 3 per user, with sequence 1/2/3). Trusted contacts get 72-hour access links to view permitted sections, except the designated Legacy Contact, whose link never expires.
 - People to Notify: people_to_notify table. People who should be contacted when the user passes. Name, relationship, email, phone, notified_by, notes.
 - Children and Dependants: children_dependants table. Name, type (child/elderly_parent/other), DOB, special needs, preferred guardian, alternate guardian, notes.
 - Pet Care: pets table (IDEA-18, split out of Children & Dependants). Name, age, special needs/care instructions, preferred caretaker + contact, alternate caretaker + contact, notes.
@@ -491,10 +491,10 @@ VAULT ENCRYPTION:
 TRUSTED CONTACTS SYSTEM:
 - Up to 3 trusted contacts per user.
 - Each contact has section-level permissions (which of the 15 sections they can view).
-- Access via a signed link emailed to the contact. No separate login required. Valid 72 hours for the two non-executor slots; the executor's link never expires (found and fixed 2026-08-06: the owner, who'd normally resend an expired link, is by definition unreachable once the plan is actually triggered).
-- Tokens stored in trusted_contact_tokens table (contact_id, token, expires_at). expires_at is NULL for an executor's token, meaning it never expires.
-- Digital credentials (vault) are NEVER accessible to trusted contacts, executor included.
-- Inactivity timer: when the timer expires (user inactive for their chosen period), all trusted contacts with email addresses and (for non-executors) section permissions are automatically emailed their access links. An executor doesn't need section permissions granted, they get full read access (minus the vault) regardless.
+- Access via a signed link emailed to the contact. No separate login required. Valid 72 hours for the two non-Legacy-Contact slots; the Legacy Contact's link never expires (found and fixed 2026-08-06: the owner, who'd normally resend an expired link, is by definition unreachable once the plan is actually triggered).
+- Tokens stored in trusted_contact_tokens table (contact_id, token, expires_at). expires_at is NULL for a Legacy Contact's token, meaning it never expires.
+- Digital credentials (vault) are NEVER accessible to trusted contacts, Legacy Contact included.
+- Inactivity timer: when the timer expires (user inactive for their chosen period), all trusted contacts with email addresses and (for non-Legacy-Contacts) section permissions are automatically emailed their access links. A Legacy Contact doesn't need section permissions granted, they get full read access (minus the vault) regardless.
 
 ---
 
@@ -503,7 +503,7 @@ INACTIVITY TIMER:
 - last_active_at updated on every login.
 - Daily cron at 8am checks all non-admin users with a timer set.
 - Reminder emails sent at 14 days, 7 days, 3 days, 1 day remaining (throttled to avoid spam).
-- On expiry (daysLeft < 0): trusted contacts are notified with their access links (72-hour for non-executors, non-expiring for the executor). Re-notification cooldown: 30 days. Cooldown resets on next login.
+- On expiry (daysLeft < 0): trusted contacts are notified with their access links (72-hour for non-Legacy-Contacts, non-expiring for the Legacy Contact). Re-notification cooldown: 30 days. Cooldown resets on next login.
 
 ---
 
@@ -721,7 +721,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
             <BpSection title="Key Capabilities">
               <BpTable rows={[
                 ['Secure vault', 'Five sections (Legal Documents, Digital Life, Financial Affairs, Property & Possessions, Practical Household Information) share one vault password that is never stored on the server. Only the user can unlock their vault, and every text field in all five sections is individually encrypted with a key derived from that password.'],
-                ['Trusted contact access', 'Users choose up to 3 trusted contacts and control exactly which sections each one can view. Contacts receive a secure link (no login required); 72-hour validity for non-executor contacts, non-expiring for the designated executor.'],
+                ['Trusted contact access', 'Users choose up to 3 trusted contacts and control exactly which sections each one can view. Contacts receive a secure link (no login required); 72-hour validity for non-Legacy-Contact contacts, non-expiring for the designated Legacy Contact.'],
                 ['Inactivity timer', 'Users set a period of inactivity (2 to 24 months). If they have not logged in by then, their trusted contacts are automatically notified with access links.'],
                 ['PDF export', 'Users can download a complete PDF summary of all their plans. A full export option includes vault contents if the vault password is provided at download time.'],
                 ['File attachments', 'Upload photos and documents (PDF, images, Word docs) to Legal Documents, Financial Affairs, Property & Possessions, and Practical Household Information. Stored securely in Cloudflare R2, access-controlled with short-lived signed URLs.'],
@@ -770,7 +770,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
                 ['Emergency contact', 'A single person to call in an emergency. Stored on the users table (emergency_contact_name, emergency_contact_phone, emergency_contact_email). Does NOT receive plan access.'],
                 ['Trusted contacts', 'Up to 3 people who can view the user\'s plans. Stored in trusted_contacts table with sequence 1, 2, or 3.'],
                 ['Section permissions', 'For each trusted contact, the user selects which of the 15 sections that person can see. Stored in trusted_contact_permissions table.'],
-                ['Access links', 'A signed link is emailed to the contact, giving read-only access to permitted sections (or everything except the vault, for the executor). No account or login needed. 72-hour validity for non-executor contacts, non-expiring for the executor.'],
+                ['Access links', 'A signed link is emailed to the contact, giving read-only access to permitted sections (or everything except the vault, for the Legacy Contact). No account or login needed. 72-hour validity for non-Legacy-Contact contacts, non-expiring for the Legacy Contact.'],
                 ['Token storage', 'Tokens stored in trusted_contact_tokens table (contact_id, token, expires_at). Old token replaced when a new link is sent.'],
                 ['Expired access', 'The access page checks token expiry and shows a friendly expired message if the link is too old.'],
               ]} />
@@ -799,7 +799,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
                 ['Last active tracking', 'last_active_at is updated on every successful login. Also reset when the user logs back in after inactivity contacts were notified.'],
                 ['Daily check', 'A node-cron job runs at 8am daily. It queries all non-admin users with a timer set.'],
                 ['Reminder emails', 'Sent at 14 days remaining. Throttled: no more than once every 7 days when more than 7 days remain, once every 3 days when 1-7 days remain, once per day when less than 1 day remains.'],
-                ['On expiry', 'When daysLeft is negative, trusted contacts with email addresses are emailed their access links (non-executors also need at least one section permission; the executor doesn\'t). 72-hour validity for non-executor contacts, non-expiring for the executor.'],
+                ['On expiry', 'When daysLeft is negative, trusted contacts with email addresses are emailed their access links (non-Legacy-Contacts also need at least one section permission; the Legacy Contact doesn\'t). 72-hour validity for non-Legacy-Contact contacts, non-expiring for the Legacy Contact.'],
                 ['Re-notification', 'If the owner remains inactive, contacts are re-notified every 30 days. On next login, inactivity_contacts_notified_at is reset to NULL.'],
               ]} />
             </BpSection>
@@ -852,7 +852,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
                 ['Welcome email', 'Sent on registration. Warm welcome, link to log in.'],
                 ['Password reset', 'Sent on forgot-password request, always by email, reset link valid 30 minutes. If the site is set to also require date of birth or a security question, that\'s only an additional check before this email is sent, never an alternative to it.'],
                 ['Inactivity reminder', 'Sent to the user as their timer approaches expiry. Days remaining shown clearly. Includes a "reset my timer" CTA (just log in again).'],
-                ['Inactivity notification', 'Sent to trusted contacts when the user\'s timer expires. Warm, gentle tone. Advises contacting the person directly first if possible. Includes the access link (72-hour for non-executors, non-expiring for the executor).'],
+                ['Inactivity notification', 'Sent to trusted contacts when the user\'s timer expires. Warm, gentle tone. Advises contacting the person directly first if possible. Includes the access link (72-hour for non-Legacy-Contacts, non-expiring for the Legacy Contact).'],
                 ['Contact access link', 'Sent to a trusted contact when the user manually clicks "Send access link". Tells them the owner has shared something important.'],
                 ['Vault attempt warning', 'Sent to the user on 3rd failed vault attempt (force logout warning) and on 5th failed attempt (15-minute lockout notice, not a deletion, and it auto-reopens on its own).'],
                 ['Feedback/contact form', 'When a user submits the footer feedback form, an email is sent to the admin address.'],
@@ -1197,13 +1197,13 @@ Please confirm the stack choices above (or tell me which to change), and then we
           <BpTable rows={[
             ['Trusted contacts', 'Up to 3 per user. Stored in trusted_contacts table with sequence 1/2/3.'],
             ['Section permissions', 'Per-contact JSON array of section_id strings. Admin of which sections each contact can view.'],
-            ['Access link', 'POST /api/trusted-contacts/:id/access-link sends a signed link via Resend email. token and expires_at stored in trusted_contact_tokens. 72-hour expiry for non-executor contacts; expires_at is NULL (never expires) for the executor.'],
+            ['Access link', 'POST /api/trusted-contacts/:id/access-link sends a signed link via Resend email. token and expires_at stored in trusted_contact_tokens. 72-hour expiry for non-Legacy-Contact contacts; expires_at is NULL (never expires) for the Legacy Contact.'],
             ['Access page', 'GET /access/:token (public, no auth). Renders read-only view of permitted sections. Uses AccessPage.jsx.'],
             ['Digital credentials', 'Always excluded from trusted contact access (encrypted, no server-side key).'],
             ['Inactivity timer', 'Users set inactivity_period_months (2/3/6/12/18/24). Last login stored in users.last_active_at.'],
             ['Daily check', 'server/lib/inactivityTimer.js runs daily at 8am (node-cron). Checks days since last_active_at against period.'],
             ['Reminder emails', 'Sent when 30 days, 14 days, 7 days, 3 days, and 1 day remain. Uses inactivityReminderEmail template.'],
-            ['On expiry', 'When daysLeft < 0, notifyExecutor (if one is designated) or notifyTrustedContacts is called. Emails eligible contacts their access links: 72-hour for non-executors, non-expiring for the executor. inactivity_contacts_notified_at updated. Re-notification cooldown: 30 days. Reset on next login.'],
+            ['On expiry', 'When daysLeft < 0, notifyExecutor (if one is designated) or notifyTrustedContacts is called. Emails eligible contacts their access links: 72-hour for non-Legacy-Contacts, non-expiring for the Legacy Contact. inactivity_contacts_notified_at updated. Re-notification cooldown: 30 days. Reset on next login.'],
           ]} />
         </BpSection>
       </div>
@@ -1327,9 +1327,9 @@ CONTACT       POST /api/contact (footer feedback form)`}
             ['welcomeEmail', 'Sent on registration. Warm welcome, link to log in.'],
             ['passwordResetEmail', 'Sent on forgot-password request. Reset link valid 30 minutes.'],
             ['inactivityReminderEmail', 'Sent by inactivity timer. Includes days remaining, reset-timer CTA.'],
-            ['contactAccessEmail', 'Sent to a non-executor trusted contact when user clicks "Send access link". 72-hour link.'],
-            ['inactivityContactNotificationEmail', 'Sent to trusted contacts when the inactivity timer expires. Warm tone, advises reaching person directly first, includes the access link (72-hour for non-executors, non-expiring for the executor).'],
-            ['executorInviteEmail / executorReportedInviteEmail', 'Sent to the designated executor when the inactivity timer expires, or when someone uses Report a Passing. Non-expiring access link.'],
+            ['contactAccessEmail', 'Sent to a non-Legacy-Contact trusted contact when user clicks "Send access link". 72-hour link.'],
+            ['inactivityContactNotificationEmail', 'Sent to trusted contacts when the inactivity timer expires. Warm tone, advises reaching person directly first, includes the access link (72-hour for non-Legacy-Contacts, non-expiring for the Legacy Contact).'],
+            ['executorInviteEmail / executorReportedInviteEmail', 'Sent to the designated Legacy Contact when the inactivity timer expires, or when someone uses Report a Passing. Non-expiring access link.'],
             ['vaultAttemptEmail', 'Sent to user on 3rd vault failure (force-logout warning) and 5th failure (15-minute lockout notice, not deletion).'],
             ['Footer contact form', `POST /api/contact sends admin notification email. Subject: "${appName}: {type}"`],
           ]} />
@@ -1374,7 +1374,7 @@ CLIENT (Render Static Site, baked in at build time)
             ['No em-dashes', 'Never use em-dashes (—) anywhere in the application. Use commas, colons, or periods instead.'],
             ['Vault password not stored', 'The vault password is never stored or hashed on the server. Loss of the vault password means permanent loss of vault data. This is by design and communicated clearly to users.'],
             ['Shared vault', 'Legal Documents, Digital Life, Financial Affairs, Property & Possessions, and Practical Household Information all use one vault. One password protects all five. Set up via the Digital Life section or Legal Documents section; managed in My Profile.'],
-            ['Trusted contact access', 'Only a signed link is used, no separate trusted contact login credentials. 72-hour expiry for non-executor contacts; the designated executor\'s link never expires. Trusted contacts cannot access digital credentials (vault) ever.'],
+            ['Trusted contact access', 'Only a signed link is used, no separate trusted contact login credentials. 72-hour expiry for non-Legacy-Contact contacts; the designated Legacy Contact\'s link never expires. Trusted contacts cannot access digital credentials (vault) ever.'],
             ['PDF streaming', 'PDFKit pipes directly to the HTTP response stream. No temp files. Vault password for full export comes as POST body, never in URL.'],
             ['PostgreSQL on Render', 'Managed Postgres, paid Basic plan, connected via a pg.Pool connection pool. SSL required for any non-localhost connection.'],
             ['Database backups', 'Nightly cron (3am) dumps every table to a gzipped JSON snapshot in R2, retaining the last 14 backups. Manual trigger and listing available via admin-only endpoints.'],
@@ -2031,7 +2031,7 @@ export default function AdminPage() {
               <h6 style={{ color: 'var(--green-900)', marginBottom: 4 }}>Inactivity Check</h6>
               <p className="text-muted small mb-0">
                 Normally runs automatically every day at 8am. Use this to run it immediately,
-                for example to test the executor/demise-confirmation flow without waiting.
+                for example to test the Legacy Contact/demise-confirmation flow without waiting.
               </p>
             </div>
             <Button variant="outline-primary" onClick={runInactivityCheckNow} disabled={runningInactivityCheck}>

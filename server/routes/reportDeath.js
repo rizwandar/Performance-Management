@@ -14,7 +14,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // can't be used to check whether a given email belongs to an account (same
 // anti-enumeration pattern as password reset).
 const GENERIC_RESPONSE = {
-  message: "If this matches an account with a designated executor, we've sent them an email with next steps.",
+  message: "If this matches an account with a designated Legacy Contact, we've sent them an email with next steps.",
 };
 
 router.post('/', async (req, res) => {
