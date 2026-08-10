@@ -96,7 +96,7 @@ export default function PeopleToNotifyPage() {
       />
       <p className="text-muted small mb-4" style={{ fontStyle: 'italic' }}>
         These people don't get access to your plans, only a short, caring notice once your
-        executor (or funeral home) has confirmed what's happened. If you'd like someone to
+        Legacy Contact (or funeral home) has confirmed what's happened. If you'd like someone to
         send this automatically, add their email address below.
       </p>
 

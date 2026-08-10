@@ -156,7 +156,7 @@ router.put('/:id/executor', requireAuth, async (req, res) => {
       const previewLink = await generateAccessLink(updated, { purpose: 'executor_preview' });
       await sendEmail({
         to:      updated.email,
-        subject: `You have been named ${owner.name}'s executor on In Good Hands`,
+        subject: `You have been named ${owner.name}'s Legacy Contact on In Good Hands`,
         html:    executorDesignatedEmail({
           recipientName:          updated.name,
           ownerName:              owner.name,

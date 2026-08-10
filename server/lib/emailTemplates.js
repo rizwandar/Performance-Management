@@ -415,7 +415,7 @@ function executorDesignatedEmail({ recipientName, ownerName, inactivityPeriodMon
   return layout(`
     <p>Dear ${recipientName},</p>
     <p>
-      <strong>${ownerName}</strong> has named you as their executor on <strong>${APP_NAME}</strong>.
+      <strong>${ownerName}</strong> has named you as their Legacy Contact on <strong>${APP_NAME}</strong>.
       There is nothing you need to do right now, this is simply so you know what the role
       means and what to expect.
     </p>
@@ -426,7 +426,7 @@ function executorDesignatedEmail({ recipientName, ownerName, inactivityPeriodMon
       have what they need.
     </p>
     <p>
-      As executor, you may need this information on short notice, for funeral arrangements
+      As Legacy Contact, you may need this information on short notice, for funeral arrangements
       and other practical matters, so we're giving you read-only access right away rather than
       making you wait. The link below lets you view everything ${ownerName} has recorded,
       except their private vault credentials, which are never shared this way.
@@ -469,7 +469,7 @@ function executorInviteEmail({ recipientName, ownerName, accessLink }) {
     <p>Dear ${recipientName},</p>
     <p>
       We are reaching out on behalf of <strong>${ownerName}</strong>, who has named you as
-      their executor on <strong>${APP_NAME}</strong>.
+      their Legacy Contact on <strong>${APP_NAME}</strong>.
     </p>
     <p>
       ${APP_NAME} is a service people use to record their wishes and important information
@@ -479,7 +479,7 @@ function executorInviteEmail({ recipientName, ownerName, accessLink }) {
     </p>
     <p>
       ${ownerName} has not logged into their account within the period they chose, and we
-      have not been able to reach them. As their executor, you are the first person we turn
+      have not been able to reach them. As their Legacy Contact, you are the first person we turn
       to in this situation.
     </p>
     <p>
@@ -516,7 +516,7 @@ function executorReportedInviteEmail({ recipientName, ownerName, accessLink }) {
     <p>Dear ${recipientName},</p>
     <p>
       Someone recently reported to us that <strong>${ownerName}</strong> has passed away.
-      You are named as ${ownerName}'s executor on <strong>${APP_NAME}</strong>, so we are
+      You are named as ${ownerName}'s Legacy Contact on <strong>${APP_NAME}</strong>, so we are
       reaching out to you directly.
     </p>
     <p>
@@ -664,7 +664,7 @@ function executorNotificationEmail({ executorName, ownerName }) {
     <p>Dear ${executorName},</p>
     <p>
       We are writing to let you know that ${ownerName} has been recorded as deceased by their
-      organization, and that ${ownerName} named you as their executor on ${APP_NAME}.
+      organization, and that ${ownerName} named you as their Legacy Contact on ${APP_NAME}.
     </p>
     <p>
       ${ownerName}'s plan exists and is now locked from further edits. Access to their private

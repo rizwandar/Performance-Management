@@ -139,7 +139,7 @@ router.post('/:token/mark-demised', async (req, res) => {
     return res.status(404).json({ error: 'This link is invalid or has expired. Please ask the account holder to generate a new link.' });
   }
   if (!tokenRow.is_executor) {
-    return res.status(403).json({ error: 'Only the designated executor can take this action.' });
+    return res.status(403).json({ error: 'Only the designated Legacy Contact can take this action.' });
   }
   // OPS-20: the 14-day preview link sent alongside the designation email is
   // deliberately read-only and cannot confirm a passing, even though it

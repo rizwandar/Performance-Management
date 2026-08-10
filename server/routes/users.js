@@ -156,7 +156,7 @@ router.put('/me', auth, async (req, res) => {
           );
           await sendEmail({
             to:      syncResult.email,
-            subject: `You have been named ${owner.name}'s executor on In Good Hands`,
+            subject: `You have been named ${owner.name}'s Legacy Contact on In Good Hands`,
             html:    executorDesignatedEmail({
               recipientName:          syncResult.name,
               ownerName:              owner.name,
