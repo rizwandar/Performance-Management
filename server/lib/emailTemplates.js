@@ -556,6 +556,11 @@ function demiseNotificationEmail({ recipientName, ownerName }) {
       deceased, and they had asked that you be one of the people told directly.
     </p>
     <p>
+      ${APP_NAME} is a service people use to record their wishes and important information
+      ahead of time, including who they wanted notified if something happened to them.
+      ${ownerName} listed you as one of those people.
+    </p>
+    <p>
       This message contains no further details or documents. It is simply the notice
       ${ownerName} wanted you to receive. Someone close to them will likely be in touch
       separately with more information.
