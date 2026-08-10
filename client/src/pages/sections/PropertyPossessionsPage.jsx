@@ -5,6 +5,7 @@ import axios from 'axios'
 import { VaultSetupScreen, VaultLockScreen } from '../../components/VaultGate'
 import FileAttachments from '../../components/FileAttachments'
 import SectionHero from '../../components/SectionHero'
+import ShareSectionControl from '../../components/ShareSectionControl'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -134,6 +135,8 @@ export default function PropertyPossessionsPage() {
     />
   )
 
+  const shareControl = <ShareSectionControl section="property_items" sectionLabel="Property & Possessions" isVaultSection />
+
   if (vaultState === 'loading') {
     return (
       <div style={{ maxWidth: 800, margin: '0 auto' }}>
@@ -170,6 +173,7 @@ export default function PropertyPossessionsPage() {
     <div style={{ maxWidth: 800, margin: '0 auto' }}>
       {backLink}
       {hero}
+      {shareControl}
 
       <div style={{
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',

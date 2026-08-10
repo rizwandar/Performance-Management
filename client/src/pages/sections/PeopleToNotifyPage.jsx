@@ -5,6 +5,7 @@ import axios from 'axios'
 import { useAuth } from '../../context/AuthContext'
 import { formatPhone } from '@in-good-hands/shared/format'
 import SectionHero from '../../components/SectionHero'
+import ShareSectionControl from '../../components/ShareSectionControl'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -94,6 +95,9 @@ export default function PeopleToNotifyPage() {
         subtext="When the time comes, who needs to know? List the people you'd want notified, and, just as importantly, who will be responsible for reaching each of them."
         cta={{ label: '+ Add a person', onClick: openAdd }}
       />
+
+      <ShareSectionControl section="people_to_notify" sectionLabel="People to Notify" />
+
       <p className="text-muted small mb-4" style={{ fontStyle: 'italic' }}>
         These people don't get access to your plans, only a short, caring notice once your
         executor (or funeral home) has confirmed what's happened. If you'd like someone to
