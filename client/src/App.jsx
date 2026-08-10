@@ -7,6 +7,7 @@ import { BrandingProvider, useBranding } from './context/BrandingContext'
 import { SubscriptionProvider, useSubscription } from './context/SubscriptionContext'
 
 import AccessPage             from './pages/AccessPage'
+import SharedSectionPage      from './pages/SharedSectionPage'
 import VerifyEmailPage        from './pages/VerifyEmailPage'
 import LandingPage            from './pages/LandingPage'
 import LoginPage              from './pages/LoginPage'
@@ -732,6 +733,8 @@ function AppContent() {
           <Route path="/profile/settings" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
           {/* Public access page — no auth required */}
           <Route path="/access/:token" element={<AccessPage />} />
+          {/* Public ad-hoc section-share view — no auth required */}
+          <Route path="/shared/:token" element={<SharedSectionPage />} />
 
           {/* Sections — Phase 1 */}
           <Route path="/sections/legal-documents"      element={<ProtectedRoute><LegalDocumentsPage /></ProtectedRoute>} />

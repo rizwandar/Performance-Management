@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Button, Form, Alert, Spinner, OverlayTrigger, Popover } from 'react-bootstrap'
 import axios from 'axios'
 import SectionHero from '../../components/SectionHero'
+import ShareSectionControl from '../../components/ShareSectionControl'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -108,6 +109,8 @@ export default function HowToBeRememberedPage() {
         highlight="own words"
         subtext="The most personal part of your plans. These words will help the people you love understand who you were, what you stood for, and how you'd like to be remembered."
       />
+
+      <ShareSectionControl section="how_to_be_remembered" sectionLabel="How I'd Like to Be Remembered" />
 
       {success && <Alert variant="success">{success}</Alert>}
       {error   && <Alert variant="danger">{error}</Alert>}

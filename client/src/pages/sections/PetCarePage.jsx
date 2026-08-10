@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Button, Form, Row, Col, Alert, Modal, Spinner } from 'react-bootstrap'
 import axios from 'axios'
 import SectionHero from '../../components/SectionHero'
+import ShareSectionControl from '../../components/ShareSectionControl'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -98,6 +99,8 @@ export default function PetCarePage() {
         subtext="Record care arrangements for your pets, including feeding routines, vet details, and any special needs. Note who you'd like to take them in so your loved ones know exactly what to do."
         cta={{ label: '+ Add a pet', onClick: openAdd }}
       />
+
+      <ShareSectionControl section="pets" sectionLabel="Pet Care" />
 
       {success && <Alert variant="success">{success}</Alert>}
       {error && !showModal && <Alert variant="danger">{error}</Alert>}

@@ -715,8 +715,50 @@ function orgReactivationRequestEmail({ orgName, staffName, staffEmail, staffRole
   `);
 }
 
+// ---------------------------------------------------------------------------
+// Ad-hoc section share — sent the moment a user shares a single section with
+// someone by name and email (independent of the 3-slot Trusted Contacts
+// system). May be the recipient's first-ever contact with In Good Hands, so
+// this opens with a short intro before naming who shared what. For non-vault
+// sections, contentHtml carries the section's content directly in the email
+// body (see lib/sectionShareContent.js); vault-protected sections never put
+// their content in the email, only the secure link, matching the app's
+// existing rule that vault data is never shared this way.
+// ---------------------------------------------------------------------------
+function sectionSharedEmail({ recipientName, ownerName, sectionLabel, contentHtml, viewLink }) {
+  return layout(`
+    <p>Dear ${recipientName},</p>
+    <p>
+      ${APP_NAME} is a service people use to record their wishes and important information
+      ahead of time: legal documents, financial and medical details, funeral wishes, and
+      personal messages for the people they care about.
+    </p>
+    <p>
+      <strong>${ownerName}</strong> uses ${APP_NAME}, and has shared their
+      <strong>${sectionLabel}</strong> information with you.
+    </p>
+    ${contentHtml
+      ? `<div style="background:#F8F6EF; border:1px solid #E5DFC8; border-radius:10px; padding:18px 22px; margin:24px 0;">${contentHtml}</div>`
+      : `<p>
+           This section contains sensitive vault-protected information, so for your security it
+           is not included directly in this email. Use the secure link below to view it instead.
+         </p>`
+    }
+    ${button('View on ' + APP_NAME, viewLink)}
+    <p style="color:#6B7280; font-size:14px;">
+      This link is valid for <strong>72 hours</strong>. If you were not expecting this message,
+      you can safely ignore it, no action is required.
+    </p>
+    <p style="color:#6B7280; font-size:14px;">
+      With care,<br/>
+      The ${APP_NAME} team
+    </p>
+  `);
+}
+
 module.exports = {
   emailVerificationEmail,
+  sectionSharedEmail,
   welcomeEmail,
   passwordResetEmail,
   inactivityReminderEmail,

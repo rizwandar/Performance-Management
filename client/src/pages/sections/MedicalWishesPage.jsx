@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Button, Form, Row, Col, Alert, Spinner } from 'react-bootstrap'
 import axios from 'axios'
 import SectionHero from '../../components/SectionHero'
+import ShareSectionControl from '../../components/ShareSectionControl'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -88,6 +89,8 @@ export default function MedicalWishesPage() {
         highlight="your terms"
         subtext="Your medical preferences and details help ensure you receive the care you'd choose, and make things easier for your loved ones and medical team."
       />
+
+      <ShareSectionControl section="medical_wishes" sectionLabel="Medical Wishes" />
 
       <div className="mb-4">
         {hasData && (
