@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Button, Form, Row, Col, Alert, Modal, Spinner, Badge } from 'react-bootstrap'
 import axios from 'axios'
 import SectionHero from '../../components/SectionHero'
+import ShareSectionControl from '../../components/ShareSectionControl'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -114,6 +115,8 @@ export default function LifesWishesPage() {
         subtext="The things you hope to do, see, give, and become. Some are dreams, some are in motion, some are already ticked off. All of them say something about who you are."
         cta={{ label: '+ Add a wish', onClick: openAdd }}
       />
+
+      <ShareSectionControl section="life_wishes" sectionLabel="Bucket List" />
 
       {success && <Alert variant="success">{success}</Alert>}
       {error && !showModal && <Alert variant="danger">{error}</Alert>}

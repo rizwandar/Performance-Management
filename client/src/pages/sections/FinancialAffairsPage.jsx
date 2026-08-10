@@ -4,6 +4,7 @@ import { Button, Form, Row, Col, Alert, Modal, Spinner } from 'react-bootstrap'
 import axios from 'axios'
 import { VaultSetupScreen, VaultLockScreen } from '../../components/VaultGate'
 import SectionHero from '../../components/SectionHero'
+import ShareSectionControl from '../../components/ShareSectionControl'
 import FileAttachments from '../../components/FileAttachments'
 import { useAuth } from '../../context/AuthContext'
 import { formatPhone } from '@in-good-hands/shared/format'
@@ -144,6 +145,8 @@ export default function FinancialAffairsPage() {
     />
   )
 
+  const shareControl = <ShareSectionControl section="financial_items" sectionLabel="Financial Affairs" isVaultSection />
+
   if (vaultState === 'loading') {
     return (
       <div style={{ maxWidth: 800, margin: '0 auto' }}>
@@ -180,6 +183,7 @@ export default function FinancialAffairsPage() {
     <div style={{ maxWidth: 800, margin: '0 auto' }}>
       {backLink}
       {hero}
+      {shareControl}
 
       <div style={{
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',

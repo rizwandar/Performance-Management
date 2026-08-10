@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Button, Alert, Spinner, InputGroup, Form } from 'react-bootstrap'
 import axios from 'axios'
 import SectionHero from '../../components/SectionHero'
+import ShareSectionControl from '../../components/ShareSectionControl'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -132,6 +133,8 @@ export default function SongsThatDefineMePage() {
         highlight="soundtrack"
         subtext="Music tells a story words can't always reach. Search for an artist or band below and pick the songs that have shaped who you are. Up to 60 songs."
       />
+
+      <ShareSectionControl section="songs_that_define_me" sectionLabel="Songs That Define Me" />
 
       {success && <Alert variant="success" dismissible onClose={() => setSuccess('')}>{success}</Alert>}
 
