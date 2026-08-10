@@ -238,6 +238,11 @@ function contactAccessEmail({ recipientName, ownerName, accessLink, expiresHours
       personal plans through <strong>${APP_NAME}</strong>.
     </p>
     <p>
+      ${APP_NAME} is a service people use to record their wishes and important information
+      ahead of time and share it with people they care about. ${ownerName} wanted you to
+      have access to some of what they've recorded.
+    </p>
+    <p>
       This is a secure, read-only link. It allows you to view the information
       ${ownerName} has chosen to share with you. ${validityLine}
     </p>
