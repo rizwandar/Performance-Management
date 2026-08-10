@@ -357,6 +357,12 @@ function inactivityContactNotificationEmail({ recipientName, ownerName, accessLi
       a trusted contact on <strong>${APP_NAME}</strong>.
     </p>
     <p>
+      ${APP_NAME} is a service people use to record their wishes and important information
+      ahead of time and share it with people they care about. ${ownerName} set this up so
+      that if something happened to them, the people they trust most, including you, would
+      have what they need.
+    </p>
+    <p>
       ${ownerName} set up their account so that if they were not active for a period of time,
       you would be notified and given access to the plans and wishes they have recorded.
       That period has now passed, and we have not seen them log in.
@@ -410,10 +416,9 @@ function executorDesignatedEmail({ recipientName, ownerName, inactivityPeriodMon
     </p>
     <p>
       ${APP_NAME} is a service people use to record their wishes and important information
-      ahead of time: legal documents, financial and medical details, funeral wishes, and
-      personal messages for the people they care about. ${ownerName} set this up so that if
-      something happened to them, the people they trust most, including you, would have what
-      they need.
+      ahead of time and share it with people they care about. ${ownerName} set this up so
+      that if something happened to them, the people they trust most, including you, would
+      have what they need.
     </p>
     <p>
       As executor, you may need this information on short notice, for funeral arrangements
@@ -460,6 +465,12 @@ function executorInviteEmail({ recipientName, ownerName, accessLink }) {
     <p>
       We are reaching out on behalf of <strong>${ownerName}</strong>, who has named you as
       their executor on <strong>${APP_NAME}</strong>.
+    </p>
+    <p>
+      ${APP_NAME} is a service people use to record their wishes and important information
+      ahead of time and share it with people they care about. ${ownerName} set this up so
+      that if something happened to them, the people they trust most, including you, would
+      have what they need.
     </p>
     <p>
       ${ownerName} has not logged into their account within the period they chose, and we
