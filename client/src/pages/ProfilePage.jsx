@@ -186,9 +186,9 @@ export default function ProfilePage() {
       if (res.data?.spouse_executor_blocked) {
         // Profile fields still saved, only the executor sync was skipped, so
         // this is a warning alongside the save, not a failure of the save.
-        setSuccess('Profile saved. Your spouse could not be added as executor: you already have 3 trusted contacts. Remove one on the Trusted Contacts page first, then try again.')
+        setSuccess('Profile saved. Your spouse could not be added as Legacy Contact: you already have 3 trusted contacts. Remove one on the Trusted Contacts page first, then try again.')
       } else if (res.data?.spouse_executor_email_skipped) {
-        setSuccess("Profile saved. Your spouse has been added as executor, but they weren't notified by email since no email address is on file for them.")
+        setSuccess("Profile saved. Your spouse has been added as Legacy Contact, but they weren't notified by email since no email address is on file for them.")
       } else {
         setSuccess('Profile saved.')
       }
@@ -508,14 +508,14 @@ export default function ProfilePage() {
               <Form.Check
                 type="checkbox"
                 id="spouse-is-executor"
-                label="Also make my spouse / partner my executor"
+                label="Also make my spouse / partner my Legacy Contact"
                 checked={form.spouse_is_executor}
                 disabled={!form.spouse_name.trim()}
                 onChange={e => setForm(f => ({ ...f, spouse_is_executor: e.target.checked }))}
               />
               <Form.Text className="text-muted">
                 {form.spouse_name.trim()
-                  ? "They'll be added to your Trusted Contacts as executor and, if you've given an email above, notified right away. You can manage this further on the Trusted Contacts page."
+                  ? "They'll be added to your Trusted Contacts as Legacy Contact and, if you've given an email above, notified right away. You can manage this further on the Trusted Contacts page."
                   : 'Enter their name above first.'}
               </Form.Text>
             </Form.Group>
