@@ -520,6 +520,12 @@ function executorReportedInviteEmail({ recipientName, ownerName, accessLink }) {
       reaching out to you directly.
     </p>
     <p>
+      ${APP_NAME} is a service people use to record their wishes and important information
+      ahead of time and share it with people they care about. ${ownerName} set this up so
+      that if something happened to them, the people they trust most, including you, would
+      have what they need.
+    </p>
+    <p>
       Using the secure link below, you can view everything ${ownerName} recorded, with the
       exception of their private vault (passwords and sensitive credentials), which is never
       shared this way. If you can confirm that ${ownerName} has passed away, this link also
