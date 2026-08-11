@@ -55,7 +55,12 @@ export default function SharedSectionPage() {
   const [payload, setPayload] = useState(null)
 
   useEffect(() => {
-    axios.get(`${API}/section-shares/access/${token}`)
+    // For a vault-protected section, the decryption key travels only in the
+    // link's URL fragment (never sent to any server on a normal page load,
+    // never stored in our database — see server/routes/sectionShares.js).
+    // Read it once here and submit it explicitly to redeem the link.
+    const key = window.location.hash ? window.location.hash.slice(1) : undefined
+    axios.post(`${API}/section-shares/access/${token}`, key ? { key } : {})
       .then(r => setPayload(r.data))
       .catch(err => setError(err.response?.data?.error || 'This link is no longer valid.'))
       .finally(() => setLoading(false))

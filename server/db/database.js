@@ -933,8 +933,15 @@ async function init() {
   // never stored server-side (see lib/vault.js), so there's no way to decrypt
   // on demand once the owner isn't present. For those, snapshot_enc holds a
   // one-time decrypted-then-re-encrypted copy taken at share time, using a
-  // fresh random key (snapshot_key_hex) generated just for that row - never
-  // the owner's own vault password or its derived key.
+  // fresh random key generated just for that row - never the owner's own
+  // vault password or its derived key.
+  //
+  // snapshot_key_hex is kept in the schema for backwards compatibility with a
+  // handful of rows created before this was fixed, but is deliberately never
+  // written by current code: storing the key in the same row as the
+  // ciphertext it unlocks would let a DB-only compromise decrypt every shared
+  // vault section ever created. The key now lives only in the share link's
+  // URL fragment - see routes/sectionShares.js for the full reasoning.
   await pool.query(`
     CREATE TABLE IF NOT EXISTS section_shares (
       id               SERIAL PRIMARY KEY,
