@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Button, Form, Row, Col, Alert, Modal, Spinner } from 'react-bootstrap'
 import axios from 'axios'
 import SectionHero from '../../components/SectionHero'
+import ShareSectionControl from '../../components/ShareSectionControl'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -119,6 +120,8 @@ export default function ChildrenDependantsPage() {
         subtext="Record care arrangements for anyone who depends on you, including children or elderly relatives. Include guardianship wishes and any special care needs so your loved ones know exactly what to do. Looking for pet care instructions? Those now have their own dedicated section."
         cta={{ label: '+ Add a dependant', onClick: openAdd }}
       />
+
+      <ShareSectionControl section="children_dependants" sectionLabel="Children & Dependants" />
 
       {success && <Alert variant="success">{success}</Alert>}
       {error && !showModal && <Alert variant="danger">{error}</Alert>}

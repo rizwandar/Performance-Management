@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Button, Form, Row, Col, Alert, Modal, Spinner } from 'react-bootstrap'
 import axios from 'axios'
 import SectionHero from '../../components/SectionHero'
+import ShareSectionControl from '../../components/ShareSectionControl'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -91,6 +92,8 @@ export default function MessagesPage() {
         subtext="Write the words you want them to hear. These messages will be kept safely and passed on to the people who matter most to you."
         cta={{ label: '+ Write a message', onClick: openAdd }}
       />
+
+      <ShareSectionControl section="personal_messages" sectionLabel="Messages to Loved Ones" />
 
       {success && <Alert variant="success">{success}</Alert>}
       {error && !showModal && <Alert variant="danger">{error}</Alert>}

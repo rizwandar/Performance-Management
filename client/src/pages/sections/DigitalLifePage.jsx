@@ -4,6 +4,7 @@ import { Button, Form, Row, Col, Alert, Modal, Spinner, InputGroup } from 'react
 import axios from 'axios'
 import { VaultSetupScreen, VaultLockScreen } from '../../components/VaultGate'
 import SectionHero from '../../components/SectionHero'
+import ShareSectionControl from '../../components/ShareSectionControl'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -158,6 +159,8 @@ export default function DigitalLifePage() {
     />
   )
 
+  const shareControl = <ShareSectionControl section="digital_credentials" sectionLabel="Digital Vault" isVaultSection />
+
   // ── Loading ────────────────────────────────────────────────────────────────
   if (vaultState === 'loading') {
     return (
@@ -198,6 +201,7 @@ export default function DigitalLifePage() {
     <div style={{ maxWidth: 800, margin: '0 auto' }}>
       {backLink}
       {hero}
+      {shareControl}
 
       {/* Vault status bar */}
       <div style={{

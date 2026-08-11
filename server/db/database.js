@@ -921,6 +921,46 @@ async function init() {
   // current behavior, and is only ever set false for this one new case.
   await pool.query(`ALTER TABLE trusted_contact_tokens ADD COLUMN IF NOT EXISTS allow_demise_confirm BOOLEAN DEFAULT true`);
 
+  // Ad-hoc section sharing: unlike Trusted Contacts (capped at 3, tied to a
+  // trusted_contacts row), any user can share any single section with anyone,
+  // any number of times, by name + email. Separate table on purpose - it has
+  // no relationship to trusted_contacts and shouldn't consume one of the 3 slots.
+  //
+  // Non-vault sections are read live from their source tables on every access
+  // (same as the existing access.js trusted-contact flow) - no snapshot needed.
+  // Vault-protected sections (legal_documents, financial_items, property_items,
+  // household_info, digital_credentials) are different: the vault password is
+  // never stored server-side (see lib/vault.js), so there's no way to decrypt
+  // on demand once the owner isn't present. For those, snapshot_enc holds a
+  // one-time decrypted-then-re-encrypted copy taken at share time, using a
+  // fresh random key generated just for that row - never the owner's own
+  // vault password or its derived key.
+  //
+  // snapshot_key_hex is kept in the schema for backwards compatibility with a
+  // handful of rows created before this was fixed, but is deliberately never
+  // written by current code: storing the key in the same row as the
+  // ciphertext it unlocks would let a DB-only compromise decrypt every shared
+  // vault section ever created. The key now lives only in the share link's
+  // URL fragment - see routes/sectionShares.js for the full reasoning.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS section_shares (
+      id               SERIAL PRIMARY KEY,
+      user_id          INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      section          TEXT NOT NULL,
+      recipient_name   TEXT NOT NULL,
+      recipient_email  TEXT NOT NULL,
+      token            TEXT UNIQUE NOT NULL,
+      is_vault_section BOOLEAN NOT NULL DEFAULT false,
+      snapshot_enc     TEXT,
+      snapshot_key_hex TEXT,
+      expires_at       TIMESTAMPTZ NOT NULL,
+      created_at       TIMESTAMPTZ DEFAULT NOW(),
+      accessed_at      TIMESTAMPTZ,
+      revoked_at       TIMESTAMPTZ
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_section_shares_user ON section_shares(user_id, section)`);
+
   console.log('[db] PostgreSQL schema ready');
 }
 
