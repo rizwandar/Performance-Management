@@ -194,6 +194,33 @@ function LifeWishes({ data }) {
   ))
 }
 
+const DEPENDANT_TYPE_LABELS = {
+  child: 'Child', elderly_parent: 'Elderly parent / relative', other: 'Other dependant',
+}
+
+function ChildrenDependants({ data }) {
+  if (!data?.length) return <p className="text-muted small">No children or dependants recorded.</p>
+  return data.map(d => (
+    <ItemCard key={d.id}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 4, marginBottom: 4 }}>
+        <span style={{ fontWeight: 700, color: 'var(--green-900)' }}>{d.name}</span>
+        {d.type && (
+          <Badge bg={null} style={{ background: 'var(--green-100)', color: 'var(--green-900)', fontWeight: 500 }}>
+            {DEPENDANT_TYPE_LABELS[d.type] || d.type}
+          </Badge>
+        )}
+      </div>
+      <FieldRow label="Date of birth"          value={d.date_of_birth} />
+      <FieldRow label="Special needs / care"    value={d.special_needs} />
+      <FieldRow label="Preferred guardian"      value={d.preferred_guardian} />
+      <FieldRow label="Their contact details"   value={d.guardian_contact} />
+      <FieldRow label="Alternate guardian"      value={d.alternate_guardian} />
+      <FieldRow label="Their contact details"   value={d.alternate_contact} />
+      <FieldRow label="Notes"                   value={d.notes} />
+    </ItemCard>
+  ))
+}
+
 // ---------------------------------------------------------------------------
 // Executor task checklist (IDEA-06) — general starting points shown once an
 // executor has confirmed the passing, not legal advice, and not tracked or
@@ -264,6 +291,7 @@ const SECTION_CONFIG = {
   personal_messages: { label: 'Messages to Loved Ones',  Component: PersonalMessages, dataKey: 'personal_messages' },
   songs_that_define_me: { label: 'Songs That Define Me', Component: SongsThatDefineMe, dataKey: 'songs_that_define_me' },
   life_wishes:       { label: "My Bucket List",          Component: LifeWishes,       dataKey: 'life_wishes' },
+  children_dependants: { label: 'Children & Dependants', Component: ChildrenDependants, dataKey: 'children_dependants' },
 }
 
 // ---------------------------------------------------------------------------

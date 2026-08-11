@@ -18,6 +18,7 @@ const SECTIONS = [
   { id: 'personal_messages',    label: 'Messages to Loved Ones' },
   { id: 'songs_that_define_me', label: 'Songs That Define Me' },
   { id: 'life_wishes',          label: 'My Bucket List' },
+  { id: 'children_dependants',  label: 'Children & Dependants' },
 ]
 
 const POSITIONS = [1, 2, 3]

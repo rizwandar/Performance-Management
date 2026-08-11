@@ -11,7 +11,7 @@ const { markUserDeceased } = require('../lib/deceased');
 const EXECUTOR_SECTIONS = [
   'legal_documents', 'financial_items', 'funeral_wishes', 'medical_wishes',
   'people_to_notify', 'property_items', 'personal_messages', 'songs_that_define_me',
-  'life_wishes',
+  'life_wishes', 'children_dependants',
 ];
 
 async function loadTokenRow(token) {
@@ -102,6 +102,14 @@ router.get('/:token', async (req, res) => {
       case 'life_wishes':
         data.life_wishes = await queryAll(
           'SELECT id, title, description, category, status, notes FROM life_wishes WHERE user_id = $1',
+          [tokenRow.user_id]
+        );
+        break;
+      case 'children_dependants':
+        data.children_dependants = await queryAll(
+          `SELECT id, name, type, date_of_birth, special_needs, preferred_guardian,
+                  guardian_contact, alternate_guardian, alternate_contact, notes
+           FROM children_dependants WHERE user_id = $1`,
           [tokenRow.user_id]
         );
         break;
