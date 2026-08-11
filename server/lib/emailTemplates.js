@@ -238,6 +238,11 @@ function contactAccessEmail({ recipientName, ownerName, accessLink, expiresHours
       personal plans through <strong>${APP_NAME}</strong>.
     </p>
     <p>
+      ${APP_NAME} is a service people use to record their wishes and important information
+      ahead of time and share it with people they care about. ${ownerName} wanted you to
+      have access to some of what they've recorded.
+    </p>
+    <p>
       This is a secure, read-only link. It allows you to view the information
       ${ownerName} has chosen to share with you. ${validityLine}
     </p>
@@ -357,6 +362,12 @@ function inactivityContactNotificationEmail({ recipientName, ownerName, accessLi
       a trusted contact on <strong>${APP_NAME}</strong>.
     </p>
     <p>
+      ${APP_NAME} is a service people use to record their wishes and important information
+      ahead of time and share it with people they care about. ${ownerName} set this up so
+      that if something happened to them, the people they trust most, including you, would
+      have what they need.
+    </p>
+    <p>
       ${ownerName} set up their account so that if they were not active for a period of time,
       you would be notified and given access to the plans and wishes they have recorded.
       That period has now passed, and we have not seen them log in.
@@ -404,19 +415,18 @@ function executorDesignatedEmail({ recipientName, ownerName, inactivityPeriodMon
   return layout(`
     <p>Dear ${recipientName},</p>
     <p>
-      <strong>${ownerName}</strong> has named you as their executor on <strong>${APP_NAME}</strong>.
+      <strong>${ownerName}</strong> has named you as their Legacy Contact on <strong>${APP_NAME}</strong>.
       There is nothing you need to do right now, this is simply so you know what the role
       means and what to expect.
     </p>
     <p>
       ${APP_NAME} is a service people use to record their wishes and important information
-      ahead of time: legal documents, financial and medical details, funeral wishes, and
-      personal messages for the people they care about. ${ownerName} set this up so that if
-      something happened to them, the people they trust most, including you, would have what
-      they need.
+      ahead of time and share it with people they care about. ${ownerName} set this up so
+      that if something happened to them, the people they trust most, including you, would
+      have what they need.
     </p>
     <p>
-      As executor, you may need this information on short notice, for funeral arrangements
+      As Legacy Contact, you may need this information on short notice, for funeral arrangements
       and other practical matters, so we're giving you read-only access right away rather than
       making you wait. The link below lets you view everything ${ownerName} has recorded,
       except their private vault credentials, which are never shared this way.
@@ -459,11 +469,17 @@ function executorInviteEmail({ recipientName, ownerName, accessLink }) {
     <p>Dear ${recipientName},</p>
     <p>
       We are reaching out on behalf of <strong>${ownerName}</strong>, who has named you as
-      their executor on <strong>${APP_NAME}</strong>.
+      their Legacy Contact on <strong>${APP_NAME}</strong>.
+    </p>
+    <p>
+      ${APP_NAME} is a service people use to record their wishes and important information
+      ahead of time and share it with people they care about. ${ownerName} set this up so
+      that if something happened to them, the people they trust most, including you, would
+      have what they need.
     </p>
     <p>
       ${ownerName} has not logged into their account within the period they chose, and we
-      have not been able to reach them. As their executor, you are the first person we turn
+      have not been able to reach them. As their Legacy Contact, you are the first person we turn
       to in this situation.
     </p>
     <p>
@@ -500,8 +516,14 @@ function executorReportedInviteEmail({ recipientName, ownerName, accessLink }) {
     <p>Dear ${recipientName},</p>
     <p>
       Someone recently reported to us that <strong>${ownerName}</strong> has passed away.
-      You are named as ${ownerName}'s executor on <strong>${APP_NAME}</strong>, so we are
+      You are named as ${ownerName}'s Legacy Contact on <strong>${APP_NAME}</strong>, so we are
       reaching out to you directly.
+    </p>
+    <p>
+      ${APP_NAME} is a service people use to record their wishes and important information
+      ahead of time and share it with people they care about. ${ownerName} set this up so
+      that if something happened to them, the people they trust most, including you, would
+      have what they need.
     </p>
     <p>
       Using the secure link below, you can view everything ${ownerName} recorded, with the
@@ -532,6 +554,11 @@ function demiseNotificationEmail({ recipientName, ownerName }) {
     <p>
       We are writing with sad news. <strong>${ownerName}</strong> has been recorded as
       deceased, and they had asked that you be one of the people told directly.
+    </p>
+    <p>
+      ${APP_NAME} is a service people use to record their wishes and important information
+      ahead of time, including who they wanted notified if something happened to them.
+      ${ownerName} listed you as one of those people.
     </p>
     <p>
       This message contains no further details or documents. It is simply the notice
@@ -637,7 +664,7 @@ function executorNotificationEmail({ executorName, ownerName }) {
     <p>Dear ${executorName},</p>
     <p>
       We are writing to let you know that ${ownerName} has been recorded as deceased by their
-      organization, and that ${ownerName} named you as their executor on ${APP_NAME}.
+      organization, and that ${ownerName} named you as their Legacy Contact on ${APP_NAME}.
     </p>
     <p>
       ${ownerName}'s plan exists and is now locked from further edits. Access to their private

@@ -233,9 +233,9 @@ const EXECUTOR_CHECKLIST = [
 function ExecutorChecklist() {
   return (
     <div style={{ background: '#fff', border: '1px solid var(--green-100)', borderRadius: 10, padding: '18px 20px', marginTop: 16 }}>
-      <p style={{ fontWeight: 700, color: 'var(--green-900)', marginBottom: 4 }}>Getting started as executor</p>
+      <p style={{ fontWeight: 700, color: 'var(--green-900)', marginBottom: 4 }}>Getting started as Legacy Contact</p>
       <p className="text-muted small mb-3">
-        General starting points for someone acting as executor, not legal advice specific to your
+        General starting points for someone acting as Legacy Contact, not legal advice specific to your
         situation. Everything referenced below is available in the sections shared with you further
         down this page.
       </p>
@@ -346,7 +346,7 @@ export default function AccessPage() {
           {!can_confirm_demise ? (
             <>
               <p style={{ fontWeight: 700, color: 'var(--green-900)', marginBottom: 6 }}>
-                You are {owner.name}'s executor
+                You are {owner.name}'s Legacy Contact
               </p>
               <p className="text-muted small mb-0">
                 This is a preview link so you have what you need on hand, for funeral and other
@@ -369,7 +369,7 @@ export default function AccessPage() {
           ) : (
             <>
               <p style={{ fontWeight: 700, color: 'var(--green-900)', marginBottom: 6 }}>
-                You are {owner.name}'s executor
+                You are {owner.name}'s Legacy Contact
               </p>
               <p className="text-muted small mb-3">
                 You can see everything {owner.name} recorded here, except their private vault

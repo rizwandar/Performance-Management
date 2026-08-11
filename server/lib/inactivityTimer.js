@@ -129,7 +129,7 @@ async function notifyExecutor(user, contact) {
   try {
     await sendEmail({
       to:      contact.email,
-      subject: `${user.name} has not checked in: action needed as their executor`,
+      subject: `${user.name} has not checked in: action needed as their Legacy Contact`,
       html:    executorInviteEmail({
         recipientName: contact.name,
         ownerName:     user.name,
