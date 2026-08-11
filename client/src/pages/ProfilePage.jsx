@@ -8,6 +8,7 @@ import OrgConsentPanel from '../components/OrgConsentPanel'
 import VaultRecoveryQuestionsForm, {
   defaultRecoveryQuestions, validateRecoveryQuestions, toApiQuestions,
 } from '../components/VaultRecoveryQuestionsForm'
+import VaultRecoverForm from '../components/VaultRecoverForm'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -109,6 +110,31 @@ export default function ProfilePage() {
   const [thresholdError, setThresholdError]               = useState('')
   const [thresholdSuccess, setThresholdSuccess]           = useState('')
 
+  // Also configurable, matching the destroy threshold above (SEC-13 scope
+  // expansion): logout_after_attempts forces a sign-out, lockout_after_attempts
+  // is the repeating-throttle interval. Independent settings, independent forms.
+  const [logoutAfter, setLogoutAfter]                     = useState(3)
+  const [logoutThresholdInput, setLogoutThresholdInput]   = useState(3)
+  const [logoutThresholdPw, setLogoutThresholdPw]         = useState('')
+  const [savingLogoutThreshold, setSavingLogoutThreshold] = useState(false)
+  const [logoutThresholdError, setLogoutThresholdError]   = useState('')
+  const [logoutThresholdSuccess, setLogoutThresholdSuccess] = useState('')
+
+  const [lockoutAfter, setLockoutAfter]                     = useState(5)
+  const [lockoutThresholdInput, setLockoutThresholdInput]   = useState(5)
+  const [lockoutThresholdPw, setLockoutThresholdPw]         = useState('')
+  const [savingLockoutThreshold, setSavingLockoutThreshold] = useState(false)
+  const [lockoutThresholdError, setLockoutThresholdError]   = useState('')
+  const [lockoutThresholdSuccess, setLockoutThresholdSuccess] = useState('')
+
+  // "Forgot your current vault password?" entry point from Change Vault
+  // Password (SEC-13 scope expansion) - the same recovery flow as VaultGate's
+  // locked-out screen, but reachable here too since a user can forget the
+  // vault password without ever being locked out of the app itself.
+  const [showChangeVaultRecover, setShowChangeVaultRecover] = useState(false)
+  const [changeVaultRecoverQuestions, setChangeVaultRecoverQuestions] = useState([])
+  const [loadingChangeVaultRecover, setLoadingChangeVaultRecover]     = useState(false)
+
   // Delete account state
   const [showDeleteAccount, setShowDeleteAccount] = useState(false)
   const [deleteForm, setDeleteForm] = useState({ password: '', vault_password: '' })
@@ -160,6 +186,14 @@ export default function ProfilePage() {
         if (r.data.destroy_after_attempts) {
           setDestroyAfter(r.data.destroy_after_attempts)
           setDestroyThresholdInput(r.data.destroy_after_attempts)
+        }
+        if (r.data.logout_after_attempts) {
+          setLogoutAfter(r.data.logout_after_attempts)
+          setLogoutThresholdInput(r.data.logout_after_attempts)
+        }
+        if (r.data.lockout_after_attempts) {
+          setLockoutAfter(r.data.lockout_after_attempts)
+          setLockoutThresholdInput(r.data.lockout_after_attempts)
         }
       })
       .catch(() => setVaultExists(false))
@@ -334,7 +368,7 @@ export default function ProfilePage() {
       setShowRecoverySetup(false)
       setRecoverySetupPw('')
       setRecoveryQuestions(defaultRecoveryQuestions())
-      setRecoverySuccess('Recovery questions saved. You can now recover your vault password by answering at least 2 of them.')
+      setRecoverySuccess('Recovery questions saved. You can now recover your vault password by answering at least 3 of them.')
       setTimeout(() => setRecoverySuccess(''), 6000)
     } catch (err) {
       setRecoveryError(err.response?.data?.error || 'Could not save your recovery questions. Please try again.')
@@ -378,6 +412,68 @@ export default function ProfilePage() {
       setThresholdError(err.response?.data?.error || 'Could not save this setting. Please try again.')
     }
     setSavingThreshold(false)
+  }
+
+  const handleSaveLogoutThreshold = async () => {
+    setLogoutThresholdError('')
+    if (!logoutThresholdPw) return setLogoutThresholdError('Please enter your current vault password to confirm.')
+    const n = parseInt(logoutThresholdInput, 10)
+    if (!Number.isInteger(n) || n < 1 || n > 50) return setLogoutThresholdError('Please choose a value between 1 and 50.')
+    setSavingLogoutThreshold(true)
+    try {
+      await axios.put(`${API}/sections/digital-life/recovery/logout-threshold`, {
+        vault_password: logoutThresholdPw,
+        logout_after_attempts: n,
+      })
+      setLogoutAfter(n)
+      setLogoutThresholdPw('')
+      setLogoutThresholdSuccess('Saved.')
+      setTimeout(() => setLogoutThresholdSuccess(''), 4000)
+    } catch (err) {
+      setLogoutThresholdError(err.response?.data?.error || 'Could not save this setting. Please try again.')
+    }
+    setSavingLogoutThreshold(false)
+  }
+
+  const handleSaveLockoutThreshold = async () => {
+    setLockoutThresholdError('')
+    if (!lockoutThresholdPw) return setLockoutThresholdError('Please enter your current vault password to confirm.')
+    const n = parseInt(lockoutThresholdInput, 10)
+    if (!Number.isInteger(n) || n < 1 || n > 50) return setLockoutThresholdError('Please choose a value between 1 and 50.')
+    setSavingLockoutThreshold(true)
+    try {
+      await axios.put(`${API}/sections/digital-life/recovery/lockout-threshold`, {
+        vault_password: lockoutThresholdPw,
+        lockout_after_attempts: n,
+      })
+      setLockoutAfter(n)
+      setLockoutThresholdPw('')
+      setLockoutThresholdSuccess('Saved.')
+      setTimeout(() => setLockoutThresholdSuccess(''), 4000)
+    } catch (err) {
+      setLockoutThresholdError(err.response?.data?.error || 'Could not save this setting. Please try again.')
+    }
+    setSavingLockoutThreshold(false)
+  }
+
+  const openChangeVaultRecover = async () => {
+    setShowChangeVaultRecover(true)
+    setLoadingChangeVaultRecover(true)
+    try {
+      const { data } = await axios.get(`${API}/sections/digital-life/recovery/questions`)
+      setChangeVaultRecoverQuestions(data.recovery_enabled ? data.questions : [])
+    } catch {
+      setChangeVaultRecoverQuestions([])
+    }
+    setLoadingChangeVaultRecover(false)
+  }
+
+  const handleChangeVaultRecovered = () => {
+    setShowChangeVaultRecover(false)
+    setVaultPwForm(f => ({ ...f, old_password: '', new_password: '', confirm: '' }))
+    setRecoveryEnabled(false)
+    setVaultPwSuccess('Vault password recovered and changed. All credentials re-encrypted with the new password. Your recovery questions were reset since they were tied to the old password - set them up again below if you\'d like recovery enabled.')
+    setTimeout(() => setVaultPwSuccess(''), 8000)
   }
 
   const handleResetVault = async () => {
@@ -801,7 +897,7 @@ export default function ProfilePage() {
           </div>
         )}
 
-        {vaultExists === true && !showVaultReset && (
+        {vaultExists === true && !showVaultReset && !showChangeVaultRecover && (
           <>
             <div style={{
               background: 'var(--green-50)', border: '1px solid var(--green-100)',
@@ -829,6 +925,12 @@ export default function ProfilePage() {
                   {showVaultFields.old ? 'Hide' : 'Show'}
                 </Button>
               </InputGroup>
+              {recoveryEnabled && (
+                <button className="btn btn-link p-0 mt-1" style={{ fontSize: '0.82rem' }}
+                  onClick={openChangeVaultRecover}>
+                  Forgot your current vault password?
+                </button>
+              )}
             </Form.Group>
             <Row className="g-3 mb-3">
               <Col md={6}>
@@ -880,6 +982,25 @@ export default function ProfilePage() {
               </button>
             </div>
           </>
+        )}
+
+        {showChangeVaultRecover && (
+          <div style={{ background: 'var(--parchment)', border: '1px solid var(--border)', borderRadius: 10, padding: '20px' }}>
+            <p style={{ color: 'var(--green-900)', fontWeight: 600, marginBottom: 8 }}>🔑 Recover your vault</p>
+            <p className="small text-muted mb-3">
+              Answer at least 3 of your security questions below (leave the rest blank if you don't
+              remember them), then choose a new vault password. There's no limit on attempts.
+            </p>
+            {loadingChangeVaultRecover ? (
+              <div className="text-center py-3"><Spinner size="sm" animation="border" aria-hidden="true" /></div>
+            ) : (
+              <VaultRecoverForm
+                questions={changeVaultRecoverQuestions}
+                onRecovered={handleChangeVaultRecovered}
+                onCancel={() => setShowChangeVaultRecover(false)}
+              />
+            )}
+          </div>
         )}
 
         {showVaultReset && (
@@ -952,7 +1073,7 @@ export default function ProfilePage() {
               <div className="mt-2">
                 <p className="text-muted small">
                   These questions are separate from your account's own security question and are used
-                  only to recover this vault. You'll need to answer at least 2 correctly to recover.
+                  only to recover this vault. You'll need to answer at least 3 correctly to recover.
                 </p>
                 {recoveryError && <Alert variant="danger">{recoveryError}</Alert>}
                 <Form.Group className="mb-3">
@@ -1024,6 +1145,66 @@ export default function ProfilePage() {
               <Col xs={12} md={3}>
                 <Button variant="outline-primary" size="sm" className="w-100" onClick={handleSaveThreshold} disabled={savingThreshold}>
                   {savingThreshold ? 'Saving...' : 'Save'}
+                </Button>
+              </Col>
+            </Row>
+          </div>
+
+          <div style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 8, padding: '14px 16px', marginTop: 16 }}>
+            <p className="mb-2" style={{ fontWeight: 600, color: '#92400E' }}>
+              Sign out after failed attempts (currently: {logoutAfter})
+            </p>
+            <p className="text-muted small mb-3">
+              After this many wrong vault-password attempts in a row, you'll be signed out of your
+              account entirely, not just locked out of the vault. Minimum 1, default 3.
+            </p>
+            {logoutThresholdError && <Alert variant="danger">{logoutThresholdError}</Alert>}
+            {logoutThresholdSuccess && <Alert variant="success">{logoutThresholdSuccess}</Alert>}
+            <Row className="g-2 align-items-end">
+              <Col xs={4} md={3}>
+                <Form.Label className="small">Attempts</Form.Label>
+                <Form.Control type="number" min={1} max={50} value={logoutThresholdInput}
+                  onChange={e => setLogoutThresholdInput(e.target.value)} />
+              </Col>
+              <Col xs={8} md={6}>
+                <Form.Label className="small">Current vault password</Form.Label>
+                <Form.Control type="password" value={logoutThresholdPw}
+                  onChange={e => setLogoutThresholdPw(e.target.value)}
+                  placeholder="Required to confirm" />
+              </Col>
+              <Col xs={12} md={3}>
+                <Button variant="outline-primary" size="sm" className="w-100" onClick={handleSaveLogoutThreshold} disabled={savingLogoutThreshold}>
+                  {savingLogoutThreshold ? 'Saving...' : 'Save'}
+                </Button>
+              </Col>
+            </Row>
+          </div>
+
+          <div style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 8, padding: '14px 16px', marginTop: 16 }}>
+            <p className="mb-2" style={{ fontWeight: 600, color: '#92400E' }}>
+              Temporary lockout interval (currently: every {lockoutAfter})
+            </p>
+            <p className="text-muted small mb-3">
+              Every time your wrong-attempt count reaches a multiple of this number (e.g. every {lockoutAfter}{' '}
+              attempts), the vault is temporarily locked for 15 minutes as a throttle. Minimum 1, default 5.
+            </p>
+            {lockoutThresholdError && <Alert variant="danger">{lockoutThresholdError}</Alert>}
+            {lockoutThresholdSuccess && <Alert variant="success">{lockoutThresholdSuccess}</Alert>}
+            <Row className="g-2 align-items-end">
+              <Col xs={4} md={3}>
+                <Form.Label className="small">Attempts</Form.Label>
+                <Form.Control type="number" min={1} max={50} value={lockoutThresholdInput}
+                  onChange={e => setLockoutThresholdInput(e.target.value)} />
+              </Col>
+              <Col xs={8} md={6}>
+                <Form.Label className="small">Current vault password</Form.Label>
+                <Form.Control type="password" value={lockoutThresholdPw}
+                  onChange={e => setLockoutThresholdPw(e.target.value)}
+                  placeholder="Required to confirm" />
+              </Col>
+              <Col xs={12} md={3}>
+                <Button variant="outline-primary" size="sm" className="w-100" onClick={handleSaveLockoutThreshold} disabled={savingLockoutThreshold}>
+                  {savingLockoutThreshold ? 'Saving...' : 'Save'}
                 </Button>
               </Col>
             </Row>

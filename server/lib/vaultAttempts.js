@@ -1,8 +1,11 @@
 const { queryOne, query } = require('../db/database');
 const { destroyVaultData } = require('./vaultDestroy');
 
-const LOCKOUT_INTERVAL = 5;   // temporary lockout every N attempts, as a throttle
-const LOGOUT_THRESHOLD = 3;
+// Defaults for a vault row that predates these columns, or hasn't set them.
+// All three are independently configurable per-vault (digital_vault table) -
+// see routes/vaultRecovery.js's logout-threshold/lockout-threshold/destroy-threshold.
+const DEFAULT_LOCKOUT_INTERVAL = 5;   // temporary lockout every N attempts, as a throttle
+const DEFAULT_LOGOUT_THRESHOLD = 3;
 const LOCKOUT_MINUTES  = 15;
 const DEFAULT_DESTROY_AFTER = 100;
 
@@ -30,13 +33,15 @@ async function recordVaultAttempt(userId, req) {
   if (!user) return { attempts: 0, shouldLogout: false, vaultLocked: false, vaultDestroyed: false, lockedUntil: null };
 
   const vault = await queryOne(
-    'SELECT destroy_after_attempts FROM digital_vault WHERE user_id = $1',
+    'SELECT destroy_after_attempts, logout_after_attempts, lockout_after_attempts FROM digital_vault WHERE user_id = $1',
     [userId]
   );
-  const destroyAfter = vault?.destroy_after_attempts || DEFAULT_DESTROY_AFTER;
+  const destroyAfter   = vault?.destroy_after_attempts   || DEFAULT_DESTROY_AFTER;
+  const logoutAfter    = vault?.logout_after_attempts    || DEFAULT_LOGOUT_THRESHOLD;
+  const lockoutInterval = vault?.lockout_after_attempts  || DEFAULT_LOCKOUT_INTERVAL;
 
   const newAttempts  = (user.vault_attempts || 0) + 1;
-  const shouldLogout = newAttempts >= LOGOUT_THRESHOLD;
+  const shouldLogout = newAttempts >= logoutAfter;
 
   if (newAttempts >= destroyAfter) {
     await query('UPDATE users SET vault_attempts = 0, vault_locked_until = NULL WHERE id = $1', [userId]);
@@ -46,10 +51,13 @@ async function recordVaultAttempt(userId, req) {
       metadata: { attempts: newAttempts, destroy_after_attempts: destroyAfter },
     });
     _sendDestroyedEmail(user, newAttempts);
-    return { attempts: newAttempts, shouldLogout: true, vaultLocked: false, vaultDestroyed: true, lockedUntil: null };
+    return {
+      attempts: newAttempts, shouldLogout: true, vaultLocked: false, vaultDestroyed: true, lockedUntil: null,
+      logoutAfter, lockoutInterval, destroyAfter,
+    };
   }
 
-  const vaultLocked = newAttempts % LOCKOUT_INTERVAL === 0;
+  const vaultLocked = newAttempts % lockoutInterval === 0;
   const lockedUntil = vaultLocked ? new Date(Date.now() + LOCKOUT_MINUTES * 60 * 1000) : null;
 
   await query('UPDATE users SET vault_attempts = $1 WHERE id = $2', [newAttempts, userId]);
@@ -73,7 +81,10 @@ async function recordVaultAttempt(userId, req) {
     _sendLockedEmail(user, lockedUntil);
   }
 
-  return { attempts: newAttempts, shouldLogout, vaultLocked, vaultDestroyed: false, lockedUntil };
+  return {
+    attempts: newAttempts, shouldLogout, vaultLocked, vaultDestroyed: false, lockedUntil,
+    logoutAfter, lockoutInterval, destroyAfter,
+  };
 }
 
 async function resetVaultAttempts(userId) {
@@ -112,5 +123,5 @@ function _sendDestroyedEmail(user, attempts) {
 
 module.exports = {
   recordVaultAttempt, resetVaultAttempts, getVaultLockStatus,
-  LOCKOUT_INTERVAL, LOCKOUT_MINUTES, DEFAULT_DESTROY_AFTER,
+  DEFAULT_LOCKOUT_INTERVAL, DEFAULT_LOGOUT_THRESHOLD, LOCKOUT_MINUTES, DEFAULT_DESTROY_AFTER,
 };

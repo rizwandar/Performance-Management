@@ -655,18 +655,21 @@ router.delete('/pets/:id', requireAuth, async (req, res) => {
 // ---------------------------------------------------------------------------
 router.get('/digital-life/vault', requireAuth, async (req, res) => {
   const vault = await queryOne(
-    'SELECT id, password_hint, recovery_enabled, destroy_after_attempts FROM digital_vault WHERE user_id = $1',
+    'SELECT id, password_hint, recovery_enabled, destroy_after_attempts, logout_after_attempts, lockout_after_attempts FROM digital_vault WHERE user_id = $1',
     [req.user.id]
   );
   // This reflects mutable, per-user security state (recovery_enabled,
-  // destroy_after_attempts) - a stale cached copy could show outdated
-  // settings on the Profile/vault-lock screens after a user changes them.
+  // destroy_after_attempts, logout/lockout thresholds) - a stale cached copy
+  // could show outdated settings on the Profile/vault-lock screens after a
+  // user changes them.
   res.setHeader('Cache-Control', 'no-store, private');
   res.json({
     exists: !!vault,
     hint: vault?.password_hint || null,
     recovery_enabled: vault?.recovery_enabled || false,
     destroy_after_attempts: vault?.destroy_after_attempts ?? null,
+    logout_after_attempts: vault?.logout_after_attempts ?? null,
+    lockout_after_attempts: vault?.lockout_after_attempts ?? null,
   });
 });
 

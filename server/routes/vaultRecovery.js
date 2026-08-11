@@ -6,7 +6,7 @@ const {
   deriveKey, verifyVaultPassword, createVaultCheck, encryptField, decryptField,
 } = require('../lib/vault');
 const { TABLE_FIELDS, decryptRow, migrateRow } = require('../lib/vaultFields');
-const { escrowAllPairs, tryRecoverKey } = require('../lib/vaultRecovery');
+const { escrowAllTriples, tryRecoverKey } = require('../lib/vaultRecovery');
 
 // GET /api/sections/digital-life/recovery/questions
 // No vault unlock required - that's the entire point of this endpoint.
@@ -54,7 +54,7 @@ router.put('/setup', requireAuth, async (req, res) => {
     is_mandatory: !!q.is_mandatory,
     answer: q.answer,
   }));
-  const shares = escrowAllPairs(key, withIndex, vault.id);
+  const shares = escrowAllTriples(key, withIndex, vault.id);
 
   await transaction(async (client) => {
     await client.query('DELETE FROM vault_recovery_questions WHERE digital_vault_id = $1', [vault.id]);
@@ -67,8 +67,8 @@ router.put('/setup', requireAuth, async (req, res) => {
     }
     for (const s of shares) {
       await client.query(
-        'INSERT INTO vault_recovery_shares (digital_vault_id, question_index_a, question_index_b, key_enc) VALUES ($1,$2,$3,$4)',
-        [vault.id, s.question_index_a, s.question_index_b, s.key_enc]
+        'INSERT INTO vault_recovery_shares (digital_vault_id, question_index_a, question_index_b, question_index_c, key_enc) VALUES ($1,$2,$3,$4,$5)',
+        [vault.id, s.question_index_a, s.question_index_b, s.question_index_c, s.key_enc]
       );
     }
     await client.query('UPDATE digital_vault SET recovery_enabled = true WHERE id = $1', [vault.id]);
@@ -100,15 +100,15 @@ router.delete('/setup', requireAuth, async (req, res) => {
 });
 
 // POST /api/sections/digital-life/recovery/recover
-// No vault unlock needed - the whole point. Answer >=2 questions correctly
+// No vault unlock needed - the whole point. Answer >=3 questions correctly
 // and choose a new password in the same request. On success, recovery is
-// disabled and must be re-configured - re-escrowing only the pairs touching
-// the answers submitted here (possibly not all originally configured
-// questions) would leave other pairs silently pointing at a now-defunct key,
-// a worse failure mode than an honest "set it up again."
+// disabled and must be re-configured - re-escrowing only the combinations
+// touching the answers submitted here (possibly not all originally
+// configured questions) would leave other combinations silently pointing at
+// a now-defunct key, a worse failure mode than an honest "set it up again."
 router.post('/recover', requireAuth, async (req, res) => {
   const { answers, new_password } = req.body;
-  if (!answers || typeof answers !== 'object') return res.status(400).json({ error: 'Please answer at least 2 questions.' });
+  if (!answers || typeof answers !== 'object') return res.status(400).json({ error: 'Please answer at least 3 questions.' });
   if (!new_password || new_password.length < 8) return res.status(400).json({ error: 'New vault password must be at least 8 characters.' });
 
   const vault = await queryOne('SELECT id, recovery_enabled FROM digital_vault WHERE user_id = $1', [req.user.id]);
@@ -117,12 +117,12 @@ router.post('/recover', requireAuth, async (req, res) => {
   }
 
   const shareRows = await queryAll(
-    'SELECT question_index_a, question_index_b, key_enc FROM vault_recovery_shares WHERE digital_vault_id = $1',
+    'SELECT question_index_a, question_index_b, question_index_c, key_enc FROM vault_recovery_shares WHERE digital_vault_id = $1',
     [vault.id]
   );
   const oldKey = tryRecoverKey(answers, shareRows, vault.id);
   if (!oldKey) {
-    return res.status(401).json({ error: "We couldn't verify at least 2 correct answers. Please try again." });
+    return res.status(401).json({ error: "We couldn't verify at least 3 correct answers. Please try again." });
   }
 
   const newKey   = deriveKey(new_password, req.user.id);
@@ -187,6 +187,54 @@ router.put('/destroy-threshold', requireAuth, async (req, res) => {
 
   await query('UPDATE digital_vault SET destroy_after_attempts = $1 WHERE id = $2', [n, vault.id]);
   res.json({ success: true, destroy_after_attempts: n });
+});
+
+// PUT /api/sections/digital-life/recovery/logout-threshold
+// Same shape as destroy-threshold above: forces a sign-out once cumulative
+// wrong vault-password attempts reach this many (default 3). See
+// lib/vaultAttempts.js for how this interacts with lockout/destroy.
+router.put('/logout-threshold', requireAuth, async (req, res) => {
+  const { vault_password, logout_after_attempts } = req.body;
+  if (!vault_password) return res.status(400).json({ error: 'Your current vault password is required to confirm.' });
+  const n = parseInt(logout_after_attempts, 10);
+  if (!Number.isInteger(n) || n < 1 || n > 50) {
+    return res.status(400).json({ error: 'Please choose a value between 1 and 50.' });
+  }
+
+  const vault = await queryOne('SELECT id, check_enc FROM digital_vault WHERE user_id = $1', [req.user.id]);
+  if (!vault) return res.status(404).json({ error: 'No vault found.' });
+
+  const key = deriveKey(vault_password, req.user.id);
+  if (!verifyVaultPassword(vault.check_enc, key)) {
+    return res.status(401).json({ error: 'Current vault password is incorrect.' });
+  }
+
+  await query('UPDATE digital_vault SET logout_after_attempts = $1 WHERE id = $2', [n, vault.id]);
+  res.json({ success: true, logout_after_attempts: n });
+});
+
+// PUT /api/sections/digital-life/recovery/lockout-threshold
+// Sets the interval, every Nth wrong attempt triggers a repeating 15-minute
+// throttle (default 5, i.e. attempts 5, 10, 15... each lock the vault
+// temporarily). Independent of logout_after_attempts and destroy_after_attempts.
+router.put('/lockout-threshold', requireAuth, async (req, res) => {
+  const { vault_password, lockout_after_attempts } = req.body;
+  if (!vault_password) return res.status(400).json({ error: 'Your current vault password is required to confirm.' });
+  const n = parseInt(lockout_after_attempts, 10);
+  if (!Number.isInteger(n) || n < 1 || n > 50) {
+    return res.status(400).json({ error: 'Please choose a value between 1 and 50.' });
+  }
+
+  const vault = await queryOne('SELECT id, check_enc FROM digital_vault WHERE user_id = $1', [req.user.id]);
+  if (!vault) return res.status(404).json({ error: 'No vault found.' });
+
+  const key = deriveKey(vault_password, req.user.id);
+  if (!verifyVaultPassword(vault.check_enc, key)) {
+    return res.status(401).json({ error: 'Current vault password is incorrect.' });
+  }
+
+  await query('UPDATE digital_vault SET lockout_after_attempts = $1 WHERE id = $2', [n, vault.id]);
+  res.json({ success: true, lockout_after_attempts: n });
 });
 
 module.exports = router;

@@ -11,6 +11,7 @@ import { useAuth } from '../context/AuthContext'
 import VaultRecoveryQuestionsForm, {
   defaultRecoveryQuestions, validateRecoveryQuestions, toApiQuestions,
 } from './VaultRecoveryQuestionsForm'
+import VaultRecoverForm from './VaultRecoverForm'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -80,7 +81,7 @@ export function VaultSetupScreen({ onSetup }) {
           <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 10, padding: 16, marginBottom: 12 }}>
             <p style={{ fontWeight: 600, marginBottom: 4 }}>Let me recover it with security questions</p>
             <p className="text-muted small mb-3">
-              Set up 3-5 questions now. If you forget your password, answering at least 2 of them gets
+              Set up 3-5 questions now. If you forget your password, answering at least 3 of them gets
               you back in and nothing is deleted. This does mean your vault is only as safe as those
               answers, not "even we cannot read it."
             </p>
@@ -112,7 +113,7 @@ export function VaultSetupScreen({ onSetup }) {
           <p className="text-muted small mb-4">
             This vault is a secured area - these questions are separate from your account's own security
             question and are used only to recover this vault password. Choose answers only you would know.
-            You'll need to answer at least 2 correctly to recover access later.
+            You'll need to answer at least 3 correctly to recover access later.
           </p>
 
           {recoveryError && <Alert variant="danger">{recoveryError}</Alert>}
@@ -244,11 +245,6 @@ export function VaultLockScreen({ onUnlock, onReset }) {
   // Recovery flow
   const [recoveryQuestions, setRecoveryQuestions] = useState([])
   const [recoveryLoading, setRecoveryLoading]     = useState(false)
-  const [recoveryAnswers, setRecoveryAnswers]     = useState({})
-  const [newPw, setNewPw]               = useState('')
-  const [newPwConfirm, setNewPwConfirm] = useState('')
-  const [recovering, setRecovering]     = useState(false)
-  const [recoverError, setRecoverError] = useState('')
 
   const inputRef = useRef(null)
 
@@ -316,30 +312,7 @@ export function VaultLockScreen({ onUnlock, onReset }) {
   }
 
   const openRecover = () => {
-    setRecoveryAnswers({})
-    setNewPw('')
-    setNewPwConfirm('')
-    setRecoverError('')
     setResetStep('recover')
-  }
-
-  const handleRecover = async () => {
-    setRecoverError('')
-    const answered = Object.values(recoveryAnswers).filter(a => a && a.trim()).length
-    if (answered < 2) return setRecoverError('Please answer at least 2 questions.')
-    if (!newPw || newPw.length < 8) return setRecoverError('New vault password must be at least 8 characters.')
-    if (newPw !== newPwConfirm) return setRecoverError('New passwords do not match.')
-    setRecovering(true)
-    try {
-      await axios.post(`${API}/sections/digital-life/recovery/recover`, {
-        answers: recoveryAnswers,
-        new_password: newPw,
-      })
-      onUnlock(newPw)
-    } catch (err) {
-      setRecoverError(err.response?.data?.error || "We couldn't verify at least 2 correct answers. Please try again.")
-    }
-    setRecovering(false)
   }
 
   const isLocked = lockedUntil && new Date(lockedUntil) > new Date()
@@ -353,46 +326,15 @@ export function VaultLockScreen({ onUnlock, onReset }) {
             Recover your vault
           </h5>
           <p className="text-muted small text-center mb-4">
-            Answer at least 2 of your questions below (leave the rest blank if you don't remember them),
+            Answer at least 3 of your questions below (leave the rest blank if you don't remember them),
             then choose a new vault password. There's no limit on attempts, so take your time.
           </p>
 
-          {recoverError && <Alert variant="danger">{recoverError}</Alert>}
-
-          {recoveryQuestions.map(q => (
-            <Form.Group className="mb-3" key={q.question_index}>
-              <Form.Label>{q.question_text}</Form.Label>
-              <Form.Control
-                type="text"
-                autoComplete="off"
-                value={recoveryAnswers[q.question_index] || ''}
-                onChange={e => setRecoveryAnswers(a => ({ ...a, [q.question_index]: e.target.value }))}
-                placeholder="Leave blank if you don't remember"
-              />
-            </Form.Group>
-          ))}
-
-          <hr />
-
-          <Form.Group className="mb-3">
-            <Form.Label style={{ fontWeight: 600 }}>New vault password</Form.Label>
-            <Form.Control type="password" value={newPw} onChange={e => setNewPw(e.target.value)}
-              placeholder="At least 8 characters" />
-          </Form.Group>
-          <Form.Group className="mb-4">
-            <Form.Label style={{ fontWeight: 600 }}>Confirm new password</Form.Label>
-            <Form.Control type="password" value={newPwConfirm} onChange={e => setNewPwConfirm(e.target.value)}
-              placeholder="Type it again" />
-          </Form.Group>
-
-          <Button variant="primary" className="w-100 mb-3" onClick={handleRecover} disabled={recovering}>
-            {recovering ? 'Recovering...' : 'Recover my vault'}
-          </Button>
-          <button className="btn btn-link w-100 p-0"
-            style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}
-            onClick={() => setResetStep('choice')}>
-            Go back
-          </button>
+          <VaultRecoverForm
+            questions={recoveryQuestions}
+            onRecovered={onUnlock}
+            onCancel={() => setResetStep('choice')}
+          />
         </div>
       </div>
     )
@@ -430,7 +372,7 @@ export function VaultLockScreen({ onUnlock, onReset }) {
                 Recover using my security questions
               </Button>
               <p className="text-muted small text-center mb-4" style={{ fontSize: '0.8rem' }}>
-                Answer at least 2 of your questions to get back in. Nothing is deleted.
+                Answer at least 3 of your questions to get back in. Nothing is deleted.
               </p>
             </>
           )}
