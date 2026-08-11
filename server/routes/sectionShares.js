@@ -34,7 +34,9 @@ router.post('/', requireAuth, async (req, res) => {
   let view;
   let isVaultSection = false;
   let snapshotEnc = null;
-  let snapshotKeyHex = null;
+  // Kept in memory only long enough to build the share link below — never
+  // written to the database. See the security note in the isVault branch.
+  let snapshotKeyHexForLink = null;
 
   if (meta.isVault) {
     // Vault password is never stored — this is a one-time decrypt at share
@@ -42,6 +44,21 @@ router.post('/', requireAuth, async (req, res) => {
     // this share (never the owner's vault password or its derived key), so
     // the recipient can view it again within the 72-hour window without the
     // owner needing to be present. See lib/vault.js's own design notes.
+    //
+    // SECURITY: the snapshot key is deliberately NEVER written to the
+    // database (snapshot_key_hex stays NULL for every share created from
+    // here on). Storing a key next to the ciphertext it unlocks, in the same
+    // row of the same table, would mean a DB-only compromise (SQL injection
+    // elsewhere, a leaked backup, an over-privileged DB credential) could
+    // decrypt every shared vault section ever created, including real
+    // Digital Vault passwords — defeating the exact threat model vault.js
+    // documents ("Database breach: encrypted blobs are unreadable without
+    // the vault password"). Instead the key travels only in the share
+    // link's URL fragment (#...), which browsers never send to any server on
+    // a normal page load, and is submitted explicitly by the client only
+    // when redeeming the link (see GET/POST .../access/:token below). A DB
+    // breach alone, without also having intercepted the link itself, yields
+    // only undecryptable ciphertext.
     if (!await checkVault(vault_password, req.user.id, res, req)) return;
     const vaultKey = deriveKey(vault_password, req.user.id);
     const raw = await fetchRawSectionData(section, req.user.id, vaultKey);
@@ -50,7 +67,7 @@ router.post('/', requireAuth, async (req, res) => {
     isVaultSection = true;
     const snapshotKey = crypto.randomBytes(32);
     snapshotEnc = encryptField(JSON.stringify(view), snapshotKey);
-    snapshotKeyHex = snapshotKey.toString('hex');
+    snapshotKeyHexForLink = snapshotKey.toString('hex');
   } else {
     const raw = await fetchRawSectionData(section, req.user.id, null);
     view = buildSectionView(section, raw);
@@ -65,11 +82,15 @@ router.post('/', requireAuth, async (req, res) => {
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
     RETURNING id, created_at
   `, [
+    // snapshot_key_hex is always NULL here — the key lives only in the share
+    // link's URL fragment, never in the database. See security note above.
     req.user.id, section, recipient_name.trim(), recipient_email.trim(),
-    token, isVaultSection, snapshotEnc, snapshotKeyHex, expiresAt,
+    token, isVaultSection, snapshotEnc, null, expiresAt,
   ]);
 
-  const viewLink = `${CLIENT_URL}/shared/${token}`;
+  const viewLink = snapshotKeyHexForLink
+    ? `${CLIENT_URL}/shared/${token}#${snapshotKeyHexForLink}`
+    : `${CLIENT_URL}/shared/${token}`;
   // The share row (and, for vault sections, its snapshot) already exists at
   // this point - a delivery failure shouldn't undo that or fail the request,
   // same convention as the other owner-initiated share emails in this app
@@ -138,8 +159,14 @@ router.post('/:id/revoke', requireAuth, async (req, res) => {
 // Public guest view — no auth. Non-vault sections are re-fetched live (so a
 // recipient always sees current data within the window); vault sections
 // return the one-time snapshot taken at share creation.
+//
+// POST, not GET: for a vault section the client must submit the decryption
+// key it read out of the link's URL fragment (see the security note in
+// POST '/' above and SharedSectionPage.jsx). A GET with the key as a query
+// string would risk it landing in server access logs, browser history, or
+// a Referer header on an outbound link — a POST body avoids all three.
 // ---------------------------------------------------------------------------
-router.get('/access/:token', async (req, res) => {
+router.post('/access/:token', async (req, res) => {
   const share = await queryOne(
     `SELECT ss.*, u.name AS owner_name FROM section_shares ss
      JOIN users u ON u.id = ss.user_id
@@ -153,9 +180,24 @@ router.get('/access/:token', async (req, res) => {
   const meta = SECTION_META[share.section];
   let view;
   if (share.is_vault_section) {
-    const key = Buffer.from(share.snapshot_key_hex, 'hex');
-    const json = decryptField(share.snapshot_enc, key);
-    view = json ? JSON.parse(json) : { kind: 'empty' };
+    // snapshot_key_hex on the row itself is only ever populated for shares
+    // created before this fix landed; every new share carries the key only
+    // in the link, submitted here by the client.
+    const keyHex = req.body?.key || share.snapshot_key_hex;
+    if (!keyHex) {
+      return res.status(400).json({ error: 'This link is missing part of its address. Please use the complete link from the invitation email, not a partial copy.' });
+    }
+    let key, json;
+    try {
+      key = Buffer.from(keyHex, 'hex');
+      json = decryptField(share.snapshot_enc, key);
+    } catch {
+      json = null;
+    }
+    if (json === null) {
+      return res.status(400).json({ error: 'This link appears to be incomplete or corrupted. Please use the complete link from the invitation email.' });
+    }
+    view = JSON.parse(json);
   } else {
     const raw = await fetchRawSectionData(share.section, share.user_id, null);
     view = buildSectionView(share.section, raw);
