@@ -3,7 +3,8 @@ import { useNavigate, Link } from 'react-router-dom'
 import { Button, Form, Row, Col, Alert, Spinner } from 'react-bootstrap'
 import axios from 'axios'
 import SectionHero from '../../components/SectionHero'
-import ShareSectionControl from '../../components/ShareSectionControl'
+import ShareSectionTrigger from '../../components/ShareSectionTrigger'
+import ShareSectionHistory from '../../components/ShareSectionHistory'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -198,9 +199,8 @@ export default function FuneralWishesPage() {
         headline="How you'd like to be sent off"
         highlight="sent off"
         subtext="Recording your wishes here is one of the greatest gifts you can give the people you love. It removes the guesswork during an already difficult time."
+        secondaryAction={<ShareSectionTrigger section="funeral_wishes" sectionLabel="Funeral Wishes" />}
       />
-
-      <ShareSectionControl section="funeral_wishes" sectionLabel="Funeral Wishes" />
 
       <div className="mb-4">
         {hasData && (
@@ -456,6 +456,8 @@ export default function FuneralWishesPage() {
           />
         </div>
       </SectionCard>
+
+      <ShareSectionHistory section="funeral_wishes" />
     </div>
   )
 }

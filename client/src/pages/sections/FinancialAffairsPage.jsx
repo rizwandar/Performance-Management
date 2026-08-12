@@ -4,7 +4,8 @@ import { Button, Form, Row, Col, Alert, Modal, Spinner } from 'react-bootstrap'
 import axios from 'axios'
 import { VaultSetupScreen, VaultLockScreen } from '../../components/VaultGate'
 import SectionHero from '../../components/SectionHero'
-import ShareSectionControl from '../../components/ShareSectionControl'
+import ShareSectionTrigger from '../../components/ShareSectionTrigger'
+import ShareSectionHistory from '../../components/ShareSectionHistory'
 import FileAttachments from '../../components/FileAttachments'
 import { useAuth } from '../../context/AuthContext'
 import { formatPhone } from '@in-good-hands/shared/format'
@@ -145,7 +146,7 @@ export default function FinancialAffairsPage() {
     />
   )
 
-  const shareControl = <ShareSectionControl section="financial_items" sectionLabel="Financial Affairs" isVaultSection />
+  const shareTrigger = <ShareSectionTrigger section="financial_items" sectionLabel="Financial Affairs" isVaultSection />
 
   if (vaultState === 'loading') {
     return (
@@ -183,7 +184,6 @@ export default function FinancialAffairsPage() {
     <div style={{ maxWidth: 800, margin: '0 auto' }}>
       {backLink}
       {hero}
-      {shareControl}
 
       <div style={{
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -203,8 +203,9 @@ export default function FinancialAffairsPage() {
       {success && <Alert variant="success">{success}</Alert>}
       {error && !showModal && <Alert variant="danger">{error}</Alert>}
 
-      <div className="mb-4">
+      <div className="mb-4 d-flex align-items-center gap-3 flex-wrap">
         <Button variant="primary" onClick={openAdd}>+ Add a record</Button>
+        {shareTrigger}
       </div>
 
       {loading ? (
@@ -345,6 +346,9 @@ export default function FinancialAffairsPage() {
 
       {success && <Alert variant="success" className="mt-4">{success}</Alert>}
       {error && !showModal && <Alert variant="danger" className="mt-4">{error}</Alert>}
+
+      <ShareSectionHistory section="financial_items" />
+
       <div className="mt-4 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
         <button className="btn btn-link p-0"
           style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '0.9rem' }}
