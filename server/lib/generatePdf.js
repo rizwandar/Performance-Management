@@ -456,6 +456,12 @@ function generatePdf(data, outputStream) {
         doc.font(fonts.italic).fontSize(8).fillColor(MUTED)
            .text(item.notes, LEFT_X, doc.y, { indent: 10, width: PAGE_W - MARGIN * 2 - 10 });
       }
+      if (item.audio_r2_key) {
+        // A PDF can't embed playable audio - point to where it can be heard instead.
+        doc.font(fonts.italic).fontSize(8).fillColor(palette.accent)
+           .text('\u{1F3A4} A recorded voice message is also included with this entry, available in the online account or via an access link.',
+                 LEFT_X, doc.y, { indent: 10, width: PAGE_W - MARGIN * 2 - 10 });
+      }
       doc.moveDown(0.5).fillColor(TEXT);
     });
   }

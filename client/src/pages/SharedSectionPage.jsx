@@ -11,11 +11,15 @@ const API = import.meta.env.VITE_API_URL
 // server/lib/sectionShareContent.js — the same shape is used to build the
 // email content, so this page always matches what the recipient's email said).
 // ---------------------------------------------------------------------------
-function FieldRow({ label, value }) {
+function FieldRow({ label, value, type }) {
   return (
     <div style={{ display: 'flex', gap: 12, marginBottom: 8, flexWrap: 'wrap' }}>
       <span style={{ minWidth: 190, fontWeight: 600, color: 'var(--green-900)', fontSize: '0.9rem' }}>{label}</span>
-      <span style={{ flex: 1, color: 'var(--text)', fontSize: '0.9rem' }}>{value}</span>
+      {type === 'audio' ? (
+        <audio controls src={value} style={{ flex: 1, minWidth: 240, height: 36 }} />
+      ) : (
+        <span style={{ flex: 1, color: 'var(--text)', fontSize: '0.9rem' }}>{value}</span>
+      )}
     </div>
   )
 }
@@ -35,14 +39,14 @@ function SectionView({ view }) {
   if (view.kind === 'single') {
     return (
       <ItemCard>
-        {view.fields.map(f => <FieldRow key={f.label} label={f.label} value={f.value} />)}
+        {view.fields.map(f => <FieldRow key={f.label} label={f.label} value={f.value} type={f.type} />)}
       </ItemCard>
     )
   }
   return view.items.map((item, i) => (
     <ItemCard key={i}>
       <p style={{ fontWeight: 700, color: 'var(--green-900)', marginBottom: 8 }}>{item.title}</p>
-      {item.fields.map(f => <FieldRow key={f.label} label={f.label} value={f.value} />)}
+      {item.fields.map(f => <FieldRow key={f.label} label={f.label} value={f.value} type={f.type} />)}
     </ItemCard>
   ))
 }

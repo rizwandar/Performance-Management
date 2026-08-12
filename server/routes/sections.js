@@ -1,6 +1,8 @@
 const express = require('express');
 const router  = express.Router();
 const jwt     = require('jsonwebtoken');
+const multer  = require('multer');
+const { v4: uuidv4 } = require('uuid');
 const { queryOne, queryAll, query, transaction } = require('../db/database');
 const requireAuth    = require('../middleware/auth');
 const requirePremium = require('../middleware/requiresPremium');
@@ -8,6 +10,7 @@ const { deriveKey, encryptField, decryptField, createVaultCheck, verifyVaultPass
 const { checkVault } = require('../lib/vaultAuth');
 const { TABLE_FIELDS, decryptRow, migrateRow } = require('../lib/vaultFields');
 const { destroyVaultData } = require('../lib/vaultDestroy');
+const { uploadFile, deleteFile, getDownloadUrl } = require('../lib/r2');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
 
@@ -416,7 +419,8 @@ router.delete('/property-possessions/:id', requireAuth, requirePremium, async (r
 // Section 8 — Messages to Loved Ones
 // ---------------------------------------------------------------------------
 router.get('/messages', requireAuth, async (req, res) => {
-  res.json(await queryAll('SELECT * FROM personal_messages WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]));
+  const rows = await queryAll('SELECT * FROM personal_messages WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]);
+  res.json(await Promise.all(rows.map(withAudioUrl)));
 });
 
 router.post('/messages', requireAuth, async (req, res) => {
@@ -443,7 +447,89 @@ router.put('/messages/:id', requireAuth, async (req, res) => {
 router.delete('/messages/:id', requireAuth, async (req, res) => {
   const item = await queryOne('SELECT * FROM personal_messages WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Message not found.' });
+  if (item.audio_r2_key) await deleteFile(item.audio_r2_key).catch(() => {});
   await query('DELETE FROM personal_messages WHERE id = $1', [item.id]);
+  res.json({ success: true });
+});
+
+// IDEA-01: an optional recorded voice message alongside (not instead of) the
+// typed/dictated text. Open to all users, same as the rest of this section -
+// not premium-gated (unlike the vault-adjacent sections above). One audio
+// clip per message; a re-record replaces the previous R2 object.
+const AUDIO_MIME_TYPES = new Set(['audio/webm', 'audio/ogg', 'audio/mp4', 'audio/mpeg', 'audio/wav', 'audio/x-m4a']);
+const AUDIO_EXTENSIONS = new Set(['webm', 'ogg', 'mp4', 'm4a', 'mp3', 'wav']);
+const MAX_AUDIO_DURATION_SECONDS = 300; // 5 minutes - a soft guardrail on storage cost, not enforced against determined tampering
+
+// MediaRecorder in the browser reports mimeType with a codec parameter
+// (e.g. "audio/webm;codecs=opus"), which would never exact-match the plain
+// "audio/webm" entries above - strip it before comparing or storing.
+function baseMimeType(mimeType) {
+  return (mimeType || '').split(';')[0].trim().toLowerCase();
+}
+
+const audioUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 15 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const ext = file.originalname.split('.').pop()?.toLowerCase();
+    if (!AUDIO_MIME_TYPES.has(baseMimeType(file.mimetype)) && !AUDIO_EXTENSIONS.has(ext)) {
+      return cb(new Error('That recording format is not supported.'));
+    }
+    cb(null, true);
+  },
+});
+
+// A signed R2 URL never gets stored - only ever generated fresh per request,
+// same pattern as documents.js's download route.
+async function withAudioUrl(row) {
+  if (!row.audio_r2_key) return row;
+  const { audio_r2_key, ...rest } = row;
+  return { ...rest, audio_url: await getDownloadUrl(audio_r2_key) };
+}
+
+router.post('/messages/:id/audio', requireAuth, (req, res, next) => {
+  audioUpload.single('audio')(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.message });
+    next();
+  });
+}, async (req, res) => {
+  try {
+    const item = await queryOne('SELECT * FROM personal_messages WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
+    if (!item) return res.status(404).json({ error: 'Message not found.' });
+    if (!req.file) return res.status(400).json({ error: 'No recording provided.' });
+
+    const mimeType = baseMimeType(req.file.mimetype) || 'audio/webm';
+    const ext = (req.file.originalname.split('.').pop() || 'webm').replace(/[^a-zA-Z0-9]/g, '');
+    const key = `${req.user.id}/messages/${item.id}/${uuidv4()}.${ext}`;
+    await uploadFile({ key, buffer: req.file.buffer, mimeType });
+
+    const previousKey = item.audio_r2_key;
+    const duration = Math.min(parseInt(req.body.duration_seconds, 10) || 0, MAX_AUDIO_DURATION_SECONDS) || null;
+
+    await query(`
+      UPDATE personal_messages
+      SET audio_r2_key = $1, audio_mime_type = $2, audio_size_bytes = $3, audio_duration_seconds = $4, updated_at = NOW()
+      WHERE id = $5
+    `, [key, mimeType, req.file.size, duration, item.id]);
+
+    if (previousKey) await deleteFile(previousKey).catch(() => {});
+
+    res.json({ audio_url: await getDownloadUrl(key), audio_duration_seconds: duration });
+  } catch (err) {
+    console.error('Voice message upload error:', err);
+    res.status(500).json({ error: "We couldn't save your recording. Please try again." });
+  }
+});
+
+router.delete('/messages/:id/audio', requireAuth, async (req, res) => {
+  const item = await queryOne('SELECT * FROM personal_messages WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
+  if (!item) return res.status(404).json({ error: 'Message not found.' });
+  if (item.audio_r2_key) await deleteFile(item.audio_r2_key).catch(() => {});
+  await query(`
+    UPDATE personal_messages
+    SET audio_r2_key = NULL, audio_mime_type = NULL, audio_size_bytes = NULL, audio_duration_seconds = NULL, updated_at = NOW()
+    WHERE id = $1
+  `, [item.id]);
   res.json({ success: true });
 });
 

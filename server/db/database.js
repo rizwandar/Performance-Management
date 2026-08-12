@@ -1047,6 +1047,14 @@ async function init() {
   // reporting only, not app logic - regular in-app signups just leave it null.
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS acquisition_source TEXT`);
 
+  // IDEA-01: optional voice recording attached to a message to a loved one,
+  // alongside (not instead of) the typed/dictated text. Open to all users,
+  // same as the rest of Messages to Loved Ones - not premium-gated.
+  await pool.query(`ALTER TABLE personal_messages ADD COLUMN IF NOT EXISTS audio_r2_key TEXT`);
+  await pool.query(`ALTER TABLE personal_messages ADD COLUMN IF NOT EXISTS audio_mime_type TEXT`);
+  await pool.query(`ALTER TABLE personal_messages ADD COLUMN IF NOT EXISTS audio_size_bytes INTEGER`);
+  await pool.query(`ALTER TABLE personal_messages ADD COLUMN IF NOT EXISTS audio_duration_seconds INTEGER`);
+
   console.log('[db] PostgreSQL schema ready');
 }
 
