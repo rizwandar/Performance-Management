@@ -1041,6 +1041,12 @@ async function init() {
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_section_shares_user ON section_shares(user_id, section)`);
 
+  // MKT-02: records which acquisition campaign/variant a signup came from
+  // (e.g. "google_ads:adult-children"), captured from the landing page's UTM
+  // params at registration time. Nullable and free-text since it's for
+  // reporting only, not app logic - regular in-app signups just leave it null.
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS acquisition_source TEXT`);
+
   console.log('[db] PostgreSQL schema ready');
 }
 
