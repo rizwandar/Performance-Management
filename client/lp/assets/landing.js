@@ -89,7 +89,9 @@ export function initLandingSignupForm({ formId, segment }) {
         })
       }
 
-      window.location.href = '/dashboard?welcome=1'
+      // The logged-in home route is /profile (renders DashboardPage) - found
+      // via a real end-to-end test on staging that caught /dashboard 404ing.
+      window.location.href = '/profile?welcome=1'
     } catch (err) {
       showError(err.message || "We couldn't reach the server. Please check your connection and try again.")
       submitBtn.disabled = false
