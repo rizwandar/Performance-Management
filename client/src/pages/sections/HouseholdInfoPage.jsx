@@ -5,7 +5,8 @@ import axios from 'axios'
 import { VaultSetupScreen, VaultLockScreen } from '../../components/VaultGate'
 import FileAttachments from '../../components/FileAttachments'
 import SectionHero from '../../components/SectionHero'
-import ShareSectionControl from '../../components/ShareSectionControl'
+import ShareSectionTrigger from '../../components/ShareSectionTrigger'
+import ShareSectionHistory from '../../components/ShareSectionHistory'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -155,7 +156,7 @@ export default function HouseholdInfoPage() {
     />
   )
 
-  const shareControl = <ShareSectionControl section="household_info" sectionLabel="Household Info" isVaultSection />
+  const shareTrigger = <ShareSectionTrigger section="household_info" sectionLabel="Household Info" isVaultSection />
 
   if (vaultState === 'loading') {
     return (
@@ -193,7 +194,6 @@ export default function HouseholdInfoPage() {
     <div style={{ maxWidth: 800, margin: '0 auto' }}>
       {backLink}
       {hero}
-      {shareControl}
 
       <div style={{
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -213,8 +213,9 @@ export default function HouseholdInfoPage() {
       {success && <Alert variant="success">{success}</Alert>}
       {error && !showModal && <Alert variant="danger">{error}</Alert>}
 
-      <div className="mb-4">
+      <div className="mb-4 d-flex align-items-center gap-3 flex-wrap">
         <Button variant="primary" onClick={openAdd}>+ Add an entry</Button>
+        {shareTrigger}
       </div>
 
       {loading ? (
@@ -348,6 +349,9 @@ export default function HouseholdInfoPage() {
 
       {success && <Alert variant="success" className="mt-4">{success}</Alert>}
       {error && !showModal && <Alert variant="danger" className="mt-4">{error}</Alert>}
+
+      <ShareSectionHistory section="household_info" />
+
       <div className="mt-4 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
         <button className="btn btn-link p-0"
           style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '0.9rem' }}

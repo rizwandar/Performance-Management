@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { Button, Form, Row, Col, Alert, Modal, Spinner } from 'react-bootstrap'
 import axios from 'axios'
 import SectionHero from '../../components/SectionHero'
-import ShareSectionControl from '../../components/ShareSectionControl'
+import ShareSectionTrigger from '../../components/ShareSectionTrigger'
+import ShareSectionHistory from '../../components/ShareSectionHistory'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -91,9 +92,8 @@ export default function MessagesPage() {
         highlight="hold onto"
         subtext="Write the words you want them to hear. These messages will be kept safely and passed on to the people who matter most to you."
         cta={{ label: '+ Write a message', onClick: openAdd }}
+        secondaryAction={<ShareSectionTrigger section="personal_messages" sectionLabel="Messages to Loved Ones" />}
       />
-
-      <ShareSectionControl section="personal_messages" sectionLabel="Messages to Loved Ones" />
 
       {success && <Alert variant="success">{success}</Alert>}
       {error && !showModal && <Alert variant="danger">{error}</Alert>}
@@ -202,6 +202,9 @@ export default function MessagesPage() {
 
       {success && <Alert variant="success" className="mt-4">{success}</Alert>}
       {error && !showModal && <Alert variant="danger" className="mt-4">{error}</Alert>}
+
+      <ShareSectionHistory section="personal_messages" />
+
       <div className="mt-4 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
         <button className="btn btn-link p-0"
           style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '0.9rem' }}

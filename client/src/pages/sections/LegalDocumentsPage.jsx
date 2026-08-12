@@ -5,7 +5,8 @@ import axios from 'axios'
 import { VaultSetupScreen, VaultLockScreen } from '../../components/VaultGate'
 import FileAttachments from '../../components/FileAttachments'
 import SectionHero from '../../components/SectionHero'
-import ShareSectionControl from '../../components/ShareSectionControl'
+import ShareSectionTrigger from '../../components/ShareSectionTrigger'
+import ShareSectionHistory from '../../components/ShareSectionHistory'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -149,7 +150,7 @@ export default function LegalDocumentsPage() {
     />
   )
 
-  const shareControl = <ShareSectionControl section="legal_documents" sectionLabel="Legal Documents" isVaultSection />
+  const shareTrigger = <ShareSectionTrigger section="legal_documents" sectionLabel="Legal Documents" isVaultSection />
 
   const disclaimer = (
     <Alert variant="info" className="mb-4">
@@ -199,7 +200,6 @@ export default function LegalDocumentsPage() {
     <div style={{ maxWidth: 800, margin: '0 auto' }}>
       {backLink}
       {hero}
-      {shareControl}
       {disclaimer}
 
       {/* Vault status bar */}
@@ -221,8 +221,9 @@ export default function LegalDocumentsPage() {
       {success && <Alert variant="success">{success}</Alert>}
       {error && !showModal && <Alert variant="danger">{error}</Alert>}
 
-      <div className="mb-4">
+      <div className="mb-4 d-flex align-items-center gap-3 flex-wrap">
         <Button variant="primary" onClick={openAdd}>+ Add a document</Button>
+        {shareTrigger}
       </div>
 
       {/* Items */}
@@ -344,6 +345,9 @@ export default function LegalDocumentsPage() {
 
       {success && <Alert variant="success" className="mt-4">{success}</Alert>}
       {error && !showModal && <Alert variant="danger" className="mt-4">{error}</Alert>}
+
+      <ShareSectionHistory section="legal_documents" />
+
       <div className="mt-4 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
         <button className="btn btn-link p-0"
           style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '0.9rem' }}
