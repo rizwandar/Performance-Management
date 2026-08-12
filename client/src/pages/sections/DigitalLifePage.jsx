@@ -4,7 +4,8 @@ import { Button, Form, Row, Col, Alert, Modal, Spinner, InputGroup } from 'react
 import axios from 'axios'
 import { VaultSetupScreen, VaultLockScreen } from '../../components/VaultGate'
 import SectionHero from '../../components/SectionHero'
-import ShareSectionControl from '../../components/ShareSectionControl'
+import ShareSectionTrigger from '../../components/ShareSectionTrigger'
+import ShareSectionHistory from '../../components/ShareSectionHistory'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -159,7 +160,7 @@ export default function DigitalLifePage() {
     />
   )
 
-  const shareControl = <ShareSectionControl section="digital_credentials" sectionLabel="Digital Vault" isVaultSection />
+  const shareTrigger = <ShareSectionTrigger section="digital_credentials" sectionLabel="Digital Vault" isVaultSection />
 
   // ── Loading ────────────────────────────────────────────────────────────────
   if (vaultState === 'loading') {
@@ -201,7 +202,6 @@ export default function DigitalLifePage() {
     <div style={{ maxWidth: 800, margin: '0 auto' }}>
       {backLink}
       {hero}
-      {shareControl}
 
       {/* Vault status bar */}
       <div style={{
@@ -229,8 +229,9 @@ export default function DigitalLifePage() {
       {success && <Alert variant="success">{success}</Alert>}
       {error && !showModal && <Alert variant="danger">{error}</Alert>}
 
-      <div className="mb-4">
+      <div className="mb-4 d-flex align-items-center gap-3 flex-wrap">
         <Button variant="primary" onClick={openAdd}>+ Add an account</Button>
+        {shareTrigger}
       </div>
 
       {/* Credentials list */}
@@ -389,6 +390,9 @@ export default function DigitalLifePage() {
 
       {success && <Alert variant="success" className="mt-4">{success}</Alert>}
       {error && !showModal && <Alert variant="danger" className="mt-4">{error}</Alert>}
+
+      <ShareSectionHistory section="digital_credentials" />
+
       <div className="mt-4 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
         <button className="btn btn-link p-0"
           style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '0.9rem' }}

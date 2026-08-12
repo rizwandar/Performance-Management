@@ -5,7 +5,8 @@ import axios from 'axios'
 import { useAuth } from '../../context/AuthContext'
 import { formatPhone } from '@in-good-hands/shared/format'
 import SectionHero from '../../components/SectionHero'
-import ShareSectionControl from '../../components/ShareSectionControl'
+import ShareSectionTrigger from '../../components/ShareSectionTrigger'
+import ShareSectionHistory from '../../components/ShareSectionHistory'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -94,9 +95,8 @@ export default function PeopleToNotifyPage() {
         highlight="forgotten"
         subtext="When the time comes, who needs to know? List the people you'd want notified, and, just as importantly, who will be responsible for reaching each of them."
         cta={{ label: '+ Add a person', onClick: openAdd }}
+        secondaryAction={<ShareSectionTrigger section="people_to_notify" sectionLabel="People to Notify" />}
       />
-
-      <ShareSectionControl section="people_to_notify" sectionLabel="People to Notify" />
 
       <p className="text-muted small mb-4" style={{ fontStyle: 'italic' }}>
         These people don't get access to your plans, only a short, caring notice once your
@@ -213,6 +213,9 @@ export default function PeopleToNotifyPage() {
 
       {success && <Alert variant="success" className="mt-4">{success}</Alert>}
       {error && !showModal && <Alert variant="danger" className="mt-4">{error}</Alert>}
+
+      <ShareSectionHistory section="people_to_notify" />
+
       <div className="mt-4 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
         <button className="btn btn-link p-0"
           style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '0.9rem' }}

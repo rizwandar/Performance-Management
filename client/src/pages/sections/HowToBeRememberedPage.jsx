@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { Button, Form, Alert, Spinner, OverlayTrigger, Popover } from 'react-bootstrap'
 import axios from 'axios'
 import SectionHero from '../../components/SectionHero'
-import ShareSectionControl from '../../components/ShareSectionControl'
+import ShareSectionTrigger from '../../components/ShareSectionTrigger'
+import ShareSectionHistory from '../../components/ShareSectionHistory'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -108,9 +109,8 @@ export default function HowToBeRememberedPage() {
         headline="Your story, in your own words"
         highlight="own words"
         subtext="The most personal part of your plans. These words will help the people you love understand who you were, what you stood for, and how you'd like to be remembered."
+        secondaryAction={<ShareSectionTrigger section="how_to_be_remembered" sectionLabel="How I'd Like to Be Remembered" />}
       />
-
-      <ShareSectionControl section="how_to_be_remembered" sectionLabel="How I'd Like to Be Remembered" />
 
       {success && <Alert variant="success">{success}</Alert>}
       {error   && <Alert variant="danger">{error}</Alert>}
@@ -202,6 +202,8 @@ export default function HowToBeRememberedPage() {
       </div>
       {success && <Alert variant="success" className="mt-3">{success}</Alert>}
       {error   && <Alert variant="danger"  className="mt-3">{error}</Alert>}
+
+      <ShareSectionHistory section="how_to_be_remembered" />
     </div>
   )
 }
