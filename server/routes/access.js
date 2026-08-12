@@ -2,6 +2,7 @@ const express = require('express');
 const router  = express.Router();
 const { queryOne, queryAll } = require('../db/database');
 const { markUserDeceased } = require('../lib/deceased');
+const { getDownloadUrl } = require('../lib/r2');
 
 // An executor's access ignores individually-granted permissions and always sees
 // every section except the vault (digital_life), which is never shareable via
@@ -87,12 +88,19 @@ router.get('/:token', async (req, res) => {
           [tokenRow.user_id]
         );
         break;
-      case 'personal_messages':
-        data.personal_messages = await queryAll(
-          'SELECT id, recipient_name, relationship, message, notes FROM personal_messages WHERE user_id = $1',
+      case 'personal_messages': {
+        const rows = await queryAll(
+          'SELECT id, recipient_name, relationship, message, notes, audio_r2_key FROM personal_messages WHERE user_id = $1',
           [tokenRow.user_id]
         );
+        // Signed URL generated fresh per request, never stored - same pattern
+        // as the authenticated document download route in documents.js.
+        data.personal_messages = await Promise.all(rows.map(async ({ audio_r2_key, ...row }) => ({
+          ...row,
+          audio_url: audio_r2_key ? await getDownloadUrl(audio_r2_key) : null,
+        })));
         break;
+      }
       case 'songs_that_define_me':
         data.songs_that_define_me = await queryAll(
           'SELECT id, title, artist, album, why_meaningful FROM songs_that_define_me WHERE user_id = $1',
