@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Get the Essentials in Writing | In Good Hands</title>
+  <meta name="description" content="A recent scare is a good reason to get organized. Put the essentials in writing now, in one secure place." />
+  <link rel="stylesheet" href="./assets/landing.css" />
+
+  <!-- Google Ads conversion tag -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=AW-18385614102"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'AW-18385614102');
+  </script>
+</head>
+<body>
+  <header class="lp-header">In Good Hands</header>
+
+  <main class="lp-hero">
+    <h1>A recent scare is a good reason to get organized. Don't wait for another one.</h1>
+    <p class="lead">
+      In Good Hands helps you put the essentials in writing now, documents,
+      passwords, wishes, so the people who matter aren't left guessing later.
+    </p>
+    <ul class="lp-bullets">
+      <li>Takes less than 20 minutes to get the basics down</li>
+      <li>Update and add to it whenever you're ready</li>
+      <li>Shared only with the people you trust, only when it's needed</li>
+    </ul>
+  </main>
+
+  <section class="lp-form-wrap">
+    <h2>Start for free</h2>
+    <p class="sub">Create an account in under a minute. No credit card required.</p>
+    <div class="lp-error" data-role="form-error" role="alert" aria-live="polite" hidden></div>
+    <form id="signup-form" novalidate>
+      <div class="lp-field">
+        <label for="name">Full name</label>
+        <input type="text" id="name" name="name" autocomplete="name" required />
+      </div>
+      <div class="lp-field">
+        <label for="email">Email address</label>
+        <input type="email" id="email" name="email" autocomplete="email" required />
+      </div>
+      <div class="lp-field">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" autocomplete="new-password" required />
+        <p class="lp-password-hint">At least 8 characters, one uppercase letter, one number.</p>
+      </div>
+      <label class="lp-consent">
+        <input type="checkbox" name="privacy_consent" required />
+        <span>
+          I have read and agree to the <a href="/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>
+          and <a href="/terms" target="_blank" rel="noopener noreferrer">Terms of Service</a>.
+        </span>
+      </label>
+      <button type="submit" class="lp-submit" data-role="submit-btn">Create my account</button>
+    </form>
+  </section>
+
+  <footer class="lp-footer">
+    In Good Hands. <a href="/privacy">Privacy</a> &middot; <a href="/terms">Terms</a>
+  </footer>
+
+  <script type="module">
+    import { initLandingSignupForm } from './assets/landing.js'
+    initLandingSignupForm({ formId: 'signup-form', segment: 'life-event' })
+  </script>
+</body>
+</html>
