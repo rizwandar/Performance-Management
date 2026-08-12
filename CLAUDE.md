@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **In Good Hands** is an end-of-life planning web and mobile app. Users record personal wishes, legal documents, financial details, medical preferences, funeral wishes, and more across 15 sections. Designated trusted contacts can access this information when the owner becomes inactive.
 
-Stack: React (web) + Expo/React Native (mobile) + Express (API) + SQLite (database) + Cloudflare R2 (file storage).
+Stack: React (web) + Expo/React Native (mobile) + Express (API) + PostgreSQL (database) + Cloudflare R2 (file storage).
 
 ## Commands
 
@@ -53,7 +53,7 @@ The client and mobile apps import from `@in-good-hands/shared`. The Vite config 
 
 **Entry:** `server/index.js` — sets up Express, registers all route files, starts node-cron for the daily inactivity check (8am).
 
-**Database:** SQLite via `better-sqlite3`. Schema and all migrations live in `server/db/database.js`. The DB file is at `server/db/performance.db` (path configurable via `DB_PATH` env var). There is no separate migration runner — migrations run inline at startup via `ALTER TABLE IF NOT EXISTS` guards.
+**Database:** PostgreSQL via `pg` (node-postgres), using the `Pool` implementation in `server/db/database.js`, connected through the `DATABASE_URL` env var. Schema initialization and migrations remain inline at application startup, via patterns such as `CREATE TABLE IF NOT EXISTS` and `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`. There is currently no separate migration runner.
 
 **Routes** are in `server/routes/`. One file per domain: `auth.js`, `users.js`, `sections.js`, `trusted-contacts.js`, `documents.js`, `export.js`, `billing.js`, `admin.js`, `deezer.js`, `contact.js`.
 
@@ -100,7 +100,7 @@ Required in `server/.env`:
 
 ```
 JWT_SECRET=
-DB_PATH=./db/performance.db
+DATABASE_URL=
 CORS_ORIGIN=http://localhost:5173
 R2_ACCOUNT_ID=
 R2_ACCESS_KEY_ID=
