@@ -1,0 +1,179 @@
+/* Shared styles for MKT-02 campaign landing pages. Deliberately plain CSS,
+   no framework, matching the brand tokens in client/src/index.css so these
+   pages look consistent with the app without pulling in the React bundle. */
+
+:root {
+  --green-900: #1A3D28;
+  --green-800: #2D5A3D;
+  --green-700: #3D7A53;
+  --gold: #C9904A;
+  --parchment: #F7F5F0;
+  --parchment-dark: #EDE9DF;
+  --text: #1A1A1A;
+  --text-muted: #6B6B5F;
+  --border: #E0DDD5;
+  --danger: #B3261E;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: Georgia, 'Times New Roman', serif;
+  background: var(--parchment);
+  color: var(--text);
+  line-height: 1.55;
+}
+
+.lp-header {
+  background: linear-gradient(135deg, var(--green-900) 0%, var(--green-800) 100%);
+  color: #fff;
+  padding: 16px 24px;
+  font-weight: 700;
+  font-size: 1.15rem;
+  letter-spacing: 0.01em;
+}
+
+.lp-hero {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 56px 24px 32px;
+  text-align: center;
+}
+
+.lp-hero h1 {
+  font-size: clamp(1.5rem, 4vw, 2.3rem);
+  margin: 0 0 16px;
+  color: var(--green-900);
+}
+
+.lp-hero p.lead {
+  font-size: 1.08rem;
+  color: var(--text-muted);
+  margin: 0 auto 28px;
+}
+
+.lp-bullets {
+  list-style: none;
+  padding: 0;
+  margin: 0 auto 12px;
+  max-width: 480px;
+  text-align: left;
+}
+
+.lp-bullets li {
+  padding: 8px 0 8px 30px;
+  position: relative;
+}
+
+.lp-bullets li::before {
+  content: '\2713';
+  position: absolute;
+  left: 0;
+  color: var(--green-700);
+  font-weight: 700;
+}
+
+.lp-form-wrap {
+  max-width: 440px;
+  margin: 24px auto 64px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 28px 26px;
+  box-shadow: 0 4px 20px rgba(26, 61, 40, 0.08);
+}
+
+.lp-form-wrap h2 {
+  font-size: 1.2rem;
+  margin: 0 0 6px;
+  color: var(--green-900);
+}
+
+.lp-form-wrap p.sub {
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  margin: 0 0 20px;
+}
+
+.lp-field { margin-bottom: 14px; }
+
+.lp-field label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 5px;
+}
+
+.lp-field input[type="text"],
+.lp-field input[type="email"],
+.lp-field input[type="password"] {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.95rem;
+  font-family: inherit;
+}
+
+.lp-field input:focus {
+  outline: none;
+  border-color: var(--green-700);
+  box-shadow: 0 0 0 3px rgba(61, 122, 83, 0.15);
+}
+
+.lp-password-hint {
+  margin: 6px 0 0;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.lp-consent {
+  background: var(--parchment);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 0.82rem;
+  margin-bottom: 18px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  cursor: pointer;
+}
+
+.lp-consent input { margin-top: 3px; }
+.lp-consent a { color: var(--green-700); }
+
+.lp-submit {
+  width: 100%;
+  padding: 12px;
+  background: var(--green-800);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.lp-submit:hover:not(:disabled) { background: var(--green-900); }
+.lp-submit:disabled { opacity: 0.65; cursor: not-allowed; }
+
+.lp-error {
+  background: #FDEDEC;
+  border: 1px solid #F3C6C2;
+  color: var(--danger);
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  margin-bottom: 14px;
+}
+
+.lp-footer {
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  padding: 20px 24px 40px;
+}
+
+.lp-footer a { color: var(--text-muted); }

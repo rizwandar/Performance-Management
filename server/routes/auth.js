@@ -135,7 +135,7 @@ const registerRules = [
     .isDate().withMessage('Date of birth must be a valid date.'),
 ];
 router.post('/register', registerRules, validate, async (req, res) => {
-  const { name, email, password, date_of_birth, country_code, privacy_consent } = req.body;
+  const { name, email, password, date_of_birth, country_code, privacy_consent, acquisition_source } = req.body;
   if (!name || !email || !password) {
     return res.status(400).json({ error: 'Name, email and password are required' });
   }
@@ -146,6 +146,16 @@ router.post('/register', registerRules, validate, async (req, res) => {
     const hash = bcrypt.hashSync(password, 10);
     const verifyToken  = crypto.randomBytes(32).toString('hex');
     const verifyExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+    // MKT-02: optional free-text tag identifying which campaign landing page
+    // (if any) this signup came from, e.g. "google_ads:adult-children". Only
+    // the campaign pages ever send this; the regular app signup form doesn't,
+    // so it stays null for normal registrations. Trusted only as reporting
+    // metadata, not app logic - truncated defensively since it's unvalidated
+    // client input.
+    const acquisitionSource = typeof acquisition_source === 'string' && acquisition_source.trim()
+      ? acquisition_source.trim().slice(0, 200)
+      : null;
 
     // The single privacy_consent checkbox agrees to both the Privacy Policy
     // and Terms of Service at once (FEAT-04/05), so record which published
@@ -159,11 +169,13 @@ router.post('/register', registerRules, validate, async (req, res) => {
     const result = await query(`
       INSERT INTO users (name, email, password_hash, date_of_birth, country_code, privacy_consent,
                          privacy_consent_at, privacy_version_consented, tos_version_consented,
-                         email_verified, email_verification_token, email_verification_expires_at)
-      VALUES ($1, $2, $3, $4, $5, 1, NOW(), $6, $7, 0, $8, $9)
+                         email_verified, email_verification_token, email_verification_expires_at,
+                         acquisition_source)
+      VALUES ($1, $2, $3, $4, $5, 1, NOW(), $6, $7, 0, $8, $9, $10)
       RETURNING id
     `, [name, email, hash, date_of_birth || null, country_code || null,
-        privacyVersion?.version ?? null, tosVersion?.version ?? null, verifyToken, verifyExpiry]);
+        privacyVersion?.version ?? null, tosVersion?.version ?? null, verifyToken, verifyExpiry,
+        acquisitionSource]);
 
     const newId = result.rows[0].id;
 
