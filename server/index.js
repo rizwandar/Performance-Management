@@ -74,6 +74,7 @@ app.use('/api/', apiLimiter);
 app.use('/api/auth/', authLimiter);
 app.use('/api/org-links/', authLimiter);
 app.use('/api/org-register/', authLimiter);
+app.use('/api/sections/digital-life/recovery/', authLimiter);
 
 app.use(async (req, res, next) => {
   const exemptPaths = ['/api/health', '/api/auth/login', '/api/auth/logout'];
@@ -126,6 +127,7 @@ app.use('/api/settings',        require('./routes/settings'));
 app.use('/api/deezer',          require('./routes/deezer'));
 app.use('/api/documents',       require('./routes/documents'));
 app.use('/api/trusted-contacts',require('./routes/trustedContacts'));
+app.use('/api/sections/digital-life/recovery', require('./routes/vaultRecovery'));
 app.use('/api/sections',        require('./routes/sections'));
 app.use('/api/export',          require('./routes/export'));
 app.use('/api/billing',         require('./routes/billing'));

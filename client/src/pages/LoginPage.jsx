@@ -25,6 +25,7 @@ export default function LoginPage() {
 
   const countdown = useCountdown(retryAfterSeconds)
   const registered = location.state?.registered
+  const vaultDestroyed = location.state?.vaultDestroyed
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -74,6 +75,13 @@ export default function LoginPage() {
             <Alert variant="success">
               <strong>Account created.</strong> Please check your email for a verification link before signing in.
               Once verified, you can sign in here.
+            </Alert>
+          )}
+          {vaultDestroyed && (
+            <Alert variant="danger">
+              <strong>Your vault has been permanently deleted</strong> after too many incorrect password
+              attempts, per your account's safety setting. Sign in to set up a new vault password. We
+              sent you an email with details.
             </Alert>
           )}
           {rateLimited && <Alert variant="danger">{rateLimitMessage(countdown)}</Alert>}
