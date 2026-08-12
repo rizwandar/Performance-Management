@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Form, Button, Alert, Spinner, Badge, Row, Col, Modal } from 'react-bootstrap'
+import { Form, Button, Alert, Spinner, Badge, Row, Col, Modal, Table } from 'react-bootstrap'
 import axios from 'axios'
 import { applyTheme, applyFont } from '../App'
 import { useBranding } from '../context/BrandingContext'
@@ -72,7 +72,7 @@ const SECTION_LABELS = {
 // ---------------------------------------------------------------------------
 // Tab navigation
 // ---------------------------------------------------------------------------
-const TABS = ['Overview', 'Users', 'Activity', 'Vault Security', 'Appearance', 'Branding', 'Organizations', 'Settings', 'Legal', 'Versions', 'App Blueprint']
+const TABS = ['Overview', 'Users', 'Activity', 'Vault Security', 'Appearance', 'Branding', 'Organizations', 'Settings', 'Legal', 'Marketing', 'Versions', 'App Blueprint']
 
 const VERSION_MODULES = [
   { id: 'client',     label: 'Client App' },
@@ -510,7 +510,7 @@ INACTIVITY TIMER:
 
 ADMIN PANEL:
 - Accessible to users with is_admin=1 only.
-- Tabs: Overview (stats), Users (search and manage, including honorary premium grant/revoke), Activity (audit log), Appearance (theme/font/icon set), Branding (site name and logo), Organizations (funeral-home white-label portal management, gated behind ORG_PORTAL_ENABLED), Settings (password reset method), Versions (client/admin/org_portal semver change log), App Blueprint (this documentation).
+- Tabs: Overview (stats), Users (search and manage, including honorary premium grant/revoke), Activity (audit log), Appearance (theme/font/icon set), Branding (site name and logo), Organizations (funeral-home white-label portal management, gated behind ORG_PORTAL_ENABLED), Settings (password reset method), Marketing (campaign landing page list and acquisition_source signup breakdown), Versions (client/admin/org_portal semver change log), App Blueprint (this documentation).
 - 9 color themes (including Keepsake, a tokenized cream/walnut/marigold theme with its own card radius, border style, and button treatment), 6 font choices, 3 icon sets. All stored in app_settings key-value table.
 - Admin can upload a logo via Cloudflare R2 for white-labelling.
 - Admin can change site name (white-label support via BrandingContext).
@@ -842,6 +842,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
                 ['Appearance', '9 color themes, 6 font choices, 3 icon sets. Changes apply live via CSS variables and are persisted in app_settings.'],
                 ['Branding', 'Change the site name (stored in app_settings, displayed via BrandingContext throughout the app and in emails/PDF). Upload a custom logo (stored in R2). Choose from preset logo illustrations.'],
                 ['Settings', 'Toggle whether password reset also requires date-of-birth or security-question confirmation in addition to the emailed link (Resend). The link itself is always required, never optional.'],
+                ['Marketing', 'Lists the code-defined campaign landing pages (client/lp/*.html) with their live URLs, and a live breakdown of signups by acquisition_source pulled straight from the users table. No separate marketing database or A/B testing infrastructure yet.'],
                 ['App Blueprint', 'This three-level documentation system. Read-only. Downloadable as PDF and as a rebuild prompt text file.'],
               ]} />
             </BpSection>
@@ -1219,6 +1220,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
             ['Activity tab', 'Recent audit log with action labels, IP, and timestamps.'],
             ['Appearance tab', 'Choose color theme (9 options), font (6 options), icon set (3 options). Changes apply live via CSS variables.'],
             ['Settings tab', 'Password reset method: email link, optionally plus a date-of-birth or security-question check before the link is sent.'],
+            ['Marketing tab', 'GET /api/admin/marketing/campaigns returns a hardcoded list of the campaign landing pages (client/lp/*.html, one per Google Ads audience segment) plus a live GROUP BY acquisition_source query against the users table. acquisition_source is set only by the landing pages\' own signup form (server/routes/auth.js), never by the regular in-app registration flow.'],
             ['App Blueprint tab', 'Three-level documentation: L1 Feature Overview, L2 Product Specification, L3 Technical Reference. PDF download and rebuild prompt download.'],
             ['Theme storage', 'app_settings table keys: site_theme, site_font, site_icon_set, site_logo.'],
             ['Themes available', 'Forest, Dusk, Terracotta, Ocean, Rose Garden, Midnight, High Contrast, Soft Mist, Keepsake.'],
@@ -1433,6 +1435,8 @@ export default function AdminPage() {
   // Versions tab state
   const [versions, setVersions]           = useState([])
   const [loadingVersions, setLoadingVersions] = useState(false)
+  const [marketingData, setMarketingData]     = useState(null)
+  const [loadingMarketing, setLoadingMarketing] = useState(false)
   const [newVersion, setNewVersion]       = useState({ module: 'client', version: '', summary: '' })
   const [versionSaving, setVersionSaving] = useState(false)
   const [versionError, setVersionError]   = useState('')
@@ -1491,6 +1495,16 @@ export default function AdminPage() {
       .then(r => setVersions(r.data))
       .catch(() => showAlert('danger', "Couldn't load version history."))
       .finally(() => setLoadingVersions(false))
+  }, [tab])
+
+  // Load campaign/signup-source data when switching to Marketing tab
+  useEffect(() => {
+    if (tab !== 'Marketing') return
+    setLoadingMarketing(true)
+    axios.get(`${API}/admin/marketing/campaigns`)
+      .then(r => setMarketingData(r.data))
+      .catch(() => showAlert('danger', "Couldn't load marketing data."))
+      .finally(() => setLoadingMarketing(false))
   }, [tab])
 
   const addVersion = async () => {
@@ -2304,6 +2318,84 @@ export default function AdminPage() {
       {tab === 'Legal' && <LegalPanel showAlert={showAlert} />}
 
       {/* ── Versions ───────────────────────────────────────────────────────── */}
+      {tab === 'Marketing' && (
+        <div>
+          <p className="text-muted small mb-4">
+            Where marketing data lives: campaign landing pages are static files
+            (<code>client/lp/*.html</code>), not database-driven, so the list below is
+            code-defined rather than editable here. Each page's embedded signup form tags
+            the new account with an <code>acquisition_source</code> value (the campaign
+            variant plus any UTM/gclid parameters from the ad click), stored directly on
+            that user's row. There is no separate marketing/analytics table yet, and no
+            formal A/B testing infrastructure, by design, at this traffic scale &mdash;
+            each Ads campaign points at its own dedicated page, and performance is compared
+            directly in the Google Ads dashboard rather than in-app.
+          </p>
+
+          {loadingMarketing && <Spinner animation="border" size="sm" style={{ color: 'var(--green-800)' }} />}
+
+          {marketingData && (
+            <>
+              <div style={{ background: 'var(--parchment)', border: '1px solid var(--border)', borderRadius: 12, padding: '18px 20px', marginBottom: 20 }}>
+                <h6 style={{ color: 'var(--green-900)', marginBottom: 12 }}>Campaign landing pages</h6>
+                <div style={{ overflowX: 'auto' }}>
+                  <Table size="sm" borderless className="mb-0">
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                        <th className="text-muted small">Audience</th>
+                        <th className="text-muted small">Title</th>
+                        <th className="text-muted small">URL</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {marketingData.landingPages.map(p => (
+                        <tr key={p.segment}>
+                          <td className="small">{p.audience}</td>
+                          <td className="small">{p.title}</td>
+                          <td className="small">
+                            <a href={p.path} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--green-700)' }}>
+                              {p.path}
+                            </a>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </Table>
+                </div>
+              </div>
+
+              <div style={{ background: 'var(--parchment)', border: '1px solid var(--border)', borderRadius: 12, padding: '18px 20px' }}>
+                <h6 style={{ color: 'var(--green-900)', marginBottom: 4 }}>Signups by campaign source</h6>
+                <p className="text-muted small mb-3">
+                  {marketingData.totalTrackedSignups} signup{marketingData.totalTrackedSignups === 1 ? '' : 's'} tagged
+                  with a campaign source so far. Regular in-app signups (not from a landing page) aren't counted here.
+                </p>
+                {marketingData.acquisitionBreakdown.length === 0 ? (
+                  <p className="text-muted small mb-0">No campaign-attributed signups yet.</p>
+                ) : (
+                  <Table size="sm" borderless className="mb-0">
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                        <th className="text-muted small">Source</th>
+                        <th className="text-muted small">Signups</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {marketingData.acquisitionBreakdown.map(row => (
+                        <tr key={row.acquisition_source}>
+                          <td className="small" style={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{row.acquisition_source}</td>
+                          <td className="small">{row.signups}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </Table>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
       {tab === 'Versions' && (
         <div>
           <p className="text-muted small mb-4">

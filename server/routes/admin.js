@@ -197,6 +197,36 @@ router.post('/versions', auth, adminOnly, async (req, res) => {
   res.status(201).json({ success: true });
 });
 
+// MKT-02: the campaign landing pages themselves are static files
+// (client/lp/*.html), not DB-driven, so this list is hardcoded here rather
+// than read from a table - it's a small, code-defined set that changes only
+// when a developer adds/removes a campaign page. acquisition_source counts
+// are the real, live part: grouped straight off the users table, no
+// separate marketing/analytics table exists yet (deliberately - see
+// MKT-02 backlog notes on why formal A/B infra was skipped at this scale).
+const CAMPAIGN_LANDING_PAGES = [
+  { segment: 'adult-children', path: '/lp/adult-children.html', title: 'Some Things Are Too Important to Leave Unsaid', audience: 'Adult children of aging parents' },
+  { segment: 'self-planners',  path: '/lp/self-planners.html',  title: 'Leave More Than Paperwork',                     audience: 'Self-planners 50+' },
+  { segment: 'life-event',     path: '/lp/life-event.html',     title: 'A Scare Deserves More Than a To-Do List',       audience: 'Recently prompted by a health/life event' },
+  { segment: 'caregivers',     path: '/lp/caregivers.html',     title: 'Leave a Note of Your Own',                      audience: 'Caregivers/spouses managing another\'s affairs' },
+];
+
+router.get('/marketing/campaigns', auth, adminOnly, async (req, res) => {
+  const rows = await queryAll(`
+    SELECT acquisition_source, COUNT(*)::int AS signups
+    FROM users
+    WHERE acquisition_source IS NOT NULL
+    GROUP BY acquisition_source
+    ORDER BY signups DESC
+  `);
+  const totalTracked = rows.reduce((sum, r) => sum + r.signups, 0);
+  res.json({
+    landingPages: CAMPAIGN_LANDING_PAGES,
+    acquisitionBreakdown: rows,
+    totalTrackedSignups: totalTracked,
+  });
+});
+
 router.get('/users/:id/activity', auth, adminOnly, async (req, res) => {
   const user = await queryOne('SELECT id, name, email FROM users WHERE id = $1 AND is_admin = 0', [req.params.id]);
   if (!user) return res.status(404).json({ error: 'User not found' });
