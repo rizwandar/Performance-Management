@@ -294,6 +294,86 @@ async function init() {
     )
   `);
 
+  // Opt-in, per-vault forgot-password behavior: recovery_enabled turns on
+  // security-question-based recovery (see vault_recovery_questions/shares
+  // below); destroy_after_attempts is an independent safety setting - the
+  // vault is auto-destroyed after this many consecutive wrong password
+  // attempts, regardless of recovery mode, protecting against someone with
+  // account access but not the vault password guessing indefinitely.
+  await pool.query(`ALTER TABLE digital_vault ADD COLUMN IF NOT EXISTS recovery_enabled BOOLEAN NOT NULL DEFAULT false`);
+  await pool.query(`ALTER TABLE digital_vault ADD COLUMN IF NOT EXISTS destroy_after_attempts INTEGER NOT NULL DEFAULT 100`);
+
+  // Also configurable, matching destroy_after_attempts's pattern: logout_after_attempts
+  // forces a sign-out once cumulative wrong attempts reach it (default 3);
+  // lockout_after_attempts triggers a repeating 15-minute throttle every time the
+  // attempt count is a multiple of it (default 5). Both independent of destroy_after_attempts
+  // and of each other - see lib/vaultAttempts.js for how all three interact.
+  await pool.query(`ALTER TABLE digital_vault ADD COLUMN IF NOT EXISTS logout_after_attempts INTEGER NOT NULL DEFAULT 3`);
+  await pool.query(`ALTER TABLE digital_vault ADD COLUMN IF NOT EXISTS lockout_after_attempts INTEGER NOT NULL DEFAULT 5`);
+
+  // The questions a user configured for vault-specific security-question
+  // recovery. question_index is a stable 1..5 ordinal used to pair answers
+  // with their escrowed shares below - it is NOT related to the account-level
+  // security_question column on users, which stays fully separate.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS vault_recovery_questions (
+      id                SERIAL PRIMARY KEY,
+      digital_vault_id  INTEGER NOT NULL REFERENCES digital_vault(id) ON DELETE CASCADE,
+      question_index    INTEGER NOT NULL,
+      question_text     TEXT NOT NULL,
+      is_mandatory      BOOLEAN NOT NULL DEFAULT true,
+      created_at        TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(digital_vault_id, question_index)
+    )
+  `);
+
+  // Combinatorial escrow: the vault key, encrypted under a key derived from
+  // the answers to questions (index_a, index_b, index_c), for every 3-question
+  // combination among the configured questions. Answering any 3 correctly
+  // successfully decrypts exactly one row (AES-GCM auth tag only validates
+  // for the right combination), which recovers the vault key without ever
+  // storing the key or password unencrypted.
+  // FK to digital_vault(id) with CASCADE so a vault reset (which deletes the
+  // digital_vault row) automatically invalidates any old escrow - correct,
+  // since the escrowed key no longer exists after a reset.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS vault_recovery_shares (
+      id                SERIAL PRIMARY KEY,
+      digital_vault_id  INTEGER NOT NULL REFERENCES digital_vault(id) ON DELETE CASCADE,
+      question_index_a  INTEGER NOT NULL,
+      question_index_b  INTEGER NOT NULL,
+      key_enc           TEXT NOT NULL,
+      created_at        TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(digital_vault_id, question_index_a, question_index_b)
+    )
+  `);
+
+  // v2: escrow moved from 2-question pairs to 3-question combinations (see
+  // lib/vaultRecovery.js). question_index_c added additively - existing
+  // columns are never dropped/renamed. The original 2-column UNIQUE above
+  // now under-constrains real usage (two legitimate triples can share their
+  // first two indices, e.g. (1,2,3) and (1,2,4)), so it's replaced with a
+  // 4-column unique index; the old constraint is dropped by looking up its
+  // actual name rather than assuming Postgres's auto-generated naming, since
+  // that isn't guaranteed stable. Safe to run on every boot - this table has
+  // never held real production data (feature never shipped past a dev branch).
+  await pool.query(`ALTER TABLE vault_recovery_shares ADD COLUMN IF NOT EXISTS question_index_c INTEGER`);
+  const staleConstraint = await pool.query(`
+    SELECT tc.constraint_name
+    FROM information_schema.table_constraints tc
+    JOIN information_schema.key_column_usage kcu ON kcu.constraint_name = tc.constraint_name
+    WHERE tc.table_name = 'vault_recovery_shares' AND tc.constraint_type = 'UNIQUE'
+    GROUP BY tc.constraint_name
+    HAVING array_agg(kcu.column_name::text ORDER BY kcu.column_name) = ARRAY['digital_vault_id','question_index_a','question_index_b']::text[]
+  `);
+  for (const row of staleConstraint.rows) {
+    await pool.query(`ALTER TABLE vault_recovery_shares DROP CONSTRAINT "${row.constraint_name}"`);
+  }
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS vault_recovery_shares_combo_unique
+    ON vault_recovery_shares (digital_vault_id, question_index_a, question_index_b, question_index_c)
+  `);
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS digital_credentials (
       id           SERIAL PRIMARY KEY,

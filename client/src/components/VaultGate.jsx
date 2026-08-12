@@ -8,6 +8,10 @@ import { useNavigate } from 'react-router-dom'
 import { Button, Form, Alert, InputGroup, Spinner } from 'react-bootstrap'
 import axios from 'axios'
 import { useAuth } from '../context/AuthContext'
+import VaultRecoveryQuestionsForm, {
+  defaultRecoveryQuestions, validateRecoveryQuestions, toApiQuestions,
+} from './VaultRecoveryQuestionsForm'
+import VaultRecoverForm from './VaultRecoverForm'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -22,6 +26,13 @@ export function VaultSetupScreen({ onSetup }) {
   const [error, setError]     = useState('')
   const [showPw, setShowPw]   = useState(false)
 
+  // After the password itself is created: 'choice' -> pick a forgot-password
+  // plan, 'questions' -> set up recovery questions (only if they opted in).
+  const [step, setStep] = useState('password')
+  const [recoveryQuestions, setRecoveryQuestions] = useState(defaultRecoveryQuestions())
+  const [recoveryError, setRecoveryError] = useState('')
+  const [recoverySaving, setRecoverySaving] = useState(false)
+
   const handleSetup = async () => {
     if (pw.length < 8) return setError('Your vault password must be at least 8 characters.')
     if (pw !== confirm)  return setError("Passwords don't match.")
@@ -29,11 +40,97 @@ export function VaultSetupScreen({ onSetup }) {
     setSaving(true)
     try {
       await axios.post(`${API}/sections/digital-life/vault`, { vault_password: pw, password_hint: hint })
-      onSetup()
+      setStep('choice')
     } catch (err) {
       setError(err.response?.data?.error || 'Setup failed. Please try again.')
     }
     setSaving(false)
+  }
+
+  const finishWithoutRecovery = () => onSetup()
+
+  const saveRecoveryQuestions = async () => {
+    const validationError = validateRecoveryQuestions(recoveryQuestions)
+    if (validationError) return setRecoveryError(validationError)
+    setRecoveryError('')
+    setRecoverySaving(true)
+    try {
+      await axios.put(`${API}/sections/digital-life/recovery/setup`, {
+        vault_password: pw,
+        questions: toApiQuestions(recoveryQuestions),
+      })
+      onSetup()
+    } catch (err) {
+      setRecoveryError(err.response?.data?.error || 'Could not save your recovery questions. Please try again.')
+    }
+    setRecoverySaving(false)
+  }
+
+  if (step === 'choice') {
+    return (
+      <div style={{ maxWidth: 520, margin: '0 auto' }}>
+        <div style={{ background: 'var(--parchment)', borderRadius: 12, padding: '32px 36px', border: '1px solid var(--border)' }}>
+          <div style={{ fontSize: '2.5rem', textAlign: 'center', marginBottom: 12 }}>🔑</div>
+          <h5 style={{ color: 'var(--green-900)', textAlign: 'center', marginBottom: 8 }}>
+            If you ever forget this password, what should happen?
+          </h5>
+          <p className="text-muted small text-center mb-4">
+            It's up to you. You can change this choice later in Profile &gt; Vault Settings.
+          </p>
+
+          <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 10, padding: 16, marginBottom: 12 }}>
+            <p style={{ fontWeight: 600, marginBottom: 4 }}>Let me recover it with security questions</p>
+            <p className="text-muted small mb-3">
+              Set up 3-5 questions now. If you forget your password, answering at least 3 of them gets
+              you back in and nothing is deleted. This does mean your vault is only as safe as those
+              answers, not "even we cannot read it."
+            </p>
+            <Button variant="primary" size="sm" onClick={() => setStep('questions')}>
+              Set up recovery questions
+            </Button>
+          </div>
+
+          <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 10, padding: 16 }}>
+            <p style={{ fontWeight: 600, marginBottom: 4 }}>Require a full reset if forgotten (default)</p>
+            <p className="text-muted small mb-3">
+              No recovery questions, nothing stored beyond your password itself. If you forget it, your
+              vault-protected data is permanently deleted and you start over. Strongest privacy guarantee.
+            </p>
+            <Button variant="outline-secondary" size="sm" onClick={finishWithoutRecovery}>
+              I'll use this, no recovery questions
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (step === 'questions') {
+    return (
+      <div style={{ maxWidth: 560, margin: '0 auto' }}>
+        <div style={{ background: 'var(--parchment)', borderRadius: 12, padding: '32px 36px', border: '1px solid var(--border)' }}>
+          <h5 style={{ color: 'var(--green-900)', marginBottom: 8 }}>Set up your vault recovery questions</h5>
+          <p className="text-muted small mb-4">
+            This vault is a secured area - these questions are separate from your account's own security
+            question and are used only to recover this vault password. Choose answers only you would know.
+            You'll need to answer at least 3 correctly to recover access later.
+          </p>
+
+          {recoveryError && <Alert variant="danger">{recoveryError}</Alert>}
+
+          <VaultRecoveryQuestionsForm questions={recoveryQuestions} setQuestions={setRecoveryQuestions} />
+
+          <div className="d-flex gap-3 mt-4">
+            <Button variant="primary" onClick={saveRecoveryQuestions} disabled={recoverySaving}>
+              {recoverySaving ? 'Saving...' : 'Save and continue'}
+            </Button>
+            <Button variant="outline-secondary" onClick={() => setStep('choice')}>
+              Back
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -59,11 +156,10 @@ export function VaultSetupScreen({ onSetup }) {
           background: '#FEF3C7', border: '1px solid #F59E0B',
           borderRadius: 8, padding: '12px 16px', marginBottom: 20, fontSize: '0.85rem',
         }}>
-          <strong>Important: there is no way to recover this password.</strong> It is never stored
-          on our servers, so if you forget it, your vault-protected data cannot be decrypted.
-          Resetting your vault <strong>permanently deletes</strong> all five vault-protected sections.
-          Keep your vault password somewhere safe, and consider setting an optional hint below,
-          or use Settings to change it any time while you still remember it.
+          <strong>Important:</strong> Your vault password is never stored on our servers.
+          After you create it, you'll choose what happens if you ever forget it: recover it with
+          security questions, or require a full reset that permanently deletes your vault data.
+          Keep your vault password somewhere safe either way.
         </div>
 
         <Form.Group className="mb-3">
@@ -115,7 +211,7 @@ export function VaultSetupScreen({ onSetup }) {
 }
 
 // ---------------------------------------------------------------------------
-// Unlock / Reset screen
+// Unlock / Reset / Recover screen
 // ---------------------------------------------------------------------------
 export function VaultLockScreen({ onUnlock, onReset }) {
   const { logout } = useAuth()
@@ -125,7 +221,8 @@ export function VaultLockScreen({ onUnlock, onReset }) {
   const [checking, setChecking] = useState(false)
   const [error, setError]       = useState('')
   // 'none' -> locked screen, 'choice' -> "do you still remember an earlier password?",
-  // 'confirm' -> the destructive delete-everything screen
+  // 'confirm' -> the destructive delete-everything screen, 'recover' -> answer
+  // security questions to get back in non-destructively.
   const [resetStep, setResetStep] = useState('none')
   const [lockedUntil, setLockedUntil] = useState(null)
   const [hint, setHint]         = useState(null)
@@ -145,6 +242,10 @@ export function VaultLockScreen({ onUnlock, onReset }) {
   const [resetting, setResetting]   = useState(false)
   const [resetError, setResetError] = useState('')
 
+  // Recovery flow
+  const [recoveryQuestions, setRecoveryQuestions] = useState([])
+  const [recoveryLoading, setRecoveryLoading]     = useState(false)
+
   const inputRef = useRef(null)
 
   const handleUnlock = async () => {
@@ -157,6 +258,11 @@ export function VaultLockScreen({ onUnlock, onReset }) {
       onUnlock(pw)
     } catch (err) {
       const data = err.response?.data || {}
+      if (data.vault_destroyed) {
+        logout()
+        navigate('/login', { state: { vaultDestroyed: true } })
+        return
+      }
       if (data.vault_locked) {
         setLockedUntil(data.locked_until)
         setChecking(false)
@@ -193,7 +299,46 @@ export function VaultLockScreen({ onUnlock, onReset }) {
     setResetting(false)
   }
 
+  const openChoice = async () => {
+    setResetStep('choice')
+    setRecoveryLoading(true)
+    try {
+      const { data } = await axios.get(`${API}/sections/digital-life/recovery/questions`)
+      setRecoveryQuestions(data.recovery_enabled ? data.questions : [])
+    } catch {
+      setRecoveryQuestions([])
+    }
+    setRecoveryLoading(false)
+  }
+
+  const openRecover = () => {
+    setResetStep('recover')
+  }
+
   const isLocked = lockedUntil && new Date(lockedUntil) > new Date()
+
+  if (resetStep === 'recover') {
+    return (
+      <div style={{ maxWidth: 520, margin: '0 auto' }}>
+        <div style={{ background: 'var(--parchment)', borderRadius: 12, padding: '32px 36px', border: '1px solid var(--border)' }}>
+          <div style={{ fontSize: '2.5rem', textAlign: 'center', marginBottom: 12 }}>🔑</div>
+          <h5 style={{ color: 'var(--green-900)', textAlign: 'center', marginBottom: 8 }}>
+            Recover your vault
+          </h5>
+          <p className="text-muted small text-center mb-4">
+            Answer at least 3 of your questions below (leave the rest blank if you don't remember them),
+            then choose a new vault password. There's no limit on attempts, so take your time.
+          </p>
+
+          <VaultRecoverForm
+            questions={recoveryQuestions}
+            onRecovered={onUnlock}
+            onCancel={() => setResetStep('choice')}
+          />
+        </div>
+      </div>
+    )
+  }
 
   if (resetStep === 'choice') {
     return (
@@ -217,6 +362,20 @@ export function VaultLockScreen({ onUnlock, onReset }) {
           <p className="text-muted small text-center mb-4" style={{ fontSize: '0.8rem' }}>
             Settings lets you change your vault password using your current one. Nothing is deleted.
           </p>
+
+          {recoveryLoading && (
+            <div className="text-center mb-3"><Spinner size="sm" animation="border" aria-hidden="true" /></div>
+          )}
+          {!recoveryLoading && recoveryQuestions.length > 0 && (
+            <>
+              <Button variant="outline-primary" className="w-100 mb-2" onClick={openRecover}>
+                Recover using my security questions
+              </Button>
+              <p className="text-muted small text-center mb-4" style={{ fontSize: '0.8rem' }}>
+                Answer at least 3 of your questions to get back in. Nothing is deleted.
+              </p>
+            </>
+          )}
 
           <Button variant="outline-danger" className="w-100 mb-3" onClick={() => setResetStep('confirm')}>
             No, I've completely forgotten it
@@ -325,7 +484,7 @@ export function VaultLockScreen({ onUnlock, onReset }) {
         <div className="text-center">
           <button className="btn btn-link p-0"
             style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}
-            onClick={() => setResetStep('choice')}>
+            onClick={openChoice}>
             Forgot your vault password?
           </button>
         </div>
