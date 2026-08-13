@@ -6,6 +6,7 @@
 const { queryOne, queryAll } = require('../db/database');
 const { decryptField } = require('./vault');
 const { decryptRow } = require('./vaultFields');
+const { getDownloadUrl } = require('./r2');
 
 // Vault-protected sections (SEC-03) can't be decrypted on demand once the
 // owner isn't present to supply the vault password (see vault.js — the
@@ -118,7 +119,10 @@ const LIST_FIELDS = {
   },
   personal_messages: {
     titleKey: 'recipient_name', titlePrefix: 'To: ',
-    fields: [['relationship', 'Relationship'], ['message', 'Message'], ['notes', 'Notes']],
+    fields: [
+      ['relationship', 'Relationship'], ['message', 'Message'],
+      ['audio_url', 'Voice message', null, 'audio'], ['notes', 'Notes'],
+    ],
   },
   songs_that_define_me: {
     titleKey: 'title',
@@ -163,8 +167,15 @@ async function fetchRawSectionData(sectionKey, userId, vaultKey) {
       return queryOne('SELECT about_me, life_story, remembered_for, legacy_message FROM users WHERE id = $1', [userId]);
     case 'people_to_notify':
       return queryAll('SELECT * FROM people_to_notify WHERE user_id = $1 ORDER BY created_at', [userId]);
-    case 'personal_messages':
-      return queryAll('SELECT * FROM personal_messages WHERE user_id = $1 ORDER BY created_at', [userId]);
+    case 'personal_messages': {
+      const rows = await queryAll('SELECT * FROM personal_messages WHERE user_id = $1 ORDER BY created_at', [userId]);
+      // Signed URL generated fresh per request (this runs live on every guest
+      // visit for a non-vault section), never persisted - IDEA-01.
+      return Promise.all(rows.map(async ({ audio_r2_key, ...row }) => ({
+        ...row,
+        audio_url: audio_r2_key ? await getDownloadUrl(audio_r2_key) : null,
+      })));
+    }
     case 'songs_that_define_me':
       return queryAll('SELECT * FROM songs_that_define_me WHERE user_id = $1 ORDER BY added_at', [userId]);
     case 'life_wishes':
@@ -203,15 +214,19 @@ async function fetchRawSectionData(sectionKey, userId, vaultKey) {
 // ---------------------------------------------------------------------------
 // Shape raw data into a display-agnostic view:
 //   { kind: 'empty' }
-//   { kind: 'single', fields: [{label, value}] }
-//   { kind: 'list', items: [{ title, fields: [{label, value}] }] }
+//   { kind: 'single', fields: [{label, value, type}] }
+//   { kind: 'list', items: [{ title, fields: [{label, value, type}] }] }
+// `type` defaults to 'text'; 'audio' (IDEA-01) tells a JSON consumer (the
+// guest-view page) to render an <audio> player instead of plain text. The
+// email HTML renderer below deliberately does NOT turn an 'audio' value into
+// a clickable link - see fieldRowHtml.
 // ---------------------------------------------------------------------------
 function shapeFields(fieldDefs, row) {
   return fieldDefs
-    .map(([key, label, fmt]) => {
+    .map(([key, label, fmt, type]) => {
       const raw = row[key];
       if (raw === null || raw === undefined || raw === '') return null;
-      return { label, value: fmt ? fmt(raw) : String(raw) };
+      return { label, value: fmt ? fmt(raw) : String(raw), type: type || 'text' };
     })
     .filter(Boolean);
 }
@@ -246,6 +261,18 @@ function escapeHtml(str) {
 }
 
 function fieldRowHtml(f) {
+  // Audio fields carry a signed R2 URL as their value - it's short-lived
+  // (see r2.js's default TTL) so it's fit to hand to a page rendered right
+  // now, but not fit to embed as a clickable link in an email that might sit
+  // unread for days. Point to the (separately included, always-live) share
+  // link instead of leaking a URL that will 404 once it expires.
+  if (f.type === 'audio') {
+    return `
+      <tr>
+        <td style="padding:4px 10px 4px 0; font-weight:600; color:#2D5A3D; font-size:14px; width:190px; vertical-align:top;">${escapeHtml(f.label)}</td>
+        <td style="padding:4px 0; color:#1F2937; font-size:14px;">\u{1F3A4} Included &mdash; open the link above to listen (audio can't be played inside this email).</td>
+      </tr>`;
+  }
   return `
     <tr>
       <td style="padding:4px 10px 4px 0; font-weight:600; color:#2D5A3D; font-size:14px; width:190px; vertical-align:top;">${escapeHtml(f.label)}</td>
