@@ -227,6 +227,56 @@ router.get('/marketing/campaigns', auth, adminOnly, async (req, res) => {
   });
 });
 
+// Security findings log: a persistent record of security review results
+// (audits, probes, infra reviews) readable from the admin panel's Security
+// tab in any environment the server is pointed at, and re-readable by a
+// future Claude Code session without the original conversation - see
+// security_findings in db/database.js and the "Security findings log"
+// section of CLAUDE.md.
+const FINDING_CATEGORIES = ['authorization', 'injection', 'xss', 'secrets', 'infrastructure', 'session', 'documentation', 'ci-cd', 'other'];
+const FINDING_SEVERITIES  = ['info', 'low', 'medium', 'high', 'critical'];
+const FINDING_STATUSES    = ['open', 'monitoring', 'resolved', 'accepted_risk'];
+
+router.get('/security-findings', auth, adminOnly, async (req, res) => {
+  const rows = await queryAll(
+    'SELECT * FROM security_findings ORDER BY discovered_at DESC'
+  );
+  res.json(rows);
+});
+
+router.post('/security-findings', auth, adminOnly, async (req, res) => {
+  const { title, category, severity, status, summary, details, source, related_link } = req.body;
+  if (!title || !title.trim()) return res.status(400).json({ error: 'A title is required.' });
+  if (!FINDING_CATEGORIES.includes(category)) {
+    return res.status(400).json({ error: 'category must be one of: ' + FINDING_CATEGORIES.join(', ') });
+  }
+  if (!FINDING_SEVERITIES.includes(severity)) {
+    return res.status(400).json({ error: 'severity must be one of: ' + FINDING_SEVERITIES.join(', ') });
+  }
+  if (!summary || !summary.trim()) return res.status(400).json({ error: 'A short summary is required.' });
+  const finalStatus = FINDING_STATUSES.includes(status) ? status : 'open';
+  const result = await query(
+    `INSERT INTO security_findings (title, category, severity, status, summary, details, source, related_link, resolved_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CASE WHEN $4 = 'resolved' THEN NOW() ELSE NULL END) RETURNING id`,
+    [title.trim(), category, severity, finalStatus, summary.trim(), details || null, source || null, related_link || null]
+  );
+  res.status(201).json({ id: result.rows[0].id });
+});
+
+router.put('/security-findings/:id', auth, adminOnly, async (req, res) => {
+  const existing = await queryOne('SELECT id FROM security_findings WHERE id = $1', [req.params.id]);
+  if (!existing) return res.status(404).json({ error: 'Finding not found.' });
+  const { status } = req.body;
+  if (!FINDING_STATUSES.includes(status)) {
+    return res.status(400).json({ error: 'status must be one of: ' + FINDING_STATUSES.join(', ') });
+  }
+  await query(
+    `UPDATE security_findings SET status = $1, resolved_at = CASE WHEN $1 = 'resolved' THEN NOW() ELSE resolved_at END WHERE id = $2`,
+    [status, req.params.id]
+  );
+  res.json({ success: true });
+});
+
 router.get('/users/:id/activity', auth, adminOnly, async (req, res) => {
   const user = await queryOne('SELECT id, name, email FROM users WHERE id = $1 AND is_admin = 0', [req.params.id]);
   if (!user) return res.status(404).json({ error: 'User not found' });
