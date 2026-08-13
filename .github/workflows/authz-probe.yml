@@ -1,0 +1,69 @@
+name: Authorization Probe
+
+# Regression test for broken access control: IDOR (accessing another
+# user's records by guessing an id), missing admin gating, and JWT
+# tampering (payload edits, alg:none downgrade). Fails the build if any
+# of these stop being blocked. See server/scripts/authz-probe.mjs.
+on:
+  push:
+    branches: [main, staging]
+  pull_request:
+    branches: [main, staging]
+
+jobs:
+  authz-probe:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: authz_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install server dependencies
+        run: npm install
+        working-directory: server
+
+      - name: Boot server and run authorization probe
+        env:
+          JWT_SECRET: ci-test-secret-not-for-production
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/authz_ci
+          NODE_ENV: test
+          PORT: 3001
+          CLIENT_URL: http://localhost:5173
+          R2_ACCOUNT_ID: test
+          R2_ACCESS_KEY_ID: test
+          R2_SECRET_ACCESS_KEY: test
+          R2_BUCKET_NAME: test
+          RESEND_API_KEY: test
+        run: |
+          node index.js &
+          SERVER_PID=$!
+          for i in $(seq 1 20); do
+            curl -sf http://localhost:3001/api/health > /dev/null 2>&1 && break
+            sleep 1
+          done
+          BASE_URL=http://localhost:3001/api node scripts/authz-probe.mjs
+          STATUS=$?
+          kill $SERVER_PID
+          exit $STATUS
+        working-directory: server
