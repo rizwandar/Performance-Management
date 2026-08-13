@@ -851,6 +851,36 @@ async function init() {
     }
   }
 
+  // Added individually (not part of the bulk backfill above, which only
+  // fires once against a fully empty table) so these still land even on a
+  // database that already had findings before these were discovered/updated.
+  // Text reflects real progress as of 2026-08-13, not the original Aug-5
+  // "nothing done yet" snapshot - see git history on this block for that.
+  const infisicalFindings = [
+    ['Secrets migration to Infisical started', 'secrets', 'medium', 'monitoring',
+     'Moving off plaintext .env files / manually-pasted Render dashboard values to Infisical (managed cloud), chosen over Doppler for its free self-hosting fallback. Addresses the duplicated-JWT-fallback and hardcoded-seed-account findings above by making rotation and audit logging possible going forward.',
+     "Real progress as of 2026-08-13: Infisical account/project created, dev/staging/production environments populated with real values. JWT_SECRET and RESEND_API_KEY were found duplicated across environments (dev/production shared a JWT_SECRET; dev/staging shared a RESEND_API_KEY) - both rotated to independent per-environment values. Dead legacy entries (DB_PATH, SECRET_WEBHOOK_SECRET) removed. Still open: Infisical's native Render Secret Sync integration is NOT connected - Render's dashboard env vars remain the actual live source of truth, with Infisical holding a separate copy that has to be updated by hand alongside it (this is what let the JWT_SECRET/RESEND_API_KEY duplication happen and go unnoticed). Flip to resolved once that sync is connected and confirmed live.",
+     'Claude Code security review, 2026-08-05, updated 2026-08-13'],
+    ['dev/staging/production share one R2 bucket and (staging+production) share R2 credentials', 'infrastructure', 'high', 'open',
+     'R2_BUCKET_NAME is identical across all three environments, and R2_ACCESS_KEY_ID/R2_SECRET_ACCESS_KEY are identical between staging and production specifically. All three environments can read/write/delete the same Cloudflare R2 bucket holding real users\' uploaded legal/medical/financial documents; staging holds full production-equivalent file-storage credentials.',
+     'Discovered auditing Infisical secret values 2026-08-13. One concrete symptom already fixed (see the CI-restoration finding below): the daily backup cron was pruning its 14-backup retention count globally across all environments sharing the bucket, and had already caused real drift (Aug 3-4 saw two differently-timezoned services collide, shrinking real coverage from 14 days to about 11). That symptom is patched (backups now namespaced per environment), but the root cause - one shared bucket, overlapping credentials - is not. Needs separate R2 buckets per environment in Cloudflare, each with its own scoped credentials, plus a decision on what to do with data currently in the shared bucket.',
+     'Claude Code security review, 2026-08-13'],
+    ['CI security scanning and admin Security Findings feature were stranded on an unmerged branch', 'ci-cd', 'medium', 'resolved',
+     'A prior session\'s CodeQL/secret-scan/Dependabot/authz-probe CI setup, and this very security_findings admin feature, were both fully built and verified (Aug 5) but only ever committed to a stray branch (origin/claude/new-session-mf9nrq) with no PR - never merged into staging or main, so none of it was actually protecting the app.',
+     'Discovered and fixed 2026-08-13 while restoring the Infisical prep work, which depended on this table existing. Both cherry-picked onto fresh branches off current staging, conflicts resolved, re-verified (CI green including the restored authz-probe itself), and merged.',
+     'Claude Code security review, 2026-08-13'],
+  ];
+  for (const [title, category, severity, status, summary, details, source] of infisicalFindings) {
+    const existing = await queryOne('SELECT id FROM security_findings WHERE title = $1', [title]);
+    if (!existing) {
+      await pool.query(
+        `INSERT INTO security_findings (title, category, severity, status, summary, details, source, resolved_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, CASE WHEN $4 = 'resolved' THEN NOW() ELSE NULL END)`,
+        [title, category, severity, status, summary, details, source]
+      );
+    }
+  }
+
   // Seed default settings
   for (const [key, value] of [
     ['password_reset_method', 'email'],
