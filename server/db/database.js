@@ -761,6 +761,96 @@ async function init() {
     WHERE privacy_consent = 1 AND privacy_version_consented IS NULL
   `);
 
+  // Security findings log: a persistent record of security review results
+  // (audits, pen-test-style probes, infra reviews) that survives past the
+  // chat session that produced them - readable from the admin panel's
+  // Security tab in any environment (dev, staging, prod) the server is
+  // pointed at, and re-readable by a future Claude Code session via
+  // GET /api/admin/security-findings without needing the original
+  // conversation history. Mirrors the app_versions/policy_versions
+  // convention above.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS security_findings (
+      id            SERIAL PRIMARY KEY,
+      title         TEXT NOT NULL,
+      category      TEXT NOT NULL CHECK (category IN ('authorization', 'injection', 'xss', 'secrets', 'infrastructure', 'session', 'documentation', 'ci-cd', 'other')),
+      severity      TEXT NOT NULL CHECK (severity IN ('info', 'low', 'medium', 'high', 'critical')),
+      status        TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'monitoring', 'resolved', 'accepted_risk')),
+      summary       TEXT NOT NULL,
+      details       TEXT,
+      source        TEXT,
+      related_link  TEXT,
+      discovered_at TIMESTAMPTZ DEFAULT NOW(),
+      resolved_at   TIMESTAMPTZ
+    )
+  `);
+
+  // Backfill the findings from the 2026-08-02..05 security review (DB/infra
+  // screenshots, Sentry 403 triage, the secrets-manager/vault-key/RLS
+  // discussion, and the authz/SQLi/XSS audit) so the log isn't empty on
+  // first load. Guarded on the table being empty rather than per-row, same
+  // spirit as the admin-user seed above - this is a one-time backfill, not
+  // something meant to re-run or be duplicated.
+  const anyFinding = await queryOne('SELECT id FROM security_findings LIMIT 1');
+  if (!anyFinding) {
+    const seedSource = 'Claude Code security review, 2026-08-02..05';
+    const findings = [
+      ['Postgres staging DB (in-good-hands-db-staging) open to 0.0.0.0/0', 'infrastructure', 'high', 'open',
+       'Render Networking tab has a single inbound IP rule of 0.0.0.0/0 ("everywhere") - the database is reachable from any IP on the internet, protected only by username/password.',
+       'Also paired with rejectUnauthorized: false for TLS in server/db/database.js, so there is no cert-pinning fallback either. Action needed in the Render dashboard, not in code: restrict inbound IPs to Render\'s private network / specific known IPs.',
+       'https://github.com/rizwandar/Performance-Management/issues/15'],
+      ['Verify CLIENT_URL (not CORS_ORIGIN) is actually set on Render', 'documentation', 'high', 'open',
+       'CLAUDE.md previously documented the env var as CORS_ORIGIN and DB_PATH; the code only ever reads CLIENT_URL and DATABASE_URL. If Render was configured from the old docs, CORS silently reflects any origin and every password-reset/verify/access-link email points at localhost.',
+       'CLAUDE.md has been corrected. Still needs a human to check the actual Render service env vars, since that can\'t be verified from the repo.',
+       'https://github.com/rizwandar/Performance-Management/issues/16'],
+      ['Sentry AxiosError 403 in production (in-good-hands-client)', 'session', 'medium', 'open',
+       'A 403 fired ~100 minutes after the SEC-09 cookie/CSRF migration merged to main. Leading hypothesis: the CSRF double-submit check, possibly hitting the case where a browser blocks the cross-site csrf_token cookie (client and API are on different *.onrender.com subdomains, treated as cross-site by the Public Suffix List).',
+       'Needs the actual Sentry issue\'s Request URL/breadcrumbs (the forwarded alert email was cut off before that section) to confirm root cause.',
+       'https://github.com/rizwandar/Performance-Management/issues/17'],
+      ['in-good-hands-db-staging (Free tier) auto-deletes 2026-08-23 unless upgraded', 'infrastructure', 'medium', 'open',
+       'Render Free Postgres has no automated backups/HA and a hard expiry date. This is the staging DB specifically; production is documented as already on a paid plan.',
+       'Recommendation: upgrade to the cheapest paid tier before the expiry date, mainly to stop the auto-delete clock and get Render-native daily backups as a second safety net alongside the app\'s own nightly cron backup.',
+       'https://github.com/rizwandar/Performance-Management/issues/18'],
+      ['Hardcoded JWT fallback secret duplicated across 8 files', 'secrets', 'medium', 'open',
+       "process.env.JWT_SECRET || 'dev-secret-change-in-production' is copy-pasted in 8 route/middleware files. Only middleware/auth.js has a startup guard that throws if JWT_SECRET is unset and NODE_ENV is exactly 'production'.",
+       'Should be centralized to one shared constant/module so the safety net can\'t silently miss a new file, or an environment where NODE_ENV isn\'t the literal string "production".',
+       null],
+      ['Two hardcoded seed accounts ship to every environment', 'secrets', 'medium', 'open',
+       "admin@igh.local/Admin1234 (documented) and demo.orgadmin@igh.local/DemoOrgAdmin1234 (undocumented until this review) are seeded on first boot, including production, with fixed passwords.",
+       'Real, working, guessable credentials in the codebase. Should be rotated/disabled after first login, or generated randomly at first boot instead of hardcoded.',
+       null],
+      ['Authorization probe: IDOR, admin-gating, JWT tampering - 9/9 blocked', 'authorization', 'info', 'monitoring',
+       "Live-tested against a real local instance: cross-user read/edit/delete by guessed id, non-admin hitting /api/admin routes, a tampered JWT payload, and an alg:none downgrade attempt. All correctly blocked (404s / 401s), with a positive control confirming the real admin path does work.",
+       'Now a permanent CI regression check: server/scripts/authz-probe.mjs, run by .github/workflows/authz-probe.yml on every push/PR.',
+       'https://github.com/rizwandar/Performance-Management/blob/main/server/scripts/authz-probe.mjs'],
+      ['SQL injection audit: no injectable string interpolation found', 'injection', 'info', 'resolved',
+       'All 4 places the server builds SQL via template-literal interpolation (sections.js, backup.js, vaultFields.js) were traced to hardcoded table/field names from an internal constant (TABLE_FIELDS) or the DB catalog, never from a request. Every user-supplied value goes through $1-style parameterized queries.',
+       null, null],
+      ['Stored XSS: admin-authored Terms/Privacy HTML rendered unsanitized', 'xss', 'medium', 'open',
+       'server/routes/legal.js stores content_html with no sanitization; TermsPage.jsx/PrivacyPage.jsx render it via dangerouslySetInnerHTML to every visitor. Admin-gated, so not directly exploitable by a regular user, but a real stored-XSS vector if an admin account is ever compromised.',
+       'Fix: sanitize content_html server-side (sanitize-html or DOMPurify+jsdom) before the INSERT.',
+       'https://github.com/rizwandar/Performance-Management/issues/26'],
+      ['No Postgres Row-Level Security (RLS) - relies on consistent app-layer scoping', 'authorization', 'low', 'accepted_risk',
+       "264 occurrences of the WHERE ... = req.user.id pattern across the routes layer, no CREATE POLICY/ROW LEVEL SECURITY anywhere. This works only as long as every query remembers the filter.",
+       "Decision (2026-08-05): not pursuing RLS for now. The app's legitimate cross-user paths (admin, org-portal view-as, trusted-contact access tokens) are numerous enough that encoding them correctly as SQL policies would be its own error-prone project. Chose to expand the authz-probe CI check instead, which directly tests the thing that matters on every commit.",
+       null],
+      ['CI security automation added: CodeQL, TruffleHog OSS, Dependabot, authz-probe', 'ci-cd', 'info', 'resolved',
+       'Continuous scanning wired into GitHub Actions so security review is not a one-time audit: CodeQL (security-extended queries, weekly + push/PR), TruffleHog OSS secret scanning (push/PR), Dependabot (weekly, all 5 npm workspaces + github-actions), and the authz-probe regression test above.',
+       null, 'https://github.com/rizwandar/Performance-Management/pull/1'],
+      ['CLAUDE.md documented SQLite instead of the actual PostgreSQL database', 'documentation', 'low', 'resolved',
+       'Stack line and the Database section both claimed better-sqlite3; the app has run PostgreSQL via pg for a while. Corrected.', null, null],
+      ['CLAUDE.md documented a VAULT_KEY env var that does not exist', 'documentation', 'low', 'resolved',
+       'Vault encryption actually derives its key per-request from the user\'s own vault password + userId (scrypt) - there is no server-side master key. render.yaml already had a comment confirming this was intentional; CLAUDE.md just hadn\'t caught up. Corrected, and VAULT_KEY removed from the required env vars list.', null, null],
+    ];
+    for (const [title, category, severity, status, summary, details, related_link] of findings) {
+      await pool.query(
+        `INSERT INTO security_findings (title, category, severity, status, summary, details, source, related_link, resolved_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CASE WHEN $4 = 'resolved' THEN NOW() ELSE NULL END)`,
+        [title, category, severity, status, summary, details, seedSource, related_link]
+      );
+    }
+  }
+
   // Seed default settings
   for (const [key, value] of [
     ['password_reset_method', 'email'],
