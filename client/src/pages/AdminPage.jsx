@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { Form, Button, Alert, Spinner, Badge, Row, Col, Modal, Table } from 'react-bootstrap'
+import { useSearchParams } from 'react-router-dom'
+import { Form, Button, Alert, Spinner, Badge, Row, Col, Modal, Table, Dropdown } from 'react-bootstrap'
 import axios from 'axios'
 import { applyTheme, applyFont } from '../App'
 import { useBranding } from '../context/BrandingContext'
@@ -73,6 +74,8 @@ const SECTION_LABELS = {
 // Tab navigation
 // ---------------------------------------------------------------------------
 const TABS = ['Overview', 'Users', 'Activity', 'Vault Security', 'Appearance', 'Branding', 'Organizations', 'Settings', 'Legal', 'Marketing', 'Versions', 'App Blueprint']
+// Overview stays as its own pinned button; everything else lives in the "More sections" dropdown.
+const DROPDOWN_TABS = TABS.filter(t => t !== 'Overview')
 
 const VERSION_MODULES = [
   { id: 'client',     label: 'Client App' },
@@ -1401,7 +1404,22 @@ CLIENT (Render Static Site, baked in at build time)
 }
 
 export default function AdminPage() {
-  const [tab, setTab]           = useState('Overview')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [tab, setTabRaw] = useState(() => {
+    const fromUrl = searchParams.get('tab')
+    return TABS.includes(fromUrl) ? fromUrl : 'Overview'
+  })
+  // Wraps the raw tab setter so the URL (?tab=Users) stays in sync, giving admins a
+  // reloadable/shareable link to a specific section instead of always landing on Overview.
+  const setTab = (t) => {
+    setTabRaw(t)
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      if (t === 'Overview') next.delete('tab')
+      else next.set('tab', t)
+      return next
+    }, { replace: true })
+  }
   const [stats, setStats]       = useState(null)
   const [users, setUsers]       = useState([])
   const [query, setQuery]       = useState('')
@@ -1685,20 +1703,45 @@ export default function AdminPage() {
         </Alert>
       )}
 
-      {/* Tab bar */}
-      <div className="d-flex gap-2 mb-4 flex-wrap" style={{ borderBottom: '1px solid var(--border)', paddingBottom: 12 }}>
-        {TABS.map(t => (
-          <button key={t} onClick={() => setTab(t)}
+      {/* Tab bar: Overview stays a pinned button, every other section lives in the dropdown below. */}
+      <div className="d-flex gap-2 mb-4 flex-wrap align-items-center" style={{ borderBottom: '1px solid var(--border)', paddingBottom: 12 }}>
+        <button onClick={() => setTab('Overview')}
+          style={{
+            padding: '6px 18px', borderRadius: 20, border: '1px solid',
+            fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit',
+            borderColor: tab === 'Overview' ? 'var(--green-800)' : 'var(--border)',
+            background: tab === 'Overview' ? 'var(--green-800)' : 'transparent',
+            color: tab === 'Overview' ? '#fff' : 'var(--text-muted)',
+          }}>
+          Overview
+        </button>
+
+        <Dropdown onSelect={(key) => key && setTab(key)}>
+          <Dropdown.Toggle
+            id="admin-section-dropdown"
+            variant="outline-secondary"
             style={{
               padding: '6px 18px', borderRadius: 20, border: '1px solid',
-              fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit',
-              borderColor: tab === t ? 'var(--green-800)' : 'var(--border)',
-              background: tab === t ? 'var(--green-800)' : 'transparent',
-              color: tab === t ? '#fff' : 'var(--text-muted)',
+              fontSize: '0.9rem', fontFamily: 'inherit',
+              borderColor: tab !== 'Overview' ? 'var(--green-800)' : 'var(--border)',
+              background: tab !== 'Overview' ? 'var(--green-800)' : 'transparent',
+              color: tab !== 'Overview' ? '#fff' : 'var(--text-muted)',
             }}>
-            {t}
-          </button>
-        ))}
+            {tab !== 'Overview' ? tab : 'More sections'}
+          </Dropdown.Toggle>
+          <Dropdown.Menu style={{ background: 'var(--parchment)', border: '1px solid var(--border)', boxShadow: '0 4px 16px rgba(0,0,0,0.12)' }}>
+            {DROPDOWN_TABS.map(t => (
+              <Dropdown.Item key={t} eventKey={t} active={tab === t}
+                style={{
+                  fontSize: '0.9rem', fontFamily: 'inherit',
+                  color: tab === t ? '#fff' : 'var(--green-900)',
+                  background: tab === t ? 'var(--green-800)' : 'transparent',
+                }}>
+                {t}
+              </Dropdown.Item>
+            ))}
+          </Dropdown.Menu>
+        </Dropdown>
       </div>
 
       {/* ── Overview ───────────────────────────────────────────────────────── */}
