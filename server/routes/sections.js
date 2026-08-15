@@ -7,6 +7,7 @@ const requirePremium = require('../middleware/requiresPremium');
 const { deriveKey, encryptField, decryptField, createVaultCheck, verifyVaultPassword } = require('../lib/vault');
 const { checkVault } = require('../lib/vaultAuth');
 const { TABLE_FIELDS, decryptRow, migrateRow } = require('../lib/vaultFields');
+const { destroyVaultData } = require('../lib/vaultDestroy');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
 
@@ -672,8 +673,23 @@ router.delete('/pets/:id', requireAuth, async (req, res) => {
 // Section 3 — Digital Life (encrypted vault)
 // ---------------------------------------------------------------------------
 router.get('/digital-life/vault', requireAuth, async (req, res) => {
-  const vault = await queryOne('SELECT id, password_hint FROM digital_vault WHERE user_id = $1', [req.user.id]);
-  res.json({ exists: !!vault, hint: vault?.password_hint || null });
+  const vault = await queryOne(
+    'SELECT id, password_hint, recovery_enabled, destroy_after_attempts, logout_after_attempts, lockout_after_attempts FROM digital_vault WHERE user_id = $1',
+    [req.user.id]
+  );
+  // This reflects mutable, per-user security state (recovery_enabled,
+  // destroy_after_attempts, logout/lockout thresholds) - a stale cached copy
+  // could show outdated settings on the Profile/vault-lock screens after a
+  // user changes them.
+  res.setHeader('Cache-Control', 'no-store, private');
+  res.json({
+    exists: !!vault,
+    hint: vault?.password_hint || null,
+    recovery_enabled: vault?.recovery_enabled || false,
+    destroy_after_attempts: vault?.destroy_after_attempts ?? null,
+    logout_after_attempts: vault?.logout_after_attempts ?? null,
+    lockout_after_attempts: vault?.lockout_after_attempts ?? null,
+  });
 });
 
 router.post('/digital-life/vault', requireAuth, requirePremium, async (req, res) => {
@@ -701,7 +717,7 @@ router.put('/digital-life/vault', requireAuth, async (req, res) => {
   if (!new_password || new_password.length < 8) return res.status(400).json({ error: 'New password must be at least 8 characters.' });
   if (old_password === new_password) return res.status(400).json({ error: 'New password must be different from the current one.' });
 
-  const vault = await queryOne('SELECT check_enc FROM digital_vault WHERE user_id = $1', [req.user.id]);
+  const vault = await queryOne('SELECT id, check_enc, recovery_enabled FROM digital_vault WHERE user_id = $1', [req.user.id]);
   if (!vault) return res.status(404).json({ error: 'No vault found.' });
 
   // password_hint is optional here: undefined leaves the existing hint
@@ -755,14 +771,30 @@ router.put('/digital-life/vault', requireAuth, async (req, res) => {
       }
     }
 
+    // A password change invalidates the security-question recovery escrow
+    // (it was encrypted under the old key) - re-escrowing would mean asking
+    // for recovery answers on every routine password change, so instead we
+    // turn recovery off explicitly and ask the client to tell the user,
+    // rather than silently leaving stale, non-functional shares behind.
+    // Still respects the existing hint-update behavior (IDEA-15).
     if (hintProvided) {
-      await client.query('UPDATE digital_vault SET check_enc=$1, password_hint=$2 WHERE user_id=$3', [newCheck, newHint, req.user.id]);
+      await client.query(
+        'UPDATE digital_vault SET check_enc=$1, password_hint=$2, recovery_enabled=false WHERE user_id=$3',
+        [newCheck, newHint, req.user.id]
+      );
     } else {
-      await client.query('UPDATE digital_vault SET check_enc=$1 WHERE user_id=$2', [newCheck, req.user.id]);
+      await client.query(
+        'UPDATE digital_vault SET check_enc=$1, recovery_enabled=false WHERE user_id=$2',
+        [newCheck, req.user.id]
+      );
+    }
+    if (vault.recovery_enabled) {
+      await client.query('DELETE FROM vault_recovery_questions WHERE digital_vault_id = $1', [vault.id]);
+      await client.query('DELETE FROM vault_recovery_shares WHERE digital_vault_id = $1', [vault.id]);
     }
   });
 
-  res.json({ success: true });
+  res.json({ success: true, recovery_disabled: !!vault.recovery_enabled });
 });
 
 router.delete('/digital-life/vault', requireAuth, async (req, res) => {
@@ -776,30 +808,7 @@ router.delete('/digital-life/vault', requireAuth, async (req, res) => {
     return res.status(401).json({ error: 'Incorrect account password. Please enter the password you use to log in to In Good Hands.' });
   }
 
-  // SEC-03: financial_items/property_items/household_info are now genuinely
-  // vault-encrypted alongside legal_documents, so a vault reset must delete
-  // them (and their file attachments) too - there's no way to recover their
-  // encrypted content without the password being reset anyway, so leaving
-  // them behind would just be unreadable ciphertext orphaned forever.
-  const vaultProtectedTables = Object.keys(TABLE_FIELDS);
-  const vaultFiles = await queryAll(
-    `SELECT r2_key FROM uploaded_documents WHERE user_id = $1 AND section_id = ANY($2)`,
-    [req.user.id, vaultProtectedTables]
-  );
-
-  await transaction(async (client) => {
-    await client.query('DELETE FROM digital_credentials WHERE user_id = $1', [req.user.id]);
-    await client.query('DELETE FROM digital_vault WHERE user_id = $1', [req.user.id]);
-    await client.query(`DELETE FROM uploaded_documents WHERE user_id = $1 AND section_id = ANY($2)`, [req.user.id, vaultProtectedTables]);
-    for (const table of vaultProtectedTables) {
-      await client.query(`DELETE FROM ${table} WHERE user_id = $1`, [req.user.id]);
-    }
-  });
-
-  const { deleteFile } = require('../lib/r2');
-  for (const f of vaultFiles) {
-    deleteFile(f.r2_key).catch(() => {});
-  }
+  await destroyVaultData(req.user.id, { reason: 'vault_destroyed_manual', req });
 
   res.json({ success: true, message: 'Vault reset. You can now create a new vault password.' });
 });

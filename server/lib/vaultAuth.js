@@ -42,8 +42,21 @@ async function checkVault(vault_password, userId, res, req) {
 }
 
 async function _sendVaultFailResponse(userId, res, req) {
-  const { attempts, shouldLogout, vaultLocked, lockedUntil } = await recordVaultAttempt(userId, req);
-  const remaining = Math.max(0, 5 - attempts);
+  const {
+    attempts, shouldLogout, vaultLocked, vaultDestroyed, lockedUntil,
+    logoutAfter, lockoutInterval, destroyAfter,
+  } = await recordVaultAttempt(userId, req);
+
+  if (vaultDestroyed) {
+    res.status(410).json({
+      error: `Too many incorrect attempts (${attempts}). This account's vault has been permanently deleted, as configured. You can set up a new vault password any time.`,
+      vault_destroyed: true,
+      force_logout: true,
+    });
+    return;
+  }
+
+  const remaining = Math.max(0, destroyAfter - attempts);
   if (vaultLocked) {
     res.status(423).json({
       error: `Too many incorrect attempts. Your vault has been temporarily locked until ${lockedUntil.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}. Nothing has been deleted - enter the correct password any time to unlock it immediately.`,
@@ -52,12 +65,12 @@ async function _sendVaultFailResponse(userId, res, req) {
     });
   } else if (shouldLogout) {
     res.status(403).json({
-      error: `Incorrect vault password. For your security, you have been signed out. Please sign in again. (${attempts} of 5 attempts used.)`,
+      error: `Incorrect vault password. For your security, you have been signed out. Please sign in again. (${attempts} of ${destroyAfter} attempts used.)`,
       force_logout: true, attempts,
     });
   } else {
     res.status(401).json({
-      error: `Incorrect vault password. ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining. After 3 incorrect attempts you will be signed out. After 5, your vault will be temporarily locked for 15 minutes.`,
+      error: `Incorrect vault password. ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining before your vault is permanently deleted. After ${logoutAfter} incorrect attempt${logoutAfter !== 1 ? 's' : ''} you will be signed out; every ${lockoutInterval}, your vault is temporarily locked for 15 minutes.`,
       attempts, remaining,
     });
   }

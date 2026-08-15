@@ -102,4 +102,7 @@ function verifyVaultPassword(checkJson, key) {
   }
 }
 
-module.exports = { deriveKey, encryptField, decryptField, createVaultCheck, verifyVaultPassword }
+module.exports = {
+  deriveKey, encrypt, decrypt, encryptField, decryptField, createVaultCheck, verifyVaultPassword,
+  KEY_BYTES,
+}
