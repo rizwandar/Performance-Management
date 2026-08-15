@@ -699,6 +699,16 @@ async function init() {
   // out for the current trial, so the daily cron doesn't resend it.
   await pool.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS trial_reminder_sent_at TIMESTAMPTZ`);
 
+  // BIL-07: card-on-file expiry reminders (14 and 7 days before the card's
+  // exp_month/exp_year ends). card_expiry_reminder_exp_month/_year cache which
+  // card the two *_sent_at flags were computed against, so a card update
+  // (a new exp date from Stripe) is detected and the reminder cycle restarts
+  // for the new card instead of silently staying suppressed forever.
+  await pool.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS card_expiry_14d_reminder_sent_at TIMESTAMPTZ`);
+  await pool.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS card_expiry_7d_reminder_sent_at TIMESTAMPTZ`);
+  await pool.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS card_expiry_reminder_exp_month INTEGER`);
+  await pool.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS card_expiry_reminder_exp_year INTEGER`);
+
   // One-trial-per-person enforcement, card side: every Stripe card fingerprint
   // that has ever been granted a trial. Checked in the checkout.session.completed
   // webhook so a cancel-and-resignup-under-a-new-email doesn't grant a second

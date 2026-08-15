@@ -145,6 +145,7 @@ export default function ProfilePage() {
   const [subscription, setSubscription]     = useState(null)
   const [cancelling, setCancelling]         = useState(false)
   const [reinstating, setReinstating]       = useState(false)
+  const [openingPortal, setOpeningPortal]   = useState(false)
   const [billingMessage, setBillingMessage] = useState('')
   const [billingError, setBillingError]     = useState('')
   const [paymentHistory, setPaymentHistory] = useState([])
@@ -548,6 +549,19 @@ export default function ProfilePage() {
       setBillingError(err.response?.data?.error || 'Could not cancel your subscription.')
     }
     setCancelling(false)
+  }
+
+  const handleOpenBillingPortal = async () => {
+    setOpeningPortal(true)
+    setBillingError('')
+    setBillingMessage('')
+    try {
+      const r = await axios.post(`${API}/billing/portal-session`)
+      window.location.href = r.data.url
+    } catch (err) {
+      setBillingError(err.response?.data?.error || 'Could not open the billing portal.')
+      setOpeningPortal(false)
+    }
   }
 
   const handleReinstate = async () => {
@@ -1298,10 +1312,15 @@ export default function ProfilePage() {
               <p className="text-muted small mb-3">Renews {formatDate(subscription.current_period_end)}.</p>
             )}
             {subscription.provider === 'stripe' && (
-              <button className="btn btn-link p-0" style={{ color: '#DC3545', fontSize: '0.85rem' }}
-                onClick={handleCancelSubscription} disabled={cancelling}>
-                {cancelling ? 'Cancelling...' : 'Cancel subscription'}
-              </button>
+              <div className="d-flex align-items-center gap-3 flex-wrap">
+                <Button variant="outline-secondary" size="sm" onClick={handleOpenBillingPortal} disabled={openingPortal}>
+                  {openingPortal ? 'Opening...' : 'Update payment method'}
+                </Button>
+                <button className="btn btn-link p-0" style={{ color: '#DC3545', fontSize: '0.85rem' }}
+                  onClick={handleCancelSubscription} disabled={cancelling}>
+                  {cancelling ? 'Cancelling...' : 'Cancel subscription'}
+                </button>
+              </div>
             )}
           </>
         )}

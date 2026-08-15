@@ -221,6 +221,110 @@ function trialEndingReminderEmail({ name, planName, price, chargeDate }) {
 }
 
 // ---------------------------------------------------------------------------
+// Payment confirmation (BIL-07) - sent right after a successful charge,
+// whether that's the first payment after a trial or a routine renewal.
+// ---------------------------------------------------------------------------
+function paymentConfirmationEmail({ name, planName, price, chargeDate, receiptUrl }) {
+  return layout(`
+    <p>Dear ${name},</p>
+    <p>
+      This confirms your payment of <strong>${price}</strong> for
+      <strong>${APP_NAME} ${planName}</strong> on <strong>${chargeDate}</strong> went through
+      successfully. Thank you for continuing to trust us with your planning.
+    </p>
+    ${receiptUrl ? button('View my receipt', receiptUrl) : ''}
+    <p style="color:#6B7280; font-size:14px;">
+      You can review your billing history any time from your account settings.
+    </p>
+    <p style="color:#6B7280; font-size:14px;">
+      With care,<br/>
+      The ${APP_NAME} team
+    </p>
+  `);
+}
+
+// ---------------------------------------------------------------------------
+// Refund confirmation (BIL-07) - sent when Stripe processes a refund.
+// ---------------------------------------------------------------------------
+function refundConfirmationEmail({ name, amount, chargeDate }) {
+  return layout(`
+    <p>Dear ${name},</p>
+    <p>
+      We've processed a refund of <strong>${amount}</strong> for your
+      <strong>${APP_NAME}</strong> payment from <strong>${chargeDate}</strong>.
+    </p>
+    <p>
+      The refund has been sent back to your original payment method. Depending on your
+      bank or card issuer, it may take a few business days to appear on your statement.
+    </p>
+    <p style="color:#6B7280; font-size:14px;">
+      If you have any questions about this refund, feel free to reach out to us.
+    </p>
+    <p style="color:#6B7280; font-size:14px;">
+      With care,<br/>
+      The ${APP_NAME} team
+    </p>
+  `);
+}
+
+// ---------------------------------------------------------------------------
+// Subscription cancellation confirmation (BIL-07) - sent immediately when a
+// cancellation is requested (cancel_at_period_end flips to true), not when
+// the subscription actually terminates weeks later, so the user gets
+// confirmation right away that their request went through.
+// ---------------------------------------------------------------------------
+function subscriptionCancelledEmail({ name, accessUntilDate }) {
+  return layout(`
+    <p>Dear ${name},</p>
+    <p>
+      This confirms your <strong>${APP_NAME} Premium</strong> subscription has been
+      cancelled. You won't be charged again.
+    </p>
+    <p>
+      You'll keep full Premium access through <strong>${accessUntilDate}</strong>, the end
+      of your current billing period. After that, your account will move to the free plan.
+    </p>
+    <p style="background:#F0F9FF; border:1px solid #BAE6FD; border-radius:8px; padding:14px 16px; color:#0C4A6E; font-size:14px;">
+      Changed your mind? You can reactivate any time before ${accessUntilDate} from your
+      account settings, with no gap in access.
+    </p>
+    ${button('Manage my subscription', `${APP_URL}/profile/settings`)}
+    <p style="color:#6B7280; font-size:14px;">
+      With care,<br/>
+      The ${APP_NAME} team
+    </p>
+  `);
+}
+
+// ---------------------------------------------------------------------------
+// Card expiring reminder (BIL-07) - sent 14 and 7 days before the card on
+// file for the subscription expires, so payment doesn't silently fail.
+// ---------------------------------------------------------------------------
+function cardExpiringReminderEmail({ name, daysLeft, cardBrand, cardLast4 }) {
+  const daysText = daysLeft === 1 ? '1 day' : `${daysLeft} days`;
+  const cardText = cardBrand && cardLast4 ? `${cardBrand} card ending in ${cardLast4}` : 'card on file';
+
+  return layout(`
+    <p>Dear ${name},</p>
+    <p>
+      The ${cardText} for your <strong>${APP_NAME}</strong> subscription is set to expire
+      in <strong>${daysText}</strong>.
+    </p>
+    <p>
+      Many banks automatically issue a replacement card with the same number before the
+      old one expires, in which case there's nothing you need to do. If yours doesn't,
+      you can update your payment method from your account settings to avoid an
+      interruption to your subscription.
+    </p>
+    ${button('Update my payment method', `${APP_URL}/profile/settings`)}
+    <p style="color:#6B7280; font-size:14px;">
+      With care,<br/>
+      The ${APP_NAME} team
+    </p>
+  `);
+}
+
+// ---------------------------------------------------------------------------
 // Trusted contact access link email
 // ---------------------------------------------------------------------------
 function contactAccessEmail({ recipientName, ownerName, accessLink, expiresHours }) {
@@ -802,6 +906,10 @@ module.exports = {
   passwordResetEmail,
   inactivityReminderEmail,
   trialEndingReminderEmail,
+  paymentConfirmationEmail,
+  refundConfirmationEmail,
+  subscriptionCancelledEmail,
+  cardExpiringReminderEmail,
   inactivityContactNotificationEmail,
   executorDesignatedEmail,
   executorInviteEmail,
