@@ -5,6 +5,8 @@ import axios from 'axios'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { BrandingProvider, useBranding } from './context/BrandingContext'
 import { SubscriptionProvider, useSubscription } from './context/SubscriptionContext'
+import { VaultSessionProvider } from './context/VaultSessionContext'
+import VaultSessionExtendPrompt from './components/VaultSessionExtendPrompt'
 
 import AccessPage             from './pages/AccessPage'
 import SharedSectionPage      from './pages/SharedSectionPage'
@@ -705,6 +707,7 @@ function AppContent() {
       </a>
       <NavBar />
       <ViewAsBanner />
+      <VaultSessionExtendPrompt />
       <UnverifiedEmailBanner />
       <RecoveryCompletionBanner />
       <LegalReconsentBanner />
@@ -782,9 +785,11 @@ export default function App() {
   return (
     <BrandingProvider>
       <AuthProvider>
-        <SubscriptionProvider>
-          <AppContent />
-        </SubscriptionProvider>
+        <VaultSessionProvider>
+          <SubscriptionProvider>
+            <AppContent />
+          </SubscriptionProvider>
+        </VaultSessionProvider>
       </AuthProvider>
     </BrandingProvider>
   )

@@ -7,6 +7,7 @@ import FileAttachments from '../../components/FileAttachments'
 import SectionHero from '../../components/SectionHero'
 import ShareSectionTrigger from '../../components/ShareSectionTrigger'
 import ShareSectionHistory from '../../components/ShareSectionHistory'
+import { useVaultSession } from '../../context/VaultSessionContext'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -30,9 +31,12 @@ const empty = { document_type: '', title: '', held_by: '', location: '', notes: 
 export default function LegalDocumentsPage() {
   const navigate = useNavigate()
 
-  // Vault state: 'loading' | 'no-vault' | 'locked' | 'unlocked'
-  const [vaultState, setVaultState]     = useState('loading')
-  const [vaultPassword, setVaultPassword] = useState('')
+  // Vault unlock state (password + timers) now lives in the shared, app-wide
+  // VaultSessionContext (SEC-15) instead of page-local state, so unlocking on
+  // any of the five vault sections keeps the others unlocked too, for as long
+  // as the 30-minute session lasts.
+  const { vaultPassword, vaultUnlocked, unlockVault, lockVault } = useVaultSession()
+  const [vaultExists, setVaultExists] = useState(null)  // null = still checking
 
   const [items, setItems]         = useState([])
   const [sectionDocs, setSectionDocs] = useState([])  // all uploaded_documents for this section
@@ -44,11 +48,11 @@ export default function LegalDocumentsPage() {
   const [editing, setEditing]     = useState(null)
   const [form, setForm]           = useState(empty)
 
-  // Check vault on mount
+  // Check if a vault exists on mount (independent of unlock state)
   useEffect(() => {
     axios.get(`${API}/sections/digital-life/vault`)
-      .then(r => setVaultState(r.data.exists ? 'locked' : 'no-vault'))
-      .catch(() => setVaultState('locked'))
+      .then(r => setVaultExists(!!r.data.exists))
+      .catch(() => setVaultExists(true))
   }, [])
 
   const loadItems = useCallback((pw) => {
@@ -65,18 +69,36 @@ export default function LegalDocumentsPage() {
       .finally(() => setLoading(false))
   }, [])
 
+  // Arriving here with the vault already unlocked (from another vault
+  // section, or still within the same 30-minute session) skips the lock
+  // screen entirely and loads straight away. Losing the cached password
+  // (timer expiry, manual lock, or a vault-specific failure elsewhere)
+  // clears the items back out.
+  useEffect(() => {
+    if (vaultExists && vaultUnlocked && vaultPassword) {
+      loadItems(vaultPassword)
+    } else if (!vaultUnlocked) {
+      setItems([])
+      setSectionDocs([])
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vaultExists, vaultUnlocked])
+
   const handleUnlock = (pw) => {
-    setVaultPassword(pw)
-    setVaultState('unlocked')
-    loadItems(pw)
+    unlockVault(pw)
   }
 
   const handleVaultReset = () => {
-    setVaultState('no-vault')
-    setVaultPassword('')
-    setItems([])
-    setSectionDocs([])
+    lockVault()
+    setVaultExists(false)
   }
+
+  // Derived from vault-existence (checked once here) and the shared unlock
+  // session (shared across all five vault sections).
+  const vaultState = vaultExists === null ? 'loading'
+    : !vaultExists ? 'no-vault'
+    : vaultUnlocked ? 'unlocked'
+    : 'locked'
 
   const openAdd = () => {
     setEditing(null)
@@ -179,7 +201,7 @@ export default function LegalDocumentsPage() {
         {backLink}
       {hero}
         {disclaimer}
-        <VaultSetupScreen onSetup={() => setVaultState('locked')} />
+        <VaultSetupScreen onSetup={() => setVaultExists(true)} />
       </div>
     )
   }
@@ -213,7 +235,7 @@ export default function LegalDocumentsPage() {
         </span>
         <button className="btn btn-link p-0"
           style={{ color: 'var(--green-800)', fontSize: '0.85rem', textDecoration: 'none' }}
-          onClick={() => { setVaultPassword(''); setItems([]); setSectionDocs([]); setVaultState('locked') }}>
+          onClick={lockVault}>
           Lock vault
         </button>
       </div>
