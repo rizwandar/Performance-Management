@@ -10,16 +10,37 @@ const { TABLE_FIELDS, decryptRow, migrateRow } = require('../lib/vaultFields');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
 
+// Both checks below decode the session token directly (rather than relying on
+// req.user/req.isViewAs) since requireAuth is applied per-route, not globally,
+// so it hasn't run yet at this point.
+//
+// SEC-18 (2026-08-15): both previously read only req.headers.authorization.
+// Since SEC-09, the web client's session - including the view-as session
+// minted by POST /api/org-portal/customers/:id/view-as, which is delivered
+// exclusively via the httpOnly cookie, never returned in a response body for
+// the client to put in a header - has had no readable token to send as an
+// Authorization header at all. A header-only check silently no-ops for every
+// web request, meaning both protections below did not actually apply to any
+// browser-based session (view-as included) despite the "without exception"
+// comment on the vault check. Found via a security review of a separate,
+// related feature (see project_vault_recovery_security_questions_2026_08
+// memory). Fixed to use the same cookie-first precedence middleware/auth.js's
+// requireAuth already uses: cookie first, Bearer header as the mobile-only
+// fallback.
+function extractToken(req) {
+  const header = req.headers.authorization;
+  const headerToken = header?.startsWith('Bearer ') ? header.slice(7) : null;
+  return req.cookies?.token || headerToken;
+}
+
 // Once a user is marked deceased (by their executor, org staff, or the timer's
 // direct-notify fallback path - see lib/deceased.js), their plan is locked from
-// all edits, whether they're accessed directly or via org-portal view-as. This
-// runs before every route on this router; it decodes the token itself (rather
-// than relying on req.user) since requireAuth is applied per-route below, not
-// globally. users.is_deceased is the single source of truth (kept in sync with
+// all edits, whether they're accessed directly or via org-portal view-as.
+// users.is_deceased is the single source of truth (kept in sync with
 // organization_customers.lifecycle_status for org-managed customers).
 async function checkPlanLock(req, res, next) {
   if (req.method === 'GET') return next();
-  const token = req.headers.authorization?.split(' ')[1];
+  const token = extractToken(req);
   if (!token) return next();
   let decoded;
   try { decoded = jwt.verify(token, JWT_SECRET); } catch { return next(); }
@@ -35,11 +56,9 @@ router.use(checkPlanLock);
 
 // The vault is never visible in view-as mode, without exception (org portal
 // spec, section 11). This is a single central check rather than trusting it to
-// be remembered in every individual vault route handler below. It decodes the
-// token itself, the same way checkPlanLock does above, since requireAuth (which
-// would otherwise expose this via req.isViewAs) is applied per-route, after this.
+// be remembered in every individual vault route handler below.
 router.use('/digital-life/vault', (req, res, next) => {
-  const token = req.headers.authorization?.split(' ')[1];
+  const token = extractToken(req);
   if (!token) return next();
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
