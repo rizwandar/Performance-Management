@@ -2,8 +2,16 @@ const zlib = require('zlib');
 const { queryAll } = require('../db/database');
 const { uploadFile, listKeys, deleteFile } = require('./r2');
 
-const BACKUP_PREFIX = 'backups/';
-const RETENTION_COUNT = 14; // keep the last 14 daily backups
+// dev/staging/production currently share one R2 bucket (SEC finding, tracked
+// for a full fix via separate buckets per environment). Until that lands,
+// namespace backups per environment so retention counts can't mix across
+// them - without this, one environment's backup run can prune another
+// environment's real backups out of its own retention window. Same env
+// signal used for Sentry tagging (see instrument.js): NODE_ENV is unreliable
+// since Render sets it to 'production' on every service, staging included.
+const ENVIRONMENT = process.env.RENDER_SERVICE_NAME || process.env.NODE_ENV || 'development';
+const BACKUP_PREFIX = `backups/${ENVIRONMENT}/`;
+const RETENTION_COUNT = 14; // keep the last 14 daily backups, per environment
 
 async function getTableNames() {
   const rows = await queryAll(`
