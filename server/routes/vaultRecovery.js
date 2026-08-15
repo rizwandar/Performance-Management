@@ -1,5 +1,6 @@
 const express = require('express');
 const router  = express.Router();
+const jwt     = require('jsonwebtoken');
 const { queryOne, queryAll, query, transaction } = require('../db/database');
 const requireAuth = require('../middleware/auth');
 const {
@@ -7,6 +8,44 @@ const {
 } = require('../lib/vault');
 const { TABLE_FIELDS, decryptRow, migrateRow } = require('../lib/vaultFields');
 const { escrowAllTriples, tryRecoverKey } = require('../lib/vaultRecovery');
+const { recordVaultAttempt, getVaultLockStatus, resetVaultAttempts } = require('../lib/vaultAttempts');
+
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
+
+// This router was missing the same protections routes/sections.js applies to
+// every vault route (found in a 2026-08-15 security review before this PR was
+// promoted to main): the vault, including recovery, must never be reachable
+// in org-portal view-as mode, and a locked/deceased plan must not be
+// recoverable/resettable either. Mirrors sections.js's checkPlanLock and the
+// '/digital-life/vault' view-as block, decoding the token directly since
+// requireAuth (which exposes this via req.isViewAs) hasn't run yet at this
+// point - same reasoning as sections.js's own comments on both checks.
+//
+// Reads the cookie first, same precedence as middleware/auth.js (SEC-09):
+// the web client's session - including the view-as session minted by
+// POST /api/org-portal/customers/:id/view-as, which is delivered exclusively
+// as the httpOnly cookie, never a header - has had no readable token to put
+// in an Authorization header since SEC-09 shipped. A header-only check here
+// (the pattern sections.js itself uses) would silently no-op for every web
+// request and let the exact bypass this middleware exists to close straight
+// through. Only mobile's Bearer header has no cookie equivalent.
+router.use(async (req, res, next) => {
+  const header = req.headers.authorization;
+  const headerToken = header?.startsWith('Bearer ') ? header.slice(7) : null;
+  const token = req.cookies?.token || headerToken;
+  if (!token) return next();
+  let decoded;
+  try { decoded = jwt.verify(token, JWT_SECRET); } catch { return next(); }
+
+  if (decoded.viewAs) {
+    return res.status(403).json({ error: 'The vault is not accessible in view-as mode.' });
+  }
+  if (req.method !== 'GET') {
+    const locked = await queryOne('SELECT id FROM users WHERE id = $1 AND is_deceased = true', [decoded.id]);
+    if (locked) return res.status(403).json({ error: 'This plan has been locked and can no longer be edited.' });
+  }
+  next();
+});
 
 // GET /api/sections/digital-life/recovery/questions
 // No vault unlock required - that's the entire point of this endpoint.
@@ -116,14 +155,62 @@ router.post('/recover', requireAuth, async (req, res) => {
     return res.status(403).json({ error: 'Security-question recovery is not enabled for this vault.' });
   }
 
+  // Recovery is a second credential-guessing path into the same vault key as
+  // the password check in vaultAuth.js's checkVault() - it must be bound to
+  // the exact same destroy/logout/lockout thresholds, or those thresholds are
+  // trivially bypassed by guessing answers instead of the password (found in
+  // the 2026-08-15 security review before this PR was promoted to main).
+  const lockedUntil = await getVaultLockStatus(req.user.id);
+  if (lockedUntil) {
+    return res.status(423).json({
+      error: `Too many incorrect attempts. Your vault is temporarily locked until ${lockedUntil.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}. Nothing has been deleted.`,
+      vault_locked: true,
+      locked_until: lockedUntil.toISOString(),
+    });
+  }
+
   const shareRows = await queryAll(
     'SELECT question_index_a, question_index_b, question_index_c, key_enc FROM vault_recovery_shares WHERE digital_vault_id = $1',
     [vault.id]
   );
   const oldKey = tryRecoverKey(answers, shareRows, vault.id);
   if (!oldKey) {
-    return res.status(401).json({ error: "We couldn't verify at least 3 correct answers. Please try again." });
+    const {
+      attempts, shouldLogout, vaultLocked, vaultDestroyed, lockedUntil: newLockedUntil,
+      logoutAfter, lockoutInterval, destroyAfter,
+    } = await recordVaultAttempt(req.user.id, req);
+
+    if (vaultDestroyed) {
+      return res.status(410).json({
+        error: `Too many incorrect attempts (${attempts}). This account's vault has been permanently deleted, as configured. You can set up a new vault password any time.`,
+        vault_destroyed: true,
+        force_logout: true,
+      });
+    }
+    if (vaultLocked) {
+      return res.status(423).json({
+        error: `Too many incorrect attempts. Your vault has been temporarily locked until ${newLockedUntil.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}. Nothing has been deleted - answering correctly any time unlocks it immediately.`,
+        vault_locked: true,
+        locked_until: newLockedUntil.toISOString(),
+      });
+    }
+    if (shouldLogout) {
+      return res.status(403).json({
+        error: `We couldn't verify at least 3 correct answers. For your security, you have been signed out. Please sign in again. (${attempts} of ${destroyAfter} attempts used.)`,
+        force_logout: true, attempts,
+      });
+    }
+    const remaining = Math.max(0, destroyAfter - attempts);
+    return res.status(401).json({
+      error: `We couldn't verify at least 3 correct answers. ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining before your vault is permanently deleted. After ${logoutAfter} incorrect attempt${logoutAfter !== 1 ? 's' : ''} you will be signed out; every ${lockoutInterval}, your vault is temporarily locked for 15 minutes.`,
+      attempts, remaining,
+    });
   }
+
+  // Correct answers are proof of legitimate ownership, same as a correct
+  // vault password in checkVault() - reset the counter rather than leaving a
+  // prior run of wrong guesses still on the books.
+  await resetVaultAttempts(req.user.id);
 
   const newKey   = deriveKey(new_password, req.user.id);
   const newCheck = createVaultCheck(newKey);
