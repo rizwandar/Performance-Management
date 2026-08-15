@@ -36,6 +36,20 @@ function setCsrfToken(value) {
 // AuthProvider has mounted, and this needs to be listening regardless.
 let authStateHandlers = []
 
+// SEC-15: separate, narrower subscriber list for vault-specific failures.
+// VaultSessionContext (a sibling context, not part of AuthProvider) registers
+// here so the response interceptor below can re-lock the shared vault
+// session without pulling vault concerns into AuthContext itself, and
+// without performing a full app logout - a vault lockout/failure should
+// never be confused with the session itself expiring.
+let vaultLockHandlers = []
+export function onVaultSessionInvalidated(handler) {
+  vaultLockHandlers.push(handler)
+  return () => {
+    vaultLockHandlers = vaultLockHandlers.filter(h => h !== handler)
+  }
+}
+
 // Double-submit CSRF defense: the client echoes the csrf value (held in
 // memory, see above) back as a header on every mutating request. A forged
 // cross-site request can make the browser attach the session cookie
@@ -62,6 +76,22 @@ axios.interceptors.response.use(
     // the calling component shows its own inline error instead.
     if (err.response?.status === 401 && err.response?.data?.session_expired) {
       authStateHandlers.forEach(fn => fn('logout'))
+    } else if (err.response?.data?.vault_locked || err.response?.data?.vault_destroyed || err.response?.data?.force_logout) {
+      // SEC-15: a vault-specific failure (temporary lockout from too many
+      // incorrect attempts, or the vault being destroyed / the account
+      // force-logged-out after too many). These fields only ever appear on
+      // responses from the shared vault-password check (vaultAuth.js's
+      // checkVault / _sendVaultFailResponse, and export.js's equivalent) -
+      // re-lock the shared vault session so every vault page falls back to
+      // its VaultLockScreen, instead of a background call (loading items,
+      // saving, deleting, uploading) silently leaving a dead page behind
+      // with a cached password the server has already rejected. This is
+      // deliberately just a vault re-lock, not a full app logout - the
+      // force_logout/vault_destroyed cases already trigger their own real
+      // logout() from whichever component made the direct unlock/export
+      // request (VaultLockScreen, ExportPage); this only covers the
+      // background calls those components don't make.
+      vaultLockHandlers.forEach(fn => fn())
     }
     return Promise.reject(err)
   }

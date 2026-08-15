@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { Button, Form, Spinner, Card } from 'react-bootstrap'
 import axios from 'axios'
 import { useAuth } from '../context/AuthContext'
 import { useSubscription } from '../context/SubscriptionContext'
+import { useVaultSession } from '../context/VaultSessionContext'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -21,13 +22,24 @@ function downloadBlob(blob, filename) {
 export default function ExportPage() {
   const { user, logout } = useAuth()
   const { isPremium } = useSubscription()
+  const { vaultPassword: sharedVaultPassword, vaultUnlocked, unlockVault, lockVault } = useVaultSession()
   const navigate = useNavigate()
 
   const [exporting,     setExporting]     = useState(false)
   const [exportingFull, setExportingFull] = useState(false)
-  const [vaultPassword, setVaultPassword] = useState('')
+  // Pre-filled from the shared vault session (SEC-15) when a vault section
+  // has already unlocked it within the last 30 minutes, so the user doesn't
+  // have to retype a password the app already has cached in memory.
+  const [vaultPassword, setVaultPassword] = useState(() => (vaultUnlocked ? sharedVaultPassword : ''))
   const [vaultError,    setVaultError]    = useState('')
   const [showPassword,  setShowPassword]  = useState(false)
+
+  // If the shared session expires (or gets locked from elsewhere) while
+  // sitting on this page, don't keep offering a password the server would
+  // now reject.
+  useEffect(() => {
+    if (!vaultUnlocked) setVaultPassword('')
+  }, [vaultUnlocked])
 
   const safeName = () =>
     user?.name?.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'my-plans'
@@ -59,7 +71,10 @@ export default function ExportPage() {
         { responseType: 'blob' }
       )
       downloadBlob(response.data, `in-good-hands-${safeName()}-complete.pdf`)
-      setVaultPassword('')
+      // A successful export just proved this password correct - refresh (or
+      // start) the shared 30-minute vault session with it, same as unlocking
+      // any of the five vault sections would.
+      unlockVault(vaultPassword)
     } catch (err) {
       // With responseType:'blob', error body is a Blob; parse it as JSON
       let status = err.response?.status
@@ -73,8 +88,16 @@ export default function ExportPage() {
         } catch { /* response body wasn't JSON, use the default message */ }
       }
       if (parsedJson?.vault_locked) {
+        // Temporary lockout from too many incorrect attempts (this or
+        // another vault-protected call) - the cached password is unusable
+        // until the lockout clears, so drop the shared session rather than
+        // let other vault pages keep silently retrying it.
+        lockVault()
         setVaultError(message)
       } else if (parsedJson?.force_logout) {
+        // logout() nulls the user, which VaultSessionContext already watches
+        // and re-locks the vault session for - no separate lockVault() call
+        // needed here.
         logout()
         navigate('/login', { state: { vaultLockout: true } })
       } else if (status === 401) {
