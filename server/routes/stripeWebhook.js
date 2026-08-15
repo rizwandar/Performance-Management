@@ -1,14 +1,41 @@
 // Mounted directly in index.js with express.raw(), BEFORE the global
 // express.json() middleware — Stripe's signature check needs the raw body.
-const { stripe } = require('../lib/stripe');
+const { stripe, PRICE_IDS } = require('../lib/stripe');
 const { query, queryOne } = require('../db/database');
 const { ORG_PRICE_IDS } = require('../lib/orgPlanLimits');
 const { countActiveCustomers, getOverageConfig } = require('../lib/orgBilling');
+const { sendEmail } = require('../lib/sendEmail');
+const {
+  paymentConfirmationEmail, refundConfirmationEmail, subscriptionCancelledEmail,
+} = require('../lib/emailTemplates');
 
 const PRICE_TO_PLAN = {
   [process.env.STRIPE_PRICE_MONTHLY]: 'premium',
   [process.env.STRIPE_PRICE_ANNUAL]:  'premium',
 };
+
+const PLAN_DISPLAY = {
+  [PRICE_IDS.monthly]: 'Premium Monthly',
+  [PRICE_IDS.annual]:  'Premium Annual',
+};
+
+const APP_NAME = 'In Good Hands';
+
+// BIL-07: looks up the consumer (non-org) user tied to a Stripe customer id,
+// for sending payment/refund/cancellation emails. Returns null for org
+// customers (organizations.stripe_customer_id match) - org billing emails
+// are a separate, not-yet-built scope, so those are silently skipped here
+// rather than misfiring a consumer-styled email.
+async function findConsumerUserByCustomerId(customerId) {
+  const org = await queryOne('SELECT id FROM organizations WHERE stripe_customer_id = $1', [customerId]);
+  if (org) return null;
+  return queryOne(
+    `SELECT u.id, u.name, u.email, s.provider_price_id
+     FROM subscriptions s JOIN users u ON u.id = s.user_id
+     WHERE s.provider_customer_id = $1`,
+    [customerId]
+  );
+}
 
 const ORG_PRICE_TO_TIER = {
   [ORG_PRICE_IDS.professional]: 'professional',
@@ -231,6 +258,71 @@ module.exports.handler = async (req, res) => {
           await upsertOrgFromSubscription(subscription, subscription.metadata.organization_id);
         } else {
           await upsertFromSubscription(subscription, subscription.metadata?.user_id);
+
+          // BIL-07: confirm the cancellation right away, the moment
+          // cancel_at_period_end flips to true (the user clicked Cancel -
+          // see POST /billing/cancel), not weeks later when Stripe actually
+          // fires subscription.deleted at period end. previous_attributes
+          // (only present on .updated events) is what lets this fire exactly
+          // once per cancellation request rather than on every unrelated
+          // update to the subscription (renewals, plan changes, etc.).
+          const wasNotCancelling = event.data.previous_attributes?.cancel_at_period_end === false;
+          if (event.type === 'customer.subscription.updated' && wasNotCancelling && subscription.cancel_at_period_end) {
+            const user = await findConsumerUserByCustomerId(subscription.customer);
+            if (user) {
+              const accessUntilDate = new Date(subscription.items.data[0]?.current_period_end * 1000)
+                .toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+              await sendEmail({
+                to:      user.email,
+                subject: `Your ${APP_NAME} subscription has been cancelled`,
+                html:    subscriptionCancelledEmail({ name: user.name, accessUntilDate }),
+              }).catch(err => console.error('[stripe webhook] Cancellation email failed:', err.message));
+            }
+          }
+        }
+        break;
+      }
+      case 'invoice.payment_succeeded': {
+        // Fires for every successful charge, first payment and renewals
+        // alike - $0 invoices (e.g. the trial-start invoice) are skipped so
+        // the user doesn't get a confusing "payment succeeded: $0.00" email,
+        // matching the same amount_paid > 0 guard GET /billing/history uses.
+        const invoice = event.data.object;
+        if (invoice.amount_paid > 0) {
+          const user = await findConsumerUserByCustomerId(invoice.customer);
+          if (user) {
+            const chargeDate = new Date((invoice.status_transitions?.paid_at || invoice.created) * 1000)
+              .toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+            await sendEmail({
+              to:      user.email,
+              subject: `Your ${APP_NAME} payment was successful`,
+              html:    paymentConfirmationEmail({
+                name:        user.name,
+                planName:    PLAN_DISPLAY[user.provider_price_id] || 'Premium',
+                price:       `$${(invoice.amount_paid / 100).toFixed(2)}`,
+                chargeDate,
+                receiptUrl:  invoice.hosted_invoice_url || null,
+              }),
+            }).catch(err => console.error('[stripe webhook] Payment confirmation email failed:', err.message));
+          }
+        }
+        break;
+      }
+      case 'charge.refunded': {
+        const charge = event.data.object;
+        const user = await findConsumerUserByCustomerId(charge.customer);
+        if (user) {
+          const chargeDate = new Date(charge.created * 1000)
+            .toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+          await sendEmail({
+            to:      user.email,
+            subject: `Your ${APP_NAME} refund has been processed`,
+            html:    refundConfirmationEmail({
+              name:   user.name,
+              amount: `$${(charge.amount_refunded / 100).toFixed(2)}`,
+              chargeDate,
+            }),
+          }).catch(err => console.error('[stripe webhook] Refund confirmation email failed:', err.message));
         }
         break;
       }

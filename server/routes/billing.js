@@ -201,6 +201,34 @@ router.post('/reinstate', auth, async (req, res) => {
   }
 });
 
+// Stripe-hosted Billing Portal session, for updating the card on file. Using
+// Stripe's own hosted flow rather than building custom card-collection UI
+// (Stripe Elements etc.) - avoids taking on PCI-relevant handling for a
+// need Stripe already solves, and matches the existing pattern of using
+// hosted Stripe Checkout for the original subscription rather than a custom
+// payment form. Requires a Billing Portal configuration to exist for this
+// Stripe account (set up once in the Stripe Dashboard, or Stripe creates a
+// default automatically in test mode on first real use).
+router.post('/portal-session', auth, async (req, res) => {
+  const sub = await queryOne(
+    'SELECT provider, provider_customer_id FROM subscriptions WHERE user_id = $1',
+    [req.user.id]
+  );
+  if (!sub || sub.provider !== 'stripe' || !sub.provider_customer_id) {
+    return res.status(400).json({ error: 'No billing account found. Subscribe to a plan first.' });
+  }
+  try {
+    const session = await stripe.billingPortal.sessions.create({
+      customer:   sub.provider_customer_id,
+      return_url: `${process.env.CLIENT_URL || 'http://localhost:5173'}/profile/settings`,
+    });
+    res.json({ url: session.url });
+  } catch (err) {
+    console.error('[billing] Portal session creation failed:', err.message);
+    res.status(500).json({ error: 'Could not open the billing portal. Please try again or contact support.' });
+  }
+});
+
 // Payment history: date, amount charged, and transaction ID per line item
 // (WEB-05). Stripe invoices are the source of truth here rather than
 // charges, since each subscription renewal produces one invoice with a

@@ -686,6 +686,16 @@ async function init() {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS security_question TEXT`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS security_answer_hash TEXT`);
 
+  // BIL-07: card-on-file expiry reminders (14 and 7 days before the card's
+  // exp_month/exp_year ends). card_expiry_reminder_exp_month/_year cache which
+  // card the two *_sent_at flags were computed against, so a card update
+  // (a new exp date from Stripe) is detected and the reminder cycle restarts
+  // for the new card instead of silently staying suppressed forever.
+  await pool.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS card_expiry_14d_reminder_sent_at TIMESTAMPTZ`);
+  await pool.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS card_expiry_7d_reminder_sent_at TIMESTAMPTZ`);
+  await pool.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS card_expiry_reminder_exp_month INTEGER`);
+  await pool.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS card_expiry_reminder_exp_year INTEGER`);
+
   // Legal content versioning (FEAT-04/05): Privacy Policy and Terms of Service
   // are now admin-published, versioned records instead of hardcoded page
   // content, so there is a permanent record of exactly what was in effect at
