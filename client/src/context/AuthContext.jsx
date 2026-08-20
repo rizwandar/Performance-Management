@@ -171,16 +171,6 @@ export function AuthProvider({ children }) {
   // cookie just expiring out from under an open tab with no client-held token
   // to notice the countdown from.
   const startViewAs = (customerName, editAllowed, csrfToken) => {
-    // SEC-15 follow-up: this swaps the active account without `user` ever
-    // passing through null/falsy, so VaultSessionContext's own `!user` check
-    // (its only identity-change trigger) never fires. Without this, a vault
-    // password/unlock cached for the real account would silently carry over
-    // into the view-as target's account, and the vault-gated pages' auto-load
-    // effect would replay it as a genuine wrong attempt against the target's
-    // real vault_attempts counter - see the security review that caught this
-    // before SEC-15 promoted to main. Re-lock explicitly on every identity
-    // switch, the same way a server-reported vault failure already does.
-    vaultLockHandlers.forEach(fn => fn())
     setCsrfToken(csrfToken)
     localStorage.setItem('viewAsCustomerName', customerName || 'this customer')
     localStorage.setItem('viewAsActive', '1')
@@ -200,9 +190,6 @@ export function AuthProvider({ children }) {
     try {
       const res = await axios.post(`${import.meta.env.VITE_API_URL}/org-portal/view-as/end`)
       if (res.data?.user) {
-        // Same identity-switch case as startViewAs above, in reverse: back to
-        // the real account without `user` passing through null.
-        vaultLockHandlers.forEach(fn => fn())
         setCsrfToken(res.data?.csrf_token)
         localStorage.setItem('user', JSON.stringify(res.data.user))
         setUser(res.data.user)

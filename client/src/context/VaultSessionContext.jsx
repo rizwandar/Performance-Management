@@ -80,9 +80,32 @@ export function VaultSessionProvider({ children }) {
   // A real logout ends the vault session immediately, even though it stays
   // logged in through a mere vault-timer expiry. AuthContext's `user` also
   // goes null on the session-expired-via-401 path (its response interceptor
-  // calls the same logout()), so this one check covers both.
+  // calls the same logout()), so a plain `!user` check covers both of those.
+  //
+  // But it's not enough on its own: AuthContext has several places that swap
+  // `user` from one truthy account object straight to a DIFFERENT truthy
+  // account object without ever passing through null - view-as start/end,
+  // and login() itself (reachable while already authenticated, since nothing
+  // guards the /login route from a logged-in user re-authenticating as a
+  // different account in the same tab). A `!user` check misses every one of
+  // those, letting a vault password cached for one account silently carry
+  // into whichever account is active next - a real, previously-shipped bug
+  // (see the security review that caught it before SEC-15 promoted to main).
+  //
+  // So this compares an identity fingerprint across renders and locks on ANY
+  // change, not just on becoming falsy - a real account is identified by its
+  // id; a view-as target has no id (AuthContext sets `id: null` for it), so
+  // its `name` stands in instead, which still correctly distinguishes two
+  // different view-as targets from each other. This deliberately does NOT
+  // fire on a same-account refresh (e.g. login() called from ProfilePage
+  // just to update the cached display object after an edit) since the id
+  // stays the same across that call.
+  const identityKey = (u) => (u ? (u.id ?? u.name ?? true) : null)
+  const identityRef = useRef(identityKey(user))
   useEffect(() => {
-    if (!user) lockVault()
+    const nextKey = identityKey(user)
+    if (nextKey !== identityRef.current) lockVault()
+    identityRef.current = nextKey
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user])
 
