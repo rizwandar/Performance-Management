@@ -5,6 +5,9 @@ import axios from 'axios'
 import SectionHero from '../../components/SectionHero'
 import ShareSectionTrigger from '../../components/ShareSectionTrigger'
 import ShareSectionHistory from '../../components/ShareSectionHistory'
+import DictateButton from '../../components/DictateButton'
+import DictationDisclosure from '../../components/DictationDisclosure'
+import { useDictation } from '../../hooks/useDictation'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -40,6 +43,14 @@ export default function ChildrenDependantsPage() {
   const [form, setForm]           = useState(empty)
 
   const [loadFailed, setLoadFailed] = useState(false)
+
+  const specialNeedsDictation = useDictation({ getValue: () => form.special_needs, setValue: v => setForm(f => ({ ...f, special_needs: v })) })
+  const notesDictation        = useDictation({ getValue: () => form.notes,         setValue: v => setForm(f => ({ ...f, notes: v })) })
+  const closeModal = () => {
+    specialNeedsDictation.stopDictation()
+    notesDictation.stopDictation()
+    setShowModal(false)
+  }
 
   const load = () => {
     setLoading(true)
@@ -80,6 +91,8 @@ export default function ChildrenDependantsPage() {
       } else {
         await axios.post(`${API}/sections/children-dependants`, form)
       }
+      specialNeedsDictation.stopDictation()
+      notesDictation.stopDictation()
       setShowModal(false)
       setSuccess(editing ? 'Record updated.' : 'Record added.')
       load()
@@ -202,7 +215,7 @@ export default function ChildrenDependantsPage() {
         </div>
       )}
 
-      <Modal show={showModal} onHide={() => setShowModal(false)} centered size="lg">
+      <Modal show={showModal} onHide={closeModal} centered size="lg">
         <Modal.Header closeButton style={{ background: 'var(--green-50)', borderBottom: '1px solid var(--green-100)' }}>
           <Modal.Title style={{ color: 'var(--green-900)', fontSize: '1.1rem' }}>
             {editing ? 'Edit record' : 'Add a dependant'}
@@ -233,10 +246,14 @@ export default function ChildrenDependantsPage() {
             </Row>
 
             <Form.Group className="mb-3">
-              <Form.Label>Special needs / care requirements</Form.Label>
+              <div className="d-flex justify-content-between align-items-center">
+                <Form.Label className="mb-0">Special needs / care requirements</Form.Label>
+                <DictateButton dictation={specialNeedsDictation} />
+              </div>
               <Form.Control as="textarea" rows={2} value={form.special_needs}
                 onChange={e => setForm({ ...form, special_needs: e.target.value })}
                 placeholder="Medical conditions, dietary needs, routine, medications, vet details…" />
+              {specialNeedsDictation.supported && <DictationDisclosure />}
             </Form.Group>
 
             <div style={{ background: 'var(--green-50)', borderRadius: 8, padding: '14px 16px', marginBottom: 16 }}>
@@ -270,15 +287,19 @@ export default function ChildrenDependantsPage() {
             </div>
 
             <Form.Group>
-              <Form.Label>Additional notes</Form.Label>
+              <div className="d-flex justify-content-between align-items-center">
+                <Form.Label className="mb-0">Additional notes</Form.Label>
+                <DictateButton dictation={notesDictation} />
+              </div>
               <Form.Control as="textarea" rows={2} value={form.notes}
                 onChange={e => setForm({ ...form, notes: e.target.value })}
                 placeholder="School, childcare, favorite things, any other important instructions…" />
+              {notesDictation.supported && <DictationDisclosure />}
             </Form.Group>
           </Form>
         </Modal.Body>
         <Modal.Footer style={{ borderTop: '1px solid var(--border)' }}>
-          <Button variant="outline-secondary" onClick={() => setShowModal(false)}>Cancel</Button>
+          <Button variant="outline-secondary" onClick={closeModal}>Cancel</Button>
           <Button variant="primary" onClick={handleSave} disabled={saving}>
             {saving ? 'Saving...' : editing ? 'Save changes' : 'Add dependant'}
           </Button>

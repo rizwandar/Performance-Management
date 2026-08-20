@@ -5,6 +5,9 @@ import axios from 'axios'
 import SectionHero from '../../components/SectionHero'
 import ShareSectionTrigger from '../../components/ShareSectionTrigger'
 import ShareSectionHistory from '../../components/ShareSectionHistory'
+import DictateButton from '../../components/DictateButton'
+import DictationDisclosure from '../../components/DictationDisclosure'
+import { useDictation } from '../../hooks/useDictation'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -18,7 +21,6 @@ const empty = { recipient_name: '', relationship: '', message: '' }
 const MAX_RECORDING_SECONDS = 300 // 5 minutes - keeps individual clips small; storage isn't premium-gated so this is the guardrail
 const RECORDER_MIME_CANDIDATES = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg']
 
-const speechSupported     = typeof window !== 'undefined' && !!(window.SpeechRecognition || window.webkitSpeechRecognition)
 const recordingSupported  = typeof window !== 'undefined' && !!navigator.mediaDevices?.getUserMedia && typeof window.MediaRecorder !== 'undefined'
 
 function pickRecorderMimeType() {
@@ -53,9 +55,11 @@ export default function MessagesPage() {
   const [form, setForm]           = useState(empty)
   const [expanded, setExpanded]   = useState(null) // id of message shown in full
 
-  // Dictation state
-  const [dictating, setDictating] = useState(false)
-  const recognitionRef = useRef(null)
+  // Dictation state (shared implementation - see hooks/useDictation.js)
+  const dictation = useDictation({
+    getValue: () => form.message,
+    setValue: v => setForm(f => ({ ...f, message: v })),
+  })
 
   // Voice message state
   const [recording, setRecording]                 = useState(false)
@@ -84,8 +88,9 @@ export default function MessagesPage() {
   // Best-effort teardown if the page navigates away mid-recording/dictation.
   useEffect(() => () => {
     streamRef.current?.getTracks().forEach(t => t.stop())
-    recognitionRef.current?.stop()
+    dictation.stopDictation()
     if (timerRef.current) clearInterval(timerRef.current)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const stopRecording = () => {
@@ -160,36 +165,8 @@ export default function MessagesPage() {
     setPendingId(null)
   }
 
-  const toggleDictation = () => {
-    if (dictating) {
-      recognitionRef.current?.stop()
-      return
-    }
-    const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition
-    if (!SpeechRecognitionCtor) return
-    const recognition = new SpeechRecognitionCtor()
-    recognition.continuous = true
-    recognition.interimResults = false
-    recognition.lang = navigator.language || 'en-US'
-    recognition.onresult = (e) => {
-      let finalText = ''
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        if (e.results[i].isFinal) finalText += e.results[i][0].transcript
-      }
-      if (finalText.trim()) {
-        setForm(f => ({ ...f, message: (f.message ? f.message.trim() + ' ' : '') + finalText.trim() }))
-      }
-    }
-    recognition.onerror = () => setDictating(false)
-    recognition.onend = () => setDictating(false)
-    recognitionRef.current = recognition
-    recognition.start()
-    setDictating(true)
-  }
-
   const closeModal = () => {
-    recognitionRef.current?.stop()
-    setDictating(false)
+    dictation.stopDictation()
     resetAudioState()
     setShowModal(false)
   }
@@ -373,11 +350,7 @@ export default function MessagesPage() {
             <Form.Group className="mb-3">
               <div className="d-flex justify-content-between align-items-center mb-1">
                 <Form.Label className="mb-0">Your message</Form.Label>
-                {speechSupported && (
-                  <Button size="sm" variant={dictating ? 'danger' : 'outline-secondary'} onClick={toggleDictation}>
-                    {dictating ? '⏹ Stop dictating' : '🎤 Dictate instead of typing'}
-                  </Button>
-                )}
+                <DictateButton dictation={dictation} />
               </div>
               <Form.Control
                 as="textarea"
@@ -387,11 +360,7 @@ export default function MessagesPage() {
                 placeholder="Write whatever is in your heart. There are no rules here."
                 style={{ lineHeight: 1.7, fontSize: '0.95rem' }}
               />
-              {speechSupported && (
-                <Form.Text className="text-muted" style={{ fontSize: '0.75rem' }}>
-                  Dictation uses your browser's built-in speech recognition, which may send your voice to your browser or device vendor for processing.
-                </Form.Text>
-              )}
+              {dictation.supported && <DictationDisclosure />}
             </Form.Group>
 
             <Form.Group className="mb-3">

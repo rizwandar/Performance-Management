@@ -5,6 +5,9 @@ import axios from 'axios'
 import SectionHero from '../../components/SectionHero'
 import ShareSectionTrigger from '../../components/ShareSectionTrigger'
 import ShareSectionHistory from '../../components/ShareSectionHistory'
+import DictateButton from '../../components/DictateButton'
+import DictationDisclosure from '../../components/DictationDisclosure'
+import { useDictation } from '../../hooks/useDictation'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -31,11 +34,15 @@ function SectionCard({ title, children }) {
   )
 }
 
-// Field with label + optional hint
-function FieldRow({ label, hint, children }) {
+// Field with label + optional hint. `action` is an optional node (e.g. a
+// DictateButton) rendered on the same row as the label, right-aligned.
+function FieldRow({ label, hint, action, children }) {
   return (
     <Form.Group className="mb-4">
-      <Form.Label style={{ fontWeight: 600, color: 'var(--green-900)', fontSize: '0.9rem' }}>{label}</Form.Label>
+      <div className="d-flex justify-content-between align-items-center">
+        <Form.Label style={{ fontWeight: 600, color: 'var(--green-900)', fontSize: '0.9rem', marginBottom: action ? 0 : undefined }}>{label}</Form.Label>
+        {action}
+      </div>
       {hint && <p className="text-muted small mb-2" style={{ marginTop: -2 }}>{hint}</p>}
       {children}
     </Form.Group>
@@ -160,6 +167,9 @@ export default function FuneralWishesPage() {
     ...f,
     [field]: e.target.type === 'checkbox' ? e.target.checked : e.target.value,
   }))
+
+  const specialRequestsDictation = useDictation({ getValue: () => form.special_requests, setValue: v => setForm(f => ({ ...f, special_requests: v })) })
+  const notesDictation           = useDictation({ getValue: () => form.notes,             setValue: v => setForm(f => ({ ...f, notes: v })) })
 
   const handleSave = async () => {
     if (!form.burial_preference) return setError('Please select a burial or cremation preference before saving.')
@@ -310,14 +320,16 @@ export default function FuneralWishesPage() {
             )}
           </FieldRow>
 
-          <FieldRow label="Special requests">
+          <FieldRow label="Special requests" action={<DictateButton dictation={specialRequestsDictation} />}>
             <Form.Control as="textarea" rows={2} value={form.special_requests} onChange={set('special_requests')}
               placeholder="Anything else you'd like your loved ones to know or arrange..." />
+            {specialRequestsDictation.supported && <DictationDisclosure />}
           </FieldRow>
 
-          <FieldRow label="Additional notes">
+          <FieldRow label="Additional notes" action={<DictateButton dictation={notesDictation} />}>
             <Form.Control as="textarea" rows={2} value={form.notes} onChange={set('notes')}
               placeholder="Any other thoughts or wishes..." />
+            {notesDictation.supported && <DictationDisclosure />}
           </FieldRow>
         </SectionCard>
 

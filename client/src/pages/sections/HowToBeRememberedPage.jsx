@@ -5,6 +5,9 @@ import axios from 'axios'
 import SectionHero from '../../components/SectionHero'
 import ShareSectionTrigger from '../../components/ShareSectionTrigger'
 import ShareSectionHistory from '../../components/ShareSectionHistory'
+import DictateButton from '../../components/DictateButton'
+import DictationDisclosure from '../../components/DictationDisclosure'
+import { useDictation } from '../../hooks/useDictation'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -78,6 +81,13 @@ export default function HowToBeRememberedPage() {
 
   const set = field => e => setForm(f => ({ ...f, [field]: e.target.value }))
 
+  // One independent dictation instance per field, so dictating into one
+  // doesn't affect (or need to remember) the state of any other.
+  const lifeStoryDictation     = useDictation({ getValue: () => form.life_story,     setValue: v => setForm(f => ({ ...f, life_story: v })) })
+  const guidingWordsDictation  = useDictation({ getValue: () => form.about_me,       setValue: v => setForm(f => ({ ...f, about_me: v })) })
+  const rememberedForDictation = useDictation({ getValue: () => form.remembered_for, setValue: v => setForm(f => ({ ...f, remembered_for: v })) })
+  const legacyMessageDictation = useDictation({ getValue: () => form.legacy_message, setValue: v => setForm(f => ({ ...f, legacy_message: v })) })
+
   const handleSave = async () => {
     setSaving(true)
     setError('')
@@ -117,7 +127,10 @@ export default function HowToBeRememberedPage() {
 
       {/* My Life Story */}
       <div style={{ background: 'var(--parchment)', borderRadius: 12, padding: '24px', marginBottom: 20, border: '1px solid var(--border)' }}>
-        <h6 style={{ color: 'var(--green-900)', marginBottom: 4 }}>My Life Story</h6>
+        <div className="d-flex justify-content-between align-items-center mb-1">
+          <h6 style={{ color: 'var(--green-900)', marginBottom: 0 }}>My Life Story</h6>
+          <DictateButton dictation={lifeStoryDictation} />
+        </div>
         <p className="text-muted small mb-3">
           A biography in your own words: where you grew up, what shaped you, the chapters of your life.
           Write as much or as little as you like.
@@ -129,18 +142,22 @@ export default function HowToBeRememberedPage() {
           placeholder="I was born in... I grew up... The things that shaped me most were..."
           style={{ lineHeight: 1.8 }}
         />
+        {lifeStoryDictation.supported && <DictationDisclosure />}
       </div>
 
       {/* Life's motto */}
       <div style={{ background: 'var(--parchment)', borderRadius: 12, padding: '24px', marginBottom: 20, border: '1px solid var(--border)' }}>
-        <h6 style={{ color: 'var(--green-900)', marginBottom: 4 }}>
-          My Guiding Words
-          <HelpIcon title="Not sure where to start?">
-            Think about: a phrase your family always associated with you, words you'd want on a
-            plaque, advice you gave often, or a lesson life taught you the hard way. It doesn't
-            need to be original or polished, just true to you.
-          </HelpIcon>
-        </h6>
+        <div className="d-flex justify-content-between align-items-center mb-1">
+          <h6 style={{ color: 'var(--green-900)', marginBottom: 0 }}>
+            My Guiding Words
+            <HelpIcon title="Not sure where to start?">
+              Think about: a phrase your family always associated with you, words you'd want on a
+              plaque, advice you gave often, or a lesson life taught you the hard way. It doesn't
+              need to be original or polished, just true to you.
+            </HelpIcon>
+          </h6>
+          <DictateButton dictation={guidingWordsDictation} />
+        </div>
         <p className="text-muted small mb-3">
           A motto, a belief, a quote, or a few words that capture how you tried to live.
         </p>
@@ -150,18 +167,22 @@ export default function HowToBeRememberedPage() {
           onChange={set('about_me')}
           placeholder="e.g. 'Be kind, always.' or 'Live fully, love deeply, leave it better than you found it.'"
         />
+        {guidingWordsDictation.supported && <DictationDisclosure />}
       </div>
 
       {/* How I'd like to be remembered */}
       <div style={{ background: 'var(--parchment)', borderRadius: 12, padding: '24px', marginBottom: 20, border: '1px solid var(--border)' }}>
-        <h6 style={{ color: 'var(--green-900)', marginBottom: 4 }}>
-          How I'd Like to Be Remembered
-          <HelpIcon title="A few angles to consider">
-            What impact did you have on the people around you? What would you want your
-            grandchildren, or their grandchildren, to know about you? What's a moment you're most
-            proud of, quietly or otherwise?
-          </HelpIcon>
-        </h6>
+        <div className="d-flex justify-content-between align-items-center mb-1">
+          <h6 style={{ color: 'var(--green-900)', marginBottom: 0 }}>
+            How I'd Like to Be Remembered
+            <HelpIcon title="A few angles to consider">
+              What impact did you have on the people around you? What would you want your
+              grandchildren, or their grandchildren, to know about you? What's a moment you're most
+              proud of, quietly or otherwise?
+            </HelpIcon>
+          </h6>
+          <DictateButton dictation={rememberedForDictation} />
+        </div>
         <p className="text-muted small mb-3">
           What do you hope people will say about you? What did you stand for? What are you proudest of?
         </p>
@@ -172,11 +193,15 @@ export default function HowToBeRememberedPage() {
           placeholder="I hope people remember me as someone who... I'm proudest of... What I valued most was..."
           style={{ lineHeight: 1.8 }}
         />
+        {rememberedForDictation.supported && <DictationDisclosure />}
       </div>
 
       {/* Message to leave behind */}
       <div style={{ background: 'var(--parchment)', borderRadius: 12, padding: '24px', marginBottom: 24, border: '1px solid var(--border)' }}>
-        <h6 style={{ color: 'var(--green-900)', marginBottom: 4 }}>A Message to Leave Behind</h6>
+        <div className="d-flex justify-content-between align-items-center mb-1">
+          <h6 style={{ color: 'var(--green-900)', marginBottom: 0 }}>A Message to Leave Behind</h6>
+          <DictateButton dictation={legacyMessageDictation} />
+        </div>
         <p className="text-muted small mb-3">
           A final message to everyone you love. Write from the heart. There are no rules here.
         </p>
@@ -187,7 +212,8 @@ export default function HowToBeRememberedPage() {
           placeholder="To everyone I love... Thank you for... I want you to know..."
           style={{ lineHeight: 1.8 }}
         />
-        <Form.Text className="text-muted">This is included in your PDF export.</Form.Text>
+        {legacyMessageDictation.supported && <DictationDisclosure />}
+        <Form.Text className="text-muted d-block">This is included in your PDF export.</Form.Text>
       </div>
 
       <div className="d-flex align-items-center gap-3 flex-wrap">
