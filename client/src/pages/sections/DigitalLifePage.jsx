@@ -4,7 +4,9 @@ import { Button, Form, Row, Col, Alert, Modal, Spinner, InputGroup } from 'react
 import axios from 'axios'
 import { VaultSetupScreen, VaultLockScreen } from '../../components/VaultGate'
 import SectionHero from '../../components/SectionHero'
-import ShareSectionControl from '../../components/ShareSectionControl'
+import ShareSectionTrigger from '../../components/ShareSectionTrigger'
+import ShareSectionHistory from '../../components/ShareSectionHistory'
+import { useVaultSession } from '../../context/VaultSessionContext'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -31,9 +33,12 @@ const emptyForm = { service: '', service_url: '', username: '', password: '', no
 export default function DigitalLifePage() {
   const navigate = useNavigate()
 
-  // vault state: 'loading' | 'no-vault' | 'locked' | 'unlocked'
-  const [vaultState, setVaultState] = useState('loading')
-  const [vaultPassword, setVaultPassword] = useState('')  // in memory only
+  // Vault unlock state (password + timers) now lives in the shared, app-wide
+  // VaultSessionContext (SEC-15) instead of page-local state, so unlocking on
+  // any of the five vault sections keeps the others unlocked too, for as long
+  // as the 30-minute session lasts.
+  const { vaultPassword, vaultUnlocked, unlockVault, lockVault } = useVaultSession()
+  const [vaultExists, setVaultExists] = useState(null)  // null = still checking
 
   const [items, setItems]         = useState([])
   const [loadingItems, setLoadingItems] = useState(false)
@@ -47,11 +52,11 @@ export default function DigitalLifePage() {
   const [showFormPw, setShowFormPw] = useState(false)
 
 
-  // Check if vault exists on mount
+  // Check if a vault exists on mount (independent of unlock state)
   useEffect(() => {
     axios.get(`${API}/sections/digital-life/vault`)
-      .then(r => setVaultState(r.data.exists ? 'locked' : 'no-vault'))
-      .catch(() => setVaultState('locked'))
+      .then(r => setVaultExists(!!r.data.exists))
+      .catch(() => setVaultExists(true))
   }, [])
 
   const loadItems = useCallback((pw) => {
@@ -62,24 +67,40 @@ export default function DigitalLifePage() {
       .finally(() => setLoadingItems(false))
   }, [])
 
+  // Arriving here with the vault already unlocked (from another vault
+  // section, or still within the same 30-minute session) skips the lock
+  // screen entirely and loads straight away. Losing the cached password
+  // (timer expiry, manual lock, or a vault-specific failure elsewhere)
+  // clears the items back out.
+  useEffect(() => {
+    if (vaultExists && vaultUnlocked && vaultPassword) {
+      loadItems(vaultPassword)
+    } else if (!vaultUnlocked) {
+      setItems([])
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vaultExists, vaultUnlocked])
+
   const handleUnlock = (pw) => {
-    setVaultPassword(pw)
-    setVaultState('unlocked')
-    loadItems(pw)
+    unlockVault(pw)
   }
 
   const handleLock = () => {
-    setVaultPassword('')
-    setItems([])
-    setVaultState('locked')
+    lockVault()
   }
 
   const handleVaultReset = () => {
     // Vault was destroyed — go back to setup screen
-    setVaultState('no-vault')
-    setVaultPassword('')
-    setItems([])
+    lockVault()
+    setVaultExists(false)
   }
+
+  // Derived from vault-existence (checked once here) and the shared unlock
+  // session (shared across all five vault sections).
+  const vaultState = vaultExists === null ? 'loading'
+    : !vaultExists ? 'no-vault'
+    : vaultUnlocked ? 'unlocked'
+    : 'locked'
 
   const openAdd = () => {
     setEditing(null)
@@ -159,7 +180,7 @@ export default function DigitalLifePage() {
     />
   )
 
-  const shareControl = <ShareSectionControl section="digital_credentials" sectionLabel="Digital Vault" isVaultSection />
+  const shareTrigger = <ShareSectionTrigger section="digital_credentials" sectionLabel="Digital Vault" isVaultSection />
 
   // ── Loading ────────────────────────────────────────────────────────────────
   if (vaultState === 'loading') {
@@ -180,7 +201,7 @@ export default function DigitalLifePage() {
       <div style={{ maxWidth: 800, margin: '0 auto' }}>
         {backLink}
       {hero}
-        <VaultSetupScreen onSetup={() => setVaultState('locked')} />
+        <VaultSetupScreen onSetup={() => setVaultExists(true)} />
       </div>
     )
   }
@@ -201,7 +222,6 @@ export default function DigitalLifePage() {
     <div style={{ maxWidth: 800, margin: '0 auto' }}>
       {backLink}
       {hero}
-      {shareControl}
 
       {/* Vault status bar */}
       <div style={{
@@ -229,8 +249,9 @@ export default function DigitalLifePage() {
       {success && <Alert variant="success">{success}</Alert>}
       {error && !showModal && <Alert variant="danger">{error}</Alert>}
 
-      <div className="mb-4">
+      <div className="mb-4 d-flex align-items-center gap-3 flex-wrap">
         <Button variant="primary" onClick={openAdd}>+ Add an account</Button>
+        {shareTrigger}
       </div>
 
       {/* Credentials list */}
@@ -389,6 +410,9 @@ export default function DigitalLifePage() {
 
       {success && <Alert variant="success" className="mt-4">{success}</Alert>}
       {error && !showModal && <Alert variant="danger" className="mt-4">{error}</Alert>}
+
+      <ShareSectionHistory section="digital_credentials" />
+
       <div className="mt-4 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
         <button className="btn btn-link p-0"
           style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '0.9rem' }}

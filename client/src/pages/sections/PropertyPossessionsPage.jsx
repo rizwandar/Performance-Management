@@ -5,7 +5,9 @@ import axios from 'axios'
 import { VaultSetupScreen, VaultLockScreen } from '../../components/VaultGate'
 import FileAttachments from '../../components/FileAttachments'
 import SectionHero from '../../components/SectionHero'
-import ShareSectionControl from '../../components/ShareSectionControl'
+import ShareSectionTrigger from '../../components/ShareSectionTrigger'
+import ShareSectionHistory from '../../components/ShareSectionHistory'
+import { useVaultSession } from '../../context/VaultSessionContext'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -23,9 +25,12 @@ const empty = { category: '', title: '', description: '', location: '', intended
 export default function PropertyPossessionsPage() {
   const navigate = useNavigate()
 
-  // Vault state: 'loading' | 'no-vault' | 'locked' | 'unlocked'
-  const [vaultState, setVaultState]       = useState('loading')
-  const [vaultPassword, setVaultPassword] = useState('')
+  // Vault unlock state (password + timers) now lives in the shared, app-wide
+  // VaultSessionContext (SEC-15) instead of page-local state, so unlocking on
+  // any of the five vault sections keeps the others unlocked too, for as long
+  // as the 30-minute session lasts.
+  const { vaultPassword, vaultUnlocked, unlockVault, lockVault } = useVaultSession()
+  const [vaultExists, setVaultExists] = useState(null)  // null = still checking
 
   const [items, setItems]         = useState([])
   const [sectionDocs, setSectionDocs] = useState([])  // all uploaded_documents for this section
@@ -37,10 +42,11 @@ export default function PropertyPossessionsPage() {
   const [editing, setEditing]     = useState(null)
   const [form, setForm]           = useState(empty)
 
+  // Check if a vault exists on mount (independent of unlock state)
   useEffect(() => {
     axios.get(`${API}/sections/digital-life/vault`)
-      .then(r => setVaultState(r.data.exists ? 'locked' : 'no-vault'))
-      .catch(() => setVaultState('locked'))
+      .then(r => setVaultExists(!!r.data.exists))
+      .catch(() => setVaultExists(true))
   }, [])
 
   const loadItems = useCallback((pw) => {
@@ -57,18 +63,36 @@ export default function PropertyPossessionsPage() {
       .finally(() => setLoading(false))
   }, [])
 
+  // Arriving here with the vault already unlocked (from another vault
+  // section, or still within the same 30-minute session) skips the lock
+  // screen entirely and loads straight away. Losing the cached password
+  // (timer expiry, manual lock, or a vault-specific failure elsewhere)
+  // clears the items back out.
+  useEffect(() => {
+    if (vaultExists && vaultUnlocked && vaultPassword) {
+      loadItems(vaultPassword)
+    } else if (!vaultUnlocked) {
+      setItems([])
+      setSectionDocs([])
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vaultExists, vaultUnlocked])
+
   const handleUnlock = (pw) => {
-    setVaultPassword(pw)
-    setVaultState('unlocked')
-    loadItems(pw)
+    unlockVault(pw)
   }
 
   const handleVaultReset = () => {
-    setVaultState('no-vault')
-    setVaultPassword('')
-    setItems([])
-    setSectionDocs([])
+    lockVault()
+    setVaultExists(false)
   }
+
+  // Derived from vault-existence (checked once here) and the shared unlock
+  // session (shared across all five vault sections).
+  const vaultState = vaultExists === null ? 'loading'
+    : !vaultExists ? 'no-vault'
+    : vaultUnlocked ? 'unlocked'
+    : 'locked'
 
   const openAdd = () => { setEditing(null); setForm(empty); setError(''); setShowModal(true) }
   const openEdit = item => {
@@ -135,7 +159,7 @@ export default function PropertyPossessionsPage() {
     />
   )
 
-  const shareControl = <ShareSectionControl section="property_items" sectionLabel="Property & Possessions" isVaultSection />
+  const shareTrigger = <ShareSectionTrigger section="property_items" sectionLabel="Property & Possessions" isVaultSection />
 
   if (vaultState === 'loading') {
     return (
@@ -154,7 +178,7 @@ export default function PropertyPossessionsPage() {
       <div style={{ maxWidth: 800, margin: '0 auto' }}>
         {backLink}
       {hero}
-        <VaultSetupScreen onSetup={() => setVaultState('locked')} />
+        <VaultSetupScreen onSetup={() => setVaultExists(true)} />
       </div>
     )
   }
@@ -173,7 +197,6 @@ export default function PropertyPossessionsPage() {
     <div style={{ maxWidth: 800, margin: '0 auto' }}>
       {backLink}
       {hero}
-      {shareControl}
 
       <div style={{
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -185,7 +208,7 @@ export default function PropertyPossessionsPage() {
         </span>
         <button className="btn btn-link p-0"
           style={{ color: 'var(--green-800)', fontSize: '0.85rem', textDecoration: 'none' }}
-          onClick={() => { setVaultPassword(''); setItems([]); setVaultState('locked') }}>
+          onClick={lockVault}>
           Lock vault
         </button>
       </div>
@@ -193,8 +216,9 @@ export default function PropertyPossessionsPage() {
       {success && <Alert variant="success">{success}</Alert>}
       {error && !showModal && <Alert variant="danger">{error}</Alert>}
 
-      <div className="mb-4">
+      <div className="mb-4 d-flex align-items-center gap-3 flex-wrap">
         <Button variant="primary" onClick={openAdd}>+ Add an item</Button>
+        {shareTrigger}
       </div>
 
       {loading ? (
@@ -313,6 +337,9 @@ export default function PropertyPossessionsPage() {
 
       {success && <Alert variant="success" className="mt-4">{success}</Alert>}
       {error && !showModal && <Alert variant="danger" className="mt-4">{error}</Alert>}
+
+      <ShareSectionHistory section="property_items" />
+
       <div className="mt-4 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
         <button className="btn btn-link p-0"
           style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '0.9rem' }}

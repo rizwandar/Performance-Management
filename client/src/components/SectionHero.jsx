@@ -2,7 +2,10 @@
 // with a <mark>-highlighted word), practical subtext, and a primary CTA button.
 // Shares the .hero-panel treatment (index.css) with the Dashboard's own hero, so the
 // folded-corner/dashed-border Keepsake signature shows here too.
-export default function SectionHero({ eyebrow, headline, highlight, subtext, cta }) {
+// `secondaryAction` is an optional node (e.g. a compact "Share this section" link)
+// rendered beside the primary CTA, deliberately lower-key so it doesn't compete
+// with the section's own primary action for attention.
+export default function SectionHero({ eyebrow, headline, highlight, subtext, cta, secondaryAction }) {
   const parts = highlight ? headline.split(highlight) : null
 
   return (
@@ -23,15 +26,20 @@ export default function SectionHero({ eyebrow, headline, highlight, subtext, cta
       {subtext && (
         <p className="text-muted mb-3" style={{ maxWidth: 560, lineHeight: 1.65 }}>{subtext}</p>
       )}
-      {cta && (
-        <button
-          type="button"
-          className="btn btn-primary"
-          onClick={cta.onClick}
-          style={{ fontWeight: 600, padding: '9px 22px' }}
-        >
-          {cta.label}
-        </button>
+      {(cta || secondaryAction) && (
+        <div className="d-flex align-items-center gap-3 flex-wrap">
+          {cta && (
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={cta.onClick}
+              style={{ fontWeight: 600, padding: '9px 22px' }}
+            >
+              {cta.label}
+            </button>
+          )}
+          {secondaryAction}
+        </div>
       )}
     </div>
   )
