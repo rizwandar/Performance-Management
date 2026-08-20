@@ -11,6 +11,7 @@ const { checkVault } = require('../lib/vaultAuth');
 const { TABLE_FIELDS, decryptRow, migrateRow } = require('../lib/vaultFields');
 const { destroyVaultData } = require('../lib/vaultDestroy');
 const { uploadFile, deleteFile, getDownloadUrl } = require('../lib/r2');
+const { matchesExtension } = require('../lib/fileSignature');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
 
@@ -451,9 +452,17 @@ function baseMimeType(mimeType) {
 const audioUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 15 * 1024 * 1024 },
+  // Both the declared MIME type AND the extension must be on the allow-list
+  // (not either/or - a mismatched pair like a .mp3 name with an
+  // application/octet-stream or text/html Content-Type must still be
+  // rejected here). This is only the first of two checks - see the
+  // matchesExtension() byte-signature verification in the route handler
+  // below, same SEC-11 pattern documents.js/admin.js/organizations.js/
+  // orgPortal.js already use: a client can freely lie about both of these
+  // fields, so neither alone (nor their disjunction) is trustworthy.
   fileFilter: (_req, file, cb) => {
     const ext = file.originalname.split('.').pop()?.toLowerCase();
-    if (!AUDIO_MIME_TYPES.has(baseMimeType(file.mimetype)) && !AUDIO_EXTENSIONS.has(ext)) {
+    if (!AUDIO_MIME_TYPES.has(baseMimeType(file.mimetype)) || !AUDIO_EXTENSIONS.has(ext)) {
       return cb(new Error('That recording format is not supported.'));
     }
     cb(null, true);
@@ -481,6 +490,13 @@ router.post('/messages/:id/audio', requireAuth, (req, res, next) => {
 
     const mimeType = baseMimeType(req.file.mimetype) || 'audio/webm';
     const ext = (req.file.originalname.split('.').pop() || 'webm').replace(/[^a-zA-Z0-9]/g, '');
+    // fileFilter only checked what the client claimed (mimetype + extension,
+    // both attacker-controlled) - this confirms the bytes we're about to
+    // store, and later serve back with this same mimeType as the R2 object's
+    // Content-Type, actually match (SEC-11 pattern, same as documents.js).
+    if (!matchesExtension(req.file.buffer, ext)) {
+      return res.status(400).json({ error: "That recording's content doesn't match its format. Please try recording again." });
+    }
     const key = `${req.user.id}/messages/${item.id}/${uuidv4()}.${ext}`;
     await uploadFile({ key, buffer: req.file.buffer, mimeType });
 
