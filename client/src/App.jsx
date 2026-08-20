@@ -72,6 +72,13 @@ const DEFAULT_CARD_TOKENS = {
   '--btn-radius': '6px',
   '--btn-cta-bg': 'var(--green-800)', '--btn-cta-color': '#fff', '--btn-cta-hover-bg': 'var(--green-900)',
   '--progress-fill': 'linear-gradient(90deg, var(--green-800), var(--green-600))',
+  '--input-radius': '6px',
+  // Dashboard group-card tints: today's colour-coded-by-category look.
+  '--group-people-bg': '#F7EDE7', '--group-people-border': '#E4C8B4', '--group-people-icon': '#EDD8C8', '--group-people-pill': '#B87A50',
+  '--group-legacy-bg': '#FBF5E4', '--group-legacy-border': '#E8D8A8', '--group-legacy-icon': '#F5EAC8', '--group-legacy-pill': '#C9A84C',
+  '--group-wishes-bg': '#EEF4EE', '--group-wishes-border': '#C4DCC4', '--group-wishes-icon': '#D8ECD8', '--group-wishes-pill': '#5A9A5A',
+  '--group-affairs-bg': '#EEEAE5', '--group-affairs-border': '#D4CCC4', '--group-affairs-icon': '#E0D8D0', '--group-affairs-pill': '#8A7A6A',
+  '--group-pill-text': '#ffffff',
 }
 
 const THEME_VARS = {
@@ -155,6 +162,14 @@ const THEME_VARS = {
     '--btn-radius': '999px',
     '--btn-cta-bg': '#E0A438', '--btn-cta-color': '#3A2E22', '--btn-cta-hover-bg': '#C68A2E',
     '--progress-fill': '#C97A56',
+    '--input-radius': '14px',
+    // Keepsake style guide: every dashboard group card is plain white with the
+    // same dashed cream border and a neutral icon circle, not colour-coded by category.
+    '--group-people-bg': '#fff', '--group-people-border': '#E8DCC8', '--group-people-icon': '#F0EAE0', '--group-people-pill': '#EDE6D8',
+    '--group-legacy-bg': '#fff', '--group-legacy-border': '#E8DCC8', '--group-legacy-icon': '#F0EAE0', '--group-legacy-pill': '#EDE6D8',
+    '--group-wishes-bg': '#fff', '--group-wishes-border': '#E8DCC8', '--group-wishes-icon': '#F0EAE0', '--group-wishes-pill': '#EDE6D8',
+    '--group-affairs-bg': '#fff', '--group-affairs-border': '#E8DCC8', '--group-affairs-icon': '#F0EAE0', '--group-affairs-pill': '#EDE6D8',
+    '--group-pill-text': '#3A2E22',
   },
 }
 
