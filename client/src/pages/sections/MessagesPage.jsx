@@ -5,6 +5,9 @@ import axios from 'axios'
 import SectionHero from '../../components/SectionHero'
 import ShareSectionTrigger from '../../components/ShareSectionTrigger'
 import ShareSectionHistory from '../../components/ShareSectionHistory'
+import DictateButton from '../../components/DictateButton'
+import DictationDisclosure from '../../components/DictationDisclosure'
+import { useDictation } from '../../hooks/useDictation'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -18,7 +21,6 @@ const empty = { recipient_name: '', relationship: '', message: '' }
 const MAX_RECORDING_SECONDS = 300 // 5 minutes - keeps individual clips small; storage isn't premium-gated so this is the guardrail
 const RECORDER_MIME_CANDIDATES = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg']
 
-const speechSupported     = typeof window !== 'undefined' && !!(window.SpeechRecognition || window.webkitSpeechRecognition)
 const recordingSupported  = typeof window !== 'undefined' && !!navigator.mediaDevices?.getUserMedia && typeof window.MediaRecorder !== 'undefined'
 
 function pickRecorderMimeType() {
@@ -53,15 +55,11 @@ export default function MessagesPage() {
   const [form, setForm]           = useState(empty)
   const [expanded, setExpanded]   = useState(null) // id of message shown in full
 
-  // Dictation state
-  const [dictating, setDictating] = useState(false)
-  const recognitionRef = useRef(null)
-  // Whatever was already in the message field when dictation started (typed
-  // text, or text left over from a previous dictation session) - onresult
-  // below re-renders the FULL transcript-so-far on every event (interim
-  // results get overwritten in place as they firm up), so this has to be
-  // captured once up front and re-prepended each time, not appended to.
-  const dictationBaseRef = useRef('')
+  // Dictation state (shared implementation - see hooks/useDictation.js)
+  const dictation = useDictation({
+    getValue: () => form.message,
+    setValue: v => setForm(f => ({ ...f, message: v })),
+  })
 
   // Voice message state
   const [recording, setRecording]                 = useState(false)
@@ -90,8 +88,9 @@ export default function MessagesPage() {
   // Best-effort teardown if the page navigates away mid-recording/dictation.
   useEffect(() => () => {
     streamRef.current?.getTracks().forEach(t => t.stop())
-    recognitionRef.current?.stop()
+    dictation.stopDictation()
     if (timerRef.current) clearInterval(timerRef.current)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const stopRecording = () => {
@@ -166,41 +165,8 @@ export default function MessagesPage() {
     setPendingId(null)
   }
 
-  const toggleDictation = () => {
-    if (dictating) {
-      recognitionRef.current?.stop()
-      return
-    }
-    const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition
-    if (!SpeechRecognitionCtor) return
-    const recognition = new SpeechRecognitionCtor()
-    recognition.continuous = true
-    recognition.interimResults = true // live transcription as the user speaks, not just after they stop
-    recognition.lang = navigator.language || 'en-US'
-    dictationBaseRef.current = form.message ? form.message.trim() + ' ' : ''
-    recognition.onresult = (e) => {
-      // e.results accumulates for the whole session (not just this event),
-      // so walking it from the start every time and overwriting the message
-      // field is simpler and safer than trying to append incrementally -
-      // interim entries keep changing in place as the recognizer firms up
-      // its guess, right up until each one's isFinal flips true.
-      let finalTranscript = '', interimTranscript = ''
-      for (let i = 0; i < e.results.length; i++) {
-        if (e.results[i].isFinal) finalTranscript += e.results[i][0].transcript
-        else interimTranscript += e.results[i][0].transcript
-      }
-      setForm(f => ({ ...f, message: dictationBaseRef.current + finalTranscript + interimTranscript }))
-    }
-    recognition.onerror = () => setDictating(false)
-    recognition.onend = () => setDictating(false)
-    recognitionRef.current = recognition
-    recognition.start()
-    setDictating(true)
-  }
-
   const closeModal = () => {
-    recognitionRef.current?.stop()
-    setDictating(false)
+    dictation.stopDictation()
     resetAudioState()
     setShowModal(false)
   }
@@ -384,11 +350,7 @@ export default function MessagesPage() {
             <Form.Group className="mb-3">
               <div className="d-flex justify-content-between align-items-center mb-1">
                 <Form.Label className="mb-0">Your message</Form.Label>
-                {speechSupported && (
-                  <Button size="sm" variant={dictating ? 'danger' : 'outline-secondary'} onClick={toggleDictation}>
-                    {dictating ? '⏹ Stop dictating' : '🎤 Dictate instead of typing'}
-                  </Button>
-                )}
+                <DictateButton dictation={dictation} />
               </div>
               <Form.Control
                 as="textarea"
@@ -398,11 +360,7 @@ export default function MessagesPage() {
                 placeholder="Write whatever is in your heart. There are no rules here."
                 style={{ lineHeight: 1.7, fontSize: '0.95rem' }}
               />
-              {speechSupported && (
-                <Form.Text className="text-muted" style={{ fontSize: '0.75rem' }}>
-                  Dictation uses your browser's built-in speech recognition, which may send your voice to your browser or device vendor for processing.
-                </Form.Text>
-              )}
+              {dictation.supported && <DictationDisclosure />}
             </Form.Group>
 
             <Form.Group className="mb-3">
