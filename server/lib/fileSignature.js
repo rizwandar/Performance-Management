@@ -39,9 +39,32 @@ const SIGNATURES = {
     const text = buf.subarray(0, 256).toString('utf8').replace(new RegExp('^﻿'), '').trimStart();
     return /^<\?xml/i.test(text) || /^<svg[\s>]/i.test(text);
   },
+
+  // IDEA-01 voice messages. WebM/Matroska share the same EBML container
+  // header regardless of which codec is inside.
+  webm: (buf) => buf.length >= 4 &&
+    buf.subarray(0, 4).equals(Buffer.from([0x1A, 0x45, 0xDF, 0xA3])),
+
+  ogg: (buf) => buf.length >= 4 && buf.subarray(0, 4).toString('latin1') === 'OggS',
+
+  // mp4/m4a are both the ISOBMFF container (same 'ftyp' box as heic above,
+  // just checking for the box's presence rather than a specific brand code -
+  // audio/video mp4 brands vary too widely to enumerate usefully here).
+  mp4: (buf) => buf.length >= 8 && buf.subarray(4, 8).toString('latin1') === 'ftyp',
+
+  wav: (buf) => buf.length >= 12 &&
+    buf.subarray(0, 4).toString('latin1') === 'RIFF' &&
+    buf.subarray(8, 12).toString('latin1') === 'WAVE',
+
+  // MP3: either a leading ID3 tag, or a raw MPEG frame sync (11 set bits).
+  mp3: (buf) => buf.length >= 3 && (
+    buf.subarray(0, 3).toString('latin1') === 'ID3' ||
+    (buf[0] === 0xFF && (buf[1] & 0xE0) === 0xE0)
+  ),
 };
 
 SIGNATURES.jpeg = SIGNATURES.jpg;
+SIGNATURES.m4a  = SIGNATURES.mp4; // same ISOBMFF container as mp4
 
 function matchesExtension(buffer, ext) {
   const check = SIGNATURES[ext?.toLowerCase()];

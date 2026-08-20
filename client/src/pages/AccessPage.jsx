@@ -153,6 +153,12 @@ function PersonalMessages({ data }) {
           "{d.message}"
         </p>
       )}
+      {d.audio_url && (
+        <div style={{ margin: '8px 0' }}>
+          <p className="text-muted small mb-1">🎤 Voice message</p>
+          <audio controls src={d.audio_url} style={{ width: '100%', maxWidth: 360, height: 36 }} />
+        </div>
+      )}
       <FieldRow label="Notes" value={d.notes} />
     </ItemCard>
   ))
