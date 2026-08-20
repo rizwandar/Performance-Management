@@ -56,6 +56,12 @@ export default function MessagesPage() {
   // Dictation state
   const [dictating, setDictating] = useState(false)
   const recognitionRef = useRef(null)
+  // Whatever was already in the message field when dictation started (typed
+  // text, or text left over from a previous dictation session) - onresult
+  // below re-renders the FULL transcript-so-far on every event (interim
+  // results get overwritten in place as they firm up), so this has to be
+  // captured once up front and re-prepended each time, not appended to.
+  const dictationBaseRef = useRef('')
 
   // Voice message state
   const [recording, setRecording]                 = useState(false)
@@ -169,16 +175,21 @@ export default function MessagesPage() {
     if (!SpeechRecognitionCtor) return
     const recognition = new SpeechRecognitionCtor()
     recognition.continuous = true
-    recognition.interimResults = false
+    recognition.interimResults = true // live transcription as the user speaks, not just after they stop
     recognition.lang = navigator.language || 'en-US'
+    dictationBaseRef.current = form.message ? form.message.trim() + ' ' : ''
     recognition.onresult = (e) => {
-      let finalText = ''
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        if (e.results[i].isFinal) finalText += e.results[i][0].transcript
+      // e.results accumulates for the whole session (not just this event),
+      // so walking it from the start every time and overwriting the message
+      // field is simpler and safer than trying to append incrementally -
+      // interim entries keep changing in place as the recognizer firms up
+      // its guess, right up until each one's isFinal flips true.
+      let finalTranscript = '', interimTranscript = ''
+      for (let i = 0; i < e.results.length; i++) {
+        if (e.results[i].isFinal) finalTranscript += e.results[i][0].transcript
+        else interimTranscript += e.results[i][0].transcript
       }
-      if (finalText.trim()) {
-        setForm(f => ({ ...f, message: (f.message ? f.message.trim() + ' ' : '') + finalText.trim() }))
-      }
+      setForm(f => ({ ...f, message: dictationBaseRef.current + finalTranscript + interimTranscript }))
     }
     recognition.onerror = () => setDictating(false)
     recognition.onend = () => setDictating(false)
