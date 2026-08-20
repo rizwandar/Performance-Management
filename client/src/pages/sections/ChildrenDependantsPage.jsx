@@ -133,7 +133,7 @@ export default function ChildrenDependantsPage() {
         highlight="depend on you"
         subtext="Record care arrangements for anyone who depends on you, including children or elderly relatives. Include guardianship wishes and any special care needs so your loved ones know exactly what to do. Looking for pet care instructions? Those now have their own dedicated section."
         cta={{ label: '+ Add a dependant', onClick: openAdd }}
-        secondaryAction={<ShareSectionTrigger section="children_dependants" sectionLabel="Children & Dependants" />}
+        secondaryAction={<ShareSectionTrigger section="children_dependants" sectionLabel="Your Loved Ones" />}
       />
 
       {success && <Alert variant="success">{success}</Alert>}

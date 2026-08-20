@@ -474,8 +474,8 @@ YOUR WISHES:
 YOUR PEOPLE:
 - Key Contacts: emergency contact stored on the users table (name, phone, email). Trusted contacts in a separate trusted_contacts table (max 3 per user, with sequence 1/2/3). Trusted contacts get 72-hour access links to view permitted sections, except the designated Legacy Contact, whose link never expires.
 - People to Notify: people_to_notify table. People who should be contacted when the user passes. Name, relationship, email, phone, notified_by, notes.
-- Children and Dependants: children_dependants table. Name, type (child/elderly_parent/other), DOB, special needs, preferred guardian, alternate guardian, notes.
-- Pet Care: pets table (IDEA-18, split out of Children & Dependants). Name, age, special needs/care instructions, preferred caretaker + contact, alternate caretaker + contact, notes.
+- Your Loved Ones: children_dependants table. Name, type (child/elderly_parent/other), DOB, special needs, preferred guardian, alternate guardian, notes.
+- Pet Care: pets table (IDEA-18, split out of Your Loved Ones). Name, age, special needs/care instructions, preferred caretaker + contact, alternate caretaker + contact, notes.
 
 YOUR AFFAIRS:
 - Personal and Legal Documents: vault-protected (shared vault). legal_documents table: document_type, title, held_by, location, notes. Up to 2 file attachments per item via R2.
@@ -701,7 +701,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
                 { group: 'Your People', color: '#B87A50', icon: '🤝', sections: [
                   { label: 'Key Contacts', desc: 'An emergency contact and up to three trusted contacts who can securely view your plans.' },
                   { label: 'People to Notify', desc: 'A list of people who should be contacted when you pass, and who should contact them.' },
-                  { label: 'Children and Dependants', desc: 'Details for children or other dependants including preferred guardians.' },
+                  { label: 'Your Loved Ones', desc: 'Details for children or other dependants including preferred guardians.' },
                   { label: 'Pet Care', desc: 'Feeding routines, vet details, and preferred caretakers for your pets.' },
                 ]},
                 { group: 'Your Affairs', color: '#8A7A6A', icon: '📋', sections: [
@@ -1101,8 +1101,8 @@ Please confirm the stack choices above (or tell me which to change), and then we
             { group: 'Your People', color: '#B87A50', sections: [
               { id: 'key_contacts', label: 'Key Contacts', route: '/sections/key-contacts', note: 'Emergency contact on users table. Trusted contacts in trusted_contacts table (max 3, sequence 1-3).' },
               { id: 'people_to_notify', label: 'People to Notify', route: '/sections/people-to-notify', note: 'people_to_notify table.' },
-              { id: 'children-dependants', label: 'Children & Dependants', route: '/sections/children-dependants', note: 'children_dependants table.' },
-              { id: 'pet-care', label: 'Pet Care', route: '/sections/pet-care', note: 'pets table (IDEA-18, split out of Children & Dependants).' },
+              { id: 'children-dependants', label: 'Your Loved Ones', route: '/sections/children-dependants', note: 'children_dependants table.' },
+              { id: 'pet-care', label: 'Pet Care', route: '/sections/pet-care', note: 'pets table (IDEA-18, split out of Your Loved Ones).' },
             ]},
             { group: 'Your Affairs', color: '#8A7A6A', sections: [
               { id: 'legal_documents', label: 'Personal & Legal Documents', route: '/sections/legal-documents', note: 'Vault-protected. Uses shared vault (digital_vault). Text fields AES-256-GCM encrypted with the vault key. Up to 2 file attachments per item via uploaded_documents (files themselves are access-controlled and R2-at-rest encrypted, not additionally vault-key encrypted).' },

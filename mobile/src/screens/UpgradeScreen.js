@@ -14,7 +14,7 @@ const PREMIUM_SECTIONS = [
   'Medical and Care Wishes',
   'Key Contacts',
   'People to Notify',
-  'Children and Dependants',
+  'Your Loved Ones',
   'Personal and Legal Documents',
   'Property and Possessions',
   'Financial Affairs',
