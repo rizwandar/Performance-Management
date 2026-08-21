@@ -5,8 +5,9 @@
  */
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, Form, Alert, InputGroup, Spinner } from 'react-bootstrap'
+import { Button, Form, Alert, Spinner } from 'react-bootstrap'
 import axios from 'axios'
+import PasswordInput from './PasswordInput'
 import { useAuth } from '../context/AuthContext'
 import VaultRecoveryQuestionsForm, {
   defaultRecoveryQuestions, validateRecoveryQuestions, toApiQuestions,
@@ -24,7 +25,6 @@ export function VaultSetupScreen({ onSetup }) {
   const [hint, setHint]       = useState('')
   const [saving, setSaving]   = useState(false)
   const [error, setError]     = useState('')
-  const [showPw, setShowPw]   = useState(false)
 
   // After the password itself is created: 'choice' -> pick a forgot-password
   // plan, 'questions' -> set up recovery questions (only if they opted in).
@@ -164,23 +164,16 @@ export function VaultSetupScreen({ onSetup }) {
 
         <Form.Group className="mb-3">
           <Form.Label style={{ fontWeight: 600 }}>Vault password</Form.Label>
-          <InputGroup>
-            <Form.Control
-              type={showPw ? 'text' : 'password'}
-              value={pw}
-              onChange={e => setPw(e.target.value)}
-              placeholder="At least 8 characters"
-            />
-            <Button variant="outline-secondary" onClick={() => setShowPw(s => !s)}>
-              {showPw ? 'Hide' : 'Show'}
-            </Button>
-          </InputGroup>
+          <PasswordInput
+            value={pw}
+            onChange={e => setPw(e.target.value)}
+            placeholder="At least 8 characters"
+          />
         </Form.Group>
 
         <Form.Group className="mb-3">
           <Form.Label style={{ fontWeight: 600 }}>Confirm vault password</Form.Label>
-          <Form.Control
-            type="password"
+          <PasswordInput
             value={confirm}
             onChange={e => setConfirm(e.target.value)}
             placeholder="Type it again"
@@ -408,8 +401,7 @@ export function VaultLockScreen({ onUnlock, onReset }) {
 
           <Form.Group className="mb-4">
             <Form.Label style={{ fontWeight: 600 }}>Confirm with your account password</Form.Label>
-            <Form.Control
-              type="password"
+            <PasswordInput
               value={accountPw}
               onChange={e => setAccountPw(e.target.value)}
               placeholder="Your In Good Hands login password"
@@ -457,9 +449,8 @@ export function VaultLockScreen({ onUnlock, onReset }) {
 
         <Form.Group className="mb-4">
           <Form.Label style={{ fontWeight: 600 }}>Vault password</Form.Label>
-          <Form.Control
+          <PasswordInput
             ref={inputRef}
-            type="password"
             value={pw}
             onChange={e => setPw(e.target.value)}
             placeholder="Enter your vault password"

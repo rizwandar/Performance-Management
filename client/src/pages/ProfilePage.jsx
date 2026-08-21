@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, Form, Row, Col, Alert, Spinner, InputGroup } from 'react-bootstrap'
+import { Button, Form, Row, Col, Alert, Spinner } from 'react-bootstrap'
 import axios from 'axios'
 import { useAuth } from '../context/AuthContext'
 import { useSubscription } from '../context/SubscriptionContext'
 import OrgConsentPanel from '../components/OrgConsentPanel'
+import PasswordInput from '../components/PasswordInput'
 import VaultRecoveryQuestionsForm, {
   defaultRecoveryQuestions, validateRecoveryQuestions, toApiQuestions,
 } from '../components/VaultRecoveryQuestionsForm'
@@ -81,7 +82,6 @@ export default function ProfilePage() {
   // Vault password state
   const [vaultExists, setVaultExists]       = useState(null)  // null = loading, true/false
   const [vaultPwForm, setVaultPwForm]       = useState({ old_password: '', new_password: '', confirm: '', hint: '' })
-  const [showVaultFields, setShowVaultFields] = useState({ old: false, new: false })
   const [vaultPwSaving, setVaultPwSaving]   = useState(false)
   const [vaultPwError, setVaultPwError]     = useState('')
   const [vaultPwSuccess, setVaultPwSuccess] = useState('')
@@ -607,20 +607,20 @@ export default function ProfilePage() {
 
         <Form.Group className="mb-3">
           <Form.Label>Current password</Form.Label>
-          <Form.Control type="password" value={pwForm.current}
+          <PasswordInput value={pwForm.current}
             onChange={e => setPwForm(f => ({ ...f, current: e.target.value }))}
             placeholder="Your current password" />
         </Form.Group>
         <Form.Group className="mb-3">
           <Form.Label>New password</Form.Label>
-          <Form.Control type="password" value={pwForm.next}
+          <PasswordInput value={pwForm.next}
             onChange={e => setPwForm(f => ({ ...f, next: e.target.value }))}
             placeholder="At least 8 characters, one uppercase, one number" />
           <PasswordRequirements password={pwForm.next} />
         </Form.Group>
         <Form.Group className="mb-4">
           <Form.Label>Confirm new password</Form.Label>
-          <Form.Control type="password" value={pwForm.confirm}
+          <PasswordInput value={pwForm.confirm}
             onChange={e => setPwForm(f => ({ ...f, confirm: e.target.value }))}
             placeholder="Type new password again"
             onKeyDown={e => e.key === 'Enter' && handleChangePassword()} />
@@ -747,19 +747,19 @@ export default function ProfilePage() {
 
         <Form.Group className="mb-3">
           <Form.Label>Current password</Form.Label>
-          <Form.Control type="password" value={pwForm.current} autoComplete="current-password"
+          <PasswordInput value={pwForm.current} autoComplete="current-password"
             onChange={e => setPwForm(f => ({ ...f, current: e.target.value }))} />
         </Form.Group>
         <Row className="g-3">
           <Col md={6}>
             <Form.Label>New password</Form.Label>
-            <Form.Control type="password" value={pwForm.next} autoComplete="new-password"
+            <PasswordInput value={pwForm.next} autoComplete="new-password"
               onChange={e => setPwForm(f => ({ ...f, next: e.target.value }))} />
             <PasswordRequirements password={pwForm.next} />
           </Col>
           <Col md={6}>
             <Form.Label>Confirm new password</Form.Label>
-            <Form.Control type="password" value={pwForm.confirm} autoComplete="new-password"
+            <PasswordInput value={pwForm.confirm} autoComplete="new-password"
               onChange={e => setPwForm(f => ({ ...f, confirm: e.target.value }))} />
           </Col>
         </Row>
@@ -818,7 +818,7 @@ export default function ProfilePage() {
             {sqError && <Alert variant="danger">{sqError}</Alert>}
             <Form.Group className="mb-3">
               <Form.Label style={{ fontWeight: 600 }}>Current password</Form.Label>
-              <Form.Control type="password" autoComplete="current-password" value={sqForm.current_password}
+              <PasswordInput autoComplete="current-password" value={sqForm.current_password}
                 onChange={e => setSqForm(f => ({ ...f, current_password: e.target.value }))}
                 placeholder="Required to confirm this change" />
             </Form.Group>
@@ -869,7 +869,7 @@ export default function ProfilePage() {
             {sqRemoveError && <Alert variant="danger">{sqRemoveError}</Alert>}
             <Form.Group className="mb-3">
               <Form.Label style={{ fontWeight: 600 }}>Confirm with your current password</Form.Label>
-              <Form.Control type="password" value={sqRemovePw}
+              <PasswordInput value={sqRemovePw}
                 onChange={e => setSqRemovePw(e.target.value)} autoFocus />
             </Form.Group>
             <div className="d-flex gap-3">
@@ -927,18 +927,11 @@ export default function ProfilePage() {
 
             <Form.Group className="mb-3">
               <Form.Label style={{ fontWeight: 600 }}>Current vault password</Form.Label>
-              <InputGroup>
-                <Form.Control
-                  type={showVaultFields.old ? 'text' : 'password'}
-                  value={vaultPwForm.old_password}
-                  onChange={e => setVaultPwForm(f => ({ ...f, old_password: e.target.value }))}
-                  placeholder="Your current vault password"
-                />
-                <Button variant="outline-secondary"
-                  onClick={() => setShowVaultFields(f => ({ ...f, old: !f.old }))}>
-                  {showVaultFields.old ? 'Hide' : 'Show'}
-                </Button>
-              </InputGroup>
+              <PasswordInput
+                value={vaultPwForm.old_password}
+                onChange={e => setVaultPwForm(f => ({ ...f, old_password: e.target.value }))}
+                placeholder="Your current vault password"
+              />
               {recoveryEnabled && (
                 <button className="btn btn-link p-0 mt-1" style={{ fontSize: '0.82rem' }}
                   onClick={openChangeVaultRecover}>
@@ -949,23 +942,15 @@ export default function ProfilePage() {
             <Row className="g-3 mb-3">
               <Col md={6}>
                 <Form.Label>New vault password</Form.Label>
-                <InputGroup>
-                  <Form.Control
-                    type={showVaultFields.new ? 'text' : 'password'}
-                    value={vaultPwForm.new_password}
-                    onChange={e => setVaultPwForm(f => ({ ...f, new_password: e.target.value }))}
-                    placeholder="At least 8 characters"
-                  />
-                  <Button variant="outline-secondary"
-                    onClick={() => setShowVaultFields(f => ({ ...f, new: !f.new }))}>
-                    {showVaultFields.new ? 'Hide' : 'Show'}
-                  </Button>
-                </InputGroup>
+                <PasswordInput
+                  value={vaultPwForm.new_password}
+                  onChange={e => setVaultPwForm(f => ({ ...f, new_password: e.target.value }))}
+                  placeholder="At least 8 characters"
+                />
               </Col>
               <Col md={6}>
                 <Form.Label>Confirm new password</Form.Label>
-                <Form.Control
-                  type="password"
+                <PasswordInput
                   value={vaultPwForm.confirm}
                   onChange={e => setVaultPwForm(f => ({ ...f, confirm: e.target.value }))}
                   placeholder="Type it again"
@@ -1030,8 +1015,7 @@ export default function ProfilePage() {
             {vaultResetError && <Alert variant="danger">{vaultResetError}</Alert>}
             <Form.Group className="mb-3">
               <Form.Label style={{ fontWeight: 600 }}>Confirm with your account password</Form.Label>
-              <Form.Control
-                type="password"
+              <PasswordInput
                 value={vaultResetPw}
                 onChange={e => setVaultResetPw(e.target.value)}
                 placeholder="Your In Good Hands login password"
@@ -1092,7 +1076,7 @@ export default function ProfilePage() {
                 {recoveryError && <Alert variant="danger">{recoveryError}</Alert>}
                 <Form.Group className="mb-3">
                   <Form.Label style={{ fontWeight: 600 }}>Current vault password</Form.Label>
-                  <Form.Control type="password" value={recoverySetupPw}
+                  <PasswordInput value={recoverySetupPw}
                     onChange={e => setRecoverySetupPw(e.target.value)}
                     placeholder="Required to confirm you still know it" />
                 </Form.Group>
@@ -1117,7 +1101,7 @@ export default function ProfilePage() {
                 {recoveryDisableError && <Alert variant="danger">{recoveryDisableError}</Alert>}
                 <Form.Group className="mb-3">
                   <Form.Label style={{ fontWeight: 600 }}>Current vault password</Form.Label>
-                  <Form.Control type="password" value={recoveryDisablePw}
+                  <PasswordInput value={recoveryDisablePw}
                     onChange={e => setRecoveryDisablePw(e.target.value)}
                     placeholder="Required to confirm" />
                 </Form.Group>
@@ -1152,7 +1136,7 @@ export default function ProfilePage() {
               </Col>
               <Col xs={8} md={6}>
                 <Form.Label className="small">Current vault password</Form.Label>
-                <Form.Control type="password" value={destroyThresholdPw}
+                <PasswordInput value={destroyThresholdPw}
                   onChange={e => setDestroyThresholdPw(e.target.value)}
                   placeholder="Required to confirm" />
               </Col>
@@ -1182,7 +1166,7 @@ export default function ProfilePage() {
               </Col>
               <Col xs={8} md={6}>
                 <Form.Label className="small">Current vault password</Form.Label>
-                <Form.Control type="password" value={logoutThresholdPw}
+                <PasswordInput value={logoutThresholdPw}
                   onChange={e => setLogoutThresholdPw(e.target.value)}
                   placeholder="Required to confirm" />
               </Col>
@@ -1212,7 +1196,7 @@ export default function ProfilePage() {
               </Col>
               <Col xs={8} md={6}>
                 <Form.Label className="small">Current vault password</Form.Label>
-                <Form.Control type="password" value={lockoutThresholdPw}
+                <PasswordInput value={lockoutThresholdPw}
                   onChange={e => setLockoutThresholdPw(e.target.value)}
                   placeholder="Required to confirm" />
               </Col>
@@ -1383,8 +1367,7 @@ export default function ProfilePage() {
             {deleteError && <Alert variant="danger" className="py-2 small">{deleteError}</Alert>}
             <Form.Group className="mb-3">
               <Form.Label style={{ fontWeight: 600, fontSize: '0.9rem' }}>Your account password</Form.Label>
-              <Form.Control
-                type="password"
+              <PasswordInput
                 placeholder="Confirm with your account password"
                 value={deleteForm.password}
                 onChange={e => setDeleteForm(f => ({ ...f, password: e.target.value }))}
@@ -1394,8 +1377,7 @@ export default function ProfilePage() {
             {vaultExists && (
               <Form.Group className="mb-3">
                 <Form.Label style={{ fontWeight: 600, fontSize: '0.9rem' }}>Your vault password</Form.Label>
-                <Form.Control
-                  type="password"
+                <PasswordInput
                   placeholder="Required because you have a vault set up"
                   value={deleteForm.vault_password}
                   onChange={e => setDeleteForm(f => ({ ...f, vault_password: e.target.value }))}

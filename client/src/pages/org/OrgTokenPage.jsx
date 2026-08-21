@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { Card, Form, Button, Alert, Spinner } from 'react-bootstrap'
 import axios from 'axios'
+import PasswordInput from '../../components/PasswordInput'
 import { useAuth } from '../../context/AuthContext'
 
 const API = import.meta.env.VITE_API_URL
@@ -124,7 +125,7 @@ export default function OrgTokenPage() {
             </Form.Group>
             <Form.Group className="mb-3">
               <Form.Label>Choose a password</Form.Label>
-              <Form.Control type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} />
+              <PasswordInput value={password} onChange={e => setPassword(e.target.value)} required minLength={8} />
             </Form.Group>
             <Form.Group className="mb-4">
               <Form.Check

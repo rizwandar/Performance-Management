@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { Button, Form, Spinner, Card } from 'react-bootstrap'
 import axios from 'axios'
+import PasswordInput from '../components/PasswordInput'
 import { useAuth } from '../context/AuthContext'
 import { useSubscription } from '../context/SubscriptionContext'
 import { useVaultSession } from '../context/VaultSessionContext'
@@ -32,7 +33,6 @@ export default function ExportPage() {
   // have to retype a password the app already has cached in memory.
   const [vaultPassword, setVaultPassword] = useState(() => (vaultUnlocked ? sharedVaultPassword : ''))
   const [vaultError,    setVaultError]    = useState('')
-  const [showPassword,  setShowPassword]  = useState(false)
 
   // If the shared session expires (or gets locked from elsewhere) while
   // sitting on this page, don't keep offering a password the server would
@@ -254,24 +254,16 @@ export default function ExportPage() {
                 This is the password you created when you first set up your vault in Digital Life
                 or Legal Documents.
               </p>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', maxWidth: 360 }}>
-                <Form.Control
-                  type={showPassword ? 'text' : 'password'}
+              <div style={{ maxWidth: 360 }}>
+                <PasswordInput
                   placeholder="Enter your vault password"
                   value={vaultPassword}
                   onChange={e => { setVaultPassword(e.target.value); setVaultError('') }}
                   onKeyDown={e => e.key === 'Enter' && handleFullExport()}
                   isInvalid={!!vaultError}
                   style={{ fontSize: '0.9rem' }}
+                  buttonSize="sm"
                 />
-                <Button
-                  variant="outline-secondary"
-                  size="sm"
-                  style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
-                  onClick={() => setShowPassword(p => !p)}
-                >
-                  {showPassword ? 'Hide' : 'Show'}
-                </Button>
               </div>
               {vaultError && (
                 <div style={{ color: '#B94040', fontSize: '0.83rem', marginTop: 6 }}>

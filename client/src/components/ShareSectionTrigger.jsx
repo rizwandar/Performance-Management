@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Button, Modal, Form, Alert, Spinner } from 'react-bootstrap'
 import axios from 'axios'
+import PasswordInput from './PasswordInput'
 import { emitSectionShareChanged } from '../utils/sectionShareEvents'
 
 const API = import.meta.env.VITE_API_URL
@@ -91,7 +92,7 @@ export default function ShareSectionTrigger({ section, sectionLabel, isVaultSect
             {isVaultSection && (
               <Form.Group className="mb-1">
                 <Form.Label className="small fw-semibold">Your vault password</Form.Label>
-                <Form.Control type="password" value={form.vault_password} onChange={set('vault_password')} placeholder="Required to share vault-protected information" />
+                <PasswordInput value={form.vault_password} onChange={set('vault_password')} placeholder="Required to share vault-protected information" />
                 <p className="text-muted small mt-1 mb-0">
                   This section is vault-protected, so we ask for your vault password to confirm
                   it's really you before sharing it.

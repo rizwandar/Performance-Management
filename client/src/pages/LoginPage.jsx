@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate, Link, useLocation } from 'react-router-dom'
 import { Card, Form, Button, Alert } from 'react-bootstrap'
 import axios from 'axios'
+import PasswordInput from '../components/PasswordInput'
 import { useAuth } from '../context/AuthContext'
 import { getRetryAfterSeconds, rateLimitMessage, useCountdown } from '../utils/rateLimit'
 
@@ -106,8 +107,7 @@ export default function LoginPage() {
             </Form.Group>
             <Form.Group className="mb-4">
               <Form.Label>Password</Form.Label>
-              <Form.Control
-                type="password"
+              <PasswordInput
                 value={form.password}
                 onChange={e => setForm({ ...form, password: e.target.value })}
                 required
