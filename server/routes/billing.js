@@ -65,6 +65,7 @@ router.get('/plans', (req, res) => {
           'People to Notify',
           'Your Loved Ones',
           'Pet Care',
+          'Insurance',
           'Trusted contacts with access permissions',
         ],
       },

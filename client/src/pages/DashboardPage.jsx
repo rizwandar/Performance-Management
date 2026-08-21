@@ -30,6 +30,7 @@ const ICON_SETS = {
     'household-info':     '🔑',
     'children-dependants':'👶',
     'pet-care':            '🐾',
+    insurance_items:      '🛡️',
   },
   heritage: {
     how_to_be_remembered: '🕯️',
@@ -48,6 +49,7 @@ const ICON_SETS = {
     'household-info':     '🏠',
     'children-dependants':'👨‍👩‍👧',
     'pet-care':            '🐕',
+    insurance_items:      '☂️',
   },
   modern: {
     how_to_be_remembered: '🕯️',
@@ -66,6 +68,7 @@ const ICON_SETS = {
     'household-info':     '⚙️',
     'children-dependants':'🎒',
     'pet-care':            '🐶',
+    insurance_items:      '📑',
   },
 }
 
@@ -123,6 +126,10 @@ const FREE_ROUTES = new Set([
   '/sections/people-to-notify',
   '/sections/children-dependants',
   '/sections/pet-care',
+  // IDEA-29: Insurance is not vault-protected (unlike the other sections in
+  // its 'affairs' dashboard group below), so it's free-plan accessible too,
+  // consistent with the server not gating it behind requirePremium.
+  '/sections/insurance',
 ])
 
 // First group id after which all remaining sections are premium-only.
@@ -218,6 +225,11 @@ const SECTIONS = [
     id: 'household-info', label: 'Practical Household Information',
     icon: '🔑', route: '/sections/household-info', group: 'affairs',
     description: 'Practical details about utilities, subscriptions, and services that keep everyday life running smoothly.',
+  },
+  {
+    id: 'insurance_items', label: 'Insurance',
+    icon: '🛡️', route: '/sections/insurance', group: 'affairs',
+    description: 'Your life, health, home, auto, and other insurance policies, with who to contact and who benefits.',
   },
 ]
 

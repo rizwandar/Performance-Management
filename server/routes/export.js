@@ -46,7 +46,7 @@ async function buildBaseData(uid) {
 
   const [
     funeralWishes, medicalWishes, peopleToNotify, messages,
-    songsDefineMe, lifeWishes, trustedContacts, childrenDependants, pets,
+    songsDefineMe, lifeWishes, trustedContacts, childrenDependants, pets, insuranceItems,
   ] = await Promise.all([
     queryOne('SELECT * FROM funeral_wishes    WHERE user_id = $1', [uid]),
     queryOne('SELECT * FROM medical_wishes    WHERE user_id = $1', [uid]),
@@ -57,6 +57,7 @@ async function buildBaseData(uid) {
     queryAll('SELECT * FROM trusted_contacts  WHERE user_id = $1 ORDER BY sequence', [uid]),
     queryAll('SELECT * FROM children_dependants WHERE user_id = $1 ORDER BY created_at', [uid]),
     queryAll('SELECT * FROM pets              WHERE user_id = $1 ORDER BY created_at', [uid]),
+    queryAll('SELECT * FROM insurance_items   WHERE user_id = $1 ORDER BY created_at', [uid]),
   ]);
 
   return {
@@ -64,7 +65,7 @@ async function buildBaseData(uid) {
     funeralWishes:  funeralWishes  || {},
     medicalWishes:  medicalWishes  || {},
     peopleToNotify, messages, songsDefineMe,
-    lifeWishes, trustedContacts, childrenDependants, pets,
+    lifeWishes, trustedContacts, childrenDependants, pets, insuranceItems,
   };
 }
 

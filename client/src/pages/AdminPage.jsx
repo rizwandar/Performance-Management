@@ -484,6 +484,7 @@ YOUR AFFAIRS:
 - Financial Affairs: vault-protected (shared vault). financial_items table. Category, institution, account_type, account_reference, contact_name, contact_phone, notes.
 - Digital Life: vault-protected (shared vault). digital_credentials table with AES-256-GCM encrypted fields (service, service_url, username, password, notes).
 - Practical Household Information: vault-protected (shared vault). household_info table. Title, category, provider, account_reference, contact, notes.
+- Insurance (IDEA-29): NOT vault-protected, free-plan accessible. insurance_items table. Policy type (free text), provider, policy number, contact, beneficiary, notes. A flat list, not a rigid category enum. Wired into the ad-hoc section-share feature; not yet added to the Trusted Contacts permission list (see below), which was already missing Practical Household Information, Digital Life, and Pet Care before this section existed.
 
 ---
 
@@ -501,7 +502,7 @@ VAULT ENCRYPTION:
 
 TRUSTED CONTACTS SYSTEM:
 - Up to 3 trusted contacts per user.
-- Each contact has section-level permissions (which of the 16 sections they can view).
+- Each contact has section-level permissions (which of the 16 sections they can view). Insurance (IDEA-29) is not yet wired into this list - see the Insurance entry above.
 - Access via a signed link emailed to the contact. No separate login required. Valid 72 hours for the two non-Legacy-Contact slots; the Legacy Contact's link never expires (found and fixed 2026-08-06: the owner, who'd normally resend an expired link, is by definition unreachable once the plan is actually triggered).
 - Tokens stored in trusted_contact_tokens table (contact_id, token, expires_at). expires_at is NULL for a Legacy Contact's token, meaning it never expires.
 - Digital credentials (vault) are NEVER accessible to trusted contacts, Legacy Contact included.
@@ -712,6 +713,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
                   { label: 'Financial Affairs', desc: 'Bank accounts, investments, insurance, super, and other financial interests.' },
                   { label: 'Digital Life', desc: 'Usernames and passwords for your online accounts, encrypted so only you can read them.' },
                   { label: 'Practical Household Information', desc: 'Utility providers, subscriptions, memberships, and other practical details.' },
+                  { label: 'Insurance', desc: 'Life, health, home, auto, and other policies: provider, policy number, contact, and beneficiary. Not vault-protected.' },
                 ]},
               ].map(group => (
                 <div key={group.group} style={{ marginBottom: 20 }}>
@@ -786,7 +788,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
               <BpTable rows={[
                 ['Emergency contact', 'A single person to call in an emergency. Stored on the users table (emergency_contact_name, emergency_contact_relationship, emergency_contact_phone, emergency_contact_email, emergency_contact_notes). Does NOT receive plan access. Route: /sections/emergency-contact.'],
                 ['Trusted contacts', 'Up to 3 people who can view the user\'s plans. Stored in trusted_contacts table with sequence 1, 2, or 3, unchanged by the IDEA-27 page split. Route: /sections/trusted-contacts.'],
-                ['Section permissions', 'For each trusted contact, the user selects which sections that person can see. Stored in trusted_contact_permissions table.'],
+                ['Section permissions', 'For each trusted contact, the user selects which sections that person can see. Stored in trusted_contact_permissions table. Insurance (IDEA-29) is not yet included in this list.'],
                 ['Access links', 'A signed link is emailed to the contact, giving read-only access to permitted sections (or everything except the vault, for the Legacy Contact). No account or login needed. 72-hour validity for non-Legacy-Contact contacts, non-expiring for the Legacy Contact.'],
                 ['Token storage', 'Tokens stored in trusted_contact_tokens table (contact_id, token, expires_at). Old token replaced when a new link is sent.'],
                 ['Expired access', 'The access page checks token expiry and shows a friendly expired message if the link is too old.'],
@@ -838,7 +840,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
           <div style={card}>
             <BpSection title="Section Detail: Premium Billing">
               <BpTable rows={[
-                ['Plans', 'Free ($0): 9 non-vault sections plus trusted contacts. Premium Monthly ($10/month) and Premium Annual ($100/year, saves $20 vs monthly): everything in Free plus all 5 vault-protected sections, document uploads, full (vault-inclusive) PDF export, and the inactivity timer. GET /api/billing/plans returns this plan/feature copy for the Upgrade page.'],
+                ['Plans', 'Free ($0): 11 non-vault sections plus trusted contacts. Premium Monthly ($10/month) and Premium Annual ($100/year, saves $20 vs monthly): everything in Free plus all 5 vault-protected sections, document uploads, full (vault-inclusive) PDF export, and the inactivity timer. GET /api/billing/plans returns this plan/feature copy for the Upgrade page.'],
                 ['Checkout', 'POST /api/billing/create-checkout-session with {plan: "monthly"|"annual"} creates a Stripe Checkout session and returns its redirect URL. Reuses the caller\'s existing Stripe customer if a prior checkout attempt already created one, so repeat attempts do not create duplicate Stripe customers.'],
                 ['Webhook sync', 'POST /api/billing/webhook is mounted directly in server/index.js with express.raw(), before the global JSON body parser, since Stripe signature verification needs the raw request body. Handles checkout.session.completed, customer.subscription.updated/deleted, and invoice.upcoming, keeping the local subscriptions row in sync via upsertFromSubscription().'],
                 ['Cancel / reinstate', 'POST /api/billing/cancel sets cancel_at_period_end on the Stripe subscription (access continues until the paid period ends, not an immediate cutoff) and also updates the local row directly so a client re-fetch right after the call cannot race ahead of the async webhook. POST /api/billing/reinstate reverses cancel_at_period_end while the subscription is still active; if Stripe has already ended it, the user needs a fresh checkout instead. Both are surfaced on My Profile.'],
@@ -1118,6 +1120,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
               { id: 'financial_items', label: 'Financial Affairs', route: '/sections/financial-affairs', note: 'Vault-protected. Uses shared vault (digital_vault). Text fields AES-256-GCM encrypted with the vault key. financial_items table. Up to 2 file attachments per item via uploaded_documents.' },
               { id: 'digital_credentials', label: 'Digital Life', route: '/sections/digital-life', note: 'Vault-protected. digital_credentials table. Fields AES-256-GCM encrypted. Shares vault with the other Your Affairs sections.' },
               { id: 'household-info', label: 'Practical Household Information', route: '/sections/household-info', note: 'Vault-protected. Uses shared vault (digital_vault). Text fields AES-256-GCM encrypted with the vault key. household_info table. Up to 2 file attachments per item via uploaded_documents.' },
+              { id: 'insurance_items', label: 'Insurance', route: '/sections/insurance', note: 'NOT vault-protected, free-plan accessible (IDEA-29). insurance_items table: policy_type, provider, policy_number, contact, beneficiary, notes. No file attachments, no encryption.' },
             ]},
           ].map(group => (
             <div key={group.group} style={{ marginBottom: 18 }}>
