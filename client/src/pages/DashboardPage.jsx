@@ -244,6 +244,9 @@ export default function DashboardPage() {
   const [loading, setLoading]         = useState(true)
   const [iconSet, setIconSet]         = useState('classic')
   const [upgradeModal, setUpgradeModal] = useState(null)
+  // Groups the user has manually re-expanded after they collapsed to a
+  // finished summary row. Session-only: resets on reload, never persisted.
+  const [expandedGroups, setExpandedGroups] = useState(() => new Set())
 
   useEffect(() => {
     axios.get(`${API}/sections/completion`)
@@ -425,6 +428,16 @@ export default function DashboardPage() {
       {GROUPS.map((group, gi) => {
         const groupSections = SECTIONS.filter(s => s.group === group.id)
         const groupStarted  = groupSections.filter(isStarted).length
+        // A group only collapses once every section in it has at least one
+        // entry, the same "started" signal the overall progress bar uses.
+        // A brand-new account (nothing started anywhere) never sees this.
+        const groupComplete = groupSections.length > 0 && groupStarted === groupSections.length
+        const groupCollapsed = groupComplete && !expandedGroups.has(group.id)
+        const expandGroup = () => setExpandedGroups(prev => {
+          const next = new Set(prev)
+          next.add(group.id)
+          return next
+        })
 
         return (
           <div key={group.id} style={{ marginBottom: gi < GROUPS.length - 1 ? 36 : 0 }}>
@@ -476,40 +489,81 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {/* Group heading */}
-            <div style={{ marginBottom: 14 }}>
-              <div className="d-flex align-items-baseline gap-2 flex-wrap">
-                <h5 style={{
-                  color: 'var(--green-900)', marginBottom: 0,
-                  fontFamily: 'Georgia, serif', fontSize: '1.25rem',
-                }}>
-                  {group.label}
-                </h5>
-                <span
-                  aria-label={`${groupStarted} of ${groupSections.length} sections done in ${group.label}`}
-                  style={{
-                    fontSize: '0.72rem',
-                    fontWeight: 700,
-                    fontVariantNumeric: 'tabular-nums',
-                    color: group.startedBorder,
-                    background: group.iconBg,
-                    border: `1px solid ${group.cardBorder}`,
-                    borderRadius: 10,
-                    padding: '1px 8px',
-                    lineHeight: 1.6,
-                  }}
-                >
-                  {groupStarted} of {groupSections.length} done
+            {groupCollapsed ? (
+              /* Finished group: collapsed to a single summary row */
+              <button
+                type="button"
+                onClick={expandGroup}
+                aria-expanded={false}
+                aria-label={`${group.label}, all ${groupSections.length} sections started. Expand to view.`}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  width: '100%', gap: 12,
+                  background: group.cardBg,
+                  border: `1px var(--card-border-style, solid) ${group.cardBorder}`,
+                  borderRadius: 12, padding: '14px 20px',
+                  cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit',
+                }}
+              >
+                <span className="d-flex align-items-center gap-2" style={{ minWidth: 0 }}>
+                  <span style={{
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    width: 26, height: 26, borderRadius: '50%', flexShrink: 0,
+                    background: group.startedBorder, color: 'var(--group-pill-text, #ffffff)',
+                    fontSize: '0.82rem', fontWeight: 700,
+                  }}>
+                    ✓
+                  </span>
+                  <h5 style={{
+                    color: 'var(--green-900)', marginBottom: 0,
+                    fontFamily: 'Georgia, serif', fontSize: '1.15rem',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>
+                    {group.label}
+                  </h5>
                 </span>
-              </div>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginBottom: 0, marginTop: 2 }}>
-                {group.description}
-              </p>
-            </div>
+                <span style={{
+                  fontSize: '0.8rem', fontWeight: 700, color: group.startedBorder, flexShrink: 0,
+                }}>
+                  {groupStarted} of {groupSections.length}
+                </span>
+              </button>
+            ) : (
+              <>
+                {/* Group heading */}
+                <div style={{ marginBottom: 14 }}>
+                  <div className="d-flex align-items-baseline gap-2 flex-wrap">
+                    <h5 style={{
+                      color: 'var(--green-900)', marginBottom: 0,
+                      fontFamily: 'Georgia, serif', fontSize: '1.25rem',
+                    }}>
+                      {group.label}
+                    </h5>
+                    <span
+                      aria-label={`${groupStarted} of ${groupSections.length} sections done in ${group.label}`}
+                      style={{
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        fontVariantNumeric: 'tabular-nums',
+                        color: group.startedBorder,
+                        background: group.iconBg,
+                        border: `1px solid ${group.cardBorder}`,
+                        borderRadius: 10,
+                        padding: '1px 8px',
+                        lineHeight: 1.6,
+                      }}
+                    >
+                      {groupStarted} of {groupSections.length} done
+                    </span>
+                  </div>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginBottom: 0, marginTop: 2 }}>
+                    {group.description}
+                  </p>
+                </div>
 
-            {/* Cards */}
-            <Row className="g-3">
-              {groupSections.map(section => {
+                {/* Cards */}
+                <Row className="g-3">
+                  {groupSections.map(section => {
                 const started  = isStarted(section)
                 const cnt      = count(section)
                 const locked   = !isPremium && !FREE_ROUTES.has(section.route)
@@ -611,7 +665,9 @@ export default function DashboardPage() {
                   </Col>
                 )
               })}
-            </Row>
+                </Row>
+              </>
+            )}
           </div>
         )
       })}
