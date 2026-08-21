@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Button, Form, Row, Col, Alert, Spinner } from 'react-bootstrap'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Button, Form, Row, Col, Alert, Spinner, Dropdown } from 'react-bootstrap'
 import axios from 'axios'
 import { useAuth } from '../context/AuthContext'
 import { useSubscription } from '../context/SubscriptionContext'
@@ -22,6 +22,25 @@ const SECURITY_QUESTION_PRESETS = [
   'What is your favorite childhood book?',
   CUSTOM_QUESTION,
 ]
+
+// ---------------------------------------------------------------------------
+// Section picker (IDEA-35) — Personal Details and Change Password stay pinned
+// at the top of the page; everything else lives behind this dropdown, mirroring
+// the pinned-item-plus-dropdown pattern from OPS-24's admin nav (AdminPage.jsx).
+// Vault Recovery Settings folds into "Vault Password" and Payment History
+// folds into "Billing & Subscription", since they're closely related settings
+// rather than separate destinations. Delete My Account is visually separated
+// as the destructive, rarely-used option.
+// ---------------------------------------------------------------------------
+const SETTINGS_SECTIONS = [
+  { id: 'security-question', label: 'Security Question' },
+  { id: 'vault-password',    label: 'Vault Password' },
+  { id: 'inactivity-timer',  label: 'Inactivity Timer' },
+  { id: 'billing',           label: 'Billing & Subscription' },
+]
+const DELETE_ACCOUNT_SECTION = { id: 'delete-account', label: 'Delete My Account' }
+const ALL_SECTION_IDS = [...SETTINGS_SECTIONS.map(s => s.id), DELETE_ACCOUNT_SECTION.id]
+const SECTION_LABELS = Object.fromEntries([...SETTINGS_SECTIONS, DELETE_ACCOUNT_SECTION].map(s => [s.id, s.label]))
 
 function PasswordRequirements({ password }) {
   const checks = [
@@ -50,6 +69,24 @@ export default function ProfilePage() {
   const [error, setError]       = useState('')
   const [success, setSuccess]   = useState('')
   const [checkoutSuccess, setCheckoutSuccess] = useState(false)
+
+  // Section picker (IDEA-35) — which of the non-pinned sections is showing
+  // below Personal Details / Change Password, mirrored into ?section= so a
+  // reload or bookmark lands back on the same section.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [section, setSectionRaw] = useState(() => {
+    const fromUrl = searchParams.get('section')
+    return ALL_SECTION_IDS.includes(fromUrl) ? fromUrl : null
+  })
+  const setSection = (s) => {
+    setSectionRaw(s)
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      if (!s) next.delete('section')
+      else next.set('section', s)
+      return next
+    }, { replace: true })
+  }
 
   const [form, setForm] = useState({
     name: '', email: '', date_of_birth: '',
@@ -213,26 +250,41 @@ export default function ProfilePage() {
   // Landed here fresh from a successful Stripe checkout (IDEA-11) - the
   // subscription context still has the pre-checkout plan cached, so it needs
   // an explicit refresh rather than waiting for its own next natural refetch.
+  // IDEA-35: Billing & Subscription is now behind the section picker, so this
+  // also selects that section, matching the banner's "right below" copy.
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    if (params.get('checkout') === 'success') {
+    if (searchParams.get('checkout') === 'success') {
       setCheckoutSuccess(true)
-      window.history.replaceState({}, '', '/profile/settings')
       refreshSubscription()
+      setSectionRaw('billing')
+      setSearchParams(prev => {
+        const next = new URLSearchParams(prev)
+        next.delete('checkout')
+        next.set('section', 'billing')
+        return next
+      }, { replace: true })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Lets other pages deep-link here (e.g. Trusted Contacts links to
   // #inactivity-timer so a user can jump straight to changing their
-  // configured period). A client-side route push doesn't trigger the
-  // browser's own hash-scroll behavior the way a hard navigation would, so
-  // this has to happen manually once the section has actually rendered.
+  // configured period). IDEA-35: Inactivity Timer now lives behind the
+  // section picker, so a hash deep-link selects that section first; the
+  // scroll effect below then handles the actual scroll once it's rendered.
   useEffect(() => {
     if (loading || !window.location.hash) return
-    const el = document.querySelector(window.location.hash)
-    el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    if (window.location.hash === '#inactivity-timer') setSection('inactivity-timer')
   }, [loading])
+
+  // Scrolls the newly-selected section into view (dropdown pick, or the
+  // hash/checkout deep-links above). A client-side route/state change doesn't
+  // trigger the browser's own hash-scroll behavior, so this is manual.
+  useEffect(() => {
+    if (loading || !section) return
+    const el = document.getElementById(section)
+    el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [section, loading])
 
   const set = field => e => setForm(f => ({ ...f, [field]: e.target.value }))
 
@@ -771,8 +823,48 @@ export default function ProfilePage() {
         </div>
       </div>
 
+      {/* ── Section picker (IDEA-35) ─────────────────────────────────────── */}
+      <div className="d-flex gap-2 mb-4 flex-wrap align-items-center">
+        <Dropdown onSelect={(key) => key && setSection(key)}>
+          <Dropdown.Toggle
+            id="profile-section-dropdown"
+            variant="outline-secondary"
+            style={{
+              padding: '6px 18px', borderRadius: 20, border: '1px solid',
+              fontSize: '0.9rem', fontFamily: 'inherit',
+              borderColor: section ? 'var(--green-800)' : 'var(--border)',
+              background: section ? 'var(--green-800)' : 'transparent',
+              color: section ? '#fff' : 'var(--text-muted)',
+            }}>
+            {section ? SECTION_LABELS[section] : 'More settings'}
+          </Dropdown.Toggle>
+          <Dropdown.Menu style={{ background: 'var(--parchment)', border: '1px solid var(--border)', boxShadow: '0 4px 16px rgba(0,0,0,0.12)' }}>
+            {SETTINGS_SECTIONS.map(s => (
+              <Dropdown.Item key={s.id} eventKey={s.id} active={section === s.id}
+                style={{
+                  fontSize: '0.9rem', fontFamily: 'inherit',
+                  color: section === s.id ? '#fff' : 'var(--green-900)',
+                  background: section === s.id ? 'var(--green-800)' : 'transparent',
+                }}>
+                {s.label}
+              </Dropdown.Item>
+            ))}
+            <Dropdown.Divider />
+            <Dropdown.Item eventKey={DELETE_ACCOUNT_SECTION.id} active={section === DELETE_ACCOUNT_SECTION.id}
+              style={{
+                fontSize: '0.9rem', fontFamily: 'inherit', fontWeight: 600,
+                color: section === DELETE_ACCOUNT_SECTION.id ? '#fff' : '#DC3545',
+                background: section === DELETE_ACCOUNT_SECTION.id ? '#DC3545' : 'transparent',
+              }}>
+              {DELETE_ACCOUNT_SECTION.label}
+            </Dropdown.Item>
+          </Dropdown.Menu>
+        </Dropdown>
+      </div>
+
       {/* ── Security Question ────────────────────────────────────────────── */}
-      <div style={{ background: 'var(--parchment)', borderRadius: 12, padding: '24px', marginBottom: 24, border: '1px solid var(--border)' }}>
+      {section === 'security-question' && (
+      <div id="security-question" style={{ background: 'var(--parchment)', borderRadius: 12, padding: '24px', marginBottom: 24, border: '1px solid var(--border)' }}>
         <h6 style={{ color: 'var(--green-900)', marginBottom: 4 }}>Security Question</h6>
         <p className="text-muted small mb-4">
           An optional extra check some accounts use during password recovery, on top of the emailed link -
@@ -883,8 +975,11 @@ export default function ProfilePage() {
           </div>
         )}
       </div>
+      )}
 
-      {/* ── Vault Password ───────────────────────────────────────────────── */}
+      {/* ── Vault Password (+ Vault Recovery Settings, folded together) ───── */}
+      {section === 'vault-password' && (
+      <div id="vault-password">
       <div style={{ background: 'var(--parchment)', borderRadius: 12, padding: '24px', marginBottom: 24, border: '1px solid var(--border)' }}>
         <h6 style={{ color: 'var(--green-900)', marginBottom: 4 }}>Vault Password</h6>
         <p className="text-muted small mb-4">
@@ -1209,9 +1304,11 @@ export default function ProfilePage() {
           </div>
         </div>
       )}
+      </div>
+      )}
 
       {/* ── Inactivity Timer ──────────────────────────────────────────────── */}
-      {timerData && (
+      {section === 'inactivity-timer' && timerData && (
         <div id="inactivity-timer" style={{ background: 'var(--parchment)', borderRadius: 12, padding: '24px', border: '1px solid var(--border)' }}>
           <h6 style={{ color: 'var(--green-900)', marginBottom: 4 }}>Inactivity Timer</h6>
           <p className="text-muted small mb-4">
@@ -1260,7 +1357,9 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* ── Billing & Subscription ───────────────────────────────────────── */}
+      {/* ── Billing & Subscription (+ Payment History, folded together) ───── */}
+      {section === 'billing' && (
+      <div id="billing">
       <div style={{ background: 'var(--parchment)', borderRadius: 12, padding: '24px', border: '1px solid var(--border)', marginTop: 24 }}>
         <h6 style={{ color: 'var(--green-900)', marginBottom: 4 }}>Billing &amp; Subscription</h6>
 
@@ -1340,9 +1439,12 @@ export default function ProfilePage() {
           </div>
         </div>
       )}
+      </div>
+      )}
 
       {/* ── Delete My Account ────────────────────────────────────────────── */}
-      <div style={{ background: 'var(--parchment)', borderRadius: 12, padding: '24px', border: '1px solid var(--border)', marginTop: 24 }}>
+      {section === 'delete-account' && (
+      <div id="delete-account" style={{ background: 'var(--parchment)', borderRadius: 12, padding: '24px', border: '1px solid var(--border)', marginTop: 24 }}>
         <h6 style={{ color: 'var(--green-900)', marginBottom: 4 }}>Delete My Account</h6>
         <p className="text-muted small mb-3" style={{ lineHeight: 1.65 }}>
           Permanently delete your account and all associated data. This includes all your plans,
@@ -1397,6 +1499,7 @@ export default function ProfilePage() {
           </div>
         )}
       </div>
+      )}
     </div>
   )
 }
