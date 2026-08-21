@@ -61,14 +61,13 @@ router.get('/completion', requireAuth, async (req, res) => {
 
   const [
     userProfile, tcCount,
-    ld, fi, fw, mw, ptn, pi, pm, dc, stm, lw, hi, cd, pet, ins, ub, lm,
+    ld, fi, fw, ptn, pi, pm, dc, stm, lw, hi, cd, pet, ins, ub, lm, doc, mr, db,
   ] = await Promise.all([
     queryOne('SELECT about_me, legacy_message, life_story, remembered_for, emergency_contact_name FROM users WHERE id = $1', [uid]),
     queryOne('SELECT COUNT(*)::int as c FROM trusted_contacts WHERE user_id = $1', [uid]),
     queryOne('SELECT COUNT(*)::int as c FROM legal_documents    WHERE user_id = $1', [uid]),
     queryOne('SELECT COUNT(*)::int as c FROM financial_items    WHERE user_id = $1', [uid]),
     queryOne('SELECT COUNT(*)::int as c FROM funeral_wishes     WHERE user_id = $1', [uid]),
-    queryOne('SELECT COUNT(*)::int as c FROM medical_wishes     WHERE user_id = $1', [uid]),
     queryOne('SELECT COUNT(*)::int as c FROM people_to_notify   WHERE user_id = $1', [uid]),
     queryOne('SELECT COUNT(*)::int as c FROM property_items     WHERE user_id = $1', [uid]),
     queryOne('SELECT COUNT(*)::int as c FROM personal_messages  WHERE user_id = $1', [uid]),
@@ -81,6 +80,12 @@ router.get('/completion', requireAuth, async (req, res) => {
     queryOne('SELECT COUNT(*)::int as c FROM insurance_items     WHERE user_id = $1', [uid]),
     queryOne('SELECT COUNT(*)::int as c FROM unfinished_business WHERE user_id = $1', [uid]),
     queryOne('SELECT COUNT(*)::int as c FROM last_moments        WHERE user_id = $1', [uid]),
+    queryOne('SELECT COUNT(*)::int as c FROM doctors             WHERE user_id = $1', [uid]),
+    queryOne('SELECT COUNT(*)::int as c FROM medical_records     WHERE user_id = $1', [uid]),
+    // Existence-only, same as every other single-row section here - a
+    // completion count never needs to decrypt donation_bank's vault-protected
+    // fields, just know whether a row was ever saved.
+    queryOne('SELECT COUNT(*)::int as c FROM donation_bank       WHERE user_id = $1', [uid]),
   ]);
 
   const howToBeRememberedStarted = [
@@ -93,7 +98,6 @@ router.get('/completion', requireAuth, async (req, res) => {
     legal_documents:       ld.c,
     financial_items:       fi.c,
     funeral_wishes:        fw.c,
-    medical_wishes:        mw.c,
     people_to_notify:      ptn.c,
     property_items:        pi.c,
     personal_messages:     pm.c,
@@ -108,6 +112,9 @@ router.get('/completion', requireAuth, async (req, res) => {
     insurance_items:       ins.c,
     unfinished_business:   ub.c,
     last_moments:          lm.c,
+    doctors:               doc.c,
+    medical_records:       mr.c,
+    donation_bank:         db.c,
   });
 });
 
@@ -274,34 +281,97 @@ router.put('/funeral-wishes', requireAuth, async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// Section 5 — Medical & Care Wishes
+// Section 5a — Doctors (IDEA-32: split out of Medical & Care Wishes)
+// Single record per user, open to all users - same protection level (none)
+// the old medical_wishes had for these particular fields.
 // ---------------------------------------------------------------------------
-router.get('/medical-wishes', requireAuth, async (req, res) => {
-  res.json(await queryOne('SELECT * FROM medical_wishes WHERE user_id = $1', [req.user.id]) || {});
+router.get('/doctors', requireAuth, async (req, res) => {
+  res.json(await queryOne('SELECT * FROM doctors WHERE user_id = $1', [req.user.id]) || {});
 });
 
-router.put('/medical-wishes', requireAuth, async (req, res) => {
-  const { organ_donation, organ_donation_details, advance_care_directive, directive_location,
-          dnr_preference, gp_name, gp_phone, hospital_preference,
-          current_medications, medical_conditions, notes } = req.body;
-  const existing = await queryOne('SELECT id FROM medical_wishes WHERE user_id = $1', [req.user.id]);
+router.put('/doctors', requireAuth, async (req, res) => {
+  const { gp_name, gp_phone, hospital_preference } = req.body;
+  const existing = await queryOne('SELECT id FROM doctors WHERE user_id = $1', [req.user.id]);
   if (existing) {
     await query(`
-      UPDATE medical_wishes SET organ_donation=$1, organ_donation_details=$2, advance_care_directive=$3,
-      directive_location=$4, dnr_preference=$5, gp_name=$6, gp_phone=$7, hospital_preference=$8,
-      current_medications=$9, medical_conditions=$10, notes=$11, updated_at=NOW() WHERE user_id=$12
-    `, [organ_donation, organ_donation_details, advance_care_directive ? 1 : 0,
-        directive_location, dnr_preference, gp_name, gp_phone, hospital_preference,
+      UPDATE doctors SET gp_name=$1, gp_phone=$2, hospital_preference=$3, updated_at=NOW() WHERE user_id=$4
+    `, [gp_name, gp_phone, hospital_preference, req.user.id]);
+  } else {
+    await query(`
+      INSERT INTO doctors (user_id, gp_name, gp_phone, hospital_preference)
+      VALUES ($1, $2, $3, $4)
+    `, [req.user.id, gp_name, gp_phone, hospital_preference]);
+  }
+  res.json({ success: true });
+});
+
+// ---------------------------------------------------------------------------
+// Section 5b — Medical Records (IDEA-32: split out of Medical & Care Wishes)
+// Advance care directive, DNR preference, medications, conditions, notes.
+// Single record per user, open to all users, same as Doctors above.
+// ---------------------------------------------------------------------------
+router.get('/medical-records', requireAuth, async (req, res) => {
+  res.json(await queryOne('SELECT * FROM medical_records WHERE user_id = $1', [req.user.id]) || {});
+});
+
+router.put('/medical-records', requireAuth, async (req, res) => {
+  const { advance_care_directive, directive_location, dnr_preference,
+          current_medications, medical_conditions, notes } = req.body;
+  const existing = await queryOne('SELECT id FROM medical_records WHERE user_id = $1', [req.user.id]);
+  if (existing) {
+    await query(`
+      UPDATE medical_records SET advance_care_directive=$1, directive_location=$2, dnr_preference=$3,
+      current_medications=$4, medical_conditions=$5, notes=$6, updated_at=NOW() WHERE user_id=$7
+    `, [advance_care_directive ? 1 : 0, directive_location, dnr_preference,
         current_medications, medical_conditions, notes, req.user.id]);
   } else {
     await query(`
-      INSERT INTO medical_wishes (user_id, organ_donation, organ_donation_details, advance_care_directive,
-      directive_location, dnr_preference, gp_name, gp_phone, hospital_preference,
-      current_medications, medical_conditions, notes)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-    `, [req.user.id, organ_donation, organ_donation_details, advance_care_directive ? 1 : 0,
-        directive_location, dnr_preference, gp_name, gp_phone, hospital_preference,
+      INSERT INTO medical_records
+        (user_id, advance_care_directive, directive_location, dnr_preference, current_medications, medical_conditions, notes)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `, [req.user.id, advance_care_directive ? 1 : 0, directive_location, dnr_preference,
         current_medications, medical_conditions, notes]);
+  }
+  res.json({ success: true });
+});
+
+// ---------------------------------------------------------------------------
+// Section 5c — Donation Bank (IDEA-32: split out of Medical & Care Wishes)
+// Organ/body/blood donation preferences. Unlike Doctors and Medical Records,
+// this is NEW to the shared vault (same vault/password as Legal Documents,
+// Digital Life, Financial Affairs, Property & Possessions, Practical
+// Household Information below) - donation preferences are more sensitive
+// than the rest of old Medical, per an explicit product decision. Single
+// record per user, but vault-gated and field-encrypted like the other four
+// vault sections, not a list like them.
+// ---------------------------------------------------------------------------
+router.post('/donation-bank/view', requireAuth, async (req, res) => {
+  const { vault_password } = req.body;
+  if (!await checkVault(vault_password, req.user.id, res, req)) return;
+  const key = deriveKey(vault_password, req.user.id);
+  const row = await queryOne('SELECT * FROM donation_bank WHERE user_id = $1', [req.user.id]);
+  if (!row) return res.json({});
+  const { decrypted, legacyPlaintext } = decryptRow('donation_bank', row, key);
+  if (legacyPlaintext) await migrateRow(query, 'donation_bank', row.id, decrypted, key);
+  res.json(decrypted);
+});
+
+router.put('/donation-bank', requireAuth, requirePremium, async (req, res) => {
+  const { vault_password, organ_donation, organ_donation_details } = req.body;
+  if (!await checkVault(vault_password, req.user.id, res, req)) return;
+  const key = deriveKey(vault_password, req.user.id);
+  const existing = await queryOne('SELECT * FROM donation_bank WHERE user_id = $1', [req.user.id]);
+  if (existing) {
+    const { decrypted } = decryptRow('donation_bank', existing, key);
+    await migrateRow(query, 'donation_bank', existing.id, {
+      organ_donation:         organ_donation ?? decrypted.organ_donation,
+      organ_donation_details: organ_donation_details ?? decrypted.organ_donation_details,
+    }, key);
+  } else {
+    await query(`
+      INSERT INTO donation_bank (user_id, organ_donation_enc, organ_donation_details_enc)
+      VALUES ($1, $2, $3)
+    `, [req.user.id, encryptField(organ_donation, key), encryptField(organ_donation_details, key)]);
   }
   res.json({ success: true });
 });

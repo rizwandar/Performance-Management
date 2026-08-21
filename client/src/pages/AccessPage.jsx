@@ -130,18 +130,29 @@ function FuneralWishes({ data, documents }) {
   )
 }
 
-function MedicalWishes({ data, documents, countryCode }) {
-  if (!data) return <p className="text-muted small">No medical wishes recorded.</p>
+// IDEA-32: Doctors and Medical Records, split out of the old combined
+// MedicalWishes component. Donation Bank is deliberately absent here - it's
+// vault-protected and never reaches an access link (see EXECUTOR_SECTIONS in
+// routes/access.js).
+function Doctors({ data, documents, countryCode }) {
+  if (!data) return <p className="text-muted small">No doctors recorded.</p>
   return (
     <ItemCard>
-      <FieldRow label="Organ donation"          value={data.organ_donation} />
-      <FieldRow label="Organ donation details"  value={data.organ_donation_details} />
-      <FieldRow label="Advance care directive"  value={data.advance_care_directive ? 'Yes' : 'No'} />
-      <FieldRow label="Directive location"      value={data.directive_location} />
-      <FieldRow label="DNR preference"          value={data.dnr_preference} />
       <FieldRow label="GP name"                 value={data.gp_name} />
       <FieldRow label="GP phone"                value={formatPhone(data.gp_phone, countryCode)} />
       <FieldRow label="Hospital preference"     value={data.hospital_preference} />
+      <DocumentList documents={documents} />
+    </ItemCard>
+  )
+}
+
+function MedicalRecords({ data, documents }) {
+  if (!data) return <p className="text-muted small">No medical records recorded.</p>
+  return (
+    <ItemCard>
+      <FieldRow label="Advance care directive"  value={data.advance_care_directive ? 'Yes' : 'No'} />
+      <FieldRow label="Directive location"      value={data.directive_location} />
+      <FieldRow label="DNR preference"          value={data.dnr_preference} />
       <FieldRow label="Current medications"     value={data.current_medications} />
       <FieldRow label="Medical conditions"      value={data.medical_conditions} />
       <FieldRow label="Notes"                   value={data.notes} />
@@ -388,7 +399,8 @@ function ExecutorChecklist() {
 // filters them out server-side too, so no config entry should render them.
 const SECTION_CONFIG = {
   funeral_wishes:    { label: 'Funeral Wishes',          Component: FuneralWishes,    dataKey: 'funeral_wishes' },
-  medical_wishes:    { label: 'Medical Wishes',          Component: MedicalWishes,    dataKey: 'medical_wishes' },
+  doctors:           { label: 'Doctors',                 Component: Doctors,          dataKey: 'doctors' },
+  medical_records:   { label: 'Medical Records',         Component: MedicalRecords,   dataKey: 'medical_records' },
   people_to_notify:  { label: 'People to Notify',        Component: PeopleToNotify,   dataKey: 'people_to_notify' },
   personal_messages: { label: 'Messages to Loved Ones',  Component: PersonalMessages, dataKey: 'personal_messages' },
   songs_that_define_me: { label: 'Songs That Define Me', Component: SongsThatDefineMe, dataKey: 'songs_that_define_me' },

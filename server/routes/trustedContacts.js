@@ -18,8 +18,11 @@ const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
 // decision for this section - not a fix to the separate pre-existing gap
 // where household_info/digital_life/pets/insurance_items are missing from
 // this list, which is left alone).
+// IDEA-32: medical_wishes replaced by doctors + medical_records. donation_bank
+// (vault-protected, new to the shared vault) is deliberately excluded, same
+// as household_info/digital_credentials, which were never grantable here.
 const VALID_SECTIONS = new Set([
-  'funeral_wishes', 'medical_wishes',
+  'funeral_wishes', 'doctors', 'medical_records',
   'people_to_notify', 'personal_messages', 'songs_that_define_me',
   'life_wishes', 'children_dependants', 'unfinished_business', 'last_moments',
 ]);

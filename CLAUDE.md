@@ -4,13 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**In Good Hands** is an end-of-life planning web and mobile app. Users record personal wishes, legal documents, financial details, medical preferences, funeral wishes, and more across 19 sections. Designated trusted contacts can access this information when the owner becomes inactive.
+**In Good Hands** is an end-of-life planning web and mobile app. Users record personal wishes, legal documents, financial details, medical preferences, funeral wishes, and more across 21 sections. Designated trusted contacts can access this information when the owner becomes inactive.
 
-<!-- NOTE: section count reconciled to 19 after IDEA-19 (Unfinished Business)
-     and IDEA-30 (Your Last Moments) both landed off the same staging base
-     (17 baseline + 2). Verify against DashboardPage.jsx's SECTIONS array
-     length before trusting this number if another section-adding branch
-     lands concurrently. -->
+<!-- NOTE: section count reconciled to 21 after IDEA-19 (Unfinished Business),
+     IDEA-30 (Your Last Moments), and IDEA-32 (Medical split into Doctors/
+     Medical Records/Donation Bank, net +2) all landed off the same staging
+     base (17 baseline + 2 + 2). Verify against DashboardPage.jsx's SECTIONS
+     array length before trusting this number if another section-adding
+     branch lands concurrently. -->
 
 Stack: React (web) + Expo/React Native (mobile) + Express (API) + PostgreSQL (database) + Cloudflare R2 (file storage).
 
@@ -84,7 +85,7 @@ The client and mobile apps import from `@in-good-hands/shared`. The Vite config 
 - `context/AuthContext.jsx` — login/logout, cached user state. The session JWT itself lives only in an httpOnly cookie set by the server (SEC-09); the client never reads or stores it, only a `csrf_token` cookie value it echoes back as an `X-CSRF-Token` header on mutating requests.
 - `context/SubscriptionContext.jsx` — freemium plan state
 
-**Section pages** follow a consistent pattern: fetch data on mount, render a list of `ItemCard` components, open a `FormModal` for create/edit. The sections include: Legal Documents, Digital Vault, Financial, Medical, Property, Messages, Funeral Wishes, Obituary, Music, Pets, Charities, Biography, Bucket List, Trusted Contacts, Pet Care (its own standalone section since IDEA-18), Emergency Contact (since IDEA-27, split out of what was previously a combined "Key Contacts" page), Insurance (since IDEA-29), Unfinished Business (since IDEA-19, reconciliation/apologies/loose-ends, deliberately distinct from Bucket List and Messages to Loved Ones), and Your Last Moments (since IDEA-30, a single dedicated final recording/letter, distinct from the Messages section). This list has drifted from the actual dashboard before; verify against `client/src/pages/DashboardPage.jsx`'s `SECTIONS` array rather than trusting this sentence.
+**Section pages** follow a consistent pattern: fetch data on mount, render a list of `ItemCard` components, open a `FormModal` for create/edit. The sections include: Legal Documents, Digital Vault, Financial, Doctors, Medical Records, Donation Bank (since IDEA-32, split out of a formerly combined Medical & Care Wishes section - Donation Bank is vault-protected, Doctors and Medical Records are not), Property, Messages, Funeral Wishes, Obituary, Music, Pets, Charities, Biography, Bucket List, Trusted Contacts, Pet Care (its own standalone section since IDEA-18), Emergency Contact (since IDEA-27, split out of what was previously a combined "Key Contacts" page), Insurance (since IDEA-29), Unfinished Business (since IDEA-19, reconciliation/apologies/loose-ends, deliberately distinct from Bucket List and Messages to Loved Ones), and Your Last Moments (since IDEA-30, a single dedicated final recording/letter, distinct from the Messages section). This list has drifted from the actual dashboard before; verify against `client/src/pages/DashboardPage.jsx`'s `SECTIONS` array rather than trusting this sentence.
 
 **Admin panel** (`pages/Admin.jsx`) — theme/font switcher (3 warm themes, 3 fonts stored in `app_settings` table), logo upload for white-labelling, user management, maintenance tools.
 

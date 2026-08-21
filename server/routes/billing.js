@@ -61,7 +61,8 @@ router.get('/plans', (req, res) => {
           'Songs That Define Me',
           'My Bucket List',
           'Funeral and End-of-Life Wishes',
-          'Medical and Care Wishes',
+          'Doctors',
+          'Medical Records',
           'Emergency Contact',
           'People to Notify',
           'Your Loved Ones',
@@ -73,12 +74,11 @@ router.get('/plans', (req, res) => {
       {
         id:            'monthly',
         name:          'Premium Monthly',
-        // NOTE: section count reconciled to 19 after IDEA-19 (Unfinished
-        // Business) and IDEA-30 (Your Last Moments) both landed off the same
-        // staging base (17 baseline + 2). Grep for "18 sections"/"19 sections"
-        // before trusting this number again if another section-adding branch
-        // lands concurrently.
-        description:   'Full access to all 19 sections, billed monthly',
+        // NOTE: section count reconciled to 21 after IDEA-19, IDEA-30, and
+        // IDEA-32 all landed off the same staging base (17 baseline + 2 + 2).
+        // Grep for "sections, billed" before trusting this number again if
+        // another section-adding branch lands concurrently.
+        description:   'Full access to all 21 sections, billed monthly',
         price_monthly: 10,
         price_annual:  null,
         features: [
@@ -89,6 +89,7 @@ router.get('/plans', (req, res) => {
           'Financial Affairs',
           'Vault-encrypted Digital Life',
           'Practical Household Information',
+          'Donation Bank',
           'Document uploads',
           'Full PDF export with vault',
           'Inactivity timer',

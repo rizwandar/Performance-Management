@@ -9,6 +9,15 @@ const VAULT_PROTECTED_SECTIONS = new Set([
   'property_items',
   'household_info',
   'digital_credentials',
+  // IDEA-32: found missing here during PR promotion verification - donation_bank
+  // was vault-gated correctly at its own routes (checkVault + field encryption)
+  // but never added to this shared source of truth, so access.js's SEC-20
+  // defensive filter didn't recognize it as vault-protected either. The actual
+  // encrypted content was never exposed (no case block/client config reads
+  // donation_bank via the access-link path), but the section_id itself was
+  // leaking into visible_sections for any trusted-contact permission or
+  // executor grant, which is the exact class of gap SEC-20 exists to close.
+  'donation_bank',
 ]);
 
 function isVaultProtectedSection(sectionId) {

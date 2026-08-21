@@ -9,6 +9,11 @@ const TABLE_FIELDS = {
   financial_items: ['category', 'institution', 'account_type', 'account_reference', 'contact_name', 'contact_phone', 'notes'],
   property_items:  ['category', 'title', 'description', 'location', 'intended_recipient', 'notes'],
   household_info:  ['category', 'title', 'provider', 'account_reference', 'contact', 'notes'],
+  // IDEA-32: Donation Bank, split out of the old Medical & Care Wishes. A
+  // single row per user (like funeral_wishes/medical_wishes), not a list like
+  // the four tables above, but the field-encryption machinery here works the
+  // same regardless of how many rows a table has.
+  donation_bank:   ['organ_donation', 'organ_donation_details'],
 };
 
 // Decrypt a row's vault-protected fields for the given table. A row written

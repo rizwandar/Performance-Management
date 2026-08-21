@@ -10,7 +10,7 @@ import { useAuth, onVaultSessionInvalidated } from './AuthContext'
 // "It stays in memory only" copy). The gap this closes: that cache was
 // page-scoped, so navigating from one vault section to another re-prompted
 // for the same password. Lifting it here to a single app-wide React Context
-// makes the cache shared across all five sections (and the Export page),
+// makes the cache shared across all six sections (and the Export page),
 // still purely in memory, still never persisted, still sent on each API call
 // exactly as before - this is not a new grant/bypass mechanism, just a wider
 // scope and a bounded lifetime for the same cache.

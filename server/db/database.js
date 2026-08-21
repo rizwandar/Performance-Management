@@ -1336,6 +1336,99 @@ async function init() {
     WHERE id IN (SELECT message_id FROM migrated)
   `);
 
+  // IDEA-32: Medical & Care Wishes split into three independent sections
+  // (16 sections becomes 18): Doctors and Medical Records (both open/free,
+  // same protection level the old medical_wishes had), and Donation Bank
+  // (organ/body/blood donation preferences), which is NEW to the shared vault
+  // (Legal Documents, Digital Life, Financial Affairs, Property & Possessions,
+  // Practical Household Information) rather than staying unprotected - this
+  // is more sensitive personal-medical data than the rest of old Medical, and
+  // the user explicitly asked for it to be vault-gated and field-encrypted.
+  //
+  // doctors and medical_records mirror medical_wishes' original single-record-
+  // per-user shape exactly (funeral_wishes/medical_wishes precedent), just
+  // with its columns partitioned by topic. donation_bank additionally carries
+  // both a plaintext column and an _enc column per field, exactly like
+  // legal_documents/financial_items/property_items/household_info do (see
+  // vaultFields.js) - not because donation_bank ever had pre-SEC-03 plaintext
+  // data of its own, but so the one-time migration below (which cannot
+  // encrypt anything - it runs at server startup with no vault password
+  // available for any user) can write the migrated values as legacy
+  // plaintext, then have them opportunistically upgraded to _enc on the
+  // user's first authenticated read/write, via the exact same
+  // decryptRow/migrateRow machinery every other vault table already uses for
+  // its own pre-encryption rows. TABLE_FIELDS in vaultFields.js includes
+  // donation_bank for this reason.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS doctors (
+      id                   SERIAL PRIMARY KEY,
+      user_id              INTEGER UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      gp_name              TEXT,
+      gp_phone             TEXT,
+      hospital_preference  TEXT,
+      updated_at           TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS medical_records (
+      id                       SERIAL PRIMARY KEY,
+      user_id                  INTEGER UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      advance_care_directive   INTEGER DEFAULT 0,
+      directive_location       TEXT,
+      dnr_preference           TEXT,
+      current_medications      TEXT,
+      medical_conditions       TEXT,
+      notes                    TEXT,
+      updated_at               TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS donation_bank (
+      id                          SERIAL PRIMARY KEY,
+      user_id                     INTEGER UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      organ_donation              TEXT,
+      organ_donation_enc          TEXT,
+      organ_donation_details      TEXT,
+      organ_donation_details_enc  TEXT,
+      updated_at                  TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  // One-time backfill of every existing medical_wishes row, split across the
+  // three new tables by field, then the source rows are deleted entirely
+  // (unlike the IDEA-18 pets split, which only removed the 'pet'-typed subset -
+  // here the whole of medical_wishes is being retired, not just part of it).
+  // Guarded on doctors being empty rather than a separate flag column, same
+  // pattern as the IDEA-18 pets migration - this only ever needs to run once.
+  // medical_wishes itself is deliberately left in the schema (not dropped),
+  // consistent with this project's non-destructive migration convention.
+  const medicalAlreadyMigrated = await queryOne('SELECT id FROM doctors LIMIT 1');
+  if (!medicalAlreadyMigrated) {
+    await pool.query(`
+      INSERT INTO doctors (user_id, gp_name, gp_phone, hospital_preference, updated_at)
+      SELECT user_id, gp_name, gp_phone, hospital_preference, updated_at
+      FROM medical_wishes
+    `);
+    await pool.query(`
+      INSERT INTO medical_records
+        (user_id, advance_care_directive, directive_location, dnr_preference, current_medications, medical_conditions, notes, updated_at)
+      SELECT user_id, advance_care_directive, directive_location, dnr_preference, current_medications, medical_conditions, notes, updated_at
+      FROM medical_wishes
+    `);
+    // organ_donation/organ_donation_details land in donation_bank's plaintext
+    // columns for now (see the long comment above) - encrypted into
+    // organ_donation_enc/organ_donation_details_enc the next time each user's
+    // row is read or written through the vault-checked routes.
+    await pool.query(`
+      INSERT INTO donation_bank (user_id, organ_donation, organ_donation_details, updated_at)
+      SELECT user_id, organ_donation, organ_donation_details, updated_at
+      FROM medical_wishes
+    `);
+    await pool.query(`DELETE FROM medical_wishes`);
+  }
+
   console.log('[db] PostgreSQL schema ready');
 }
 
