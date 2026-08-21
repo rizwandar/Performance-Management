@@ -22,7 +22,7 @@ const SECTIONS = [
 ]
 
 const POSITIONS = [1, 2, 3]
-const emptyContact = { sequence: '', name: '', relationship: '', email: '', phone: '' }
+const emptyContact = { sequence: '', name: '', relationship: '', email: '', phone: '', invite_message: '' }
 
 export default function TrustedContactsPage() {
   const navigate = useNavigate()
@@ -88,7 +88,10 @@ export default function TrustedContactsPage() {
 
   const openEdit = (contact) => {
     setEditingContact(contact)
-    setForm({ sequence: contact.sequence, name: contact.name, relationship: contact.relationship || '', email: contact.email || '', phone: contact.phone || '' })
+    setForm({
+      sequence: contact.sequence, name: contact.name, relationship: contact.relationship || '',
+      email: contact.email || '', phone: contact.phone || '', invite_message: contact.invite_message || '',
+    })
     setPermissions(contact.visible_sections || [])
     setModalError('')
     setShowModal(true)
@@ -107,12 +110,13 @@ export default function TrustedContactsPage() {
       if (editingContact) {
         await axios.put(`${API}/trusted-contacts/${editingContact.id}`, {
           name: form.name, relationship: form.relationship, email: form.email, phone: form.phone,
+          invite_message: form.invite_message,
         })
         await axios.put(`${API}/trusted-contacts/${editingContact.id}/permissions`, { visible_sections: permissions })
       } else {
         await axios.post(`${API}/trusted-contacts`, {
           sequence: form.sequence, name: form.name, relationship: form.relationship,
-          email: form.email, phone: form.phone, visible_sections: permissions,
+          email: form.email, phone: form.phone, invite_message: form.invite_message, visible_sections: permissions,
         })
       }
       setShowModal(false)
@@ -399,6 +403,14 @@ export default function TrustedContactsPage() {
                 <Form.Control value={form.phone}
                   onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
                   placeholder="optional" />
+              </Form.Group>
+            </Col>
+            <Col xs={12}>
+              <Form.Group>
+                <Form.Label>Personal message</Form.Label>
+                <Form.Control as="textarea" rows={2} value={form.invite_message}
+                  onChange={e => setForm(f => ({ ...f, invite_message: e.target.value }))}
+                  placeholder="Optional: a short note to include when you send this person their access link, e.g. This is important to me, please take a look when you can." />
               </Form.Group>
             </Col>
           </Row>
