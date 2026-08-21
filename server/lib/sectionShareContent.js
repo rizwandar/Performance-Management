@@ -129,9 +129,10 @@ const LIST_FIELDS = {
     titleKey: 'recipient_name', titlePrefix: 'To: ',
     fields: [
       ['relationship', 'Relationship'], ['message', 'Message'],
-      // IDEA-34: up to 3 clips - audio_urls is an array, unlike every other
-      // field here, so shapeFields()/fieldRowHtml() special-case 'audio'.
-      ['audio_urls', 'Voice messages', null, 'audio'], ['notes', 'Notes'],
+      // IDEA-34: up to 3 clips - audio_urls is an array, unlike last_moments'
+      // single audio_url string above, so this gets its own 'audio_list'
+      // type rather than overloading 'audio' with two different shapes.
+      ['audio_urls', 'Voice messages', null, 'audio_list'], ['notes', 'Notes'],
     ],
   },
   songs_that_define_me: {
@@ -303,9 +304,11 @@ function shapeFields(fieldDefs, row) {
     .map(([key, label, fmt, type]) => {
       const raw = row[key];
       if (raw === null || raw === undefined || raw === '') return null;
-      // 'audio' fields (IDEA-34) carry an array of up to 3 signed URLs -
-      // pass it through as-is rather than stringifying, and skip empty arrays.
-      if (type === 'audio') {
+      // 'audio_list' fields (IDEA-34) carry an array of up to 3 signed URLs -
+      // pass it through as-is rather than stringifying, and skip empty
+      // arrays. Distinct from 'audio' (last_moments' single audio_url
+      // string, IDEA-30), which falls through to the plain-value case below.
+      if (type === 'audio_list') {
         if (!Array.isArray(raw) || raw.length === 0) return null;
         return { label, value: raw, type };
       }
@@ -354,13 +357,21 @@ function escapeHtml(str) {
 }
 
 function fieldRowHtml(f) {
-  // Audio fields carry an array of up to 3 signed R2 URLs as their value -
-  // they're short-lived (see r2.js's default TTL) so they're fit to hand to
-  // a page rendered right now, but not fit to embed as clickable links in an
-  // email that might sit unread for days. Point to the (separately included,
+  // Audio fields carry one or more signed R2 URLs as their value - they're
+  // short-lived (see r2.js's default TTL) so they're fit to hand to a page
+  // rendered right now, but not fit to embed as clickable links in an email
+  // that might sit unread for days. Point to the (separately included,
   // always-live) share link instead of leaking URLs that will 404 once they
-  // expire.
+  // expire. 'audio' (last_moments, IDEA-30) is a single URL; 'audio_list'
+  // (personal_messages, IDEA-34) is an array of up to 3.
   if (f.type === 'audio') {
+    return `
+      <tr>
+        <td style="padding:4px 10px 4px 0; font-weight:600; color:#2D5A3D; font-size:14px; width:190px; vertical-align:top;">${escapeHtml(f.label)}</td>
+        <td style="padding:4px 0; color:#1F2937; font-size:14px;">\u{1F3A4} Included &mdash; open the link above to listen (audio can't be played inside this email).</td>
+      </tr>`;
+  }
+  if (f.type === 'audio_list') {
     const count = f.value.length;
     const phrase = count === 1
       ? '1 voice message included'
