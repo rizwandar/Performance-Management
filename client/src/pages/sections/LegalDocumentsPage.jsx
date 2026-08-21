@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, Form, Row, Col, Alert, Modal, Spinner } from 'react-bootstrap'
+import { Button, Form, Row, Col, Alert, Modal, Spinner, Badge } from 'react-bootstrap'
 import axios from 'axios'
 import { VaultSetupScreen, VaultLockScreen } from '../../components/VaultGate'
 import FileAttachments from '../../components/FileAttachments'
@@ -25,6 +25,13 @@ const DOCUMENT_TYPES = [
   'Tax Records',
   'Other',
 ]
+
+// IDEA-16 (small-fix scope): Power of Attorney and Advance Care Directive (the
+// closest existing type to "Healthcare Power of Attorney") name someone to act
+// on the user's behalf, so they warrant more visual prominence than a generic
+// document type. This is presentation only, no new data model or role concept.
+const KEY_DOCUMENT_TYPES = ['Power of Attorney', 'Advance Care Directive']
+const isKeyDocumentType = (type) => KEY_DOCUMENT_TYPES.includes(type)
 
 const empty = { document_type: '', title: '', held_by: '', location: '', notes: '' }
 
@@ -278,6 +285,14 @@ export default function LegalDocumentsPage() {
                         {item.document_type}
                       </span>
                     )}
+                    {isKeyDocumentType(item.document_type) && (
+                      <Badge bg={null} style={{
+                        background: 'var(--green-800)', color: '#fff', fontWeight: 600,
+                        fontSize: '0.72rem', padding: '2px 8px', borderRadius: 6,
+                      }}>
+                        ⭐ Key document
+                      </Badge>
+                    )}
                   </div>
                   <p style={{ fontWeight: 600, color: 'var(--green-900)', marginBottom: 4 }}>{item.title}</p>
                   {item.held_by  && <p className="text-muted small mb-1">Held by: {item.held_by}</p>}
@@ -317,8 +332,20 @@ export default function LegalDocumentsPage() {
               <Form.Label>Document type</Form.Label>
               <Form.Select value={form.document_type} onChange={e => setForm({ ...form, document_type: e.target.value })}>
                 <option value="">Select a type (optional)</option>
-                {DOCUMENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                {DOCUMENT_TYPES.map(t => (
+                  <option key={t} value={t}>{isKeyDocumentType(t) ? `⭐ ${t}` : t}</option>
+                ))}
               </Form.Select>
+              {isKeyDocumentType(form.document_type) && (
+                <div style={{
+                  background: 'var(--gold-50)', border: '1px solid var(--gold-light)',
+                  borderRadius: 6, padding: '8px 12px', fontSize: '0.85rem',
+                  color: '#7a5520', marginTop: 8,
+                }}>
+                  ⭐ This is a key legal document. It names who can make decisions on your behalf,
+                  so make sure the person you appoint and a trusted backup know where the original is kept.
+                </div>
+              )}
             </Form.Group>
             <Form.Group className="mb-3">
               <Form.Label>Title or description <span style={{ color: 'var(--danger)' }}>*</span></Form.Label>
