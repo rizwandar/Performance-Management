@@ -297,6 +297,36 @@ function subscriptionCancelledEmail({ name, accessUntilDate }) {
 }
 
 // ---------------------------------------------------------------------------
+// Subscription reinstatement confirmation - mirror image of the cancellation
+// email above, sent when a cancellation is undone (cancel_at_period_end
+// flips back to false) via POST /billing/reinstate or the Stripe-hosted
+// Billing Portal's own undo-cancel action, so the user has written
+// confirmation that normal billing has actually resumed.
+// ---------------------------------------------------------------------------
+function subscriptionReinstatedEmail({ name, nextBillingDate, price }) {
+  return layout(`
+    <p>Dear ${name},</p>
+    <p>
+      Good news, your <strong>${APP_NAME} Premium</strong> subscription has been
+      reinstated. You'll continue to be billed as normal, with no gap in your access.
+    </p>
+    <p>
+      ${price
+        ? `Your next payment of <strong>${price}</strong> will be charged on <strong>${nextBillingDate}</strong>.`
+        : `Your next payment will be charged on <strong>${nextBillingDate}</strong>.`}
+    </p>
+    <p style="color:#6B7280; font-size:14px;">
+      If you didn't request this, please contact us right away.
+    </p>
+    ${button('Manage my subscription', `${APP_URL}/profile/settings`)}
+    <p style="color:#6B7280; font-size:14px;">
+      With care,<br/>
+      The ${APP_NAME} team
+    </p>
+  `);
+}
+
+// ---------------------------------------------------------------------------
 // Card expiring reminder (BIL-07) - sent 14 and 7 days before the card on
 // file for the subscription expires, so payment doesn't silently fail.
 // ---------------------------------------------------------------------------
@@ -909,6 +939,7 @@ module.exports = {
   paymentConfirmationEmail,
   refundConfirmationEmail,
   subscriptionCancelledEmail,
+  subscriptionReinstatedEmail,
   cardExpiringReminderEmail,
   inactivityContactNotificationEmail,
   executorDesignatedEmail,
