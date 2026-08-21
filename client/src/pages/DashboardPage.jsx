@@ -77,15 +77,6 @@ const ICON_SETS = {
 // ---------------------------------------------------------------------------
 const GROUPS = [
   {
-    id:          'people',
-    label:       'Your People',
-    description: 'The important people in your life and who should be involved.',
-    cardBg:      'var(--group-people-bg, #F7EDE7)',
-    cardBorder:  'var(--group-people-border, #E4C8B4)',
-    startedBorder: 'var(--group-people-pill, #B87A50)',
-    iconBg:      'var(--group-people-icon, #EDD8C8)',
-  },
-  {
     id:          'legacy',
     label:       'Your Legacy',
     description: 'Who you are, what you love, and what you want to leave behind.',
@@ -93,6 +84,15 @@ const GROUPS = [
     cardBorder:  'var(--group-legacy-border, #E8D8A8)',
     startedBorder: 'var(--group-legacy-pill, #C9A84C)',
     iconBg:      'var(--group-legacy-icon, #F5EAC8)',
+  },
+  {
+    id:          'people',
+    label:       'Your People',
+    description: 'The important people in your life and who should be involved.',
+    cardBg:      'var(--group-people-bg, #F7EDE7)',
+    cardBorder:  'var(--group-people-border, #E4C8B4)',
+    startedBorder: 'var(--group-people-pill, #B87A50)',
+    iconBg:      'var(--group-people-icon, #EDD8C8)',
   },
   {
     id:          'wishes',
@@ -141,14 +141,14 @@ const PREMIUM_BOUNDARY_GROUP = 'affairs'
 const SECTIONS = [
   // ── Your Legacy ────────────────────────────────────────────────────────────
   {
-    id: 'how_to_be_remembered', label: "How I'd Like to Be Remembered",
-    icon: '🕯️', route: '/sections/how-to-be-remembered', group: 'legacy',
-    description: 'Share your values, your story, and the things that define you, so those you love will always know who you were.',
-  },
-  {
     id: 'personal_messages', label: 'Messages to Loved Ones',
     icon: '💌', route: '/sections/messages', group: 'legacy',
     description: 'Write heartfelt letters to the people who matter most. Words they can hold onto long after you\'re gone.',
+  },
+  {
+    id: 'how_to_be_remembered', label: "How I'd Like to Be Remembered",
+    icon: '🕯️', route: '/sections/how-to-be-remembered', group: 'legacy',
+    description: 'Share your values, your story, and the things that define you, so those you love will always know who you were.',
   },
   {
     id: 'songs_that_define_me', label: 'Songs That Define Me',
@@ -161,19 +161,17 @@ const SECTIONS = [
     description: "The dreams you're still chasing, the places you want to see, and the experiences that light you up.",
   },
 
-  // ── Your Wishes ────────────────────────────────────────────────────────────
-  {
-    id: 'funeral_wishes', label: 'Funeral & End-of-Life Wishes',
-    icon: '🕊️', route: '/sections/funeral-wishes', group: 'wishes',
-    description: 'Your gentle guidance for the farewell that truly reflects who you are and what you believe.',
-  },
-  {
-    id: 'medical_wishes', label: 'Medical & Care Wishes',
-    icon: '🏥', route: '/sections/medical-wishes', group: 'wishes',
-    description: 'Your preferences for care and treatment, giving those who love you the clarity to act on your behalf.',
-  },
-
   // ── Your People ────────────────────────────────────────────────────────────
+  {
+    id: 'children-dependants', label: 'Your Loved Ones',
+    icon: '👶', route: '/sections/children-dependants', group: 'people',
+    description: 'Everything your loved ones need to know about caring for your children and those who depend on you.',
+  },
+  {
+    id: 'pet-care', label: 'Pet Care',
+    icon: '🐾', route: '/sections/pet-care', group: 'people',
+    description: 'Feeding routines, vet details, and caretaker wishes so your pets are looked after too.',
+  },
   {
     id: 'emergency_contact', label: 'Emergency Contact',
     icon: '📞', route: '/sections/emergency-contact', group: 'people',
@@ -189,27 +187,29 @@ const SECTIONS = [
     icon: '👥', route: '/sections/people-to-notify', group: 'people',
     description: 'The friends, family, and colleagues who should hear the news directly and with care.',
   },
+
+  // ── Your Wishes ────────────────────────────────────────────────────────────
   {
-    id: 'children-dependants', label: 'Your Loved Ones',
-    icon: '👶', route: '/sections/children-dependants', group: 'people',
-    description: 'Everything your loved ones need to know about caring for your children and those who depend on you.',
+    id: 'medical_wishes', label: 'Medical & Care Wishes',
+    icon: '🏥', route: '/sections/medical-wishes', group: 'wishes',
+    description: 'Your preferences for care and treatment, giving those who love you the clarity to act on your behalf.',
   },
   {
-    id: 'pet-care', label: 'Pet Care',
-    icon: '🐾', route: '/sections/pet-care', group: 'people',
-    description: 'Feeding routines, vet details, and caretaker wishes so your pets are looked after too.',
+    id: 'funeral_wishes', label: 'Funeral & End-of-Life Wishes',
+    icon: '🕊️', route: '/sections/funeral-wishes', group: 'wishes',
+    description: 'Your gentle guidance for the farewell that truly reflects who you are and what you believe.',
   },
 
   // ── Your Affairs ───────────────────────────────────────────────────────────
   {
-    id: 'legal_documents', label: 'Personal & Legal Documents',
-    icon: '📄', route: '/sections/legal-documents', group: 'affairs',
-    description: 'Your will, powers of attorney, and identity documents, safely organized and easy to locate.',
-  },
-  {
     id: 'property_items', label: 'Property & Possessions',
     icon: '🏡', route: '/sections/property-possessions', group: 'affairs',
     description: 'A clear record of your home, vehicles, valuables, and the possessions that matter most.',
+  },
+  {
+    id: 'household-info', label: 'Practical Household Information',
+    icon: '🔑', route: '/sections/household-info', group: 'affairs',
+    description: 'Practical details about utilities, subscriptions, and services that keep everyday life running smoothly.',
   },
   {
     id: 'financial_items', label: 'Financial Affairs',
@@ -217,14 +217,14 @@ const SECTIONS = [
     description: 'Your accounts, investments, insurance policies, and financial affairs, all in one place.',
   },
   {
+    id: 'legal_documents', label: 'Personal & Legal Documents',
+    icon: '📄', route: '/sections/legal-documents', group: 'affairs',
+    description: 'Your will, powers of attorney, and identity documents, safely organized and easy to locate.',
+  },
+  {
     id: 'digital_credentials', label: 'Digital Life',
     icon: '💻', route: '/sections/digital-life', group: 'affairs',
     description: 'Your online accounts and passwords, secured by your vault password and accessible when needed.',
-  },
-  {
-    id: 'household-info', label: 'Practical Household Information',
-    icon: '🔑', route: '/sections/household-info', group: 'affairs',
-    description: 'Practical details about utilities, subscriptions, and services that keep everyday life running smoothly.',
   },
   {
     id: 'insurance_items', label: 'Insurance',
@@ -455,8 +455,21 @@ export default function DashboardPage() {
                 }}>
                   {group.label}
                 </h5>
-                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                  {groupStarted}/{groupSections.length} started
+                <span
+                  aria-label={`${groupStarted} of ${groupSections.length} sections done in ${group.label}`}
+                  style={{
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    fontVariantNumeric: 'tabular-nums',
+                    color: group.startedBorder,
+                    background: group.iconBg,
+                    border: `1px solid ${group.cardBorder}`,
+                    borderRadius: 10,
+                    padding: '1px 8px',
+                    lineHeight: 1.6,
+                  }}
+                >
+                  {groupStarted} of {groupSections.length} done
                 </span>
               </div>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginBottom: 0, marginTop: 2 }}>
