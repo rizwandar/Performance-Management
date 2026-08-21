@@ -12,7 +12,7 @@ const PREMIUM_SECTIONS = [
   'All 4 free sections',
   'Funeral and End-of-Life Wishes',
   'Medical and Care Wishes',
-  'Key Contacts',
+  'Emergency Contact',
   'People to Notify',
   'Your Loved Ones',
   'Personal and Legal Documents',
@@ -31,7 +31,7 @@ export default function UpgradeScreen() {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.heading}>Choose Your Plan</Text>
       <Text style={styles.subheading}>
-        In Good Hands is free to start. Upgrade to unlock all 15 sections and keep everything your loved ones will need in one place.
+        In Good Hands is free to start. Upgrade to unlock all 16 sections and keep everything your loved ones will need in one place.
       </Text>
 
       <View style={styles.notice}>

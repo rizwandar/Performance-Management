@@ -1185,6 +1185,15 @@ async function init() {
   await pool.query(`ALTER TABLE personal_messages ADD COLUMN IF NOT EXISTS audio_size_bytes INTEGER`);
   await pool.query(`ALTER TABLE personal_messages ADD COLUMN IF NOT EXISTS audio_duration_seconds INTEGER`);
 
+  // IDEA-27: Key Contacts split into its own standalone Emergency Contact
+  // section (previously combined with Trusted Contacts on one page).
+  // emergency_contact_name/_phone/_email already existed on users, reused
+  // as-is rather than adding a new table. relationship and notes are new,
+  // rounding the shape out to match a regular contact minus the
+  // access-grant/inactivity wiring that only Trusted Contacts has.
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS emergency_contact_relationship TEXT`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS emergency_contact_notes TEXT`);
+
   console.log('[db] PostgreSQL schema ready');
 }
 

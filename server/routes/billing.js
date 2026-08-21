@@ -51,7 +51,7 @@ router.get('/plans', (req, res) => {
           'My Bucket List',
           'Funeral and End-of-Life Wishes',
           'Medical and Care Wishes',
-          'Key Contacts',
+          'Emergency Contact',
           'People to Notify',
           'Your Loved Ones',
           'Pet Care',
@@ -61,7 +61,7 @@ router.get('/plans', (req, res) => {
       {
         id:            'monthly',
         name:          'Premium Monthly',
-        description:   'Full access to all 15 sections, billed monthly',
+        description:   'Full access to all 16 sections, billed monthly',
         price_monthly: 10,
         price_annual:  null,
         features: [
