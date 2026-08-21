@@ -1266,6 +1266,31 @@ async function init() {
     )
   `);
 
+  // IDEA-30: "Your Last Moments", a new standalone section, distinct from
+  // (not a replacement for) Messages to Loved Ones - one weightier, single
+  // recording/letter per user rather than a list of messages to different
+  // recipients. One row per user (like funeral_wishes/medical_wishes), not
+  // enforced with a UNIQUE constraint - same soft-singleton pattern those two
+  // tables use, managed by the route (check-existing-then-insert-or-update)
+  // rather than the schema. audio_* columns mirror personal_messages' IDEA-01
+  // shape exactly (same R2 upload pipeline, same fileSignature verification),
+  // created directly here rather than via a later ALTER TABLE since this
+  // table is new and never existed without them.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS last_moments (
+      id                     SERIAL PRIMARY KEY,
+      user_id                INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      message                TEXT,
+      notes                  TEXT,
+      audio_r2_key           TEXT,
+      audio_mime_type        TEXT,
+      audio_size_bytes       INTEGER,
+      audio_duration_seconds INTEGER,
+      created_at             TIMESTAMPTZ DEFAULT NOW(),
+      updated_at             TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
   console.log('[db] PostgreSQL schema ready');
 }
 
