@@ -19,7 +19,12 @@ const SECTION_META = {
   property_items:       { label: 'Property & Possessions',        isVault: true,  kind: 'list' },
   household_info:       { label: 'Household Info',                isVault: true,  kind: 'list' },
   funeral_wishes:       { label: 'Funeral Wishes',                isVault: false, kind: 'single' },
-  medical_wishes:       { label: 'Medical Wishes',                isVault: false, kind: 'single' },
+  // IDEA-32: doctors and medical_records replace the old medical_wishes
+  // (split into 3 sections). donation_bank is the third - vault-protected,
+  // like the four list-shaped vault sections above, but single-record.
+  doctors:              { label: 'Doctors',                       isVault: false, kind: 'single' },
+  medical_records:      { label: 'Medical Records',                isVault: false, kind: 'single' },
+  donation_bank:        { label: 'Donation Bank',                  isVault: true,  kind: 'single' },
   people_to_notify:     { label: 'People to Notify',              isVault: false, kind: 'list' },
   personal_messages:    { label: 'Messages to Loved Ones',        isVault: false, kind: 'list' },
   songs_that_define_me: { label: 'Songs That Define Me',          isVault: false, kind: 'list' },
@@ -54,18 +59,22 @@ const SINGLE_FIELDS = {
     ['special_requests',   'Special requests'],
     ['notes',              'Additional notes'],
   ],
-  medical_wishes: [
-    ['organ_donation',         'Organ donation', cap],
-    ['organ_donation_details', 'Organ donation details'],
-    ['advance_care_directive', 'Advance care directive', yn],
-    ['directive_location',     'Directive location'],
-    ['dnr_preference',         'DNR preference', cap],
+  doctors: [
     ['gp_name',                'GP name'],
     ['gp_phone',                'GP phone'],
     ['hospital_preference',    'Hospital preference'],
+  ],
+  medical_records: [
+    ['advance_care_directive', 'Advance care directive', yn],
+    ['directive_location',     'Directive location'],
+    ['dnr_preference',         'DNR preference', cap],
     ['current_medications',    'Current medications'],
     ['medical_conditions',     'Medical conditions'],
     ['notes',                  'Notes'],
+  ],
+  donation_bank: [
+    ['organ_donation',         'Organ donation', cap],
+    ['organ_donation_details', 'Organ donation details'],
   ],
   how_to_be_remembered: [
     ['about_me',        'About me'],
@@ -183,8 +192,14 @@ async function fetchRawSectionData(sectionKey, userId, vaultKey) {
   switch (sectionKey) {
     case 'funeral_wishes':
       return queryOne('SELECT * FROM funeral_wishes WHERE user_id = $1', [userId]);
-    case 'medical_wishes':
-      return queryOne('SELECT * FROM medical_wishes WHERE user_id = $1', [userId]);
+    case 'doctors':
+      return queryOne('SELECT * FROM doctors WHERE user_id = $1', [userId]);
+    case 'medical_records':
+      return queryOne('SELECT * FROM medical_records WHERE user_id = $1', [userId]);
+    case 'donation_bank': {
+      const row = await queryOne('SELECT * FROM donation_bank WHERE user_id = $1', [userId]);
+      return row ? decryptRow('donation_bank', row, vaultKey).decrypted : null;
+    }
     case 'how_to_be_remembered':
       return queryOne('SELECT about_me, life_story, remembered_for, legacy_message FROM users WHERE id = $1', [userId]);
     case 'people_to_notify':
@@ -321,8 +336,9 @@ function shapeFields(fieldDefs, row) {
 // [] for isVault sections, and generally [] for any section with no uploaded
 // files. Included as a flat, section-level list (each entry carries its own
 // item_id) rather than nested inside individual items, since not every
-// section here is item-shaped (funeral_wishes/medical_wishes/
-// how_to_be_remembered are single objects with no item id to nest under) and
+// section here is item-shaped (funeral_wishes/doctors/medical_records/
+// donation_bank/how_to_be_remembered are single objects with no item id to
+// nest under) and
 // this keeps one consistent shape across both. The guest-view page groups by
 // item_id itself where that's meaningful.
 function buildSectionView(sectionKey, raw, documents = []) {

@@ -291,7 +291,8 @@ function generatePdf(data, outputStream) {
   const {
     user, settings = {}, logoBuffer,
     funeralWishes   = {},
-    medicalWishes   = {},
+    doctors         = {},
+    medicalRecords  = {},
     peopleToNotify  = [],
     messages        = [],
     songsDefineMe   = [],
@@ -302,11 +303,12 @@ function generatePdf(data, outputStream) {
     insuranceItems  = [],
     unfinishedBusiness = [],
     lastMoments     = {},
-    // legalDocs, financialItems, propertyItems, householdInfo, and credentials
-    // are all vault-protected - only ever present inside vaultData, never at
-    // the top level, so a standard (non-vault) export can't render them by
-    // accident even if a future field gets added here without thinking about it.
-    vaultData       = null,  // { legalDocs, financialItems, propertyItems, householdInfo, credentials } - only in complete export
+    // legalDocs, financialItems, propertyItems, householdInfo, credentials, and
+    // donationBank (IDEA-32) are all vault-protected - only ever present inside
+    // vaultData, never at the top level, so a standard (non-vault) export can't
+    // render them by accident even if a future field gets added here without
+    // thinking about it.
+    vaultData       = null,  // { legalDocs, financialItems, propertyItems, householdInfo, credentials, donationBank } - only in complete export
   } = data;
 
   const palette = THEME_PALETTES[settings.site_theme] || DEFAULT_THEME;
@@ -418,22 +420,33 @@ function generatePdf(data, outputStream) {
     ], fonts);
   }
 
-  sectionHeader(doc, 'Medical & Care Wishes', palette, fonts);
-  if (!medicalWishes?.organ_donation) {
+  // IDEA-32: Doctors and Medical Records, split out of the old single
+  // Medical & Care Wishes section. Organ/body donation preferences moved to
+  // Donation Bank, which is vault-protected and rendered on the vault page
+  // below instead, alongside the other vault sections.
+  sectionHeader(doc, 'Doctors', palette, fonts);
+  if (!doctors?.gp_name && !doctors?.gp_phone && !doctors?.hospital_preference) {
     noData(doc, fonts);
   } else {
     renderFields(doc, [
-      ['Organ donation',          medicalWishes.organ_donation],
-      ['Organ donation details',  medicalWishes.organ_donation_details],
-      ['Advance care directive',  medicalWishes.advance_care_directive ? 'Yes, document exists' : null],
-      ['Directive location',      medicalWishes.directive_location],
-      ['DNR preference',          medicalWishes.dnr_preference],
-      ['GP name',                 medicalWishes.gp_name],
-      ['GP phone',                medicalWishes.gp_phone],
-      ['Hospital preference',     medicalWishes.hospital_preference],
-      ['Current medications',     medicalWishes.current_medications],
-      ['Medical conditions',      medicalWishes.medical_conditions],
-      ['Notes',                   medicalWishes.notes],
+      ['GP name',                 doctors.gp_name],
+      ['GP phone',                doctors.gp_phone],
+      ['Hospital preference',     doctors.hospital_preference],
+    ], fonts);
+  }
+
+  sectionHeader(doc, 'Medical Records', palette, fonts);
+  if (!medicalRecords?.advance_care_directive && !medicalRecords?.current_medications
+      && !medicalRecords?.medical_conditions && !medicalRecords?.notes) {
+    noData(doc, fonts);
+  } else {
+    renderFields(doc, [
+      ['Advance care directive',  medicalRecords.advance_care_directive ? 'Yes, document exists' : null],
+      ['Directive location',      medicalRecords.directive_location],
+      ['DNR preference',          medicalRecords.dnr_preference],
+      ['Current medications',     medicalRecords.current_medications],
+      ['Medical conditions',      medicalRecords.medical_conditions],
+      ['Notes',                   medicalRecords.notes],
     ], fonts);
   }
 
@@ -738,6 +751,19 @@ function generatePdf(data, outputStream) {
       ]), palette, fonts);
     }
 
+    // IDEA-32: Donation Bank, single record per user (not a list, unlike the
+    // other vault sections above), decrypted the same way as the rest of
+    // vaultData by loadVaultData() in routes/export.js.
+    sectionHeader(doc, 'Donation Bank', palette, fonts);
+    if (!vaultData.donationBank?.organ_donation) {
+      noData(doc, fonts);
+    } else {
+      renderFields(doc, [
+        ['Organ donation',         vaultData.donationBank.organ_donation],
+        ['Organ donation details', vaultData.donationBank.organ_donation_details],
+      ], fonts);
+    }
+
   } else {
     // ── Standard export: show locked notices ──────────────────────────────
     doc.font(fonts.bold).fontSize(11).fillColor(palette.dark)
@@ -758,6 +784,7 @@ function generatePdf(data, outputStream) {
     vaultLockedSection(doc, 'Property & Possessions', palette, fonts);
     vaultLockedSection(doc, 'Practical Household Information', palette, fonts);
     vaultLockedSection(doc, 'Digital Life: Credentials and Accounts', palette, fonts);
+    vaultLockedSection(doc, 'Donation Bank', palette, fonts);
   }
 
   addPageFooter(doc, pageNum, palette, fonts);

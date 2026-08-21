@@ -15,7 +15,8 @@ const API = import.meta.env.VITE_API_URL
 // permission at all.
 const SECTIONS = [
   { id: 'funeral_wishes',       label: 'Funeral Wishes' },
-  { id: 'medical_wishes',       label: 'Medical Wishes' },
+  { id: 'doctors',              label: 'Doctors' },
+  { id: 'medical_records',      label: 'Medical Records' },
   { id: 'people_to_notify',     label: 'People to Notify' },
   { id: 'personal_messages',    label: 'Messages to Loved Ones' },
   { id: 'songs_that_define_me', label: 'Songs That Define Me' },

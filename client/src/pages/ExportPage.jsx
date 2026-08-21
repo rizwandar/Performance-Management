@@ -73,7 +73,7 @@ export default function ExportPage() {
       downloadBlob(response.data, `in-good-hands-${safeName()}-complete.pdf`)
       // A successful export just proved this password correct - refresh (or
       // start) the shared 30-minute vault session with it, same as unlocking
-      // any of the five vault sections would.
+      // any of the six vault sections would.
       unlockVault(vaultPassword)
     } catch (err) {
       // With responseType:'blob', error body is a Blob; parse it as JSON

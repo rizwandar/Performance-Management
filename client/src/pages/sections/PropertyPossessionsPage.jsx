@@ -28,7 +28,7 @@ export default function PropertyPossessionsPage() {
 
   // Vault unlock state (password + timers) now lives in the shared, app-wide
   // VaultSessionContext (SEC-15) instead of page-local state, so unlocking on
-  // any of the five vault sections keeps the others unlocked too, for as long
+  // any of the six vault sections keeps the others unlocked too, for as long
   // as the 30-minute session lasts.
   const { vaultPassword, vaultUnlocked, unlockVault, lockVault } = useVaultSession()
   const [vaultExists, setVaultExists] = useState(null)  // null = still checking
@@ -89,7 +89,7 @@ export default function PropertyPossessionsPage() {
   }
 
   // Derived from vault-existence (checked once here) and the shared unlock
-  // session (shared across all five vault sections).
+  // session (shared across all six vault sections).
   const vaultState = vaultExists === null ? 'loading'
     : !vaultExists ? 'no-vault'
     : vaultUnlocked ? 'unlocked'

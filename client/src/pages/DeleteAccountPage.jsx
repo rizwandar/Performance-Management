@@ -39,7 +39,7 @@ export default function DeleteAccountPage() {
           {p('When your account is deleted, the following data is permanently and irreversibly removed from our systems:')}
           {li([
             'Your profile information (name, date of birth, about me, contact details).',
-            'All section data you have entered (legal documents, financial affairs, medical wishes, funeral wishes, messages, bucket list, and all other sections).',
+            'All section data you have entered (legal documents, financial affairs, medical records, funeral wishes, messages, bucket list, and all other sections).',
             'All uploaded files and documents stored in cloud storage.',
             'Trusted contact records and any associated access tokens.',
             'Your subscription record.',

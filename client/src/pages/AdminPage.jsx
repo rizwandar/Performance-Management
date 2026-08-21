@@ -63,7 +63,8 @@ const SECTION_LABELS = {
   financial_items:     'Financial Affairs',
   digital_credentials: 'Digital Life',
   funeral_wishes:      'Funeral Wishes',
-  medical_wishes:      'Medical Wishes',
+  doctors:             'Doctors',
+  medical_records:     'Medical Records',
   people_to_notify:    'People to Notify',
   property_items:      'Property',
   personal_messages:   'Messages',
@@ -460,7 +461,7 @@ COLOR PALETTE: Earthy, grounded, trustworthy. Forest green (primary), warm gold 
 
 ---
 
-THE 18 SECTIONS (grouped into 4 dashboard groups):
+THE 21 SECTIONS (grouped into 4 dashboard groups):
 (Note: this count has drifted before - verify against DashboardPage.jsx's SECTIONS array if precision matters.)
 
 YOUR LEGACY:
@@ -472,7 +473,8 @@ YOUR LEGACY:
 
 YOUR WISHES:
 - Funeral and End-of-Life Wishes: single record per user. Covers burial preference, ceremony type/location, funeral home, pre-paid plan, music preferences, readings, flowers, donation charity, special requests. Also supports a portrait photo (funeral_main role) and up to 20 gallery photos (funeral_gallery role) via uploaded_documents table.
-- Medical and Care Wishes: single record per user. Organ donation preference, advance care directive flag and location, DNR preference, GP details, hospital preference, current medications, medical conditions, notes.
+- Doctors (IDEA-32, split out of the old Medical & Care Wishes): single record per user. GP name, GP phone, hospital preference.
+- Medical Records (IDEA-32, split out of the old Medical & Care Wishes): single record per user. Advance care directive flag and location, DNR preference, current medications, medical conditions, notes.
 
 YOUR PEOPLE:
 - Emergency Contact: a single person to call right away in a crisis, stored on the users table (name, relationship, phone, email, notes). Does NOT receive plan access. (IDEA-27, split out of the old combined "Key Contacts" section.)
@@ -487,7 +489,8 @@ YOUR AFFAIRS:
 - Financial Affairs: vault-protected (shared vault). financial_items table. Category, institution, account_type, account_reference, contact_name, contact_phone, notes.
 - Digital Life: vault-protected (shared vault). digital_credentials table with AES-256-GCM encrypted fields (service, service_url, username, password, notes).
 - Practical Household Information: vault-protected (shared vault). household_info table. Title, category, provider, account_reference, contact, notes.
-- Insurance (IDEA-29): NOT vault-protected, free-plan accessible. insurance_items table. Policy type (free text), provider, policy number, contact, beneficiary, notes. A flat list, not a rigid category enum. Wired into the ad-hoc section-share feature; not yet added to the Trusted Contacts permission list (see below), which was already missing Practical Household Information, Digital Life, and Pet Care before this section existed.
+- Insurance (IDEA-29): NOT vault-protected, free-plan accessible. insurance_items table. Policy type (free text - already accommodates "Health" alongside Life/Home/Auto/etc, no schema change needed), provider, policy number, contact, beneficiary, notes. A flat list, not a rigid category enum. Wired into the ad-hoc section-share feature; not yet added to the Trusted Contacts permission list (see below), which was already missing Practical Household Information, Digital Life, and Pet Care before this section existed.
+- Donation Bank (IDEA-32, split out of the old Medical & Care Wishes): vault-protected (shared vault) - NEW to the shared vault, unlike Doctors/Medical Records which stayed unprotected. donation_bank table. Organ donation preference and details, both field-encrypted like the other vault sections.
 
 ---
 
@@ -496,7 +499,7 @@ VAULT ENCRYPTION:
 - Key derivation: scrypt (N=16384, r=8, p=1) from vault_password + userId. Salt = "igh-vault-v1-" + userId.
 - Password NEVER stored: verified by decrypting a known constant ("in-good-hands-vault-verified") stored as check_enc in the digital_vault table.
 - Each encrypted field stored as JSON: {ciphertext, iv, tag} all hex-encoded. Fresh random IV per field.
-- Legal Documents, Digital Life, Financial Affairs, Property & Possessions, and Practical Household Information share ONE vault and ONE password, and every text field in all five is field-level encrypted (not just Digital Life).
+- Legal Documents, Digital Life, Financial Affairs, Property & Possessions, Practical Household Information, and Donation Bank (IDEA-32) share ONE vault and ONE password, and every text field in all six is field-level encrypted (not just Digital Life).
 - Vault reset: user-initiated, requires account password. Permanently deletes all vault data. Irreversible (there is no other way to recover data once the vault password is lost).
 - Failed unlock attempts: after 3, force logout with a warning email. After 5, a 15-minute timed lockout (not deletion) with a notification email; it auto-reopens on its own, and the correct password unlocks immediately even mid-lockout. Nothing is ever deleted for a wrong attempt.
 - Destructive vault operations (deleting a vault-protected record, resetting the vault, changing the vault password) all re-verify the vault password server-side immediately before acting, the same check used for list/create/update on the same routes.
@@ -505,7 +508,7 @@ VAULT ENCRYPTION:
 
 TRUSTED CONTACTS SYSTEM:
 - Up to 3 trusted contacts per user.
-- Each contact has section-level permissions (which sections they can view). Insurance and Pet Care are not yet wired into this list (a pre-existing gap - see the Insurance entry above); Unfinished Business (IDEA-19) IS wired in, matching Messages to Loved Ones' access model exactly.
+- Each contact has section-level permissions (which of the 21 sections they can view). Insurance and Pet Care are not yet wired into this list (a pre-existing gap - see the Insurance entry above); Unfinished Business (IDEA-19) and Your Last Moments (IDEA-30) ARE wired in, matching Messages to Loved Ones' access model exactly. Donation Bank (IDEA-32) is deliberately excluded, same as the other vault-protected sections.
 - Access via a signed link emailed to the contact. No separate login required. Valid 72 hours for the two non-Legacy-Contact slots; the Legacy Contact's link never expires (found and fixed 2026-08-06: the owner, who'd normally resend an expired link, is by definition unreachable once the plan is actually triggered).
 - Tokens stored in trusted_contact_tokens table (contact_id, token, expires_at). expires_at is NULL for a Legacy Contact's token, meaning it never expires.
 - Digital credentials (vault) are NEVER accessible to trusted contacts, Legacy Contact included.
@@ -555,7 +558,7 @@ PDF EXPORT:
 - PDFKit, A4 two-column layout, streamed to client.
 - Standard export (GET): excludes vault sections (shown as locked notice).
 - Full export (POST with vault_password): includes decrypted vault content. Sensitive data warning box shown.
-- Covers all 18 sections across 6 content pages.
+- Covers all 21 sections across 6 content pages.
 - Reads site_theme and site_font from app_settings for styled output.
 
 ---
@@ -690,7 +693,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
           </div>
 
           <div style={card}>
-            <BpSection title="The 18 Sections at a Glance">
+            <BpSection title="The 21 Sections at a Glance">
               <p className="text-muted small mb-3">Organized into four groups on the dashboard. Users fill in as much or as little as they choose.</p>
               {[
                 { group: 'Your Legacy', color: '#C9A84C', icon: '✨', sections: [
@@ -702,7 +705,8 @@ Please confirm the stack choices above (or tell me which to change), and then we
                 ]},
                 { group: 'Your Wishes', color: '#5A9A5A', icon: '🕊️', sections: [
                   { label: 'Funeral and End-of-Life Wishes', desc: 'Burial or cremation preference, ceremony type, music, readings, photos, and more.' },
-                  { label: 'Medical and Care Wishes', desc: 'Organ donation, advance care directive, DNR preference, GP details, and medical history.' },
+                  { label: 'Doctors', desc: 'GP details and preferred hospital, split out of the old Medical and Care Wishes (IDEA-32).' },
+                  { label: 'Medical Records', desc: 'Advance care directive, DNR preference, and medical history, split out of the old Medical and Care Wishes (IDEA-32).' },
                 ]},
                 { group: 'Your People', color: '#B87A50', icon: '🤝', sections: [
                   { label: 'Emergency Contact', desc: 'The first person to call in an emergency. Does not receive access to your plans.' },
@@ -718,6 +722,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
                   { label: 'Digital Life', desc: 'Usernames and passwords for your online accounts, encrypted so only you can read them.' },
                   { label: 'Practical Household Information', desc: 'Utility providers, subscriptions, memberships, and other practical details.' },
                   { label: 'Insurance', desc: 'Life, health, home, auto, and other policies: provider, policy number, contact, and beneficiary. Not vault-protected.' },
+                  { label: 'Donation Bank', desc: 'Organ and tissue donation preferences, split out of the old Medical and Care Wishes (IDEA-32). Vault-protected, unlike Doctors and Medical Records.' },
                 ]},
               ].map(group => (
                 <div key={group.group} style={{ marginBottom: 20 }}>
@@ -738,12 +743,12 @@ Please confirm the stack choices above (or tell me which to change), and then we
           <div style={card}>
             <BpSection title="Key Capabilities">
               <BpTable rows={[
-                ['Secure vault', 'Five sections (Legal Documents, Digital Life, Financial Affairs, Property & Possessions, Practical Household Information) share one vault password that is never stored on the server. Only the user can unlock their vault, and every text field in all five sections is individually encrypted with a key derived from that password.'],
+                ['Secure vault', 'Six sections (Legal Documents, Digital Life, Financial Affairs, Property & Possessions, Practical Household Information, Donation Bank) share one vault password that is never stored on the server. Only the user can unlock their vault, and every text field in all six sections is individually encrypted with a key derived from that password.'],
                 ['Trusted contact access', 'Users choose up to 3 trusted contacts and control exactly which sections each one can view. Contacts receive a secure link (no login required); 72-hour validity for non-Legacy-Contact contacts, non-expiring for the designated Legacy Contact.'],
                 ['Inactivity timer', 'Users set a period of inactivity (2 to 24 months). If they have not logged in by then, their trusted contacts are automatically notified with access links.'],
                 ['PDF export', 'Users can download a complete PDF summary of all their plans. A full export option includes vault contents if the vault password is provided at download time.'],
                 ['File attachments', 'Upload photos and documents (PDF, images, Word docs) to Legal Documents, Financial Affairs, Property & Possessions, and Practical Household Information. Stored securely in Cloudflare R2, access-controlled with short-lived signed URLs.'],
-                ['Premium billing', 'Free plan covers 13 of the 18 sections. Premium ($10/month or $100/year via Stripe Checkout) unlocks the 5 vault-protected sections, document uploads, full (vault-inclusive) PDF export, and the inactivity timer. Users manage or cancel/reinstate their subscription from My Profile; admins can also grant or revoke an honorary premium plan without a real Stripe subscription.'],
+                ['Premium billing', 'Free plan covers 14 of the 21 sections. Premium ($10/month or $100/year via Stripe Checkout) unlocks the 6 vault-protected sections plus Your Last Moments, document uploads, full (vault-inclusive) PDF export, and the inactivity timer. Users manage or cancel/reinstate their subscription from My Profile; admins can also grant or revoke an honorary premium plan without a real Stripe subscription.'],
                 ['Admin panel', 'Operators can customize colors, fonts, site name, and logo. View all users, audit logs, and manage accounts.'],
                 ['White-label ready', 'The site name and logo can be changed by the admin. All emails and the PDF use the configured name.'],
               ]} />
@@ -755,7 +760,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
               <BpTable rows={[
                 ['Not a legal service', 'The application does not provide legal advice. It is a planning and document-organization tool only.'],
                 ['Not a will', 'Entries in this application do not replace a legally executed will or any other legal document.'],
-                ['Files are not vault-key-encrypted', 'All five vault-protected sections (Legal Documents, Financial Affairs, Property & Possessions, Digital Life, Practical Household Information) have their text fields encrypted with a vault-password-derived key. Uploaded files (attachments and photos) are access-controlled with short-lived signed URLs and encrypted at rest by Cloudflare R2 as a platform default, but are not additionally encrypted with the vault password.'],
+                ['Files are not vault-key-encrypted', 'All six vault-protected sections (Legal Documents, Financial Affairs, Property & Possessions, Digital Life, Practical Household Information, Donation Bank) have their text fields encrypted with a vault-password-derived key. Uploaded files (attachments and photos) are access-controlled with short-lived signed URLs and encrypted at rest by Cloudflare R2 as a platform default, but are not additionally encrypted with the vault password. (Donation Bank has no file-upload capability of its own, so this applies to it only in the sense that no exception was carved out.)'],
                 ['Not a backup service', 'Physical documents referenced in the app are stored by the user. Only the metadata (where to find them) is recorded here.'],
               ]} />
             </BpSection>
@@ -833,7 +838,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
               <BpTable rows={[
                 ['Standard export', 'GET /api/export. No vault password needed. Vault sections show a "protected" notice.'],
                 ['Full export', 'POST /api/export with vault_password in the request body. Vault sections fully included. A sensitive data warning box appears in the PDF.'],
-                ['What is included', 'All 18 sections. Cover page with logo, user name, and date. Grouped logically across content pages.'],
+                ['What is included', 'All 21 sections. Cover page with logo, user name, and date. Grouped logically across content pages.'],
                 ['Layout', 'A4 two-column layout. Each item rendered as a card. Page breaks handled automatically.'],
                 ['Branding', 'The current theme and font from app_settings are applied. Logo is fetched from R2 and embedded on the cover page.'],
                 ['Download behavior', 'The browser receives the PDF as a stream and downloads it as a file. No temp files are created on the server.'],
@@ -844,7 +849,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
           <div style={card}>
             <BpSection title="Section Detail: Premium Billing">
               <BpTable rows={[
-                ['Plans', 'Free ($0): 11 non-vault sections plus trusted contacts. Premium Monthly ($10/month) and Premium Annual ($100/year, saves $20 vs monthly): everything in Free plus all 5 vault-protected sections, document uploads, full (vault-inclusive) PDF export, and the inactivity timer. GET /api/billing/plans returns this plan/feature copy for the Upgrade page.'],
+                ['Plans', 'Free ($0): 12 non-vault sections plus trusted contacts. Premium Monthly ($10/month) and Premium Annual ($100/year, saves $20 vs monthly): everything in Free plus all 6 vault-protected sections, document uploads, full (vault-inclusive) PDF export, and the inactivity timer. GET /api/billing/plans returns this plan/feature copy for the Upgrade page.'],
                 ['Checkout', 'POST /api/billing/create-checkout-session with {plan: "monthly"|"annual"} creates a Stripe Checkout session and returns its redirect URL. Reuses the caller\'s existing Stripe customer if a prior checkout attempt already created one, so repeat attempts do not create duplicate Stripe customers.'],
                 ['Webhook sync', 'POST /api/billing/webhook is mounted directly in server/index.js with express.raw(), before the global JSON body parser, since Stripe signature verification needs the raw request body. Handles checkout.session.completed, customer.subscription.updated/deleted, and invoice.upcoming, keeping the local subscriptions row in sync via upsertFromSubscription().'],
                 ['Cancel / reinstate', 'POST /api/billing/cancel sets cancel_at_period_end on the Stripe subscription (access continues until the paid period ends, not an immediate cutoff) and also updates the local row directly so a client re-fetch right after the call cannot race ahead of the async webhook. POST /api/billing/reinstate reverses cancel_at_period_end while the subscription is still active; if Stripe has already ended it, the user needs a fresh checkout instead. Both are surfaced on My Profile.'],
@@ -987,7 +992,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
     routes/
       auth.js                # /api/auth: login, register, logout, forgot/reset password
       users.js               # /api/users/me: profile, timer, emergency contact
-      sections.js            # /api/sections: all 18 sections + vault endpoints + completion
+      sections.js            # /api/sections: all 21 sections + vault endpoints + completion
       documents.js           # /api/documents: file upload/download/delete + photos
       export.js              # /api/export: GET (standard) + POST (with vault)
       admin.js               # /api/admin: stats, users, activity log, versions, backups list/trigger
@@ -1027,7 +1032,19 @@ Please confirm the stack choices above (or tell me which to change), and then we
             },
             {
               table: 'medical_wishes',
-              fields: 'id, user_id, organ_donation, organ_donation_details, advance_care_directive (0/1), directive_location, dnr_preference, gp_name, gp_phone, hospital_preference, current_medications, medical_conditions, notes. Single record per user.',
+              fields: 'DEPRECATED (IDEA-32): superseded by doctors, medical_records, and donation_bank below, which its existing rows were migrated into. The table itself is left in place, empty, per this project\'s non-destructive migration convention - no route reads or writes it any more.',
+            },
+            {
+              table: 'doctors',
+              fields: 'id, user_id, gp_name, gp_phone, hospital_preference, updated_at. Single record per user. Not vault-protected (IDEA-32, split out of medical_wishes).',
+            },
+            {
+              table: 'medical_records',
+              fields: 'id, user_id, advance_care_directive (0/1), directive_location, dnr_preference, current_medications, medical_conditions, notes, updated_at. Single record per user. Not vault-protected (IDEA-32, split out of medical_wishes).',
+            },
+            {
+              table: 'donation_bank',
+              fields: 'id, user_id, organ_donation_enc, organ_donation_details_enc, updated_at (plus legacy plaintext organ_donation/organ_donation_details columns, always NULL for rows created after the one-time migration). Single record per user. Vault-protected and field-encrypted (SEC-03 pattern) - NEW to the shared vault as of IDEA-32, unlike doctors/medical_records above.',
             },
             {
               table: 'people_to_notify',
@@ -1096,9 +1113,9 @@ Please confirm the stack choices above (or tell me which to change), and then we
         </BpSection>
       </div>
 
-      {/* 5. The 18 sections */}
+      {/* 5. The 21 sections */}
       <div style={card}>
-        <BpSection title="5. The 18 User Sections">
+        <BpSection title="5. The 21 User Sections">
           <p className="text-muted small mb-3">Grouped into 4 dashboard groups. Each section has its own route and full CRUD via /api/sections.</p>
           {[
             { group: 'Your Legacy', color: '#C9A84C', sections: [
@@ -1110,7 +1127,8 @@ Please confirm the stack choices above (or tell me which to change), and then we
             ]},
             { group: 'Your Wishes', color: '#5A9A5A', sections: [
               { id: 'funeral_wishes', label: 'Funeral & End-of-Life Wishes', route: '/sections/funeral-wishes', note: 'Single record per user. Also supports portrait photo (funeral_main) + up to 20 gallery photos (funeral_gallery) via uploaded_documents.' },
-              { id: 'medical_wishes', label: 'Medical & Care Wishes', route: '/sections/medical-wishes', note: 'Single record per user. Includes DNR, organ donation, advance care directive.' },
+              { id: 'doctors', label: 'Doctors', route: '/sections/doctors', note: 'Single record per user. GP name/phone, hospital preference. Not vault-protected (IDEA-32, split out of the old Medical & Care Wishes).' },
+              { id: 'medical_records', label: 'Medical Records', route: '/sections/medical-records', note: 'Single record per user. Advance care directive, DNR preference, medications, conditions, notes. Not vault-protected (IDEA-32, split out of the old Medical & Care Wishes).' },
             ]},
             { group: 'Your People', color: '#B87A50', sections: [
               { id: 'emergency_contact', label: 'Emergency Contact', route: '/sections/emergency-contact', note: 'Fields on users table: emergency_contact_name/_relationship/_phone/_email/_notes. Saved via PUT /api/users/me, not /api/sections. Does not receive plan access.' },
@@ -1126,6 +1144,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
               { id: 'digital_credentials', label: 'Digital Life', route: '/sections/digital-life', note: 'Vault-protected. digital_credentials table. Fields AES-256-GCM encrypted. Shares vault with the other Your Affairs sections.' },
               { id: 'household-info', label: 'Practical Household Information', route: '/sections/household-info', note: 'Vault-protected. Uses shared vault (digital_vault). Text fields AES-256-GCM encrypted with the vault key. household_info table. Up to 2 file attachments per item via uploaded_documents.' },
               { id: 'insurance_items', label: 'Insurance', route: '/sections/insurance', note: 'NOT vault-protected, free-plan accessible (IDEA-29). insurance_items table: policy_type, provider, policy_number, contact, beneficiary, notes. No file attachments, no encryption.' },
+              { id: 'donation_bank', label: 'Donation Bank', route: '/sections/donation-bank', note: 'Vault-protected (IDEA-32, split out of the old Medical & Care Wishes - NEW to the shared vault, unlike Doctors/Medical Records). donation_bank table: organ_donation, organ_donation_details, both field-encrypted. Single record per user, read/written via POST .../donation-bank/view + PUT .../donation-bank rather than the list routes the other vault sections use.' },
             ]},
           ].map(group => (
             <div key={group.group} style={{ marginBottom: 18 }}>
@@ -1150,11 +1169,11 @@ Please confirm the stack choices above (or tell me which to change), and then we
             ['Algorithm', 'AES-256-GCM (authenticated encryption)'],
             ['Key derivation', 'scrypt (N=16384, r=8, p=1) from vault_password + userId. Salt = "igh-vault-v1-" + userId. Produces 32-byte key.'],
             ['Password storage', 'NEVER stored. Not even hashed. Verified by decrypting a known constant (CHECK_CONSTANT = "in-good-hands-vault-verified") stored as check_enc in digital_vault.'],
-            ['Encrypted fields', 'Each field stored as JSON: {ciphertext, iv, tag} all hex-encoded. Fresh random IV per field. Covers digital_credentials and, since SEC-03, every text field in legal_documents, financial_items, property_items, and household_info too.'],
-            ['Shared vault', 'Legal Documents, Digital Life, Financial Affairs, Property & Possessions, and Practical Household Information all share ONE vault. Same password, same digital_vault row.'],
+            ['Encrypted fields', 'Each field stored as JSON: {ciphertext, iv, tag} all hex-encoded. Fresh random IV per field. Covers digital_credentials and, since SEC-03, every text field in legal_documents, financial_items, property_items, and household_info too - joined by donation_bank (IDEA-32).'],
+            ['Shared vault', 'Legal Documents, Digital Life, Financial Affairs, Property & Possessions, Practical Household Information, and Donation Bank (IDEA-32) all share ONE vault. Same password, same digital_vault row.'],
             ['Vault setup', 'POST /api/sections/digital-life/vault. Creates check_enc. Only works once per user.'],
             ['Vault verify', 'POST /api/sections/digital-life/vault/verify. Returns 200/401. Used to unlock UI.'],
-            ['Vault reset', 'DELETE /api/sections/digital-life/vault. Requires account password. Deletes digital_credentials, digital_vault, and every row (plus R2 file attachments) across all five vault-protected tables in one transaction. Irreversible.'],
+            ['Vault reset', 'DELETE /api/sections/digital-life/vault. Requires account password. Deletes digital_credentials, digital_vault, and every row (plus R2 file attachments) across all six vault-protected tables in one transaction. Irreversible.'],
             ['Change password', 'POST /api/sections/digital-life/vault/change. Decrypts all fields with old key, re-encrypts with new key in a single transaction.'],
             ['Destructive-op re-verification (SEC-06)', 'DELETE routes on legal-documents, financial-affairs, property-possessions, and household-info now call the same checkVault() helper used by list/create/update, matching the pattern digital-life delete already used. Fixed a gap where those four DELETE routes previously required no vault password at all.'],
             ['Standard export cannot leak vault data (SEC-02)', 'generatePdf() only ever renders financial_items/property_items/household_info/legal_documents/credentials from a vaultData object populated exclusively by the vault-checked complete-export path; the standard (GET) export never has access to it, so a future code change cannot accidentally render vault content into a standard export the way it once could.'],
@@ -1211,7 +1230,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
             ['Theme support', 'Reads site_theme and site_font from app_settings. THEME_PALETTES and getFonts() in generatePdf.js map to PDFKit built-in fonts (Times/Helvetica).'],
             ['Logo support', 'Reads site_logo from app_settings, fetches buffer via getFileBuffer(), embeds on cover page.'],
             ['Cover page', 'Dark header band, logo/brand name, user name, document date, legal disclaimer.'],
-            ['Content pages', '6 pages covering all 18 sections grouped logically.'],
+            ['Content pages', '6 pages covering all 21 sections grouped logically.'],
             ['Item cards', 'renderCardAt() renders a single item card at explicit (x,y). renderCards() places cards in 2-column grid with page-break logic.'],
             ['UI for export', 'ExportPage.jsx at /export. Two cards: standard and complete. Warm language and sensitive data warning.'],
           ]} />
@@ -1277,7 +1296,10 @@ SECTIONS      GET /api/sections/completion (counts per section)
               POST/PUT/DELETE /api/sections/financial-affairs
               POST /api/sections/financial-affairs/list (vault auth, only way to read)
               GET/PUT /api/sections/funeral-wishes
-              GET/PUT /api/sections/medical-wishes
+              GET/PUT /api/sections/doctors
+              GET/PUT /api/sections/medical-records
+              PUT /api/sections/donation-bank (vault auth)
+              POST /api/sections/donation-bank/view (vault auth, only way to read)
               GET/POST/PUT/DELETE /api/sections/people-to-notify
               POST/PUT/DELETE /api/sections/property-possessions
               POST /api/sections/property-possessions/list (vault auth, only way to read)
