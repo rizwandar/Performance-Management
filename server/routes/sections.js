@@ -61,7 +61,7 @@ router.get('/completion', requireAuth, async (req, res) => {
 
   const [
     userProfile, tcCount,
-    ld, fi, fw, mw, ptn, pi, pm, dc, stm, lw, hi, cd, pet, ins,
+    ld, fi, fw, mw, ptn, pi, pm, dc, stm, lw, hi, cd, pet, ins, ub,
   ] = await Promise.all([
     queryOne('SELECT about_me, legacy_message, life_story, remembered_for, emergency_contact_name FROM users WHERE id = $1', [uid]),
     queryOne('SELECT COUNT(*)::int as c FROM trusted_contacts WHERE user_id = $1', [uid]),
@@ -79,6 +79,7 @@ router.get('/completion', requireAuth, async (req, res) => {
     queryOne('SELECT COUNT(*)::int as c FROM children_dependants WHERE user_id = $1', [uid]),
     queryOne('SELECT COUNT(*)::int as c FROM pets                WHERE user_id = $1', [uid]),
     queryOne('SELECT COUNT(*)::int as c FROM insurance_items     WHERE user_id = $1', [uid]),
+    queryOne('SELECT COUNT(*)::int as c FROM unfinished_business WHERE user_id = $1', [uid]),
   ]);
 
   const howToBeRememberedStarted = [
@@ -104,6 +105,7 @@ router.get('/completion', requireAuth, async (req, res) => {
     'children-dependants': cd.c,
     'pet-care':             pet.c,
     insurance_items:       ins.c,
+    unfinished_business:   ub.c,
   });
 });
 
@@ -796,6 +798,47 @@ router.delete('/insurance/:id', requireAuth, async (req, res) => {
   const item = await queryOne('SELECT id FROM insurance_items WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
   await query('DELETE FROM insurance_items WHERE id = $1', [item.id]);
+  res.json({ success: true });
+});
+
+// ---------------------------------------------------------------------------
+// Section 17 — Unfinished Business (IDEA-19)
+// One entry per person or topic - reconciliation, apologies, and other loose
+// ends - deliberately separate from My Bucket List (aspirational future
+// goals) and Messages to Loved Ones (final words per recipient). Flat list,
+// NOT vault-protected, same no-requirePremium pattern as pets/insurance/
+// children-dependants above.
+// ---------------------------------------------------------------------------
+router.get('/unfinished-business', requireAuth, async (req, res) => {
+  res.json(await queryAll('SELECT * FROM unfinished_business WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]));
+});
+
+router.post('/unfinished-business', requireAuth, async (req, res) => {
+  const { name, description, notes } = req.body;
+  if (!name) return res.status(400).json({ error: 'A name is required.' });
+  const result = await query(`
+    INSERT INTO unfinished_business (user_id, name, description, notes)
+    VALUES ($1, $2, $3, $4) RETURNING id
+  `, [req.user.id, name, description || null, notes || null]);
+  res.status(201).json({ id: result.rows[0].id });
+});
+
+router.put('/unfinished-business/:id', requireAuth, async (req, res) => {
+  const item = await queryOne('SELECT * FROM unfinished_business WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
+  if (!item) return res.status(404).json({ error: 'Item not found.' });
+  const { name, description, notes } = req.body;
+  await query(`
+    UPDATE unfinished_business
+    SET name=$1, description=$2, notes=$3, updated_at=NOW()
+    WHERE id=$4
+  `, [name ?? item.name, description ?? item.description, notes ?? item.notes, item.id]);
+  res.json({ success: true });
+});
+
+router.delete('/unfinished-business/:id', requireAuth, async (req, res) => {
+  const item = await queryOne('SELECT id FROM unfinished_business WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
+  if (!item) return res.status(404).json({ error: 'Item not found.' });
+  await query('DELETE FROM unfinished_business WHERE id = $1', [item.id]);
   res.json({ success: true });
 });
 

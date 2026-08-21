@@ -9,6 +9,7 @@ const API = import.meta.env.VITE_API_URL || '/api'
 const FREE_FEATURES = [
   'How I\'d Like to Be Remembered',
   'Messages to Loved Ones',
+  'Unfinished Business',
   'Songs That Define Me',
   'My Bucket List',
   'Funeral and End-of-Life Wishes',

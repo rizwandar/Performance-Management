@@ -57,6 +57,7 @@ router.get('/plans', (req, res) => {
         features: [
           "How I'd Like to Be Remembered",
           'Messages to Loved Ones',
+          'Unfinished Business',
           'Songs That Define Me',
           'My Bucket List',
           'Funeral and End-of-Life Wishes',
@@ -72,7 +73,13 @@ router.get('/plans', (req, res) => {
       {
         id:            'monthly',
         name:          'Premium Monthly',
-        description:   'Full access to all 16 sections, billed monthly',
+        // NOTE (IDEA-19): bumped from 16 to 18 - the pre-existing "16" text was
+        // already one behind the actual 17-section dashboard even before this
+        // change (an undocumented drift, not something this section caused).
+        // Two sibling branches are adding their own sections in parallel off
+        // the same staging base - this number will need reconciling again
+        // once all three land.
+        description:   'Full access to all 18 sections, billed monthly',
         price_monthly: 10,
         price_annual:  null,
         features: [

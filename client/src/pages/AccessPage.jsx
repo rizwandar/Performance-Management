@@ -274,6 +274,27 @@ function ChildrenDependants({ data, documents }) {
   ))
 }
 
+// IDEA-19: Unfinished Business - one entry per person or topic (reconciliation,
+// apologies, loose ends), structurally the same read-only per-recipient card
+// as PersonalMessages above, just with a `description` field instead of
+// `message` and no audio attachment.
+function UnfinishedBusiness({ data, documents }) {
+  if (!data?.length) return <p className="text-muted small">Nothing recorded.</p>
+  return data.map(d => (
+    <ItemCard key={d.id}>
+      <p style={{ fontWeight: 700, color: 'var(--green-900)', marginBottom: 2 }}>{d.name}</p>
+      {d.description && (
+        <p style={{ fontStyle: 'italic', color: 'var(--text)', margin: '8px 0', lineHeight: 1.7,
+          borderLeft: '3px solid var(--gold)', paddingLeft: 12 }}>
+          "{d.description}"
+        </p>
+      )}
+      <FieldRow label="Notes" value={d.notes} />
+      <DocumentList documents={itemDocuments(documents, d.id)} />
+    </ItemCard>
+  ))
+}
+
 // ---------------------------------------------------------------------------
 // Executor task checklist (IDEA-06) — general starting points shown once an
 // executor has confirmed the passing, not legal advice, and not tracked or
@@ -346,6 +367,7 @@ const SECTION_CONFIG = {
   songs_that_define_me: { label: 'Songs That Define Me', Component: SongsThatDefineMe, dataKey: 'songs_that_define_me' },
   life_wishes:       { label: "My Bucket List",          Component: LifeWishes,       dataKey: 'life_wishes' },
   children_dependants: { label: 'Your Loved Ones', Component: ChildrenDependants, dataKey: 'children_dependants' },
+  unfinished_business: { label: 'Unfinished Business', Component: UnfinishedBusiness, dataKey: 'unfinished_business' },
 }
 
 // ---------------------------------------------------------------------------

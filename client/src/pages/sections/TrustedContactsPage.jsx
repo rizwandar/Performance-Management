@@ -21,6 +21,7 @@ const SECTIONS = [
   { id: 'songs_that_define_me', label: 'Songs That Define Me' },
   { id: 'life_wishes',          label: 'My Bucket List' },
   { id: 'children_dependants',  label: 'Your Loved Ones' },
+  { id: 'unfinished_business',  label: 'Unfinished Business' },
 ]
 
 const POSITIONS = [1, 2, 3]

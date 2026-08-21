@@ -1245,6 +1245,27 @@ async function init() {
   // link email sent from the "Send access link" flow.
   await pool.query(`ALTER TABLE trusted_contacts ADD COLUMN IF NOT EXISTS invite_message TEXT`);
 
+  // IDEA-19: "Unfinished Business" - a new standalone section for
+  // reconciliation, apologies, and other relationships or matters the owner
+  // wants addressed, deliberately distinct from both Messages to Loved Ones
+  // (final words per recipient) and My Bucket List (aspirational future
+  // goals). Structured as one entry per person/topic, same per-recipient
+  // shape as personal_messages, just with a `description` field instead of
+  // a single `message` and no audio attachment. Not vault-protected, not
+  // requirePremium-gated, same free-tier pattern as pets/insurance_items/
+  // children_dependants above.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS unfinished_business (
+      id             SERIAL PRIMARY KEY,
+      user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      name           TEXT NOT NULL,
+      description    TEXT,
+      notes          TEXT,
+      created_at     TIMESTAMPTZ DEFAULT NOW(),
+      updated_at     TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
   console.log('[db] PostgreSQL schema ready');
 }
 

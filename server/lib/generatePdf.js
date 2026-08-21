@@ -300,6 +300,7 @@ function generatePdf(data, outputStream) {
     childrenDependants = [],
     pets            = [],
     insuranceItems  = [],
+    unfinishedBusiness = [],
     // legalDocs, financialItems, propertyItems, householdInfo, and credentials
     // are all vault-protected - only ever present inside vaultData, never at
     // the top level, so a standard (non-vault) export can't render them by
@@ -465,6 +466,20 @@ function generatePdf(data, outputStream) {
       }
       doc.moveDown(0.5).fillColor(TEXT);
     });
+  }
+
+  // IDEA-19: Unfinished Business - shares this page with Messages to Loved
+  // Ones (same "Your Legacy" dashboard group, same non-vault/free-tier
+  // access model).
+  sectionHeader(doc, 'Unfinished Business', palette, fonts);
+  if (!unfinishedBusiness.length) {
+    noData(doc, fonts);
+  } else {
+    renderCards(doc, unfinishedBusiness.map(item => [
+      { label: '',            value: item.name },
+      { label: 'Description', value: item.description },
+      { label: 'Notes',       value: item.notes },
+    ]), palette, fonts);
   }
 
   // IDEA-27: Emergency Contact and Trusted Contacts are now separate sections

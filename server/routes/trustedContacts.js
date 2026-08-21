@@ -13,10 +13,15 @@ const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
 // permission, same reasoning as digital_life/household_info/
 // digital_credentials already being absent from this set. See the matching
 // comment in routes/access.js.
+// IDEA-19: unfinished_business is deliberately added here alongside
+// personal_messages, replicating its exact access model (an explicit, scoped
+// decision for this section - not a fix to the separate pre-existing gap
+// where household_info/digital_life/pets/insurance_items are missing from
+// this list, which is left alone).
 const VALID_SECTIONS = new Set([
   'funeral_wishes', 'medical_wishes',
   'people_to_notify', 'personal_messages', 'songs_that_define_me',
-  'life_wishes', 'children_dependants',
+  'life_wishes', 'children_dependants', 'unfinished_business',
 ]);
 
 router.get('/', requireAuth, async (req, res) => {
