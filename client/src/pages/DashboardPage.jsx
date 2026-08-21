@@ -250,6 +250,7 @@ export default function DashboardPage() {
   const startedCount = SECTIONS.filter(isStarted).length
   const isNewUser    = startedCount === 0
   const nextSection   = SECTIONS.find(s => !isStarted(s)) || SECTIONS[0]
+  const progressPct   = Math.round((startedCount / SECTIONS.length) * 100)
 
   if (loading) return (
     <div className="text-center py-5">
@@ -290,7 +291,41 @@ export default function DashboardPage() {
           You have {SECTIONS.length} sections to work through, at whatever pace feels right for you.
           There is no right order, and no rush.
         </p>
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginBottom: 22 }}>
+
+        {/* ── Overall plan progress ───────────────────────────────────────── */}
+        <div style={{ maxWidth: 420, marginBottom: 22 }}>
+          <div className="d-flex align-items-baseline justify-content-between" style={{ marginBottom: 6 }}>
+            <span style={{
+              fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+              color: 'var(--green-700)',
+            }}>
+              Your plan so far
+            </span>
+            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--green-800)' }}>
+              {progressPct}%
+            </span>
+          </div>
+          <div
+            role="progressbar"
+            aria-valuenow={startedCount}
+            aria-valuemin={0}
+            aria-valuemax={SECTIONS.length}
+            aria-label={`${startedCount} of ${SECTIONS.length} sections started, ${progressPct} percent`}
+            style={{ height: 10, borderRadius: 8, background: 'var(--green-100)', overflow: 'hidden' }}
+          >
+            <div style={{
+              height: '100%',
+              width: `${progressPct}%`,
+              background: 'var(--progress-fill, var(--green-800))', borderRadius: 8,
+              transition: 'width 0.4s ease',
+            }} />
+          </div>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.78rem', marginTop: 6, marginBottom: 0 }}>
+            {startedCount} of {SECTIONS.length} sections started
+          </p>
+        </div>
+
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
           <button type="button" className="btn btn-primary" style={{ fontWeight: 600, padding: '10px 22px' }}
             onClick={() => navigate(nextSection.route)}>
             Continue my plans →
@@ -300,24 +335,6 @@ export default function DashboardPage() {
             Export as PDF
           </button>
         </div>
-        <div
-          role="progressbar"
-          aria-valuenow={startedCount}
-          aria-valuemin={0}
-          aria-valuemax={SECTIONS.length}
-          aria-label={`${startedCount} of ${SECTIONS.length} sections started`}
-          style={{ height: 8, borderRadius: 8, background: 'var(--green-100)', overflow: 'hidden', maxWidth: 360 }}
-        >
-          <div style={{
-            height: '100%',
-            width: `${(startedCount / SECTIONS.length) * 100}%`,
-            background: 'var(--progress-fill, var(--green-800))', borderRadius: 8,
-            transition: 'width 0.4s ease',
-          }} />
-        </div>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: 6, marginBottom: 0 }}>
-          {startedCount} of {SECTIONS.length} sections started
-        </p>
       </div>
 
       <OrgBrandingBanner />
