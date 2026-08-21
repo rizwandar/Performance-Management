@@ -7,6 +7,9 @@ import { formatPhone } from '@in-good-hands/shared/format'
 import SectionHero from '../../components/SectionHero'
 import ShareSectionTrigger from '../../components/ShareSectionTrigger'
 import ShareSectionHistory from '../../components/ShareSectionHistory'
+import DictateButton from '../../components/DictateButton'
+import DictationDisclosure from '../../components/DictationDisclosure'
+import { useDictation } from '../../hooks/useDictation'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -23,6 +26,12 @@ export default function PeopleToNotifyPage() {
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing]     = useState(null)
   const [form, setForm]           = useState(empty)
+
+  const notesDictation = useDictation({ getValue: () => form.notes, setValue: v => setForm(f => ({ ...f, notes: v })) })
+  const closeModal = () => {
+    notesDictation.stopDictation()
+    setShowModal(false)
+  }
 
   const load = () => {
     setLoading(true)
@@ -59,6 +68,7 @@ export default function PeopleToNotifyPage() {
       } else {
         await axios.post(`${API}/sections/people-to-notify`, form)
       }
+      notesDictation.stopDictation()
       setShowModal(false)
       setSuccess(editing ? 'Person updated.' : 'Person added.')
       load()
@@ -155,7 +165,7 @@ export default function PeopleToNotifyPage() {
         </div>
       )}
 
-      <Modal show={showModal} onHide={() => setShowModal(false)} centered>
+      <Modal show={showModal} onHide={closeModal} centered>
         <Modal.Header closeButton style={{ background: 'var(--green-50)', borderBottom: '1px solid var(--green-100)' }}>
           <Modal.Title style={{ color: 'var(--green-900)', fontSize: '1.1rem' }}>
             {editing ? 'Edit person' : 'Add a person to notify'}
@@ -196,15 +206,19 @@ export default function PeopleToNotifyPage() {
               <Form.Text className="text-muted">Name the person responsible for making this call.</Form.Text>
             </Form.Group>
             <Form.Group>
-              <Form.Label>Notes</Form.Label>
+              <div className="d-flex justify-content-between align-items-center">
+                <Form.Label className="mb-0">Notes</Form.Label>
+                <DictateButton dictation={notesDictation} />
+              </div>
               <Form.Control as="textarea" rows={2} value={form.notes}
                 onChange={e => setForm({ ...form, notes: e.target.value })}
                 placeholder="Anything useful to know about reaching or telling this person..." />
+              {notesDictation.supported && <DictationDisclosure />}
             </Form.Group>
           </Form>
         </Modal.Body>
         <Modal.Footer style={{ borderTop: '1px solid var(--border)' }}>
-          <Button variant="outline-secondary" onClick={() => setShowModal(false)}>Cancel</Button>
+          <Button variant="outline-secondary" onClick={closeModal}>Cancel</Button>
           <Button variant="primary" onClick={handleSave} disabled={saving}>
             {saving ? 'Saving...' : editing ? 'Save changes' : 'Add person'}
           </Button>

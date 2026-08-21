@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { Button, Form, Row, Col, Alert, Spinner } from 'react-bootstrap'
 import axios from 'axios'
 import SectionHero from '../../components/SectionHero'
+import DictateButton from '../../components/DictateButton'
+import DictationDisclosure from '../../components/DictationDisclosure'
+import { useDictation } from '../../hooks/useDictation'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -35,6 +38,8 @@ export default function EmergencyContactPage() {
   }, [])
 
   const setField = field => e => setForm(f => ({ ...f, [field]: e.target.value }))
+
+  const notesDictation = useDictation({ getValue: () => form.emergency_contact_notes, setValue: v => setForm(f => ({ ...f, emergency_contact_notes: v })) })
 
   const save = async () => {
     setSaving(true)
@@ -101,9 +106,13 @@ export default function EmergencyContactPage() {
               </Col>
             </Row>
             <Form.Group className="mb-4">
-              <Form.Label>Notes</Form.Label>
+              <div className="d-flex justify-content-between align-items-center">
+                <Form.Label className="mb-0">Notes</Form.Label>
+                <DictateButton dictation={notesDictation} />
+              </div>
               <Form.Control as="textarea" rows={3} value={form.emergency_contact_notes} onChange={setField('emergency_contact_notes')}
                 placeholder="Anything a first responder or loved one should know, e.g. best times to reach them, a backup number." />
+              {notesDictation.supported && <DictationDisclosure />}
             </Form.Group>
             <Button variant="primary" onClick={save} disabled={saving}>
               {saving ? 'Saving...' : 'Save emergency contact'}

@@ -5,6 +5,9 @@ import axios from 'axios'
 import { useAuth } from '../../context/AuthContext'
 import { formatPhone } from '@in-good-hands/shared/format'
 import SectionHero from '../../components/SectionHero'
+import DictateButton from '../../components/DictateButton'
+import DictationDisclosure from '../../components/DictationDisclosure'
+import { useDictation } from '../../hooks/useDictation'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -44,6 +47,12 @@ export default function TrustedContactsPage() {
   const [permissions, setPermissions]     = useState([])
   const [saving, setSaving]               = useState(false)
   const [modalError, setModalError]       = useState('')
+
+  const inviteMessageDictation = useDictation({ getValue: () => form.invite_message, setValue: v => setForm(f => ({ ...f, invite_message: v })) })
+  const closeModal = () => {
+    inviteMessageDictation.stopDictation()
+    setShowModal(false)
+  }
 
   const [showLinkModal, setShowLinkModal] = useState(false)
   const [linkContact, setLinkContact]     = useState(null)
@@ -124,6 +133,7 @@ export default function TrustedContactsPage() {
           email: form.email, phone: form.phone, invite_message: form.invite_message, visible_sections: permissions,
         })
       }
+      inviteMessageDictation.stopDictation()
       setShowModal(false)
       setTcSuccess(editingContact ? `${form.name}'s details updated.` : `${form.name} added.`)
       loadContacts()
@@ -355,7 +365,7 @@ export default function TrustedContactsPage() {
       )}
 
       {/* ── Add / Edit Modal ─────────────────────────────────────────────────── */}
-      <Modal show={showModal} onHide={() => setShowModal(false)} centered size="lg">
+      <Modal show={showModal} onHide={closeModal} centered size="lg">
         <Modal.Header closeButton style={{ background: 'var(--green-50)', borderBottom: '1px solid var(--green-100)' }}>
           <Modal.Title style={{ color: 'var(--green-900)', fontSize: '1.1rem' }}>
             {editingContact ? `Edit: ${editingContact.name}` : 'Add a trusted contact'}
@@ -412,10 +422,14 @@ export default function TrustedContactsPage() {
             </Col>
             <Col xs={12}>
               <Form.Group>
-                <Form.Label>Personal message</Form.Label>
+                <div className="d-flex justify-content-between align-items-center">
+                  <Form.Label className="mb-0">Personal message</Form.Label>
+                  <DictateButton dictation={inviteMessageDictation} />
+                </div>
                 <Form.Control as="textarea" rows={2} value={form.invite_message}
                   onChange={e => setForm(f => ({ ...f, invite_message: e.target.value }))}
                   placeholder="Optional: a short note to include when you send this person their access link, e.g. This is important to me, please take a look when you can." />
+                {inviteMessageDictation.supported && <DictationDisclosure />}
               </Form.Group>
             </Col>
           </Row>
@@ -437,7 +451,7 @@ export default function TrustedContactsPage() {
           </Row>
         </Modal.Body>
         <Modal.Footer style={{ borderTop: '1px solid var(--border)' }}>
-          <Button variant="outline-secondary" onClick={() => setShowModal(false)}>Cancel</Button>
+          <Button variant="outline-secondary" onClick={closeModal}>Cancel</Button>
           <Button variant="primary" onClick={handleSave} disabled={saving}>
             {saving ? 'Saving…' : editingContact ? 'Save changes' : 'Add contact'}
           </Button>

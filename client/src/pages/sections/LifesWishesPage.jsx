@@ -5,6 +5,9 @@ import axios from 'axios'
 import SectionHero from '../../components/SectionHero'
 import ShareSectionTrigger from '../../components/ShareSectionTrigger'
 import ShareSectionHistory from '../../components/ShareSectionHistory'
+import DictateButton from '../../components/DictateButton'
+import DictationDisclosure from '../../components/DictationDisclosure'
+import { useDictation } from '../../hooks/useDictation'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -39,6 +42,12 @@ export default function LifesWishesPage() {
   const [form, setForm]           = useState(empty)
   const [filter, setFilter]       = useState('all')  // 'all' | 'dream' | 'planning' | 'completed'
 
+  const descriptionDictation = useDictation({ getValue: () => form.description, setValue: v => setForm(f => ({ ...f, description: v })) })
+  const closeModal = () => {
+    descriptionDictation.stopDictation()
+    setShowModal(false)
+  }
+
   const load = () => {
     setLoading(true)
     axios.get(`${API}/sections/lifes-wishes`)
@@ -67,6 +76,7 @@ export default function LifesWishesPage() {
       } else {
         await axios.post(`${API}/sections/lifes-wishes`, form)
       }
+      descriptionDictation.stopDictation()
       setShowModal(false)
       setSuccess(editing ? 'Wish updated.' : 'Wish added.')
       load()
@@ -214,7 +224,7 @@ export default function LifesWishesPage() {
         </div>
       )}
 
-      <Modal show={showModal} onHide={() => setShowModal(false)} centered>
+      <Modal show={showModal} onHide={closeModal} centered>
         <Modal.Header closeButton style={{ background: 'var(--green-50)', borderBottom: '1px solid var(--green-100)' }}>
           <Modal.Title style={{ color: 'var(--green-900)', fontSize: '1.1rem' }}>
             {editing ? 'Edit wish' : 'Add a wish'}
@@ -229,10 +239,14 @@ export default function LifesWishesPage() {
                 placeholder="e.g. See the Northern Lights, Write my memoir, Learn to surf" autoFocus />
             </Form.Group>
             <Form.Group className="mb-3">
-              <Form.Label>Description / Notes</Form.Label>
+              <div className="d-flex justify-content-between align-items-center">
+                <Form.Label className="mb-0">Description / Notes</Form.Label>
+                <DictateButton dictation={descriptionDictation} />
+              </div>
               <Form.Control as="textarea" rows={4} value={form.description}
                 onChange={e => setForm({ ...form, description: e.target.value })}
                 placeholder="A bit more about this wish: where, with whom, why it matters, any plans..." />
+              {descriptionDictation.supported && <DictationDisclosure />}
             </Form.Group>
             <Form.Group>
               <Form.Label>Status</Form.Label>
@@ -245,7 +259,7 @@ export default function LifesWishesPage() {
           </Form>
         </Modal.Body>
         <Modal.Footer style={{ borderTop: '1px solid var(--border)' }}>
-          <Button variant="outline-secondary" onClick={() => setShowModal(false)}>Cancel</Button>
+          <Button variant="outline-secondary" onClick={closeModal}>Cancel</Button>
           <Button variant="primary" onClick={handleSave} disabled={saving}>
             {saving ? 'Saving...' : editing ? 'Save changes' : 'Add wish'}
           </Button>
