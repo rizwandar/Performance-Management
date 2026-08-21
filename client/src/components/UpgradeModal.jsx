@@ -27,8 +27,8 @@ export default function UpgradeModal({ show, onHide, sectionName }) {
         </p>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', lineHeight: 1.7, textAlign: 'center', marginBottom: 0 }}>
           {signupTrialExpired
-            ? "Nothing you've recorded was lost, it's still all there. Subscribe to unlock all 16 sections again, document uploads, trusted contacts, and the full PDF export."
-            : 'Upgrade to unlock all 16 sections, document uploads, trusted contacts, and the full PDF export.'}
+            ? "Nothing you've recorded was lost, it's still all there. Subscribe to unlock all 18 sections again, document uploads, trusted contacts, and the full PDF export."
+            : 'Upgrade to unlock all 18 sections, document uploads, trusted contacts, and the full PDF export.'}
         </p>
       </Modal.Body>
       <Modal.Footer style={{ background: 'var(--parchment)', borderTop: '1px solid var(--border)', justifyContent: 'center', gap: 12 }}>

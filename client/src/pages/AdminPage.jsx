@@ -460,11 +460,13 @@ COLOR PALETTE: Earthy, grounded, trustworthy. Forest green (primary), warm gold 
 
 ---
 
-THE 16 SECTIONS (grouped into 4 dashboard groups):
+THE 18 SECTIONS (grouped into 4 dashboard groups):
+(Note: this count has drifted before - verify against DashboardPage.jsx's SECTIONS array if precision matters.)
 
 YOUR LEGACY:
 - How I'd Like to Be Remembered: life story, about me, what I want to be remembered for, a legacy message. Fields stored directly on the users table.
 - Messages to Loved Ones: personal messages table. One message per recipient. Recipient name, relationship, message text, notes.
+- Unfinished Business (IDEA-19): unfinished_business table. One entry per person/topic - reconciliation, apologies, loose ends. Fields: name, description, notes. Deliberately distinct from Messages to Loved Ones (final words per recipient) and My Bucket List (aspirational future goals). NOT vault-protected, free-plan accessible. Follows personal_messages' exact access model: included in the Trusted Contacts permission list, executor/access-link data, the ad-hoc section-share feature, and both PDF/standard export paths.
 - Songs That Define Me: songs_that_define_me table. Integrated with Deezer search API (proxied through backend). Fields: deezer_id, title, artist, album, why_meaningful.
 - My Bucket List: life_wishes table. Status field: dream, planning, or completed.
 
@@ -503,7 +505,7 @@ VAULT ENCRYPTION:
 
 TRUSTED CONTACTS SYSTEM:
 - Up to 3 trusted contacts per user.
-- Each contact has section-level permissions (which of the 16 sections they can view). Insurance (IDEA-29) is not yet wired into this list - see the Insurance entry above.
+- Each contact has section-level permissions (which sections they can view). Insurance and Pet Care are not yet wired into this list (a pre-existing gap - see the Insurance entry above); Unfinished Business (IDEA-19) IS wired in, matching Messages to Loved Ones' access model exactly.
 - Access via a signed link emailed to the contact. No separate login required. Valid 72 hours for the two non-Legacy-Contact slots; the Legacy Contact's link never expires (found and fixed 2026-08-06: the owner, who'd normally resend an expired link, is by definition unreachable once the plan is actually triggered).
 - Tokens stored in trusted_contact_tokens table (contact_id, token, expires_at). expires_at is NULL for a Legacy Contact's token, meaning it never expires.
 - Digital credentials (vault) are NEVER accessible to trusted contacts, Legacy Contact included.
@@ -553,7 +555,7 @@ PDF EXPORT:
 - PDFKit, A4 two-column layout, streamed to client.
 - Standard export (GET): excludes vault sections (shown as locked notice).
 - Full export (POST with vault_password): includes decrypted vault content. Sensitive data warning box shown.
-- Covers all 16 sections across 6 content pages.
+- Covers all 18 sections across 6 content pages.
 - Reads site_theme and site_font from app_settings for styled output.
 
 ---
@@ -688,12 +690,13 @@ Please confirm the stack choices above (or tell me which to change), and then we
           </div>
 
           <div style={card}>
-            <BpSection title="The 16 Sections at a Glance">
+            <BpSection title="The 18 Sections at a Glance">
               <p className="text-muted small mb-3">Organized into four groups on the dashboard. Users fill in as much or as little as they choose.</p>
               {[
                 { group: 'Your Legacy', color: '#C9A84C', icon: '✨', sections: [
                   { label: 'How I\'d Like to Be Remembered', desc: 'Your life story, what you want to be remembered for, and a final message.' },
                   { label: 'Messages to Loved Ones', desc: 'Personal letters and notes for specific people in your life.' },
+                  { label: 'Unfinished Business', desc: 'Reconciliation, apologies, and relationships or matters you would still like to set right (IDEA-19).' },
                   { label: 'Songs That Define Me', desc: 'Music that has shaped who you are, with a search tool to find tracks easily.' },
                   { label: 'My Bucket List', desc: 'Dreams, plans, and things you have already accomplished.' },
                 ]},
@@ -740,7 +743,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
                 ['Inactivity timer', 'Users set a period of inactivity (2 to 24 months). If they have not logged in by then, their trusted contacts are automatically notified with access links.'],
                 ['PDF export', 'Users can download a complete PDF summary of all their plans. A full export option includes vault contents if the vault password is provided at download time.'],
                 ['File attachments', 'Upload photos and documents (PDF, images, Word docs) to Legal Documents, Financial Affairs, Property & Possessions, and Practical Household Information. Stored securely in Cloudflare R2, access-controlled with short-lived signed URLs.'],
-                ['Premium billing', 'Free plan covers 11 of the 16 sections. Premium ($10/month or $100/year via Stripe Checkout) unlocks the 5 vault-protected sections, document uploads, full (vault-inclusive) PDF export, and the inactivity timer. Users manage or cancel/reinstate their subscription from My Profile; admins can also grant or revoke an honorary premium plan without a real Stripe subscription.'],
+                ['Premium billing', 'Free plan covers 13 of the 18 sections. Premium ($10/month or $100/year via Stripe Checkout) unlocks the 5 vault-protected sections, document uploads, full (vault-inclusive) PDF export, and the inactivity timer. Users manage or cancel/reinstate their subscription from My Profile; admins can also grant or revoke an honorary premium plan without a real Stripe subscription.'],
                 ['Admin panel', 'Operators can customize colors, fonts, site name, and logo. View all users, audit logs, and manage accounts.'],
                 ['White-label ready', 'The site name and logo can be changed by the admin. All emails and the PDF use the configured name.'],
               ]} />
@@ -789,7 +792,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
               <BpTable rows={[
                 ['Emergency contact', 'A single person to call in an emergency. Stored on the users table (emergency_contact_name, emergency_contact_relationship, emergency_contact_phone, emergency_contact_email, emergency_contact_notes). Does NOT receive plan access. Route: /sections/emergency-contact.'],
                 ['Trusted contacts', 'Up to 3 people who can view the user\'s plans. Stored in trusted_contacts table with sequence 1, 2, or 3, unchanged by the IDEA-27 page split. Route: /sections/trusted-contacts.'],
-                ['Section permissions', 'For each trusted contact, the user selects which sections that person can see. Stored in trusted_contact_permissions table. Insurance (IDEA-29) is not yet included in this list.'],
+                ['Section permissions', 'For each trusted contact, the user selects which sections that person can see. Stored in trusted_contact_permissions table. Insurance (IDEA-29) and Pet Care are not yet included in this list. Unfinished Business (IDEA-19) IS included, matching Messages to Loved Ones exactly.'],
                 ['Access links', 'A signed link is emailed to the contact, giving read-only access to permitted sections (or everything except the vault, for the Legacy Contact). No account or login needed. 72-hour validity for non-Legacy-Contact contacts, non-expiring for the Legacy Contact.'],
                 ['Token storage', 'Tokens stored in trusted_contact_tokens table (contact_id, token, expires_at). Old token replaced when a new link is sent.'],
                 ['Expired access', 'The access page checks token expiry and shows a friendly expired message if the link is too old.'],
@@ -830,7 +833,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
               <BpTable rows={[
                 ['Standard export', 'GET /api/export. No vault password needed. Vault sections show a "protected" notice.'],
                 ['Full export', 'POST /api/export with vault_password in the request body. Vault sections fully included. A sensitive data warning box appears in the PDF.'],
-                ['What is included', 'All 16 sections. Cover page with logo, user name, and date. Grouped logically across content pages.'],
+                ['What is included', 'All 18 sections. Cover page with logo, user name, and date. Grouped logically across content pages.'],
                 ['Layout', 'A4 two-column layout. Each item rendered as a card. Page breaks handled automatically.'],
                 ['Branding', 'The current theme and font from app_settings are applied. Logo is fetched from R2 and embedded on the cover page.'],
                 ['Download behavior', 'The browser receives the PDF as a stream and downloads it as a file. No temp files are created on the server.'],
@@ -984,7 +987,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
     routes/
       auth.js                # /api/auth: login, register, logout, forgot/reset password
       users.js               # /api/users/me: profile, timer, emergency contact
-      sections.js            # /api/sections: all 16 sections + vault endpoints + completion
+      sections.js            # /api/sections: all 18 sections + vault endpoints + completion
       documents.js           # /api/documents: file upload/download/delete + photos
       export.js              # /api/export: GET (standard) + POST (with vault)
       admin.js               # /api/admin: stats, users, activity log, versions, backups list/trigger
@@ -1093,14 +1096,15 @@ Please confirm the stack choices above (or tell me which to change), and then we
         </BpSection>
       </div>
 
-      {/* 5. The 16 sections */}
+      {/* 5. The 18 sections */}
       <div style={card}>
-        <BpSection title="5. The 16 User Sections">
+        <BpSection title="5. The 18 User Sections">
           <p className="text-muted small mb-3">Grouped into 4 dashboard groups. Each section has its own route and full CRUD via /api/sections.</p>
           {[
             { group: 'Your Legacy', color: '#C9A84C', sections: [
               { id: 'how_to_be_remembered', label: "How I'd Like to Be Remembered", route: '/sections/how-to-be-remembered', note: 'Fields on users table: life_story, about_me, remembered_for, legacy_message' },
               { id: 'personal_messages', label: 'Messages to Loved Ones', route: '/sections/messages', note: 'personal_messages table. One message per recipient.' },
+              { id: 'unfinished_business', label: 'Unfinished Business', route: '/sections/unfinished-business', note: 'unfinished_business table (IDEA-19). One entry per person/topic: name, description, notes. NOT vault-protected, free-plan accessible. Access/export model deliberately mirrors personal_messages exactly (Trusted Contacts permission list, executor access, ad-hoc section share, PDF/standard export).' },
               { id: 'songs_that_define_me', label: 'Songs That Define Me', route: '/sections/songs-that-define-me', note: 'songs_that_define_me table. Deezer search via /api/deezer proxy.' },
               { id: 'life_wishes', label: 'My Bucket List', route: '/sections/lifes-wishes', note: 'life_wishes table. Status: dream/planning/completed.' },
             ]},
@@ -1207,7 +1211,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
             ['Theme support', 'Reads site_theme and site_font from app_settings. THEME_PALETTES and getFonts() in generatePdf.js map to PDFKit built-in fonts (Times/Helvetica).'],
             ['Logo support', 'Reads site_logo from app_settings, fetches buffer via getFileBuffer(), embeds on cover page.'],
             ['Cover page', 'Dark header band, logo/brand name, user name, document date, legal disclaimer.'],
-            ['Content pages', '6 pages covering all 16 sections grouped logically.'],
+            ['Content pages', '6 pages covering all 18 sections grouped logically.'],
             ['Item cards', 'renderCardAt() renders a single item card at explicit (x,y). renderCards() places cards in 2-column grid with page-break logic.'],
             ['UI for export', 'ExportPage.jsx at /export. Two cards: standard and complete. Warm language and sensitive data warning.'],
           ]} />

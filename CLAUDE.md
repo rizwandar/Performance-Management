@@ -4,7 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**In Good Hands** is an end-of-life planning web and mobile app. Users record personal wishes, legal documents, financial details, medical preferences, funeral wishes, and more across 16 sections. Designated trusted contacts can access this information when the owner becomes inactive.
+**In Good Hands** is an end-of-life planning web and mobile app. Users record personal wishes, legal documents, financial details, medical preferences, funeral wishes, and more across 18 sections. Designated trusted contacts can access this information when the owner becomes inactive.
+
+<!-- NOTE (IDEA-19): this file's section count was already stale (said 16, the
+     actual dashboard had 17) before this change added an 18th. Two sibling
+     branches are adding their own sections in parallel off the same staging
+     base - this number, and the "16 sections are:" list below, will need
+     reconciling again once all three PRs land. -->
 
 Stack: React (web) + Expo/React Native (mobile) + Express (API) + PostgreSQL (database) + Cloudflare R2 (file storage).
 
@@ -78,7 +84,7 @@ The client and mobile apps import from `@in-good-hands/shared`. The Vite config 
 - `context/AuthContext.jsx` — login/logout, cached user state. The session JWT itself lives only in an httpOnly cookie set by the server (SEC-09); the client never reads or stores it, only a `csrf_token` cookie value it echoes back as an `X-CSRF-Token` header on mutating requests.
 - `context/SubscriptionContext.jsx` — freemium plan state
 
-**Section pages** follow a consistent pattern: fetch data on mount, render a list of `ItemCard` components, open a `FormModal` for create/edit. The 16 sections are: Legal Documents, Digital Vault, Financial, Medical, Property, Messages, Funeral Wishes, Obituary, Music, Pets, Charities, Biography, Bucket List, Trusted Contacts, Pet Care (its own standalone section since IDEA-18), and (since IDEA-27) Emergency Contact as its own standalone section, split out of what was previously a combined "Key Contacts" page.
+**Section pages** follow a consistent pattern: fetch data on mount, render a list of `ItemCard` components, open a `FormModal` for create/edit. The sections include: Legal Documents, Digital Vault, Financial, Medical, Property, Messages, Funeral Wishes, Obituary, Music, Pets, Charities, Biography, Bucket List, Trusted Contacts, Pet Care (its own standalone section since IDEA-18), (since IDEA-27) Emergency Contact as its own standalone section split out of what was previously a combined "Key Contacts" page, Insurance (IDEA-29), and (since IDEA-19) Unfinished Business, a reconciliation/apologies/loose-ends section deliberately distinct from Bucket List and Messages to Loved Ones. This list has drifted from the actual dashboard before (see the count note above); verify against `client/src/pages/DashboardPage.jsx`'s `SECTIONS` array rather than trusting this sentence.
 
 **Admin panel** (`pages/Admin.jsx`) — theme/font switcher (3 warm themes, 3 fonts stored in `app_settings` table), logo upload for white-labelling, user management, maintenance tools.
 

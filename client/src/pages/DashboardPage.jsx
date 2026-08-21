@@ -31,6 +31,7 @@ const ICON_SETS = {
     'children-dependants':'👶',
     'pet-care':            '🐾',
     insurance_items:      '🛡️',
+    unfinished_business:  '🕊️',
   },
   heritage: {
     how_to_be_remembered: '🕯️',
@@ -50,6 +51,7 @@ const ICON_SETS = {
     'children-dependants':'👨‍👩‍👧',
     'pet-care':            '🐕',
     insurance_items:      '☂️',
+    unfinished_business:  '🕊️',
   },
   modern: {
     how_to_be_remembered: '🕯️',
@@ -69,6 +71,7 @@ const ICON_SETS = {
     'children-dependants':'🎒',
     'pet-care':            '🐶',
     insurance_items:      '📑',
+    unfinished_business:  '🕊️',
   },
 }
 
@@ -117,6 +120,7 @@ const GROUPS = [
 const FREE_ROUTES = new Set([
   '/sections/how-to-be-remembered',
   '/sections/messages',
+  '/sections/unfinished-business',
   '/sections/songs-that-define-me',
   '/sections/lifes-wishes',
   '/sections/funeral-wishes',
@@ -149,6 +153,11 @@ const SECTIONS = [
     id: 'how_to_be_remembered', label: "How I'd Like to Be Remembered",
     icon: '🕯️', route: '/sections/how-to-be-remembered', group: 'legacy',
     description: 'Share your values, your story, and the things that define you, so those you love will always know who you were.',
+  },
+  {
+    id: 'unfinished_business', label: 'Unfinished Business',
+    icon: '🕊️', route: '/sections/unfinished-business', group: 'legacy',
+    description: 'Reconciliation, apologies, and the relationships or matters you\'d still like to set right.',
   },
   {
     id: 'songs_that_define_me', label: 'Songs That Define Me',

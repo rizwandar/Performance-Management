@@ -28,6 +28,7 @@ const SECTION_META = {
   pets:                 { label: 'Pet Care',                      isVault: false, kind: 'list' },
   how_to_be_remembered: { label: "How I'd Like to Be Remembered", isVault: false, kind: 'single' },
   insurance_items:      { label: 'Insurance',                     isVault: false, kind: 'list' },
+  unfinished_business:  { label: 'Unfinished Business',           isVault: false, kind: 'list' },
 };
 
 function isValidSection(key) {
@@ -159,6 +160,10 @@ const LIST_FIELDS = {
       ['contact', 'Contact'], ['beneficiary', 'Beneficiary'], ['notes', 'Notes'],
     ],
   },
+  unfinished_business: {
+    titleKey: 'name',
+    fields: [['description', 'Description'], ['notes', 'Notes']],
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -194,6 +199,8 @@ async function fetchRawSectionData(sectionKey, userId, vaultKey) {
       return queryAll('SELECT * FROM pets WHERE user_id = $1 ORDER BY created_at', [userId]);
     case 'insurance_items':
       return queryAll('SELECT * FROM insurance_items WHERE user_id = $1 ORDER BY created_at DESC', [userId]);
+    case 'unfinished_business':
+      return queryAll('SELECT * FROM unfinished_business WHERE user_id = $1 ORDER BY created_at', [userId]);
 
     case 'legal_documents':
     case 'financial_items':

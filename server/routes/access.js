@@ -17,10 +17,12 @@ const { isVaultProtectedSection } = require('../lib/vaultSections');
 // "vault is never accessible without exception" invariant established for
 // view-as mode (SEC-18), there is no legitimate path for vault-protected
 // content to reach this endpoint at all.
+// IDEA-19: unfinished_business follows personal_messages' access model
+// exactly here too - see the matching note in routes/trustedContacts.js.
 const EXECUTOR_SECTIONS = [
   'funeral_wishes', 'medical_wishes',
   'people_to_notify', 'personal_messages', 'songs_that_define_me',
-  'life_wishes', 'children_dependants',
+  'life_wishes', 'children_dependants', 'unfinished_business',
 ];
 
 // OPS-29: attach any files uploaded against this section (e.g. a scanned
@@ -151,6 +153,12 @@ router.get('/:token', async (req, res) => {
           `SELECT id, name, type, date_of_birth, special_needs, preferred_guardian,
                   guardian_contact, alternate_guardian, alternate_contact, notes
            FROM children_dependants WHERE user_id = $1`,
+          [tokenRow.user_id]
+        );
+        break;
+      case 'unfinished_business':
+        data.unfinished_business = await queryAll(
+          'SELECT id, name, description, notes FROM unfinished_business WHERE user_id = $1',
           [tokenRow.user_id]
         );
         break;
