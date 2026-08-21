@@ -182,6 +182,29 @@ function PropertyItems({ data, documents }) {
   ))
 }
 
+function LastMoments({ data }) {
+  if (!data || (!data.message && !data.audio_url && !data.notes)) {
+    return <p className="text-muted small">Nothing recorded.</p>
+  }
+  return (
+    <ItemCard>
+      {data.message && (
+        <p style={{ fontStyle: 'italic', color: 'var(--text)', margin: '8px 0', lineHeight: 1.7,
+          borderLeft: '3px solid var(--gold)', paddingLeft: 12 }}>
+          "{data.message}"
+        </p>
+      )}
+      {data.audio_url && (
+        <div style={{ margin: '8px 0' }}>
+          <p className="text-muted small mb-1">🎤 Voice recording</p>
+          <audio controls src={data.audio_url} style={{ width: '100%', maxWidth: 360, height: 36 }} />
+        </div>
+      )}
+      <FieldRow label="Notes" value={data.notes} />
+    </ItemCard>
+  )
+}
+
 function PersonalMessages({ data, documents }) {
   if (!data?.length) return <p className="text-muted small">No messages recorded.</p>
   return data.map(d => (
@@ -368,6 +391,7 @@ const SECTION_CONFIG = {
   life_wishes:       { label: "My Bucket List",          Component: LifeWishes,       dataKey: 'life_wishes' },
   children_dependants: { label: 'Your Loved Ones', Component: ChildrenDependants, dataKey: 'children_dependants' },
   unfinished_business: { label: 'Unfinished Business', Component: UnfinishedBusiness, dataKey: 'unfinished_business' },
+  last_moments:      { label: 'Your Last Moments',       Component: LastMoments,      dataKey: 'last_moments' },
 }
 
 // ---------------------------------------------------------------------------

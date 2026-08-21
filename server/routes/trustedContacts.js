@@ -21,7 +21,7 @@ const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
 const VALID_SECTIONS = new Set([
   'funeral_wishes', 'medical_wishes',
   'people_to_notify', 'personal_messages', 'songs_that_define_me',
-  'life_wishes', 'children_dependants', 'unfinished_business',
+  'life_wishes', 'children_dependants', 'unfinished_business', 'last_moments',
 ]);
 
 router.get('/', requireAuth, async (req, res) => {

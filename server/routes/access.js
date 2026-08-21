@@ -22,7 +22,7 @@ const { isVaultProtectedSection } = require('../lib/vaultSections');
 const EXECUTOR_SECTIONS = [
   'funeral_wishes', 'medical_wishes',
   'people_to_notify', 'personal_messages', 'songs_that_define_me',
-  'life_wishes', 'children_dependants', 'unfinished_business',
+  'life_wishes', 'children_dependants', 'unfinished_business', 'last_moments',
 ];
 
 // OPS-29: attach any files uploaded against this section (e.g. a scanned
@@ -162,6 +162,20 @@ router.get('/:token', async (req, res) => {
           [tokenRow.user_id]
         );
         break;
+      case 'last_moments': {
+        const row = await queryOne(
+          'SELECT message, notes, audio_r2_key FROM last_moments WHERE user_id = $1',
+          [tokenRow.user_id]
+        );
+        if (row) {
+          const { audio_r2_key, ...rest } = row;
+          data.last_moments = {
+            ...rest,
+            audio_url: audio_r2_key ? await getDownloadUrl(audio_r2_key) : null,
+          };
+        }
+        break;
+      }
     }
 
     const documents = await loadSectionDocuments(tokenRow.user_id, sectionId);
