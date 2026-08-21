@@ -15,7 +15,7 @@ const FREE_FEATURES = [
   'Medical and Care Wishes',
   'Key Contacts',
   'People to Notify',
-  'Children and Dependants',
+  'Your Loved Ones',
   'Pet Care',
   'Trusted contact access permissions',
 ]

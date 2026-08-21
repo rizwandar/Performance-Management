@@ -148,7 +148,7 @@ export const householdApi = {
   remove: (id)             => client.delete(`/sections/household-info/${id}`).then(r => r.data),
 }
 
-// Children & Dependants
+// Your Loved Ones (children-dependants)
 export const childrenApi = {
   getAll: ()         => client.get('/sections/children-dependants').then(r => r.data),
   add:    (data)     => client.post('/sections/children-dependants', data).then(r => r.data),

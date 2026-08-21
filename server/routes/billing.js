@@ -53,7 +53,7 @@ router.get('/plans', (req, res) => {
           'Medical and Care Wishes',
           'Key Contacts',
           'People to Notify',
-          'Children and Dependants',
+          'Your Loved Ones',
           'Pet Care',
           'Trusted contacts with access permissions',
         ],
