@@ -969,7 +969,7 @@ async function init() {
   // unrecoverable.
   await pool.query(`ALTER TABLE digital_vault ADD COLUMN IF NOT EXISTS password_hint TEXT`);
 
-  // IDEA-18: Pet Care split out of Children & Dependants into its own
+  // IDEA-18: Pet Care split out of Your Loved Ones (children_dependants) into its own
   // standalone section (14 sections becomes 15). pets mirrors the same
   // care-instruction shape children_dependants already had for the 'pet'
   // type, just with date_of_birth renamed to the looser free-text age.

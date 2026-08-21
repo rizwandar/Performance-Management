@@ -297,7 +297,7 @@ const SECTION_CONFIG = {
   personal_messages: { label: 'Messages to Loved Ones',  Component: PersonalMessages, dataKey: 'personal_messages' },
   songs_that_define_me: { label: 'Songs That Define Me', Component: SongsThatDefineMe, dataKey: 'songs_that_define_me' },
   life_wishes:       { label: "My Bucket List",          Component: LifeWishes,       dataKey: 'life_wishes' },
-  children_dependants: { label: 'Children & Dependants', Component: ChildrenDependants, dataKey: 'children_dependants' },
+  children_dependants: { label: 'Your Loved Ones', Component: ChildrenDependants, dataKey: 'children_dependants' },
 }
 
 // ---------------------------------------------------------------------------
