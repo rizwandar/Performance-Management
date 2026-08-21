@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, Form, Row, Col, Alert, Modal, Spinner, InputGroup } from 'react-bootstrap'
+import { Button, Form, Row, Col, Alert, Modal, Spinner } from 'react-bootstrap'
 import axios from 'axios'
 import { VaultSetupScreen, VaultLockScreen } from '../../components/VaultGate'
+import PasswordInput from '../../components/PasswordInput'
 import SectionHero from '../../components/SectionHero'
 import ShareSectionTrigger from '../../components/ShareSectionTrigger'
 import ShareSectionHistory from '../../components/ShareSectionHistory'
@@ -49,7 +50,6 @@ export default function DigitalLifePage() {
   const [editing, setEditing]     = useState(null)
   const [form, setForm]           = useState(emptyForm)
   const [showPasswords, setShowPasswords] = useState({})  // id → bool
-  const [showFormPw, setShowFormPw] = useState(false)
 
 
   // Check if a vault exists on mount (independent of unlock state)
@@ -105,7 +105,6 @@ export default function DigitalLifePage() {
   const openAdd = () => {
     setEditing(null)
     setForm(emptyForm)
-    setShowFormPw(false)
     setError('')
     setShowModal(true)
   }
@@ -119,7 +118,6 @@ export default function DigitalLifePage() {
       password:    item.password    || '',
       notes:       item.notes       || '',
     })
-    setShowFormPw(false)
     setError('')
     setShowModal(true)
   }
@@ -375,18 +373,12 @@ export default function DigitalLifePage() {
 
             <Form.Group className="mb-3">
               <Form.Label>Password</Form.Label>
-              <InputGroup>
-                <Form.Control
-                  type={showFormPw ? 'text' : 'password'}
-                  value={form.password}
-                  onChange={e => setForm({ ...form, password: e.target.value })}
-                  placeholder="Password"
-                  autoComplete="new-password"
-                />
-                <Button variant="outline-secondary" onClick={() => setShowFormPw(s => !s)}>
-                  {showFormPw ? 'Hide' : 'Show'}
-                </Button>
-              </InputGroup>
+              <PasswordInput
+                value={form.password}
+                onChange={e => setForm({ ...form, password: e.target.value })}
+                placeholder="Password"
+                autoComplete="new-password"
+              />
             </Form.Group>
 
             <Form.Group>

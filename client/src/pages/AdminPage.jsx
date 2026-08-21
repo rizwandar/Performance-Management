@@ -4,6 +4,7 @@ import { Form, Button, Alert, Spinner, Badge, Row, Col, Modal, Table, Dropdown }
 import axios from 'axios'
 import { applyTheme, applyFont } from '../App'
 import { useBranding } from '../context/BrandingContext'
+import PasswordInput from '../components/PasswordInput'
 import OrganizationsPanel from './admin/OrganizationsPanel'
 import LegalPanel from './admin/LegalPanel'
 import VaultSecurityPanel from './admin/VaultSecurityPanel'
@@ -2390,12 +2391,12 @@ export default function AdminPage() {
           {resetPwError && <div className="alert alert-danger py-2 small">{resetPwError}</div>}
           <Form.Group className="mb-2">
             <Form.Label className="small">New password</Form.Label>
-            <Form.Control type="password" size="sm" placeholder="Min. 8 characters"
+            <PasswordInput size="sm" placeholder="Min. 8 characters"
               value={resetPwValue} onChange={e => setResetPwValue(e.target.value)} autoFocus />
           </Form.Group>
           <Form.Group>
             <Form.Label className="small">Confirm new password</Form.Label>
-            <Form.Control type="password" size="sm" placeholder="Repeat password"
+            <PasswordInput size="sm" placeholder="Repeat password"
               value={resetPwConfirm} onChange={e => setResetPwConfirm(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleResetPassword()} />
           </Form.Group>
