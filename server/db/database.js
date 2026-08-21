@@ -1194,6 +1194,27 @@ async function init() {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS emergency_contact_relationship TEXT`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS emergency_contact_notes TEXT`);
 
+  // BIL-08: universal no-card 30-day vault trial, granted automatically to
+  // every new signup regardless of whether they ever touch Stripe. This is
+  // deliberately separate from BIL-04's card-required Stripe trial
+  // (users.trial_used_at / subscriptions.trial_ends_at) - that one requires
+  // entering a card and only starts at checkout; this one starts the moment
+  // an account is created and needs no card or checkout at all.
+  // signup_trial_started_at is set once at registration (see auth.js
+  // /register) and never cleared - lib/subscription.js treats a user as
+  // premium while now() is within 30 days of it, but only when they don't
+  // already have an active/trialing paid subscription (that always takes
+  // precedence, checked independently - see getUserPlan). Not set for
+  // pre-existing accounts, which are unaffected: they either already have a
+  // real subscription row (including the grandfathered-premium one above)
+  // or simply remain on the free plan exactly as before this change.
+  // trial_25d_reminder_sent_at / trial_28d_reminder_sent_at dedupe the day-25
+  // ("ends in 5 days") and day-28 ("ends in 2 days") reminder emails, the
+  // same one-shot pattern BIL-07 uses for card-expiry reminders.
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS signup_trial_started_at TIMESTAMPTZ`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_25d_reminder_sent_at TIMESTAMPTZ`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_28d_reminder_sent_at TIMESTAMPTZ`);
+
   console.log('[db] PostgreSQL schema ready');
 }
 

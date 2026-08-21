@@ -226,7 +226,7 @@ const SECTIONS = [
 // ---------------------------------------------------------------------------
 export default function DashboardPage() {
   const { user }       = useAuth()
-  const { isPremium }  = useSubscription()
+  const { isPremium, signupTrialExpired } = useSubscription()
   const navigate       = useNavigate()
   const [completion, setCompletion]   = useState({})
   const [loading, setLoading]         = useState(true)
@@ -410,7 +410,9 @@ export default function DashboardPage() {
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', lineHeight: 1.6, maxWidth: 540, margin: '0 auto' }}>
                   {isPremium
                     ? 'The sections below are part of your Premium plan: your legal, financial, property, digital, and household records.'
-                    : 'Everything above is free, forever. The sections below, your legal, financial, property, digital, and household records, require a Premium plan to add or edit.'}
+                    : signupTrialExpired
+                      ? "Your 30-day free trial has ended. Everything above is still free, forever, but the sections below, your legal, financial, property, digital, and household records, are now Premium-only. Nothing you recorded during your trial was lost."
+                      : 'Everything above is free, forever. The sections below, your legal, financial, property, digital, and household records, require a Premium plan to add or edit.'}
                 </p>
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.78rem', lineHeight: 1.6, maxWidth: 540, margin: '8px auto 0', fontStyle: 'italic' }}>
                   🔐 Your Personal &amp; Legal Documents and Digital Life sections hold your most sensitive
