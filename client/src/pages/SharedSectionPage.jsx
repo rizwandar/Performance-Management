@@ -32,6 +32,34 @@ function ItemCard({ children }) {
   )
 }
 
+// OPS-29: read-only list of uploaded files (a scanned will, a property deed,
+// a photo, etc.) attached to a section or a specific item within it. Mirrors
+// the pill style FileAttachments.jsx uses on the owner's own section pages,
+// minus the upload/delete controls this guest view has no business offering.
+function DocumentList({ documents }) {
+  if (!documents?.length) return null
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+      {documents.map(doc => (
+        <a
+          key={doc.id}
+          href={doc.download_url}
+          target="_blank"
+          rel="noreferrer"
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            background: 'var(--green-50)', border: '1px solid var(--green-100)',
+            borderRadius: 6, padding: '3px 8px', fontSize: '0.8rem',
+            color: 'var(--green-800)', textDecoration: 'none',
+          }}
+        >
+          <span>📎</span>{doc.original_name}
+        </a>
+      ))}
+    </div>
+  )
+}
+
 function SectionView({ view }) {
   if (view.kind === 'empty') {
     return <p className="text-muted small">Nothing has been recorded in this section yet.</p>
@@ -40,15 +68,33 @@ function SectionView({ view }) {
     return (
       <ItemCard>
         {view.fields.map(f => <FieldRow key={f.label} label={f.label} value={f.value} type={f.type} />)}
+        <DocumentList documents={view.documents} />
       </ItemCard>
     )
   }
-  return view.items.map((item, i) => (
-    <ItemCard key={i}>
-      <p style={{ fontWeight: 700, color: 'var(--green-900)', marginBottom: 8 }}>{item.title}</p>
-      {item.fields.map(f => <FieldRow key={f.label} label={f.label} value={f.value} type={f.type} />)}
-    </ItemCard>
-  ))
+  const documents = view.documents || []
+  // Most documents carry the id of the item they were attached to and render
+  // nested under that item's card; anything left over (uploaded without an
+  // item_id, or whose item was later removed) still needs to be visible
+  // rather than silently dropped, so it renders in its own card below.
+  const unassigned = documents.filter(d => !view.items.some(item => item.id === d.item_id))
+  return (
+    <>
+      {view.items.map((item, i) => (
+        <ItemCard key={item.id ?? i}>
+          <p style={{ fontWeight: 700, color: 'var(--green-900)', marginBottom: 8 }}>{item.title}</p>
+          {item.fields.map(f => <FieldRow key={f.label} label={f.label} value={f.value} type={f.type} />)}
+          <DocumentList documents={documents.filter(d => d.item_id === item.id)} />
+        </ItemCard>
+      ))}
+      {unassigned.length > 0 && (
+        <ItemCard>
+          <p style={{ fontWeight: 700, color: 'var(--green-900)', marginBottom: 8 }}>Other attached files</p>
+          <DocumentList documents={unassigned} />
+        </ItemCard>
+      )}
+    </>
+  )
 }
 
 export default function SharedSectionPage() {

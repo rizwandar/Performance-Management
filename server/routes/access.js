@@ -3,6 +3,7 @@ const router  = express.Router();
 const { queryOne, queryAll } = require('../db/database');
 const { markUserDeceased } = require('../lib/deceased');
 const { getDownloadUrl } = require('../lib/r2');
+const { isVaultProtectedSection } = require('../lib/vaultSections');
 
 // An executor's access ignores individually-granted permissions and always sees
 // every section except the vault (digital_life), which is never shareable via
@@ -14,6 +15,37 @@ const EXECUTOR_SECTIONS = [
   'people_to_notify', 'property_items', 'personal_messages', 'songs_that_define_me',
   'life_wishes', 'children_dependants',
 ];
+
+// OPS-29: attach any files uploaded against this section (e.g. a scanned
+// will, a property deed, an insurance policy) so an executor/trusted contact
+// can actually open the document, not just see its text metadata. Deliberately
+// excluded for 'digital_life' and for anything in VAULT_PROTECTED_SECTIONS
+// (legal_documents, financial_items, property_items, household_info,
+// digital_credentials): an access link has no vault password to check
+// against (see checkVault in lib/vaultAuth.js, which every authenticated
+// document download goes through), so a vault-protected file can never be
+// safely surfaced here even on a section whose plain-text fields already are.
+// household_info and digital_life never reach this loop at all today (they're
+// not in EXECUTOR_SECTIONS / trustedContacts.js's VALID_SECTIONS), but the
+// checks below stay in place as an explicit guard, not an incidental one.
+async function loadSectionDocuments(userId, sectionId) {
+  if (sectionId === 'digital_life' || isVaultProtectedSection(sectionId)) return [];
+
+  const docs = await queryAll(
+    `SELECT id, item_id, original_name, size_bytes, mime_type, r2_key
+     FROM uploaded_documents WHERE user_id = $1 AND section_id = $2`,
+    [userId, sectionId]
+  );
+  if (!docs.length) return [];
+
+  // Signed URL generated fresh per request, never stored - same pattern as
+  // the personal_messages audio attachment above and the authenticated
+  // document download route in documents.js.
+  return Promise.all(docs.map(async ({ r2_key, ...doc }) => ({
+    ...doc,
+    download_url: await getDownloadUrl(r2_key),
+  })));
+}
 
 async function loadTokenRow(token) {
   // expires_at IS NULL means "never expires" - currently only ever set that way
@@ -122,6 +154,9 @@ router.get('/:token', async (req, res) => {
         );
         break;
     }
+
+    const documents = await loadSectionDocuments(tokenRow.user_id, sectionId);
+    if (documents.length) data[`${sectionId}_documents`] = documents;
   }
 
   res.json({

@@ -222,6 +222,39 @@ async function fetchRawSectionData(sectionKey, userId, vaultKey) {
 }
 
 // ---------------------------------------------------------------------------
+// OPS-29: files uploaded against a section (e.g. a scanned will, a property
+// deed, an insurance policy) were previously invisible to a guest viewing an
+// ad-hoc section share - only the item's text metadata was ever included.
+// Deliberately excluded for any isVault section (legal_documents,
+// digital_credentials, financial_items, property_items, household_info):
+// a vault section's view is either a one-time encrypted snapshot taken at
+// share time (a signed download URL baked in then would be long expired by
+// the time it's opened) or, if ever re-fetched live, still has no vault
+// password available to check against (see checkVault in lib/vaultAuth.js,
+// which every authenticated document download normally goes through). A
+// vault-protected file can never be safely surfaced through this flow.
+// ---------------------------------------------------------------------------
+async function fetchSectionDocuments(sectionKey, userId) {
+  const meta = SECTION_META[sectionKey];
+  if (!meta || meta.isVault) return [];
+
+  const docs = await queryAll(
+    `SELECT id, item_id, original_name, size_bytes, mime_type, r2_key
+     FROM uploaded_documents WHERE user_id = $1 AND section_id = $2`,
+    [userId, sectionKey]
+  );
+  if (!docs.length) return [];
+
+  // Signed URL generated fresh per call, never stored - same pattern as the
+  // personal_messages audio attachment above and the authenticated document
+  // download route in routes/documents.js.
+  return Promise.all(docs.map(async ({ r2_key, ...doc }) => ({
+    ...doc,
+    download_url: await getDownloadUrl(r2_key),
+  })));
+}
+
+// ---------------------------------------------------------------------------
 // Shape raw data into a display-agnostic view:
 //   { kind: 'empty' }
 //   { kind: 'single', fields: [{label, value, type}] }
@@ -241,24 +274,34 @@ function shapeFields(fieldDefs, row) {
     .filter(Boolean);
 }
 
-function buildSectionView(sectionKey, raw) {
+// `documents` (OPS-29) is the array from fetchSectionDocuments above - always
+// [] for isVault sections, and generally [] for any section with no uploaded
+// files. Included as a flat, section-level list (each entry carries its own
+// item_id) rather than nested inside individual items, since not every
+// section here is item-shaped (funeral_wishes/medical_wishes/
+// how_to_be_remembered are single objects with no item id to nest under) and
+// this keeps one consistent shape across both. The guest-view page groups by
+// item_id itself where that's meaningful.
+function buildSectionView(sectionKey, raw, documents = []) {
   const meta = SECTION_META[sectionKey];
   if (!meta) throw new Error(`Unknown section: ${sectionKey}`);
 
   if (meta.kind === 'single') {
-    if (!raw) return { kind: 'empty' };
-    const fields = shapeFields(SINGLE_FIELDS[sectionKey], raw);
-    return fields.length ? { kind: 'single', fields } : { kind: 'empty' };
+    if (!raw && !documents.length) return { kind: 'empty' };
+    const fields = shapeFields(SINGLE_FIELDS[sectionKey], raw || {});
+    if (!fields.length && !documents.length) return { kind: 'empty' };
+    return { kind: 'single', fields, documents };
   }
 
   const rows = raw || [];
-  if (!rows.length) return { kind: 'empty' };
+  if (!rows.length && !documents.length) return { kind: 'empty' };
   const { titleKey, titleFallback, titlePrefix, fields: fieldDefs } = LIST_FIELDS[sectionKey];
   const items = rows.map(row => ({
+    id:     row.id,
     title:  (titlePrefix || '') + (row[titleKey] || titleFallback || 'Untitled'),
     fields: shapeFields(fieldDefs, row),
   }));
-  return { kind: 'list', items };
+  return { kind: 'list', items, documents };
 }
 
 // ---------------------------------------------------------------------------
@@ -309,6 +352,7 @@ module.exports = {
   SECTION_META,
   isValidSection,
   fetchRawSectionData,
+  fetchSectionDocuments,
   buildSectionView,
   renderViewToEmailHtml,
 };

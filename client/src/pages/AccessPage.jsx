@@ -39,9 +39,46 @@ function ItemCard({ children }) {
   )
 }
 
+// OPS-29: read-only list of uploaded files (a scanned will, a property deed,
+// a photo, etc.) attached to a section or a specific item within it. Mirrors
+// the pill style FileAttachments.jsx uses on the owner's own section pages,
+// minus the upload/delete controls this access-link view has no business
+// offering.
+function DocumentList({ documents }) {
+  if (!documents?.length) return null
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+      {documents.map(doc => (
+        <a
+          key={doc.id}
+          href={doc.download_url}
+          target="_blank"
+          rel="noreferrer"
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            background: 'var(--green-50)', border: '1px solid var(--green-100)',
+            borderRadius: 6, padding: '3px 8px', fontSize: '0.8rem',
+            color: 'var(--green-800)', textDecoration: 'none',
+          }}
+        >
+          <span>📎</span>{doc.original_name}
+        </a>
+      ))}
+    </div>
+  )
+}
+
 // ── Individual section renderers ───────────────────────────────────────────
 
-function LegalDocuments({ data }) {
+// `documents` (OPS-29) is the flat, section-level array attached by the
+// server as `data['<section_id>_documents']` - each entry carries the id of
+// the item it belongs to, so it's filtered per item here. Never present for
+// vault-protected sections (legal_documents, financial_items, property_items).
+function itemDocuments(documents, itemId) {
+  return documents?.filter(doc => doc.item_id === itemId)
+}
+
+function LegalDocuments({ data, documents }) {
   if (!data?.length) return <p className="text-muted small">No legal documents recorded.</p>
   return data.map(d => (
     <ItemCard key={d.id}>
@@ -50,11 +87,12 @@ function LegalDocuments({ data }) {
       <FieldRow label="Held by"       value={d.held_by} />
       <FieldRow label="Location"      value={d.location} />
       <FieldRow label="Notes"         value={d.notes} />
+      <DocumentList documents={itemDocuments(documents, d.id)} />
     </ItemCard>
   ))
 }
 
-function FinancialItems({ data, countryCode }) {
+function FinancialItems({ data, documents, countryCode }) {
   if (!data?.length) return <p className="text-muted small">No financial details recorded.</p>
   return data.map(d => (
     <ItemCard key={d.id}>
@@ -67,11 +105,12 @@ function FinancialItems({ data, countryCode }) {
       <FieldRow label="Contact name"      value={d.contact_name} />
       <FieldRow label="Contact phone"     value={formatPhone(d.contact_phone, countryCode)} />
       <FieldRow label="Notes"             value={d.notes} />
+      <DocumentList documents={itemDocuments(documents, d.id)} />
     </ItemCard>
   ))
 }
 
-function FuneralWishes({ data }) {
+function FuneralWishes({ data, documents }) {
   if (!data) return <p className="text-muted small">No funeral wishes recorded.</p>
   return (
     <ItemCard>
@@ -86,11 +125,12 @@ function FuneralWishes({ data }) {
       <FieldRow label="Donation charity"   value={data.donation_charity} />
       <FieldRow label="Special requests"   value={data.special_requests} />
       <FieldRow label="Additional notes"   value={data.notes} />
+      <DocumentList documents={documents} />
     </ItemCard>
   )
 }
 
-function MedicalWishes({ data, countryCode }) {
+function MedicalWishes({ data, documents, countryCode }) {
   if (!data) return <p className="text-muted small">No medical wishes recorded.</p>
   return (
     <ItemCard>
@@ -105,11 +145,12 @@ function MedicalWishes({ data, countryCode }) {
       <FieldRow label="Current medications"     value={data.current_medications} />
       <FieldRow label="Medical conditions"      value={data.medical_conditions} />
       <FieldRow label="Notes"                   value={data.notes} />
+      <DocumentList documents={documents} />
     </ItemCard>
   )
 }
 
-function PeopleToNotify({ data, countryCode }) {
+function PeopleToNotify({ data, documents, countryCode }) {
   if (!data?.length) return <p className="text-muted small">No people to notify recorded.</p>
   return data.map(d => (
     <ItemCard key={d.id}>
@@ -119,11 +160,12 @@ function PeopleToNotify({ data, countryCode }) {
       <FieldRow label="Phone"         value={formatPhone(d.phone, countryCode)} />
       <FieldRow label="Notified by"   value={d.notified_by} />
       <FieldRow label="Notes"         value={d.notes} />
+      <DocumentList documents={itemDocuments(documents, d.id)} />
     </ItemCard>
   ))
 }
 
-function PropertyItems({ data }) {
+function PropertyItems({ data, documents }) {
   if (!data?.length) return <p className="text-muted small">No property or possessions recorded.</p>
   return data.map(d => (
     <ItemCard key={d.id}>
@@ -135,11 +177,12 @@ function PropertyItems({ data }) {
       <FieldRow label="Location"           value={d.location} />
       <FieldRow label="Intended recipient" value={d.intended_recipient} />
       <FieldRow label="Notes"              value={d.notes} />
+      <DocumentList documents={itemDocuments(documents, d.id)} />
     </ItemCard>
   ))
 }
 
-function PersonalMessages({ data }) {
+function PersonalMessages({ data, documents }) {
   if (!data?.length) return <p className="text-muted small">No messages recorded.</p>
   return data.map(d => (
     <ItemCard key={d.id}>
@@ -160,11 +203,12 @@ function PersonalMessages({ data }) {
         </div>
       )}
       <FieldRow label="Notes" value={d.notes} />
+      <DocumentList documents={itemDocuments(documents, d.id)} />
     </ItemCard>
   ))
 }
 
-function SongsThatDefineMe({ data }) {
+function SongsThatDefineMe({ data, documents }) {
   if (!data?.length) return <p className="text-muted small">No songs recorded.</p>
   return data.map(d => (
     <ItemCard key={d.id}>
@@ -176,11 +220,12 @@ function SongsThatDefineMe({ data }) {
           "{d.why_meaningful}"
         </p>
       )}
+      <DocumentList documents={itemDocuments(documents, d.id)} />
     </ItemCard>
   ))
 }
 
-function LifeWishes({ data }) {
+function LifeWishes({ data, documents }) {
   if (!data?.length) return <p className="text-muted small">No wishes recorded.</p>
   const STATUS_COLORS = { dream: '#7c6a4e', planning: '#2D5A3D', completed: '#1A3D28' }
   return data.map(d => (
@@ -196,6 +241,7 @@ function LifeWishes({ data }) {
       <FieldRow label="Description" value={d.description} />
       <FieldRow label="Category"    value={d.category} />
       <FieldRow label="Notes"       value={d.notes} />
+      <DocumentList documents={itemDocuments(documents, d.id)} />
     </ItemCard>
   ))
 }
@@ -204,7 +250,7 @@ const DEPENDANT_TYPE_LABELS = {
   child: 'Child', elderly_parent: 'Elderly parent / relative', other: 'Other dependant',
 }
 
-function ChildrenDependants({ data }) {
+function ChildrenDependants({ data, documents }) {
   if (!data?.length) return <p className="text-muted small">No children or dependants recorded.</p>
   return data.map(d => (
     <ItemCard key={d.id}>
@@ -223,6 +269,7 @@ function ChildrenDependants({ data }) {
       <FieldRow label="Alternate guardian"      value={d.alternate_guardian} />
       <FieldRow label="Their contact details"   value={d.alternate_contact} />
       <FieldRow label="Notes"                   value={d.notes} />
+      <DocumentList documents={itemDocuments(documents, d.id)} />
     </ItemCard>
   ))
 }
@@ -450,7 +497,11 @@ export default function AccessPage() {
         const { label, Component, dataKey } = config
         return (
           <SectionBlock key={sectionId} title={label}>
-            <Component data={data[dataKey]} countryCode={owner.country_code} />
+            <Component
+              data={data[dataKey]}
+              documents={data[`${sectionId}_documents`]}
+              countryCode={owner.country_code}
+            />
           </SectionBlock>
         )
       })}
