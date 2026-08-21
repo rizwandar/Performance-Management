@@ -80,37 +80,37 @@ const GROUPS = [
     id:          'people',
     label:       'Your People',
     description: 'The important people in your life and who should be involved.',
-    cardBg:      '#F7EDE7',
-    cardBorder:  '#E4C8B4',
-    startedBorder: '#B87A50',
-    iconBg:      '#EDD8C8',
+    cardBg:      'var(--group-people-bg, #F7EDE7)',
+    cardBorder:  'var(--group-people-border, #E4C8B4)',
+    startedBorder: 'var(--group-people-pill, #B87A50)',
+    iconBg:      'var(--group-people-icon, #EDD8C8)',
   },
   {
     id:          'legacy',
     label:       'Your Legacy',
     description: 'Who you are, what you love, and what you want to leave behind.',
-    cardBg:      '#FBF5E4',
-    cardBorder:  '#E8D8A8',
-    startedBorder: '#C9A84C',
-    iconBg:      '#F5EAC8',
+    cardBg:      'var(--group-legacy-bg, #FBF5E4)',
+    cardBorder:  'var(--group-legacy-border, #E8D8A8)',
+    startedBorder: 'var(--group-legacy-pill, #C9A84C)',
+    iconBg:      'var(--group-legacy-icon, #F5EAC8)',
   },
   {
     id:          'wishes',
     label:       'Your Wishes',
     description: "How you'd like to be cared for and farewelled.",
-    cardBg:      '#EEF4EE',
-    cardBorder:  '#C4DCC4',
-    startedBorder: '#5A9A5A',
-    iconBg:      '#D8ECD8',
+    cardBg:      'var(--group-wishes-bg, #EEF4EE)',
+    cardBorder:  'var(--group-wishes-border, #C4DCC4)',
+    startedBorder: 'var(--group-wishes-pill, #5A9A5A)',
+    iconBg:      'var(--group-wishes-icon, #D8ECD8)',
   },
   {
     id:          'affairs',
     label:       'Your Affairs',
     description: 'Your documents, assets, finances, and practical matters.',
-    cardBg:      '#EEEAE5',
-    cardBorder:  '#D4CCC4',
-    startedBorder: '#8A7A6A',
-    iconBg:      '#E0D8D0',
+    cardBg:      'var(--group-affairs-bg, #EEEAE5)',
+    cardBorder:  'var(--group-affairs-border, #D4CCC4)',
+    startedBorder: 'var(--group-affairs-pill, #8A7A6A)',
+    iconBg:      'var(--group-affairs-icon, #E0D8D0)',
   },
 ]
 
@@ -528,7 +528,7 @@ export default function DashboardPage() {
                         <div className="d-flex justify-content-between align-items-end mt-3">
                           <div>
                             {locked && (
-                              <Badge style={{
+                              <Badge bg={null} style={{
                                 fontSize: '0.67rem', background: '#8A7A6A',
                                 color: '#ffffff', fontWeight: 600, border: 'none', padding: '3px 8px',
                               }}>
@@ -536,10 +536,10 @@ export default function DashboardPage() {
                               </Badge>
                             )}
                             {!locked && !started && (
-                              <Badge style={{
+                              <Badge bg={null} style={{
                                 fontSize: '0.67rem',
                                 background: group.startedBorder,
-                                color: '#ffffff',
+                                color: 'var(--group-pill-text, #ffffff)',
                                 fontWeight: 600,
                                 border: 'none',
                                 padding: '3px 8px',
