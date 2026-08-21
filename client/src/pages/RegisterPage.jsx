@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { Card, Form, Button, Alert, Row, Col } from 'react-bootstrap'
 import axios from 'axios'
+import PasswordInput from '../components/PasswordInput'
 import { getRetryAfterSeconds, rateLimitMessage, useCountdown } from '../utils/rateLimit'
 
 // ISO 3166-1 alpha-2 country list with compliance regime tags
@@ -263,8 +264,7 @@ export default function RegisterPage() {
             <Row className="g-3 mb-4">
               <Col md={6}>
                 <Form.Label>Password</Form.Label>
-                <Form.Control
-                  type="password"
+                <PasswordInput
                   value={form.password}
                   onChange={e => setForm({ ...form, password: e.target.value })}
                   required
@@ -274,8 +274,7 @@ export default function RegisterPage() {
               </Col>
               <Col md={6}>
                 <Form.Label>Confirm Password</Form.Label>
-                <Form.Control
-                  type="password"
+                <PasswordInput
                   value={form.confirm_password}
                   onChange={e => setForm({ ...form, confirm_password: e.target.value })}
                   required

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { Card, Form, Button, Alert } from 'react-bootstrap'
 import axios from 'axios'
+import PasswordInput from '../components/PasswordInput'
 import { getRetryAfterSeconds, rateLimitMessage, useCountdown } from '../utils/rateLimit'
 
 const API = import.meta.env.VITE_API_URL
@@ -90,8 +91,7 @@ export default function ResetPasswordPage() {
           <Form onSubmit={handleSubmit}>
             <Form.Group className="mb-3">
               <Form.Label>New password</Form.Label>
-              <Form.Control
-                type="password"
+              <PasswordInput
                 value={form.password}
                 onChange={e => setForm({ ...form, password: e.target.value })}
                 required
@@ -101,8 +101,7 @@ export default function ResetPasswordPage() {
             </Form.Group>
             <Form.Group className="mb-4">
               <Form.Label>Confirm new password</Form.Label>
-              <Form.Control
-                type="password"
+              <PasswordInput
                 value={form.confirm}
                 onChange={e => setForm({ ...form, confirm: e.target.value })}
                 required
