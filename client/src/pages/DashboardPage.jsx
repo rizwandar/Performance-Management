@@ -264,6 +264,16 @@ export default function DashboardPage() {
   const nextSection   = SECTIONS.find(s => !isStarted(s)) || SECTIONS[0]
   const progressPct   = Math.round((startedCount / SECTIONS.length) * 100)
 
+  // "Continue where you left off": walk sections in the order they actually
+  // appear on the page (group by group, in GROUPS order; within a group, in
+  // SECTIONS order) and suggest the first one that hasn't been started yet.
+  // Deliberately re-derived from the live GROUPS/SECTIONS arrays rather than
+  // hardcoding a section, so an independent reordering of either array (e.g.
+  // by "warmth") is picked up automatically.
+  const nextIncompleteSection = GROUPS
+    .flatMap(group => SECTIONS.filter(s => s.group === group.id))
+    .find(s => !isStarted(s))
+
   if (loading) return (
     <div className="text-center py-5">
       <Spinner animation="border" style={{ color: 'var(--green-800)' }} />
@@ -389,6 +399,26 @@ export default function DashboardPage() {
             Or simply scroll down and click any section that calls to you.
           </p>
         </div>
+      )}
+
+      {/* ── Continue where you left off ──────────────────────────────────── */}
+      {nextIncompleteSection && (
+        <p style={{
+          fontSize: '0.82rem', color: 'var(--text-muted)', margin: '0 0 18px',
+        }}>
+          Next:{' '}
+          <button
+            type="button"
+            onClick={() => navigate(nextIncompleteSection.route)}
+            style={{
+              background: 'none', border: 'none', padding: 0,
+              color: 'var(--green-800)', fontWeight: 700, textDecoration: 'underline',
+              cursor: 'pointer', fontFamily: 'inherit', fontSize: 'inherit',
+            }}
+          >
+            {nextIncompleteSection.label}
+          </button>
+        </p>
       )}
 
       {/* ── Section groups ─────────────────────────────────────────────────── */}
