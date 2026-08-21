@@ -221,6 +221,38 @@ function trialEndingReminderEmail({ name, planName, price, chargeDate }) {
 }
 
 // ---------------------------------------------------------------------------
+// Signup trial ending reminder (BIL-08) - sent at day 25 (5 days left) and
+// day 28 (2 days left) of the universal no-card 30-day vault trial every
+// new account gets automatically. Unlike BIL-04's trialEndingReminderEmail
+// above, no card is ever charged when this trial ends: access simply
+// reverts to the free plan, and nothing is deleted.
+// ---------------------------------------------------------------------------
+function signupTrialEndingReminderEmail({ name, daysLeft, endDate }) {
+  const daysText = daysLeft === 1 ? '1 day' : `${daysLeft} days`;
+  return layout(`
+    <p>Dear ${name},</p>
+    <p>
+      Your free trial of full <strong>${APP_NAME}</strong> access ends in <strong>${daysText}</strong>,
+      on <strong>${endDate}</strong>.
+    </p>
+    <p>
+      No card is on file and nothing will be charged. After your trial ends, your account and
+      everything you've recorded will stay exactly as it is, but sections like Personal and Legal
+      Documents, Digital Life, Financial Affairs, Property, and Household Information will move
+      back to Premium-only access until you subscribe.
+    </p>
+    <p style="background:#F0F9FF; border:1px solid #BAE6FD; border-radius:8px; padding:14px 16px; color:#0C4A6E; font-size:14px;">
+      Want to keep everything unlocked? You can subscribe to Premium any time before ${endDate}, with no gap in access.
+    </p>
+    ${button('See Premium plans', `${APP_URL}/upgrade`)}
+    <p style="color:#6B7280; font-size:14px;">
+      With care,<br/>
+      The ${APP_NAME} team
+    </p>
+  `);
+}
+
+// ---------------------------------------------------------------------------
 // Payment confirmation (BIL-07) - sent right after a successful charge,
 // whether that's the first payment after a trial or a routine renewal.
 // ---------------------------------------------------------------------------
@@ -906,6 +938,7 @@ module.exports = {
   passwordResetEmail,
   inactivityReminderEmail,
   trialEndingReminderEmail,
+  signupTrialEndingReminderEmail,
   paymentConfirmationEmail,
   refundConfirmationEmail,
   subscriptionCancelledEmail,
