@@ -2,7 +2,11 @@
 // upload routes' allowlist check alone isn't enough - this verifies the
 // uploaded bytes actually look like the file type they claim to be, using
 // each format's magic-byte signature (SEC-11).
-const SIGNATURES = {
+// Kept as a Map (not a plain object) so an attacker-chosen ext value can
+// never resolve to an inherited Object.prototype property (e.g. "toString",
+// "constructor") - Map has no such prototype-lookup surface, so a missing
+// key is always exactly `undefined`, not a false positive.
+const SIGNATURES = new Map(Object.entries({
   pdf: (buf) => buf.subarray(0, 5).toString('latin1') === '%PDF-',
 
   jpg: (buf) => buf.length >= 3 && buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF,
@@ -61,21 +65,14 @@ const SIGNATURES = {
     buf.subarray(0, 3).toString('latin1') === 'ID3' ||
     (buf[0] === 0xFF && (buf[1] & 0xE0) === 0xE0)
   ),
-};
+}));
 
-SIGNATURES.jpeg = SIGNATURES.jpg;
-SIGNATURES.m4a  = SIGNATURES.mp4; // same ISOBMFF container as mp4
+SIGNATURES.set('jpeg', SIGNATURES.get('jpg'));
+SIGNATURES.set('m4a',  SIGNATURES.get('mp4')); // same ISOBMFF container as mp4
 
 function matchesExtension(buffer, ext) {
-  const key = ext?.toLowerCase();
-  // Require key to be an own property of SIGNATURES before ever using it as
-  // a lookup, not merely truthy - otherwise an attacker-chosen ext value
-  // matching an inherited Object.prototype property name (e.g. "toString",
-  // "constructor") would resolve to that inherited function instead of
-  // undefined, and calling it would produce a misleading truthy result
-  // instead of `false`, rather than throwing or being caught here.
-  if (!Object.prototype.hasOwnProperty.call(SIGNATURES, key)) return false;
-  return SIGNATURES[key](buffer);
+  const check = SIGNATURES.get(ext?.toLowerCase());
+  return check ? check(buffer) : false;
 }
 
 module.exports = { matchesExtension };
