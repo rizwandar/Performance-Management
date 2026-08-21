@@ -37,6 +37,27 @@ async function findConsumerUserByCustomerId(customerId) {
   );
 }
 
+// BIL-07 fix: on a brand-new subscription, Stripe does not guarantee event
+// delivery order across event types - invoice.payment_succeeded can arrive
+// before checkout.session.completed has finished writing subscriptions.
+// provider_customer_id for that customer. When that race happens,
+// findConsumerUserByCustomerId above finds no row and the payment
+// confirmation email is silently skipped (no error, since the customer
+// genuinely isn't linked yet). Falls back to the invoice's own
+// customer_email (always present on a Stripe invoice) matched directly
+// against users.email - only once the customer id is confirmed not to
+// belong to an organization, so this can't misfire a consumer-styled email
+// at an org customer's address. Renewals are unaffected either way, since
+// by then the subscriptions row has long existed.
+async function findConsumerUserForInvoice(invoice) {
+  const user = await findConsumerUserByCustomerId(invoice.customer);
+  if (user) return user;
+  if (!invoice.customer_email) return null;
+  const org = await queryOne('SELECT id FROM organizations WHERE stripe_customer_id = $1', [invoice.customer]);
+  if (org) return null;
+  return queryOne('SELECT id, name, email FROM users WHERE email = $1', [invoice.customer_email]);
+}
+
 const ORG_PRICE_TO_TIER = {
   [ORG_PRICE_IDS.professional]: 'professional',
   [ORG_PRICE_IDS.growth]:       'growth',
@@ -289,16 +310,21 @@ module.exports.handler = async (req, res) => {
         // matching the same amount_paid > 0 guard GET /billing/history uses.
         const invoice = event.data.object;
         if (invoice.amount_paid > 0) {
-          const user = await findConsumerUserByCustomerId(invoice.customer);
+          const user = await findConsumerUserForInvoice(invoice);
           if (user) {
             const chargeDate = new Date((invoice.status_transitions?.paid_at || invoice.created) * 1000)
               .toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+            // Prefer the invoice's own line-item price (always accurate and
+            // present regardless of which lookup path found the user) over
+            // user.provider_price_id, which is undefined on the email-fallback
+            // path above since that query doesn't join through subscriptions.
+            const priceId = invoice.lines?.data?.[0]?.price?.id || user.provider_price_id;
             await sendEmail({
               to:      user.email,
               subject: `Your ${APP_NAME} payment was successful`,
               html:    paymentConfirmationEmail({
                 name:        user.name,
-                planName:    PLAN_DISPLAY[user.provider_price_id] || 'Premium',
+                planName:    PLAN_DISPLAY[priceId] || 'Premium',
                 price:       `$${(invoice.amount_paid / 100).toFixed(2)}`,
                 chargeDate,
                 receiptUrl:  invoice.hosted_invoice_url || null,
