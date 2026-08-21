@@ -463,6 +463,28 @@ async function init() {
     )
   `);
 
+  // Subscription lifecycle events (BIL-08): a lightweight ledger of billing
+  // events that aren't a Stripe invoice, so the customer-facing billing
+  // history can show more than "here's what you were charged". Populated
+  // from server/routes/stripeWebhook.js at the same points those events
+  // already trigger a confirmation email, logged independently of whether
+  // that email send succeeds so a Resend outage never silently loses the
+  // event. event_type is one of: 'cancelled', 'reinstated',
+  // 'payment_succeeded', 'refunded'. metadata is a JSON string with
+  // whatever context is useful for that event type (amount, price, plan);
+  // kept as TEXT rather than a typed JSON column to match the metadata
+  // columns already used elsewhere in this file (user_audit_logs,
+  // organization_billing_events).
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS subscription_events (
+      id          SERIAL PRIMARY KEY,
+      user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      event_type  TEXT NOT NULL,
+      occurred_at TIMESTAMPTZ DEFAULT NOW(),
+      metadata    TEXT
+    )
+  `);
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS favourite_songs (
       id        SERIAL PRIMARY KEY,

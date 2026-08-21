@@ -234,13 +234,50 @@ router.post('/portal-session', auth, async (req, res) => {
 // charges, since each subscription renewal produces one invoice with a
 // clean paid amount, whereas charges can include uncaptured/failed
 // attempts that would be confusing to show as "payment history".
+//
+// BIL-08: also returns subscription lifecycle events (cancelled, reinstated,
+// refunded) from the subscription_events table, so support no longer has to
+// dig through Stripe to answer "did my cancellation actually go through".
+// Response shape:
+//   payments  - unchanged from before this change, kept for backward
+//               compatibility with any existing client reading `payments`
+//               directly (transaction id + receipt link per paid invoice).
+//   events    - lifecycle events only (cancelled/reinstated/refunded).
+//               'payment_succeeded' rows exist in subscription_events too
+//               (logged for an audit trail independent of Stripe/email
+//               availability), but are deliberately left out of both
+//               `events` and `activity` here: `payments` above already
+//               lists every paid invoice straight from Stripe with its
+//               receipt link, so replaying 'payment_succeeded' rows would
+//               just show each payment twice on the client.
+//   activity  - `payments` and `events` merged into one chronologically
+//               sorted feed the client can render directly as a simple
+//               narrative timeline, separate from the detailed `payments`
+//               table which keeps its transaction ids/receipt links as-is.
 router.get('/history', auth, async (req, res) => {
+  let events = [];
+  try {
+    const rows = await queryAll(
+      `SELECT event_type, occurred_at, metadata FROM subscription_events
+       WHERE user_id = $1 AND event_type != 'payment_succeeded'
+       ORDER BY occurred_at DESC`,
+      [req.user.id]
+    );
+    events = rows.map(row => ({
+      type: row.event_type,
+      date: new Date(row.occurred_at).toISOString(),
+      ...(row.metadata ? JSON.parse(row.metadata) : {}),
+    }));
+  } catch (err) {
+    console.error('[billing] Subscription events fetch failed:', err.message);
+  }
+
   const sub = await queryOne(
     'SELECT provider, provider_customer_id FROM subscriptions WHERE user_id = $1',
     [req.user.id]
   );
   if (!sub || sub.provider !== 'stripe' || !sub.provider_customer_id) {
-    return res.json({ payments: [] });
+    return res.json({ payments: [], events, activity: events });
   }
   try {
     const invoices = await stripe.invoices.list({ customer: sub.provider_customer_id, limit: 100 });
@@ -254,7 +291,13 @@ router.get('/history', auth, async (req, res) => {
         receipt_url: inv.hosted_invoice_url || null,
       }))
       .sort((a, b) => new Date(b.date) - new Date(a.date));
-    res.json({ payments });
+
+    const activity = [
+      ...payments.map(p => ({ type: 'payment_succeeded', date: p.date, amount: p.amount, currency: p.currency, receipt_url: p.receipt_url })),
+      ...events,
+    ].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    res.json({ payments, events, activity });
   } catch (err) {
     console.error('[billing] Payment history fetch failed:', err.message);
     res.status(500).json({ error: 'Could not load your payment history. Please try again.' });

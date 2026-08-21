@@ -149,6 +149,7 @@ export default function ProfilePage() {
   const [billingMessage, setBillingMessage] = useState('')
   const [billingError, setBillingError]     = useState('')
   const [paymentHistory, setPaymentHistory] = useState([])
+  const [billingActivity, setBillingActivity] = useState([])
 
   useEffect(() => {
     const loadProfile = axios.get(`${API}/users/me`)
@@ -204,7 +205,10 @@ export default function ProfilePage() {
       .catch(() => {})
 
     const loadPaymentHistory = axios.get(`${API}/billing/history`)
-      .then(r => setPaymentHistory(r.data.payments || []))
+      .then(r => {
+        setPaymentHistory(r.data.payments || [])
+        setBillingActivity(r.data.activity || [])
+      })
       .catch(() => {})
 
     Promise.all([loadProfile, loadTimer, loadVault, loadBilling, loadPaymentHistory]).finally(() => setLoading(false))
@@ -583,6 +587,28 @@ export default function ProfilePage() {
     if (!iso) return 'Not set'
     try { return new Date(iso).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' }) }
     catch { return iso }
+  }
+
+  // BIL-08: human-readable line for one entry in the merged billing activity
+  // timeline (payments, refunds, cancellations, reinstatements). Kept as
+  // plain text, no em dashes, per the project's UI text convention.
+  const describeActivity = item => {
+    switch (item.type) {
+      case 'payment_succeeded':
+        return `Payment received: $${Number(item.amount).toFixed(2)} ${(item.currency || 'usd').toUpperCase()}`
+      case 'refunded':
+        return `Refund issued: ${item.amount || ''}`
+      case 'cancelled':
+        return item.accessUntilDate
+          ? `Subscription cancelled. Access continues until ${item.accessUntilDate}.`
+          : 'Subscription cancelled'
+      case 'reinstated':
+        return item.nextBillingDate
+          ? `Subscription reinstated. Next billing date: ${item.nextBillingDate}.`
+          : 'Subscription reinstated'
+      default:
+        return 'Billing update'
+    }
   }
 
   if (loading) return (
@@ -1338,6 +1364,27 @@ export default function ProfilePage() {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* ── Account Activity ─────────────────────────────────────────────── */}
+      {/* BIL-08: a simple narrative timeline (payments, refunds,
+          cancellations, reinstatements) separate from the detailed Payment
+          History table above, which keeps its transaction ids and receipt
+          links unchanged. This is the quick answer to "did my cancellation
+          actually go through" without digging through Stripe or support. */}
+      {billingActivity.length > 0 && (
+        <div style={{ background: 'var(--parchment)', borderRadius: 12, padding: '24px', border: '1px solid var(--border)', marginTop: 24 }}>
+          <h6 style={{ color: 'var(--green-900)', marginBottom: 12 }}>Account Activity</h6>
+          <ul className="list-unstyled mb-0">
+            {billingActivity.map((item, i) => (
+              <li key={i} className="d-flex justify-content-between align-items-start gap-3"
+                style={{ padding: '8px 0', borderBottom: i < billingActivity.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                <span>{describeActivity(item)}</span>
+                <span className="text-muted small text-nowrap">{formatDate(item.date)}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 

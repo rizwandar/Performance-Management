@@ -294,6 +294,13 @@ module.exports.handler = async (req, res) => {
             if (user) {
               const accessUntilDate = new Date(subscription.items.data[0]?.current_period_end * 1000)
                 .toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+              // BIL-08: logged as its own statement (not chained off the email
+              // promise below) so the event still lands in the customer's
+              // billing history even if the Resend send fails or times out.
+              await query(
+                'INSERT INTO subscription_events (user_id, event_type, metadata) VALUES ($1, $2, $3)',
+                [user.id, 'cancelled', JSON.stringify({ accessUntilDate })]
+              ).catch(err => console.error('[stripe webhook] Failed to log cancellation event:', err.message));
               await sendEmail({
                 to:      user.email,
                 subject: `Your ${APP_NAME} subscription has been cancelled`,
@@ -317,6 +324,10 @@ module.exports.handler = async (req, res) => {
               const price = item?.price?.unit_amount != null
                 ? `$${(item.price.unit_amount / 100).toFixed(2)}`
                 : null;
+              await query(
+                'INSERT INTO subscription_events (user_id, event_type, metadata) VALUES ($1, $2, $3)',
+                [user.id, 'reinstated', JSON.stringify({ nextBillingDate, price })]
+              ).catch(err => console.error('[stripe webhook] Failed to log reinstatement event:', err.message));
               await sendEmail({
                 to:      user.email,
                 subject: `Your ${APP_NAME} subscription has been reinstated`,
@@ -343,13 +354,23 @@ module.exports.handler = async (req, res) => {
             // user.provider_price_id, which is undefined on the email-fallback
             // path above since that query doesn't join through subscriptions.
             const priceId = invoice.lines?.data?.[0]?.price?.id || user.provider_price_id;
+            const amount = `$${(invoice.amount_paid / 100).toFixed(2)}`;
+            // BIL-08: logged here too for a complete audit trail, but note
+            // GET /billing/history does not re-surface 'payment_succeeded'
+            // rows in its merged timeline - that endpoint already lists every
+            // paid invoice straight from Stripe, so replaying them here as
+            // well would just show each payment twice on the client.
+            await query(
+              'INSERT INTO subscription_events (user_id, event_type, metadata) VALUES ($1, $2, $3)',
+              [user.id, 'payment_succeeded', JSON.stringify({ amount, planName: PLAN_DISPLAY[priceId] || 'Premium', chargeDate })]
+            ).catch(err => console.error('[stripe webhook] Failed to log payment_succeeded event:', err.message));
             await sendEmail({
               to:      user.email,
               subject: `Your ${APP_NAME} payment was successful`,
               html:    paymentConfirmationEmail({
                 name:        user.name,
                 planName:    PLAN_DISPLAY[priceId] || 'Premium',
-                price:       `$${(invoice.amount_paid / 100).toFixed(2)}`,
+                price:       amount,
                 chargeDate,
                 receiptUrl:  invoice.hosted_invoice_url || null,
               }),
@@ -364,12 +385,17 @@ module.exports.handler = async (req, res) => {
         if (user) {
           const chargeDate = new Date(charge.created * 1000)
             .toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+          const amount = `$${(charge.amount_refunded / 100).toFixed(2)}`;
+          await query(
+            'INSERT INTO subscription_events (user_id, event_type, metadata) VALUES ($1, $2, $3)',
+            [user.id, 'refunded', JSON.stringify({ amount, chargeDate })]
+          ).catch(err => console.error('[stripe webhook] Failed to log refunded event:', err.message));
           await sendEmail({
             to:      user.email,
             subject: `Your ${APP_NAME} refund has been processed`,
             html:    refundConfirmationEmail({
               name:   user.name,
-              amount: `$${(charge.amount_refunded / 100).toFixed(2)}`,
+              amount,
               chargeDate,
             }),
           }).catch(err => console.error('[stripe webhook] Refund confirmation email failed:', err.message));
