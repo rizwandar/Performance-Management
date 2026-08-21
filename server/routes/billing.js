@@ -73,17 +73,17 @@ router.get('/plans', (req, res) => {
       {
         id:            'monthly',
         name:          'Premium Monthly',
-        // NOTE (IDEA-19): bumped from 16 to 18 - the pre-existing "16" text was
-        // already one behind the actual 17-section dashboard even before this
-        // change (an undocumented drift, not something this section caused).
-        // Two sibling branches are adding their own sections in parallel off
-        // the same staging base - this number will need reconciling again
-        // once all three land.
-        description:   'Full access to all 18 sections, billed monthly',
+        // NOTE: section count reconciled to 19 after IDEA-19 (Unfinished
+        // Business) and IDEA-30 (Your Last Moments) both landed off the same
+        // staging base (17 baseline + 2). Grep for "18 sections"/"19 sections"
+        // before trusting this number again if another section-adding branch
+        // lands concurrently.
+        description:   'Full access to all 19 sections, billed monthly',
         price_monthly: 10,
         price_annual:  null,
         features: [
           'All free sections',
+          'Your Last Moments (a dedicated final recording or letter)',
           'Personal and Legal Documents',
           'Property and Possessions',
           'Financial Affairs',

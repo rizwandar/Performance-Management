@@ -32,6 +32,7 @@ const ICON_SETS = {
     'pet-care':            '🐾',
     insurance_items:      '🛡️',
     unfinished_business:  '🕊️',
+    last_moments:         '🎙️',
   },
   heritage: {
     how_to_be_remembered: '🕯️',
@@ -52,6 +53,10 @@ const ICON_SETS = {
     'pet-care':            '🐕',
     insurance_items:      '☂️',
     unfinished_business:  '🕊️',
+    // Distinct from unfinished_business's dove above (both landed off the
+    // same staging base and originally picked the same emoji) - reuses the
+    // mic used for this section in the classic theme instead.
+    last_moments:         '🎙️',
   },
   modern: {
     how_to_be_remembered: '🕯️',
@@ -72,6 +77,7 @@ const ICON_SETS = {
     'pet-care':            '🐶',
     insurance_items:      '📑',
     unfinished_business:  '🕊️',
+    last_moments:         '🎤',
   },
 }
 
@@ -168,6 +174,14 @@ const SECTIONS = [
     id: 'life_wishes', label: 'My Bucket List',
     icon: '✨', route: '/sections/lifes-wishes', group: 'legacy',
     description: "The dreams you're still chasing, the places you want to see, and the experiences that light you up.",
+  },
+  {
+    // IDEA-30: premium-only, unlike its "legacy" groupmates above - not in
+    // FREE_ROUTES below, deliberately. See IDEA-30 memory notes for the
+    // vault-protection default assumption flagged alongside this.
+    id: 'last_moments', label: 'Your Last Moments',
+    icon: '🎙️', route: '/sections/last-moments', group: 'legacy',
+    description: 'One last, lasting recording or letter for the people you love most: separate from your other messages.',
   },
 
   // ── Your People ────────────────────────────────────────────────────────────

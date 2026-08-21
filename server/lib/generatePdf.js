@@ -301,6 +301,7 @@ function generatePdf(data, outputStream) {
     pets            = [],
     insuranceItems  = [],
     unfinishedBusiness = [],
+    lastMoments     = {},
     // legalDocs, financialItems, propertyItems, householdInfo, and credentials
     // are all vault-protected - only ever present inside vaultData, never at
     // the top level, so a standard (non-vault) export can't render them by
@@ -480,6 +481,30 @@ function generatePdf(data, outputStream) {
       { label: 'Description', value: item.description },
       { label: 'Notes',       value: item.notes },
     ]), palette, fonts);
+  }
+
+  // IDEA-30: "Your Last Moments" - a single, weightier recording/letter,
+  // distinct from Messages to Loved Ones above, sharing this page with it
+  // since both are legacy-group, message-shaped content.
+  sectionHeader(doc, 'Your Last Moments', palette, fonts);
+  if (!lastMoments?.message && !lastMoments?.notes && !lastMoments?.audio_r2_key) {
+    noData(doc, fonts);
+  } else {
+    if (lastMoments.message) {
+      doc.font(fonts.regular).fontSize(9).fillColor(TEXT)
+         .text(lastMoments.message, LEFT_X, doc.y, { lineGap: 1, width: PAGE_W - MARGIN * 2 });
+    }
+    if (lastMoments.notes) {
+      doc.font(fonts.italic).fontSize(8).fillColor(MUTED)
+         .text(lastMoments.notes, LEFT_X, doc.y, { indent: 10, width: PAGE_W - MARGIN * 2 - 10 });
+    }
+    if (lastMoments.audio_r2_key) {
+      // A PDF can't embed playable audio - point to where it can be heard instead.
+      doc.font(fonts.italic).fontSize(8).fillColor(palette.accent)
+         .text('\u{1F3A4} A recorded voice message is also included with this entry, available in the online account or via an access link.',
+               LEFT_X, doc.y, { indent: 10, width: PAGE_W - MARGIN * 2 - 10 });
+    }
+    doc.moveDown(0.5).fillColor(TEXT);
   }
 
   // IDEA-27: Emergency Contact and Trusted Contacts are now separate sections

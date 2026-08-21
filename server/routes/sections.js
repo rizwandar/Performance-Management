@@ -61,7 +61,7 @@ router.get('/completion', requireAuth, async (req, res) => {
 
   const [
     userProfile, tcCount,
-    ld, fi, fw, mw, ptn, pi, pm, dc, stm, lw, hi, cd, pet, ins, ub,
+    ld, fi, fw, mw, ptn, pi, pm, dc, stm, lw, hi, cd, pet, ins, ub, lm,
   ] = await Promise.all([
     queryOne('SELECT about_me, legacy_message, life_story, remembered_for, emergency_contact_name FROM users WHERE id = $1', [uid]),
     queryOne('SELECT COUNT(*)::int as c FROM trusted_contacts WHERE user_id = $1', [uid]),
@@ -80,6 +80,7 @@ router.get('/completion', requireAuth, async (req, res) => {
     queryOne('SELECT COUNT(*)::int as c FROM pets                WHERE user_id = $1', [uid]),
     queryOne('SELECT COUNT(*)::int as c FROM insurance_items     WHERE user_id = $1', [uid]),
     queryOne('SELECT COUNT(*)::int as c FROM unfinished_business WHERE user_id = $1', [uid]),
+    queryOne('SELECT COUNT(*)::int as c FROM last_moments        WHERE user_id = $1', [uid]),
   ]);
 
   const howToBeRememberedStarted = [
@@ -106,6 +107,7 @@ router.get('/completion', requireAuth, async (req, res) => {
     'pet-care':             pet.c,
     insurance_items:       ins.c,
     unfinished_business:   ub.c,
+    last_moments:          lm.c,
   });
 });
 
@@ -839,6 +841,98 @@ router.delete('/unfinished-business/:id', requireAuth, async (req, res) => {
   const item = await queryOne('SELECT id FROM unfinished_business WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
   await query('DELETE FROM unfinished_business WHERE id = $1', [item.id]);
+  res.json({ success: true });
+});
+
+// ---------------------------------------------------------------------------
+// Section 18 — Your Last Moments (IDEA-30)
+// A distinct section from Messages to Loved Ones (personal_messages): one
+// weightier, single recording/letter per user rather than a list of messages
+// to different recipients. Single row per user, same soft-singleton pattern
+// (checked-then-insert-or-update, no UNIQUE constraint) as funeral_wishes/
+// medical_wishes above. NOT vault-protected, but IS premium-gated (unlike
+// Messages to Loved Ones/How I'd Like to Be Remembered/Songs/Bucket List,
+// its dashboard groupmates) - this was an assumption made without an explicit
+// product decision, flagged for confirmation; see IDEA-30 memory notes.
+// requirePremium sits on the mutating routes only, same GET-is-always-
+// readable / write-is-gated pattern as legal-documents/financial-affairs
+// above. The optional voice recording reuses IDEA-01's exact audio pipeline
+// (multer -> fileSignature byte-check -> R2), not a new one.
+// ---------------------------------------------------------------------------
+router.get('/last-moments', requireAuth, async (req, res) => {
+  const row = await queryOne('SELECT * FROM last_moments WHERE user_id = $1', [req.user.id]);
+  res.json(await withAudioUrl(row || {}));
+});
+
+router.put('/last-moments', requireAuth, requirePremium, async (req, res) => {
+  const { message, notes } = req.body;
+  const existing = await queryOne('SELECT id FROM last_moments WHERE user_id = $1', [req.user.id]);
+  if (existing) {
+    await query(`
+      UPDATE last_moments SET message=$1, notes=$2, updated_at=NOW() WHERE user_id=$3
+    `, [message ?? null, notes ?? null, req.user.id]);
+  } else {
+    await query(`
+      INSERT INTO last_moments (user_id, message, notes) VALUES ($1, $2, $3)
+    `, [req.user.id, message || null, notes || null]);
+  }
+  res.json({ success: true });
+});
+
+router.post('/last-moments/audio', requireAuth, requirePremium, (req, res, next) => {
+  audioUpload.single('audio')(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.message });
+    next();
+  });
+}, async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No recording provided.' });
+
+    // A recording can arrive before any row exists yet (the text side may
+    // still be blank) - create the row on demand, same as an empty PUT would.
+    let item = await queryOne('SELECT * FROM last_moments WHERE user_id = $1', [req.user.id]);
+    if (!item) {
+      const result = await query('INSERT INTO last_moments (user_id) VALUES ($1) RETURNING *', [req.user.id]);
+      item = result.rows[0];
+    }
+
+    const mimeType = baseMimeType(req.file.mimetype) || 'audio/webm';
+    const ext = (req.file.originalname.split('.').pop() || 'webm').replace(/[^a-zA-Z0-9]/g, '');
+    // Same SEC-11 byte-signature check as the Messages to Loved Ones upload
+    // above - fileFilter only checked the client's claims.
+    if (!matchesExtension(req.file.buffer, ext)) {
+      return res.status(400).json({ error: "That recording's content doesn't match its format. Please try recording again." });
+    }
+    const key = `${req.user.id}/last-moments/${uuidv4()}.${ext}`;
+    await uploadFile({ key, buffer: req.file.buffer, mimeType });
+
+    const previousKey = item.audio_r2_key;
+    const duration = Math.min(parseInt(req.body.duration_seconds, 10) || 0, MAX_AUDIO_DURATION_SECONDS) || null;
+
+    await query(`
+      UPDATE last_moments
+      SET audio_r2_key = $1, audio_mime_type = $2, audio_size_bytes = $3, audio_duration_seconds = $4, updated_at = NOW()
+      WHERE id = $5
+    `, [key, mimeType, req.file.size, duration, item.id]);
+
+    if (previousKey) await deleteFile(previousKey).catch(() => {});
+
+    res.json({ audio_url: await getDownloadUrl(key), audio_duration_seconds: duration });
+  } catch (err) {
+    console.error('Last moments recording upload error:', err);
+    res.status(500).json({ error: "We couldn't save your recording. Please try again." });
+  }
+});
+
+router.delete('/last-moments/audio', requireAuth, requirePremium, async (req, res) => {
+  const item = await queryOne('SELECT * FROM last_moments WHERE user_id = $1', [req.user.id]);
+  if (!item || !item.audio_r2_key) return res.json({ success: true });
+  await deleteFile(item.audio_r2_key).catch(() => {});
+  await query(`
+    UPDATE last_moments
+    SET audio_r2_key = NULL, audio_mime_type = NULL, audio_size_bytes = NULL, audio_duration_seconds = NULL, updated_at = NOW()
+    WHERE id = $1
+  `, [item.id]);
   res.json({ success: true });
 });
 

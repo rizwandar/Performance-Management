@@ -29,6 +29,7 @@ const SECTION_META = {
   how_to_be_remembered: { label: "How I'd Like to Be Remembered", isVault: false, kind: 'single' },
   insurance_items:      { label: 'Insurance',                     isVault: false, kind: 'list' },
   unfinished_business:  { label: 'Unfinished Business',           isVault: false, kind: 'list' },
+  last_moments:         { label: 'Your Last Moments',              isVault: false, kind: 'single' },
 };
 
 function isValidSection(key) {
@@ -71,6 +72,11 @@ const SINGLE_FIELDS = {
     ['life_story',      'My life story'],
     ['remembered_for',  'How I would like to be remembered'],
     ['legacy_message',  'A message to you all'],
+  ],
+  last_moments: [
+    ['message',   'Your words'],
+    ['audio_url', 'Voice recording', null, 'audio'],
+    ['notes',     'Notes'],
   ],
 };
 
@@ -201,6 +207,13 @@ async function fetchRawSectionData(sectionKey, userId, vaultKey) {
       return queryAll('SELECT * FROM insurance_items WHERE user_id = $1 ORDER BY created_at DESC', [userId]);
     case 'unfinished_business':
       return queryAll('SELECT * FROM unfinished_business WHERE user_id = $1 ORDER BY created_at', [userId]);
+    case 'last_moments': {
+      const row = await queryOne('SELECT * FROM last_moments WHERE user_id = $1', [userId]);
+      if (!row) return null;
+      // Signed URL generated fresh per request, same pattern as personal_messages above.
+      const { audio_r2_key, ...rest } = row;
+      return { ...rest, audio_url: audio_r2_key ? await getDownloadUrl(audio_r2_key) : null };
+    }
 
     case 'legal_documents':
     case 'financial_items':

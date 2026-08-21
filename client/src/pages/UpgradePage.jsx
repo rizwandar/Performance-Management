@@ -24,6 +24,7 @@ const FREE_FEATURES = [
 
 const PREMIUM_FEATURES = [
   'All free sections',
+  'Your Last Moments (a dedicated final recording or letter)',
   'Personal and Legal Documents',
   'Property and Possessions',
   'Financial Affairs',

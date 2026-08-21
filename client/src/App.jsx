@@ -45,6 +45,7 @@ import MedicalWishesPage      from './pages/sections/MedicalWishesPage'
 import PeopleToNotifyPage     from './pages/sections/PeopleToNotifyPage'
 import PropertyPossessionsPage from './pages/sections/PropertyPossessionsPage'
 import MessagesPage           from './pages/sections/MessagesPage'
+import LastMomentsPage        from './pages/sections/LastMomentsPage'
 import SongsThatDefineMePage      from './pages/sections/SongsThatDefineMePage'
 import LifesWishesPage            from './pages/sections/LifesWishesPage'
 import HouseholdInfoPage          from './pages/sections/HouseholdInfoPage'
@@ -777,6 +778,7 @@ function AppContent() {
           <Route path="/sections/emergency-contact"    element={<ProtectedRoute><EmergencyContactPage /></ProtectedRoute>} />
           <Route path="/sections/trusted-contacts"     element={<ProtectedRoute><TrustedContactsPage /></ProtectedRoute>} />
           <Route path="/sections/insurance"            element={<ProtectedRoute><InsurancePage /></ProtectedRoute>} />
+          <Route path="/sections/last-moments"         element={<ProtectedRoute><LastMomentsPage /></ProtectedRoute>} />
 
           {/* Export */}
           <Route path="/export" element={<ProtectedRoute><ExportPage /></ProtectedRoute>} />
