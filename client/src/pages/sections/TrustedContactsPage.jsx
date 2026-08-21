@@ -24,22 +24,10 @@ const SECTIONS = [
 const POSITIONS = [1, 2, 3]
 const emptyContact = { sequence: '', name: '', relationship: '', email: '', phone: '' }
 
-export default function KeyContactsPage() {
+export default function TrustedContactsPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
 
-  // ── Emergency contact state ────────────────────────────────────────────────
-  const [ecLoading, setEcLoading]   = useState(true)
-  const [ecSaving, setEcSaving]     = useState(false)
-  const [ecSuccess, setEcSuccess]   = useState('')
-  const [ecError, setEcError]       = useState('')
-  const [ecForm, setEcForm] = useState({
-    emergency_contact_name:  '',
-    emergency_contact_phone: '',
-    emergency_contact_email: '',
-  })
-
-  // ── Trusted contacts state ─────────────────────────────────────────────────
   const [contacts, setContacts]   = useState([])
   const [tcLoading, setTcLoading] = useState(true)
   const [tcError, setTcError]     = useState('')
@@ -79,17 +67,7 @@ export default function KeyContactsPage() {
       .finally(() => setTcLoading(false))
   }
 
-  // ── Load both on mount ─────────────────────────────────────────────────────
   useEffect(() => {
-    axios.get(`${API}/users/me`)
-      .then(r => setEcForm({
-        emergency_contact_name:  r.data.emergency_contact_name  || '',
-        emergency_contact_phone: r.data.emergency_contact_phone || '',
-        emergency_contact_email: r.data.emergency_contact_email || '',
-      }))
-      .catch(() => {})
-      .finally(() => setEcLoading(false))
-
     axios.get(`${API}/users/me/timer`)
       .then(r => setInactivityMonths(r.data.inactivity_period_months || 12))
       .catch(() => {})
@@ -97,23 +75,6 @@ export default function KeyContactsPage() {
     loadContacts()
   }, [])
 
-  // ── Emergency contact save ─────────────────────────────────────────────────
-  const saveEcForm = async () => {
-    setEcSaving(true)
-    setEcError('')
-    try {
-      await axios.put(`${API}/users/me`, ecForm)
-      setEcSuccess('Emergency contact saved.')
-      setTimeout(() => setEcSuccess(''), 3000)
-    } catch {
-      setEcError("We couldn't save this. Please try again.")
-    }
-    setEcSaving(false)
-  }
-
-  const setEc = field => e => setEcForm(f => ({ ...f, [field]: e.target.value }))
-
-  // ── Trusted contacts helpers ───────────────────────────────────────────────
   const takenSequences = contacts.map(c => c.sequence)
 
   const openAdd = () => {
@@ -230,54 +191,11 @@ export default function KeyContactsPage() {
 
       <SectionHero
         eyebrow="Your People"
-        headline="The people to call on"
-        highlight="call on"
-        subtext="The people who matter most in an emergency, the trusted contacts who will be given access to your plans when the time comes, and the one person you trust to confirm it and set everything in motion."
+        headline="The people you trust"
+        highlight="trust"
+        subtext="The trusted contacts who will be given access to your plans when the time comes, and the one person you trust to confirm it and set everything in motion."
       />
 
-      {/* ── Emergency Contact ───────────────────────────────────────────────── */}
-      <div style={{ background: 'var(--parchment)', borderRadius: 'var(--card-radius-sm, 12px)', padding: '24px', marginBottom: 28, border: '1px solid var(--border)' }}>
-        <h6 style={{ color: 'var(--green-900)', marginBottom: 4 }}>Emergency Contact</h6>
-        <p className="text-muted small mb-1">
-          The first person to call if you are in an emergency and unable to speak for yourself.
-          This is typically a partner, close family member, or trusted friend who is always reachable.
-        </p>
-        <p className="text-muted small mb-4" style={{ fontStyle: 'italic' }}>
-          Unlike trusted contacts, your emergency contact does not receive access to your plans. They are simply someone to call in a crisis.
-        </p>
-
-        {ecSuccess && <Alert variant="success" className="py-2">{ecSuccess}</Alert>}
-        {ecError   && <Alert variant="danger"  className="py-2">{ecError}</Alert>}
-
-        {ecLoading ? (
-          <Spinner animation="border" size="sm" style={{ color: 'var(--green-800)' }} />
-        ) : (
-          <>
-            <Row className="g-3 mb-3">
-              <Col md={6}>
-                <Form.Label>Name</Form.Label>
-                <Form.Control value={ecForm.emergency_contact_name} onChange={setEc('emergency_contact_name')}
-                  placeholder="Full name" />
-              </Col>
-              <Col md={6}>
-                <Form.Label>Phone</Form.Label>
-                <Form.Control value={ecForm.emergency_contact_phone} onChange={setEc('emergency_contact_phone')}
-                  placeholder="e.g. 0400 123 456" />
-              </Col>
-            </Row>
-            <Form.Group className="mb-4">
-              <Form.Label>Email</Form.Label>
-              <Form.Control type="email" value={ecForm.emergency_contact_email} onChange={setEc('emergency_contact_email')}
-                placeholder="email@example.com" />
-            </Form.Group>
-            <Button variant="primary" onClick={saveEcForm} disabled={ecSaving}>
-              {ecSaving ? 'Saving...' : 'Save emergency contact'}
-            </Button>
-          </>
-        )}
-      </div>
-
-      {/* ── Trusted Contacts ────────────────────────────────────────────────── */}
       <div style={{ background: 'var(--parchment)', borderRadius: 'var(--card-radius-sm, 12px)', padding: '24px 24px 16px', marginBottom: 16, border: '1px solid var(--border)' }}>
         <div className="d-flex justify-content-between align-items-start mb-1 flex-wrap gap-2">
           <h6 style={{ color: 'var(--green-900)', margin: 0 }}>Trusted Contacts</h6>

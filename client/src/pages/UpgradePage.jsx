@@ -13,7 +13,7 @@ const FREE_FEATURES = [
   'My Bucket List',
   'Funeral and End-of-Life Wishes',
   'Medical and Care Wishes',
-  'Key Contacts',
+  'Emergency Contact',
   'People to Notify',
   'Your Loved Ones',
   'Pet Care',

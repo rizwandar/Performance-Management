@@ -19,7 +19,7 @@ export default function UpgradeModal({ show, onHide, sectionName }) {
           <strong style={{ color: 'var(--green-900)' }}>{sectionName}</strong> is part of the Premium plan.
         </p>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', lineHeight: 1.7, textAlign: 'center', marginBottom: 0 }}>
-          Upgrade to unlock all 15 sections, document uploads, trusted contacts, and the full PDF export.
+          Upgrade to unlock all 16 sections, document uploads, trusted contacts, and the full PDF export.
         </p>
       </Modal.Body>
       <Modal.Footer style={{ background: 'var(--parchment)', borderTop: '1px solid var(--border)', justifyContent: 'center', gap: 12 }}>

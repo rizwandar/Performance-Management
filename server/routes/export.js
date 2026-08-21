@@ -35,6 +35,7 @@ async function buildBaseData(uid) {
     SELECT id, name, email, date_of_birth,
            life_story, about_me, remembered_for, legacy_message,
            emergency_contact_name, emergency_contact_phone, emergency_contact_email,
+           emergency_contact_relationship, emergency_contact_notes,
            marital_status, spouse_name, spouse_phone, spouse_email
     FROM users WHERE id = $1
   `, [uid]);
