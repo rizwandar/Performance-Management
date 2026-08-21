@@ -12,11 +12,12 @@ import { useVaultSession } from '../../context/VaultSessionContext'
 const API = import.meta.env.VITE_API_URL
 
 const CATEGORIES = [
-  { value: 'real_estate', label: 'Real Estate' },
-  { value: 'vehicle',     label: 'Vehicle' },
-  { value: 'sentimental', label: 'Sentimental Item' },
-  { value: 'pet',         label: 'Pet' },
-  { value: 'other',       label: 'Other' },
+  { value: 'real_estate',      label: 'Real Estate' },
+  { value: 'vehicle',          label: 'Vehicle' },
+  { value: 'storage_facility', label: 'Storage Facility' },
+  { value: 'sentimental',      label: 'Sentimental Item' },
+  { value: 'pet',              label: 'Pet' },
+  { value: 'other',            label: 'Other' },
 ]
 const CATEGORY_LABELS = Object.fromEntries(CATEGORIES.map(c => [c.value, c.label]))
 
@@ -304,13 +305,13 @@ export default function PropertyPossessionsPage() {
               <Form.Label>Description</Form.Label>
               <Form.Control as="textarea" rows={2} value={form.description}
                 onChange={e => setForm({ ...form, description: e.target.value })}
-                placeholder="Brief description or identifying details..." />
+                placeholder="Brief description or identifying details, e.g. unit number for a storage facility..." />
             </Form.Group>
             <Row className="g-3 mb-3">
               <Col md={6}>
                 <Form.Label>Location</Form.Label>
                 <Form.Control value={form.location} onChange={e => setForm({ ...form, location: e.target.value })}
-                  placeholder="Where it is kept or can be found" />
+                  placeholder="Where it is kept or can be found, e.g. facility name and address" />
               </Col>
               <Col md={6}>
                 <Form.Label>Intended recipient</Form.Label>
@@ -323,7 +324,7 @@ export default function PropertyPossessionsPage() {
               <Form.Label>Notes</Form.Label>
               <Form.Control as="textarea" rows={2} value={form.notes}
                 onChange={e => setForm({ ...form, notes: e.target.value })}
-                placeholder="Any other details: sentimental value, conditions, instructions..." />
+                placeholder="Any other details: sentimental value, conditions, access code, key holder, instructions..." />
             </Form.Group>
           </Form>
         </Modal.Body>
