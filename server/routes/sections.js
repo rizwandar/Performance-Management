@@ -686,7 +686,7 @@ router.delete('/household-info/:id', requireAuth, requirePremium, async (req, re
 });
 
 // ---------------------------------------------------------------------------
-// Section 14 — Children & Dependants
+// Section 14 — Your Loved Ones
 // ---------------------------------------------------------------------------
 router.get('/children-dependants', requireAuth, async (req, res) => {
   res.json(await queryAll('SELECT * FROM children_dependants WHERE user_id = $1 ORDER BY type, name', [req.user.id]));
@@ -729,7 +729,7 @@ router.delete('/children-dependants/:id', requireAuth, async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// Section 15 — Pet Care (IDEA-18: split out of Children & Dependants)
+// Section 15 — Pet Care (IDEA-18: split out of Your Loved Ones)
 // ---------------------------------------------------------------------------
 router.get('/pets', requireAuth, async (req, res) => {
   res.json(await queryAll('SELECT * FROM pets WHERE user_id = $1 ORDER BY name', [req.user.id]));

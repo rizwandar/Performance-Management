@@ -174,7 +174,7 @@ const SECTIONS = [
     description: 'The friends, family, and colleagues who should hear the news directly and with care.',
   },
   {
-    id: 'children-dependants', label: 'Children & Dependants',
+    id: 'children-dependants', label: 'Your Loved Ones',
     icon: '👶', route: '/sections/children-dependants', group: 'people',
     description: 'Everything your loved ones need to know about caring for your children and those who depend on you.',
   },

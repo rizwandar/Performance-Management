@@ -24,7 +24,7 @@ const SECTION_META = {
   personal_messages:    { label: 'Messages to Loved Ones',        isVault: false, kind: 'list' },
   songs_that_define_me: { label: 'Songs That Define Me',          isVault: false, kind: 'list' },
   life_wishes:          { label: 'Bucket List',                   isVault: false, kind: 'list' },
-  children_dependants:  { label: 'Children & Dependants',         isVault: false, kind: 'list' },
+  children_dependants:  { label: 'Your Loved Ones',                isVault: false, kind: 'list' },
   pets:                 { label: 'Pet Care',                      isVault: false, kind: 'list' },
   how_to_be_remembered: { label: "How I'd Like to Be Remembered", isVault: false, kind: 'single' },
 };

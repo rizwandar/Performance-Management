@@ -30,7 +30,7 @@ export const SECTIONS = [
   { id: 'medical_wishes',       name: 'Medical & Care Wishes',           group: 'wishes'  },
   { id: 'key_contacts',         name: 'Key Contacts',                    group: 'people'  },
   { id: 'people_to_notify',     name: 'People to Notify',                group: 'people'  },
-  { id: 'children-dependants',  name: 'Children & Dependants',           group: 'people'  },
+  { id: 'children-dependants',  name: 'Your Loved Ones',                 group: 'people'  },
   { id: 'legal_documents',      name: 'Personal & Legal Documents',      group: 'affairs' },
   { id: 'property_items',       name: 'Property & Possessions',          group: 'affairs' },
   { id: 'financial_items',      name: 'Financial Affairs',               group: 'affairs' },

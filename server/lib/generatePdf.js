@@ -539,12 +539,12 @@ function generatePdf(data, outputStream) {
 
   addPageFooter(doc, pageNum, palette, fonts);
 
-  // ── Page 5: Children & Dependants + Pet Care ────────────────────────────────
+  // ── Page 5: Your Loved Ones + Pet Care ──────────────────────────────────────
   // Financial Affairs and Practical Household Information are vault-protected -
   // rendered on the vault page below.
   doc.addPage();
 
-  sectionHeader(doc, 'Children & Dependants', palette, fonts);
+  sectionHeader(doc, 'Your Loved Ones', palette, fonts);
   if (!childrenDependants.length) {
     noData(doc, fonts);
   } else {
@@ -561,7 +561,7 @@ function generatePdf(data, outputStream) {
   }
 
   // IDEA-18: Pet Care, split out into its own section, but sharing this page
-  // with Children & Dependants (sectionHeader flows to a new page on its own
+  // with Your Loved Ones (sectionHeader flows to a new page on its own
   // if there isn't room, same as every other multi-section page in this PDF).
   sectionHeader(doc, 'Pet Care', palette, fonts);
   if (!pets.length) {
