@@ -208,24 +208,53 @@ a:hover { color: var(--green-900); }
   background-color: var(--green-50);
 }
 
+/* ── Headings ──────────────────────────────────────────────────────────── */
+/* Per-theme heading display style (e.g. italic for the Heirloom theme).
+   Defaults to 'normal' for every existing theme via DEFAULT_CARD_TOKENS in
+   App.jsx, so this is a no-op unless a theme opts in. Colour/font-family for
+   most headings across the app already come from var(--green-900) and the
+   selected FONT respectively (set inline per-page); this only adds style. */
+h1, h2, h3, h4, h5, h6 {
+  font-style: var(--heading-style, normal);
+}
+
 /* ── Landing page ──────────────────────────────────────────────────────── */
+/* --hero-bg/--hero-heading-color/--hero-outline-color/--hero-lead-color
+   default (via DEFAULT_CARD_TOKENS) to transparent / the existing green-900 /
+   green-800 / text-muted values, so this is visually a no-op for every
+   existing theme. Only the Heirloom theme overrides them, scoped to this
+   hero section only, not the whole app. */
 .landing-hero {
   padding: 80px 20px 60px;
   text-align: center;
+  background: var(--hero-bg, transparent);
 }
 
 .landing-hero h1 {
   font-size: 2.6rem;
   font-weight: 800;
-  color: var(--green-900);
+  color: var(--hero-heading-color, var(--green-900));
   font-family: Georgia, serif;
 }
 
 .landing-hero .lead {
-  color: var(--text-muted);
+  color: var(--hero-lead-color, var(--text-muted));
   font-size: 1.2rem;
   max-width: 560px;
   margin: 0 auto;
+}
+
+.landing-hero .text-muted {
+  color: var(--hero-lead-color, var(--text-muted)) !important;
+}
+
+.landing-hero .btn-outline-primary {
+  color: var(--hero-outline-color, var(--green-800));
+  border-color: var(--hero-outline-color, var(--green-800));
+}
+.landing-hero .btn-outline-primary:hover {
+  background: var(--hero-outline-color, var(--green-800));
+  color: var(--hero-bg, #fff);
 }
 
 /* ── Section placeholder ────────────────────────────────────────────────── */

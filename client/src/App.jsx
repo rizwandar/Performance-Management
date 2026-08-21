@@ -85,6 +85,21 @@ const DEFAULT_CARD_TOKENS = {
   '--group-wishes-bg': '#EEF4EE', '--group-wishes-border': '#C4DCC4', '--group-wishes-icon': '#D8ECD8', '--group-wishes-pill': '#5A9A5A',
   '--group-affairs-bg': '#EEEAE5', '--group-affairs-border': '#D4CCC4', '--group-affairs-icon': '#E0D8D0', '--group-affairs-pill': '#8A7A6A',
   '--group-pill-text': '#ffffff',
+  // Landing-page hero tokens: default to today's exact look (transparent hero
+  // panel, headings/lead/outline-button taking their normal colour from the
+  // rest of the theme) via indirection to each element's existing default
+  // variable, rather than a hardcoded hex, so every theme automatically
+  // tracks its own green-900/green-800/text-muted. Explicit on every theme
+  // (same reasoning as the card tokens above) so a theme switch can't leave
+  // a previous theme's hero override stuck via applyTheme's additive
+  // Object.entries().forEach.
+  '--hero-bg': 'transparent',
+  '--hero-heading-color': 'var(--green-900)',
+  '--hero-outline-color': 'var(--green-800)',
+  '--hero-lead-color': 'var(--text-muted)',
+  // Heading display style (e.g. italic) — 'normal' everywhere except themes
+  // that opt in.
+  '--heading-style': 'normal',
 }
 
 const THEME_VARS = {
@@ -176,6 +191,46 @@ const THEME_VARS = {
     '--group-wishes-bg': '#fff', '--group-wishes-border': '#E8DCC8', '--group-wishes-icon': '#F0EAE0', '--group-wishes-pill': '#EDE6D8',
     '--group-affairs-bg': '#fff', '--group-affairs-border': '#E8DCC8', '--group-affairs-icon': '#F0EAE0', '--group-affairs-pill': '#EDE6D8',
     '--group-pill-text': '#3A2E22',
+    // Keepsake doesn't spread DEFAULT_CARD_TOKENS, so it needs its own
+    // explicit resets for the hero/heading tokens too (see the comment on
+    // DEFAULT_CARD_TOKENS above).
+    '--hero-bg': 'transparent',
+    '--hero-heading-color': 'var(--green-900)',
+    '--hero-outline-color': 'var(--green-800)',
+    '--hero-lead-color': 'var(--text-muted)',
+    '--heading-style': 'normal',
+  },
+  // Heirloom — dark forest-green landing hero with cream text, cream/parchment
+  // dashboard with italic dark-green headings, and plain white group cards
+  // with a subtle border and only a slight radius (deliberately NOT
+  // Keepsake's dashed/26px treatment).
+  heirloom: {
+    '--green-900': '#14301F', '--green-800': '#1F4A30', '--green-700': '#2C6242',
+    '--green-600': '#3D7C57', '--green-100': '#D9E6DC', '--green-50': '#F1F6F1',
+    '--gold': '#B8863E', '--gold-light': '#D4A968', '--gold-50': '#FBF3E4',
+    '--parchment': '#F1EAD9', '--parchment-dark': '#E4DAC0',
+    '--bs-primary': '#14301F', '--bs-primary-rgb': '20, 48, 31',
+    ...DEFAULT_CARD_TOKENS,
+    // Plan/section cards: white, subtle warm border, only slightly rounded.
+    '--card-radius': '8px', '--card-radius-sm': '6px',
+    '--card-border-style': 'solid', '--card-border-color': '#E4DAC0',
+    // Dashboard group cards: uniform white (not colour-coded by category),
+    // same subtle border as the generic card style above.
+    '--group-people-bg': '#fff', '--group-people-border': '#E4DAC0', '--group-people-icon': '#F1EAD9', '--group-people-pill': '#14301F',
+    '--group-legacy-bg': '#fff', '--group-legacy-border': '#E4DAC0', '--group-legacy-icon': '#F1EAD9', '--group-legacy-pill': '#14301F',
+    '--group-wishes-bg': '#fff', '--group-wishes-border': '#E4DAC0', '--group-wishes-icon': '#F1EAD9', '--group-wishes-pill': '#14301F',
+    '--group-affairs-bg': '#fff', '--group-affairs-border': '#E4DAC0', '--group-affairs-icon': '#F1EAD9', '--group-affairs-pill': '#14301F',
+    '--group-pill-text': '#ffffff',
+    // Landing hero: dark forest-green background, light cream text, scoped
+    // to LandingPage.jsx's .landing-hero only (see index.css).
+    '--hero-bg': '#14301F',
+    '--hero-heading-color': '#F1EAD9',
+    '--hero-outline-color': '#F1EAD9',
+    '--hero-lead-color': '#F1EAD9',
+    // Section/group headings and page titles rendered in italic (they
+    // already inherit the selected FONT and use var(--green-900) for
+    // colour, so italic is the only new treatment needed here).
+    '--heading-style': 'italic',
   },
 }
 
