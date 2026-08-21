@@ -219,10 +219,14 @@ function PersonalMessages({ data, documents }) {
           "{d.message}"
         </p>
       )}
-      {d.audio_url && (
+      {d.audio_clips?.length > 0 && (
         <div style={{ margin: '8px 0' }}>
-          <p className="text-muted small mb-1">🎤 Voice message</p>
-          <audio controls src={d.audio_url} style={{ width: '100%', maxWidth: 360, height: 36 }} />
+          <p className="text-muted small mb-1">
+            🎤 {d.audio_clips.length === 1 ? 'Voice message' : `Voice messages (${d.audio_clips.length})`}
+          </p>
+          {d.audio_clips.map(clip => (
+            <audio key={clip.id} controls src={clip.audio_url} style={{ width: '100%', maxWidth: 360, height: 36, marginBottom: 4, display: 'block' }} />
+          ))}
         </div>
       )}
       <FieldRow label="Notes" value={d.notes} />

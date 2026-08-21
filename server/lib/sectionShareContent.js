@@ -129,7 +129,9 @@ const LIST_FIELDS = {
     titleKey: 'recipient_name', titlePrefix: 'To: ',
     fields: [
       ['relationship', 'Relationship'], ['message', 'Message'],
-      ['audio_url', 'Voice message', null, 'audio'], ['notes', 'Notes'],
+      // IDEA-34: up to 3 clips - audio_urls is an array, unlike every other
+      // field here, so shapeFields()/fieldRowHtml() special-case 'audio'.
+      ['audio_urls', 'Voice messages', null, 'audio'], ['notes', 'Notes'],
     ],
   },
   songs_that_define_me: {
@@ -187,12 +189,24 @@ async function fetchRawSectionData(sectionKey, userId, vaultKey) {
     case 'people_to_notify':
       return queryAll('SELECT * FROM people_to_notify WHERE user_id = $1 ORDER BY created_at', [userId]);
     case 'personal_messages': {
-      const rows = await queryAll('SELECT * FROM personal_messages WHERE user_id = $1 ORDER BY created_at', [userId]);
-      // Signed URL generated fresh per request (this runs live on every guest
-      // visit for a non-vault section), never persisted - IDEA-01.
-      return Promise.all(rows.map(async ({ audio_r2_key, ...row }) => ({
+      const rows = await queryAll(
+        'SELECT id, user_id, recipient_name, relationship, message, notes, created_at, updated_at FROM personal_messages WHERE user_id = $1 ORDER BY created_at',
+        [userId]
+      );
+      // IDEA-34: up to 3 voice clips per message, held in a child table.
+      // Signed URLs generated fresh per request (this runs live on every
+      // guest visit for a non-vault section), never persisted.
+      const clipRows = rows.length
+        ? await queryAll(
+            'SELECT id, message_id, r2_key FROM personal_message_audio_clips WHERE message_id = ANY($1::int[]) ORDER BY created_at',
+            [rows.map(r => r.id)]
+          )
+        : [];
+      return Promise.all(rows.map(async row => ({
         ...row,
-        audio_url: audio_r2_key ? await getDownloadUrl(audio_r2_key) : null,
+        audio_urls: await Promise.all(
+          clipRows.filter(c => c.message_id === row.id).map(c => getDownloadUrl(c.r2_key))
+        ),
       })));
     }
     case 'songs_that_define_me':
@@ -289,6 +303,12 @@ function shapeFields(fieldDefs, row) {
     .map(([key, label, fmt, type]) => {
       const raw = row[key];
       if (raw === null || raw === undefined || raw === '') return null;
+      // 'audio' fields (IDEA-34) carry an array of up to 3 signed URLs -
+      // pass it through as-is rather than stringifying, and skip empty arrays.
+      if (type === 'audio') {
+        if (!Array.isArray(raw) || raw.length === 0) return null;
+        return { label, value: raw, type };
+      }
       return { label, value: fmt ? fmt(raw) : String(raw), type: type || 'text' };
     })
     .filter(Boolean);
@@ -334,16 +354,21 @@ function escapeHtml(str) {
 }
 
 function fieldRowHtml(f) {
-  // Audio fields carry a signed R2 URL as their value - it's short-lived
-  // (see r2.js's default TTL) so it's fit to hand to a page rendered right
-  // now, but not fit to embed as a clickable link in an email that might sit
-  // unread for days. Point to the (separately included, always-live) share
-  // link instead of leaking a URL that will 404 once it expires.
+  // Audio fields carry an array of up to 3 signed R2 URLs as their value -
+  // they're short-lived (see r2.js's default TTL) so they're fit to hand to
+  // a page rendered right now, but not fit to embed as clickable links in an
+  // email that might sit unread for days. Point to the (separately included,
+  // always-live) share link instead of leaking URLs that will 404 once they
+  // expire.
   if (f.type === 'audio') {
+    const count = f.value.length;
+    const phrase = count === 1
+      ? '1 voice message included'
+      : `${count} voice messages included`;
     return `
       <tr>
         <td style="padding:4px 10px 4px 0; font-weight:600; color:#2D5A3D; font-size:14px; width:190px; vertical-align:top;">${escapeHtml(f.label)}</td>
-        <td style="padding:4px 0; color:#1F2937; font-size:14px;">\u{1F3A4} Included &mdash; open the link above to listen (audio can't be played inside this email).</td>
+        <td style="padding:4px 0; color:#1F2937; font-size:14px;">\u{1F3A4} ${phrase} &mdash; open the link above to listen (audio can't be played inside this email).</td>
       </tr>`;
   }
   return `

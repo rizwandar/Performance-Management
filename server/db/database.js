@@ -1291,6 +1291,51 @@ async function init() {
     )
   `);
 
+  // IDEA-34: raised the one-clip-per-message cap above to up to 3 clips per
+  // message. A message can now have 0-3 rows here; ON DELETE CASCADE cleans up
+  // clip rows when their parent message is deleted (routes/sections.js still
+  // also deletes the R2 objects explicitly first, since Postgres can't reach
+  // outside its own database to do that). The four audio_* columns on
+  // personal_messages above are kept in place (never dropped/renamed, per
+  // project convention) but are no longer written to going forward - all
+  // reads and writes for voice clips go through this table from here on.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS personal_message_audio_clips (
+      id                SERIAL PRIMARY KEY,
+      message_id        INTEGER NOT NULL REFERENCES personal_messages(id) ON DELETE CASCADE,
+      r2_key            TEXT NOT NULL,
+      mime_type         TEXT,
+      size_bytes        INTEGER,
+      duration_seconds  INTEGER,
+      created_at        TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_personal_message_audio_clips_message ON personal_message_audio_clips(message_id)`);
+
+  // One-time migration: copy each message's existing single legacy clip (the
+  // audio_r2_key etc. columns above) into the new child table as its first
+  // clip, then clear the legacy columns on that row. Clearing them (rather
+  // than just leaving them set) is what makes this safe to run unguarded on
+  // every startup - once a row's legacy columns are NULL the WHERE clause
+  // below never matches it again, even if the one clip it seeded gets deleted
+  // later by the user (which would otherwise look identical to "never
+  // migrated" and get wrongly re-copied from stale data on the next restart).
+  // A single statement (a CTE feeding the UPDATE) so the copy and the clear
+  // commit together - no window where a crash between two separate
+  // statements could duplicate a row on the next restart.
+  await pool.query(`
+    WITH migrated AS (
+      INSERT INTO personal_message_audio_clips (message_id, r2_key, mime_type, size_bytes, duration_seconds, created_at)
+      SELECT id, audio_r2_key, audio_mime_type, audio_size_bytes, audio_duration_seconds, COALESCE(updated_at, created_at)
+      FROM personal_messages
+      WHERE audio_r2_key IS NOT NULL
+      RETURNING message_id
+    )
+    UPDATE personal_messages
+    SET audio_r2_key = NULL, audio_mime_type = NULL, audio_size_bytes = NULL, audio_duration_seconds = NULL
+    WHERE id IN (SELECT message_id FROM migrated)
+  `);
+
   console.log('[db] PostgreSQL schema ready');
 }
 
