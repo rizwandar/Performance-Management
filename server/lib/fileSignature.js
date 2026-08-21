@@ -67,13 +67,15 @@ SIGNATURES.jpeg = SIGNATURES.jpg;
 SIGNATURES.m4a  = SIGNATURES.mp4; // same ISOBMFF container as mp4
 
 function matchesExtension(buffer, ext) {
-  const check = SIGNATURES[ext?.toLowerCase()];
-  // Guard against ext resolving to an inherited Object.prototype property
-  // (e.g. "toString", "constructor") rather than one of our own signature
-  // checkers - SIGNATURES is a plain object literal, so a lookup by an
-  // attacker-chosen key could otherwise return a function that isn't one
-  // of ours and produce a misleading truthy result instead of `false`.
-  return typeof check === 'function' ? check(buffer) : false;
+  const key = ext?.toLowerCase();
+  // Require key to be an own property of SIGNATURES before ever using it as
+  // a lookup, not merely truthy - otherwise an attacker-chosen ext value
+  // matching an inherited Object.prototype property name (e.g. "toString",
+  // "constructor") would resolve to that inherited function instead of
+  // undefined, and calling it would produce a misleading truthy result
+  // instead of `false`, rather than throwing or being caught here.
+  if (!Object.prototype.hasOwnProperty.call(SIGNATURES, key)) return false;
+  return SIGNATURES[key](buffer);
 }
 
 module.exports = { matchesExtension };
