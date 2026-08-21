@@ -7,6 +7,7 @@
 import { useState } from 'react'
 import { Button, Form, Alert } from 'react-bootstrap'
 import axios from 'axios'
+import PasswordInput from './PasswordInput'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -56,12 +57,12 @@ export default function VaultRecoverForm({ questions, onRecovered, onCancel }) {
 
       <Form.Group className="mb-3">
         <Form.Label style={{ fontWeight: 600 }}>New vault password</Form.Label>
-        <Form.Control type="password" value={newPw} onChange={e => setNewPw(e.target.value)}
+        <PasswordInput value={newPw} onChange={e => setNewPw(e.target.value)}
           placeholder="At least 8 characters" />
       </Form.Group>
       <Form.Group className="mb-4">
         <Form.Label style={{ fontWeight: 600 }}>Confirm new password</Form.Label>
-        <Form.Control type="password" value={newPwConfirm} onChange={e => setNewPwConfirm(e.target.value)}
+        <PasswordInput value={newPwConfirm} onChange={e => setNewPwConfirm(e.target.value)}
           placeholder="Type it again" />
       </Form.Group>
 
