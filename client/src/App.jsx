@@ -53,6 +53,7 @@ import PetCarePage                from './pages/sections/PetCarePage'
 import HowToBeRememberedPage      from './pages/sections/HowToBeRememberedPage'
 import EmergencyContactPage       from './pages/sections/EmergencyContactPage'
 import TrustedContactsPage        from './pages/sections/TrustedContactsPage'
+import InsurancePage              from './pages/sections/InsurancePage'
 import UpgradePage                from './pages/UpgradePage'
 
 const API = import.meta.env.VITE_API_URL
@@ -758,6 +759,7 @@ function AppContent() {
           <Route path="/sections/how-to-be-remembered" element={<ProtectedRoute><HowToBeRememberedPage /></ProtectedRoute>} />
           <Route path="/sections/emergency-contact"    element={<ProtectedRoute><EmergencyContactPage /></ProtectedRoute>} />
           <Route path="/sections/trusted-contacts"     element={<ProtectedRoute><TrustedContactsPage /></ProtectedRoute>} />
+          <Route path="/sections/insurance"            element={<ProtectedRoute><InsurancePage /></ProtectedRoute>} />
 
           {/* Export */}
           <Route path="/export" element={<ProtectedRoute><ExportPage /></ProtectedRoute>} />

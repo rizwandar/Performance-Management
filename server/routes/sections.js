@@ -61,7 +61,7 @@ router.get('/completion', requireAuth, async (req, res) => {
 
   const [
     userProfile, tcCount,
-    ld, fi, fw, mw, ptn, pi, pm, dc, stm, lw, hi, cd, pet,
+    ld, fi, fw, mw, ptn, pi, pm, dc, stm, lw, hi, cd, pet, ins,
   ] = await Promise.all([
     queryOne('SELECT about_me, legacy_message, life_story, remembered_for, emergency_contact_name FROM users WHERE id = $1', [uid]),
     queryOne('SELECT COUNT(*)::int as c FROM trusted_contacts WHERE user_id = $1', [uid]),
@@ -78,6 +78,7 @@ router.get('/completion', requireAuth, async (req, res) => {
     queryOne('SELECT COUNT(*)::int as c FROM household_info     WHERE user_id = $1', [uid]),
     queryOne('SELECT COUNT(*)::int as c FROM children_dependants WHERE user_id = $1', [uid]),
     queryOne('SELECT COUNT(*)::int as c FROM pets                WHERE user_id = $1', [uid]),
+    queryOne('SELECT COUNT(*)::int as c FROM insurance_items     WHERE user_id = $1', [uid]),
   ]);
 
   const howToBeRememberedStarted = [
@@ -102,6 +103,7 @@ router.get('/completion', requireAuth, async (req, res) => {
     'household-info':      hi.c,
     'children-dependants': cd.c,
     'pet-care':             pet.c,
+    insurance_items:       ins.c,
   });
 });
 
@@ -750,6 +752,50 @@ router.delete('/pets/:id', requireAuth, async (req, res) => {
   const item = await queryOne('SELECT id FROM pets WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
   await query('DELETE FROM pets WHERE id = $1', [item.id]);
+  res.json({ success: true });
+});
+
+// ---------------------------------------------------------------------------
+// Section 16 — Insurance (IDEA-29)
+// Flat list of policy entries, NOT vault-protected - same non-encrypted,
+// no-requirePremium pattern as pets/children-dependants/people-to-notify
+// above, not the shared-vault pattern used by legal-documents/financial-
+// affairs/property-possessions/household-info below.
+// ---------------------------------------------------------------------------
+router.get('/insurance', requireAuth, async (req, res) => {
+  res.json(await queryAll('SELECT * FROM insurance_items WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]));
+});
+
+router.post('/insurance', requireAuth, async (req, res) => {
+  const { policy_type, provider, policy_number, contact, beneficiary, notes } = req.body;
+  if (!policy_type && !provider) {
+    return res.status(400).json({ error: 'Please provide at least a policy type or provider.' });
+  }
+  const result = await query(`
+    INSERT INTO insurance_items (user_id, policy_type, provider, policy_number, contact, beneficiary, notes)
+    VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id
+  `, [req.user.id, policy_type || null, provider || null, policy_number || null,
+      contact || null, beneficiary || null, notes || null]);
+  res.status(201).json({ id: result.rows[0].id });
+});
+
+router.put('/insurance/:id', requireAuth, async (req, res) => {
+  const item = await queryOne('SELECT * FROM insurance_items WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
+  if (!item) return res.status(404).json({ error: 'Item not found.' });
+  const { policy_type, provider, policy_number, contact, beneficiary, notes } = req.body;
+  await query(`
+    UPDATE insurance_items
+    SET policy_type=$1, provider=$2, policy_number=$3, contact=$4, beneficiary=$5, notes=$6, updated_at=NOW()
+    WHERE id=$7
+  `, [policy_type ?? item.policy_type, provider ?? item.provider, policy_number ?? item.policy_number,
+      contact ?? item.contact, beneficiary ?? item.beneficiary, notes ?? item.notes, item.id]);
+  res.json({ success: true });
+});
+
+router.delete('/insurance/:id', requireAuth, async (req, res) => {
+  const item = await queryOne('SELECT id FROM insurance_items WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
+  if (!item) return res.status(404).json({ error: 'Item not found.' });
+  await query('DELETE FROM insurance_items WHERE id = $1', [item.id]);
   res.json({ success: true });
 });
 

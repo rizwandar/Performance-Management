@@ -1215,6 +1215,29 @@ async function init() {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_25d_reminder_sent_at TIMESTAMPTZ`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_28d_reminder_sent_at TIMESTAMPTZ`);
 
+  // IDEA-29: Insurance, a new standalone section (15 sections becomes 16).
+  // Deliberately a flat list (one policy per row), not IQ121's 7-way category
+  // split - policy_type is free text rather than a rigid enum, matching the
+  // shape of the other simple flat sections (e.g. property_items). Unlike
+  // Property, Financial, Legal Documents, Household Info, and Digital Life,
+  // this section is NOT part of the shared vault - it holds no field-level
+  // encryption and no vault_password gating, same pattern as pets/
+  // children_dependants/people_to_notify below it.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS insurance_items (
+      id             SERIAL PRIMARY KEY,
+      user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      policy_type    TEXT,
+      provider       TEXT,
+      policy_number  TEXT,
+      contact        TEXT,
+      beneficiary    TEXT,
+      notes          TEXT,
+      created_at     TIMESTAMPTZ DEFAULT NOW(),
+      updated_at     TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
   console.log('[db] PostgreSQL schema ready');
 }
 

@@ -299,6 +299,7 @@ function generatePdf(data, outputStream) {
     trustedContacts = [],
     childrenDependants = [],
     pets            = [],
+    insuranceItems  = [],
     // legalDocs, financialItems, propertyItems, householdInfo, and credentials
     // are all vault-protected - only ever present inside vaultData, never at
     // the top level, so a standard (non-vault) export can't render them by
@@ -541,9 +542,10 @@ function generatePdf(data, outputStream) {
 
   addPageFooter(doc, pageNum, palette, fonts);
 
-  // ── Page 5: Your Loved Ones + Pet Care ──────────────────────────────────────
+  // ── Page 5: Your Loved Ones + Pet Care + Insurance ──────────────────────────
   // Financial Affairs and Practical Household Information are vault-protected -
-  // rendered on the vault page below.
+  // rendered on the vault page below. Insurance (IDEA-29) is not vault-protected
+  // and belongs here alongside the other standard sections.
   doc.addPage();
 
   sectionHeader(doc, 'Your Loved Ones', palette, fonts);
@@ -577,6 +579,24 @@ function generatePdf(data, outputStream) {
       { label: 'Caretaker contact',    value: item.caretaker_contact },
       { label: 'Alternate caretaker',  value: item.alternate_caretaker },
       { label: 'Notes',                value: item.notes },
+    ]), palette, fonts);
+  }
+
+  // IDEA-29: Insurance is NOT vault-protected (unlike Financial Affairs,
+  // Property & Possessions, and Household Info which sit in the same
+  // dashboard group), so it renders here with the other standard sections
+  // rather than on the vault page below.
+  sectionHeader(doc, 'Insurance', palette, fonts);
+  if (!insuranceItems.length) {
+    noData(doc, fonts);
+  } else {
+    renderCards(doc, insuranceItems.map(item => [
+      { label: '',               value: item.provider || item.policy_type },
+      { label: 'Policy type',    value: item.policy_type },
+      { label: 'Policy number',  value: item.policy_number },
+      { label: 'Contact',        value: item.contact },
+      { label: 'Beneficiary',    value: item.beneficiary },
+      { label: 'Notes',          value: item.notes },
     ]), palette, fonts);
   }
 

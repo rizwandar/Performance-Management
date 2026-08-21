@@ -27,6 +27,7 @@ const SECTION_META = {
   children_dependants:  { label: 'Your Loved Ones',                isVault: false, kind: 'list' },
   pets:                 { label: 'Pet Care',                      isVault: false, kind: 'list' },
   how_to_be_remembered: { label: "How I'd Like to Be Remembered", isVault: false, kind: 'single' },
+  insurance_items:      { label: 'Insurance',                     isVault: false, kind: 'list' },
 };
 
 function isValidSection(key) {
@@ -151,6 +152,13 @@ const LIST_FIELDS = {
       ['alternate_contact', 'Alternate contact'], ['notes', 'Notes'],
     ],
   },
+  insurance_items: {
+    titleKey: 'provider', titleFallback: 'Unnamed policy',
+    fields: [
+      ['policy_type', 'Policy type'], ['policy_number', 'Policy number'],
+      ['contact', 'Contact'], ['beneficiary', 'Beneficiary'], ['notes', 'Notes'],
+    ],
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -184,6 +192,8 @@ async function fetchRawSectionData(sectionKey, userId, vaultKey) {
       return queryAll('SELECT * FROM children_dependants WHERE user_id = $1 ORDER BY created_at', [userId]);
     case 'pets':
       return queryAll('SELECT * FROM pets WHERE user_id = $1 ORDER BY created_at', [userId]);
+    case 'insurance_items':
+      return queryAll('SELECT * FROM insurance_items WHERE user_id = $1 ORDER BY created_at DESC', [userId]);
 
     case 'legal_documents':
     case 'financial_items':
