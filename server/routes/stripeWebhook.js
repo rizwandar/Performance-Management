@@ -7,6 +7,7 @@ const { countActiveCustomers, getOverageConfig } = require('../lib/orgBilling');
 const { sendEmail } = require('../lib/sendEmail');
 const {
   paymentConfirmationEmail, refundConfirmationEmail, subscriptionCancelledEmail,
+  subscriptionReinstatedEmail,
 } = require('../lib/emailTemplates');
 
 const PRICE_TO_PLAN = {
@@ -298,6 +299,29 @@ module.exports.handler = async (req, res) => {
                 subject: `Your ${APP_NAME} subscription has been cancelled`,
                 html:    subscriptionCancelledEmail({ name: user.name, accessUntilDate }),
               }).catch(err => console.error('[stripe webhook] Cancellation email failed:', err.message));
+            }
+          }
+
+          // Mirror image of the cancellation confirmation above: confirm a
+          // reinstatement (POST /billing/reinstate, or the same undo-cancel
+          // action from the Stripe-hosted Billing Portal) the moment
+          // cancel_at_period_end flips back to false, so the user isn't left
+          // wondering whether "reinstated" actually took on Stripe's side.
+          const wasCancelling = event.data.previous_attributes?.cancel_at_period_end === true;
+          if (event.type === 'customer.subscription.updated' && wasCancelling && !subscription.cancel_at_period_end) {
+            const user = await findConsumerUserByCustomerId(subscription.customer);
+            if (user) {
+              const item = subscription.items.data[0];
+              const nextBillingDate = new Date(item?.current_period_end * 1000)
+                .toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+              const price = item?.price?.unit_amount != null
+                ? `$${(item.price.unit_amount / 100).toFixed(2)}`
+                : null;
+              await sendEmail({
+                to:      user.email,
+                subject: `Your ${APP_NAME} subscription has been reinstated`,
+                html:    subscriptionReinstatedEmail({ name: user.name, nextBillingDate, price }),
+              }).catch(err => console.error('[stripe webhook] Reinstatement email failed:', err.message));
             }
           }
         }
