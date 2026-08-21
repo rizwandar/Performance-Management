@@ -1,6 +1,12 @@
 const APP_NAME = 'In Good Hands';
 const APP_URL  = process.env.CLIENT_URL || 'http://localhost:5173';
 
+// Escapes free text (e.g. a personal note someone typed) before it's dropped
+// into an HTML email body, so it renders as plain text rather than markup.
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
 // ---------------------------------------------------------------------------
 // Base layout — wraps all emails in consistent branding
 // ---------------------------------------------------------------------------
@@ -359,7 +365,7 @@ function cardExpiringReminderEmail({ name, daysLeft, cardBrand, cardLast4 }) {
 // ---------------------------------------------------------------------------
 // Trusted contact access link email
 // ---------------------------------------------------------------------------
-function contactAccessEmail({ recipientName, ownerName, accessLink, expiresHours }) {
+function contactAccessEmail({ recipientName, ownerName, accessLink, expiresHours, personalMessage }) {
   const validityLine = expiresHours
     ? `The link is valid for <strong>${expiresHours} hours</strong>.`
     : `This link does not expire.`;
@@ -367,6 +373,12 @@ function contactAccessEmail({ recipientName, ownerName, accessLink, expiresHours
     ? `This link is unique to you and will expire after ${expiresHours} hours.
        If you need access again, ${ownerName} can generate a new link from their account.`
     : `This link is unique to you and does not expire.`;
+  const personalMessageBlock = personalMessage
+    ? `<div style="background:#F9F6EC; border-left:3px solid #C9A24B; border-radius:6px; padding:14px 18px; margin:20px 0;">
+        <p style="margin:0 0 4px; color:#6B7280; font-size:13px; font-style:italic;">A note from ${ownerName}:</p>
+        <p style="margin:0; color:#1F2937; font-size:15px; white-space:pre-wrap;">${escapeHtml(personalMessage)}</p>
+      </div>`
+    : '';
   return layout(`
     <p>Dear ${recipientName},</p>
     <p>
@@ -378,6 +390,7 @@ function contactAccessEmail({ recipientName, ownerName, accessLink, expiresHours
       ahead of time and share it with people they care about. ${ownerName} wanted you to
       have access to some of what they've recorded.
     </p>
+    ${personalMessageBlock}
     <p>
       This is a secure, read-only link. It allows you to view the information
       ${ownerName} has chosen to share with you. ${validityLine}
