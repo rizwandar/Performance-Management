@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
-import { Button, Form, Row, Col, Alert, Spinner } from 'react-bootstrap'
+import { useNavigate, Link, useSearchParams } from 'react-router-dom'
+import { Button, Form, Row, Col, Alert, Spinner, Dropdown } from 'react-bootstrap'
 import axios from 'axios'
 import SectionHero from '../../components/SectionHero'
 import ShareSectionTrigger from '../../components/ShareSectionTrigger'
@@ -16,6 +16,17 @@ const empty = {
   pre_paid_plan: false, pre_paid_details: '', readings: '',
   flowers_preference: '', donation_charity: '', special_requests: '', notes: '',
 }
+
+// Section picker: only one of these renders at a time, chosen via the
+// dropdown below. "Burial & Ceremony" is the pinned default (first load,
+// no ?section= param).
+const SECTIONS = [
+  { slug: 'burial-ceremony', title: 'Burial & Ceremony' },
+  { slug: 'pre-paid-plan',   title: 'Pre-paid Plan' },
+  { slug: 'personal-wishes', title: 'Personal Wishes' },
+  { slug: 'photographs',     title: 'Photographs' },
+]
+const DEFAULT_SECTION = SECTIONS[0].slug
 
 // Section card with a clear heading bar
 function SectionCard({ title, children }) {
@@ -51,6 +62,23 @@ function FieldRow({ label, hint, action, children }) {
 
 export default function FuneralWishesPage() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [activeSection, setActiveSectionRaw] = useState(() => {
+    const fromUrl = searchParams.get('section')
+    return SECTIONS.some(s => s.slug === fromUrl) ? fromUrl : DEFAULT_SECTION
+  })
+  // Wraps the raw setter so the URL (?section=personal-wishes) stays in sync,
+  // giving a reloadable/shareable link to a specific section instead of
+  // always landing on Burial & Ceremony.
+  const setActiveSection = (slug) => {
+    setActiveSectionRaw(slug)
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      if (slug === DEFAULT_SECTION) next.delete('section')
+      else next.set('section', slug)
+      return next
+    }, { replace: true })
+  }
   const [form, setForm]       = useState(empty)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving]   = useState(false)
@@ -226,8 +254,39 @@ export default function FuneralWishesPage() {
       {success && <Alert variant="success">{success}</Alert>}
       {error && <Alert variant="danger">{error}</Alert>}
 
+      {/* Section picker: switching sections shows only that SectionCard. */}
+      <div className="d-flex gap-2 mb-4 flex-wrap align-items-center">
+        <Dropdown onSelect={(key) => key && setActiveSection(key)}>
+          <Dropdown.Toggle
+            id="funeral-wishes-section-dropdown"
+            variant="outline-secondary"
+            style={{
+              padding: '6px 18px', borderRadius: 20, border: '1px solid',
+              fontSize: '0.9rem', fontFamily: 'inherit',
+              borderColor: 'var(--green-800)',
+              background: 'var(--green-800)',
+              color: '#fff',
+            }}>
+            {SECTIONS.find(s => s.slug === activeSection)?.title}
+          </Dropdown.Toggle>
+          <Dropdown.Menu style={{ background: 'var(--parchment)', border: '1px solid var(--border)', boxShadow: '0 4px 16px rgba(0,0,0,0.12)' }}>
+            {SECTIONS.map(s => (
+              <Dropdown.Item key={s.slug} eventKey={s.slug} active={activeSection === s.slug}
+                style={{
+                  fontSize: '0.9rem', fontFamily: 'inherit',
+                  color: activeSection === s.slug ? '#fff' : 'var(--green-900)',
+                  background: activeSection === s.slug ? 'var(--green-800)' : 'transparent',
+                }}>
+                {s.title}
+              </Dropdown.Item>
+            ))}
+          </Dropdown.Menu>
+        </Dropdown>
+      </div>
+
       <Form>
         {/* Burial & Ceremony */}
+        {activeSection === 'burial-ceremony' && (
         <SectionCard title="Burial & Ceremony">
           <FieldRow label="Burial or cremation preference">
             <div className="d-flex gap-3 flex-wrap">
@@ -269,8 +328,10 @@ export default function FuneralWishesPage() {
             </Col>
           </Row>
         </SectionCard>
+        )}
 
         {/* Pre-paid Plan */}
+        {activeSection === 'pre-paid-plan' && (
         <SectionCard title="Pre-paid Plan">
           <Form.Check type="checkbox" id="pre_paid_plan" className="mb-3"
             label="I have a pre-paid funeral plan"
@@ -284,8 +345,10 @@ export default function FuneralWishesPage() {
             </FieldRow>
           )}
         </SectionCard>
+        )}
 
         {/* Personal Wishes */}
+        {activeSection === 'personal-wishes' && (
         <SectionCard title="Personal Wishes">
           <p className="text-muted small mb-4" style={{ marginTop: -8 }}>
             Looking to note music for your service? Add it to your{' '}
@@ -332,7 +395,9 @@ export default function FuneralWishesPage() {
             {notesDictation.supported && <DictationDisclosure />}
           </FieldRow>
         </SectionCard>
+        )}
 
+        {activeSection !== 'photographs' && (
         <div className="d-flex align-items-center gap-3 flex-wrap mb-3">
           <Button variant="primary" onClick={handleSave} disabled={saving}>
             {saving ? 'Saving...' : hasData ? 'Update my wishes' : 'Save my wishes'}
@@ -343,11 +408,13 @@ export default function FuneralWishesPage() {
             ← Back to my plans
           </button>
         </div>
-        {success && <Alert variant="success" className="mb-4">{success}</Alert>}
-        {error   && <Alert variant="danger"  className="mb-4">{error}</Alert>}
+        )}
+        {activeSection !== 'photographs' && success && <Alert variant="success" className="mb-4">{success}</Alert>}
+        {activeSection !== 'photographs' && error   && <Alert variant="danger"  className="mb-4">{error}</Alert>}
       </Form>
 
       {/* ── Photographs ────────────────────────────────────────────────────── */}
+      {activeSection === 'photographs' && (
       <SectionCard title="Photographs">
         {photoError && <Alert variant="danger" className="mb-3">{photoError}</Alert>}
 
@@ -468,6 +535,7 @@ export default function FuneralWishesPage() {
           />
         </div>
       </SectionCard>
+      )}
 
       <ShareSectionHistory section="funeral_wishes" />
     </div>
