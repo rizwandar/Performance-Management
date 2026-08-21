@@ -5,6 +5,9 @@ import axios from 'axios'
 import SectionHero from '../../components/SectionHero'
 import ShareSectionTrigger from '../../components/ShareSectionTrigger'
 import ShareSectionHistory from '../../components/ShareSectionHistory'
+import DictateButton from '../../components/DictateButton'
+import DictationDisclosure from '../../components/DictationDisclosure'
+import { useDictation } from '../../hooks/useDictation'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -26,6 +29,12 @@ export default function PetCarePage() {
   const [form, setForm]           = useState(empty)
 
   const [loadFailed, setLoadFailed] = useState(false)
+
+  const notesDictation = useDictation({ getValue: () => form.notes, setValue: v => setForm(f => ({ ...f, notes: v })) })
+  const closeModal = () => {
+    notesDictation.stopDictation()
+    setShowModal(false)
+  }
 
   const load = () => {
     setLoading(true)
@@ -65,6 +74,7 @@ export default function PetCarePage() {
       } else {
         await axios.post(`${API}/sections/pets`, form)
       }
+      notesDictation.stopDictation()
       setShowModal(false)
       setSuccess(editing ? 'Record updated.' : 'Record added.')
       load()
@@ -174,7 +184,7 @@ export default function PetCarePage() {
         </div>
       )}
 
-      <Modal show={showModal} onHide={() => setShowModal(false)} centered size="lg">
+      <Modal show={showModal} onHide={closeModal} centered size="lg">
         <Modal.Header closeButton style={{ background: 'var(--green-50)', borderBottom: '1px solid var(--green-100)' }}>
           <Modal.Title style={{ color: 'var(--green-900)', fontSize: '1.1rem' }}>
             {editing ? 'Edit record' : 'Add a pet'}
@@ -235,15 +245,19 @@ export default function PetCarePage() {
             </div>
 
             <Form.Group>
-              <Form.Label>Additional notes</Form.Label>
+              <div className="d-flex justify-content-between align-items-center">
+                <Form.Label className="mb-0">Additional notes</Form.Label>
+                <DictateButton dictation={notesDictation} />
+              </div>
               <Form.Control as="textarea" rows={2} value={form.notes}
                 onChange={e => setForm({ ...form, notes: e.target.value })}
                 placeholder="Favorite things, routines, anything else your pet's caretaker should know…" />
+              {notesDictation.supported && <DictationDisclosure />}
             </Form.Group>
           </Form>
         </Modal.Body>
         <Modal.Footer style={{ borderTop: '1px solid var(--border)' }}>
-          <Button variant="outline-secondary" onClick={() => setShowModal(false)}>Cancel</Button>
+          <Button variant="outline-secondary" onClick={closeModal}>Cancel</Button>
           <Button variant="primary" onClick={handleSave} disabled={saving}>
             {saving ? 'Saving...' : editing ? 'Save changes' : 'Add pet'}
           </Button>

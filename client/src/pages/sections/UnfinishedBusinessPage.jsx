@@ -5,6 +5,9 @@ import axios from 'axios'
 import SectionHero from '../../components/SectionHero'
 import ShareSectionTrigger from '../../components/ShareSectionTrigger'
 import ShareSectionHistory from '../../components/ShareSectionHistory'
+import DictateButton from '../../components/DictateButton'
+import DictationDisclosure from '../../components/DictationDisclosure'
+import { useDictation } from '../../hooks/useDictation'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -23,6 +26,14 @@ export default function UnfinishedBusinessPage() {
   const [expanded, setExpanded]   = useState(null)
 
   const [loadFailed, setLoadFailed] = useState(false)
+
+  const descriptionDictation = useDictation({ getValue: () => form.description, setValue: v => setForm(f => ({ ...f, description: v })) })
+  const notesDictation       = useDictation({ getValue: () => form.notes,       setValue: v => setForm(f => ({ ...f, notes: v })) })
+  const closeModal = () => {
+    descriptionDictation.stopDictation()
+    notesDictation.stopDictation()
+    setShowModal(false)
+  }
 
   const load = () => {
     setLoading(true)
@@ -57,6 +68,8 @@ export default function UnfinishedBusinessPage() {
       } else {
         await axios.post(`${API}/sections/unfinished-business`, form)
       }
+      descriptionDictation.stopDictation()
+      notesDictation.stopDictation()
       setShowModal(false)
       setSuccess(editing ? 'Entry updated.' : 'Entry saved.')
       load()
@@ -156,7 +169,7 @@ export default function UnfinishedBusinessPage() {
         </div>
       )}
 
-      <Modal show={showModal} onHide={() => setShowModal(false)} centered size="lg">
+      <Modal show={showModal} onHide={closeModal} centered size="lg">
         <Modal.Header closeButton style={{ background: 'var(--green-50)', borderBottom: '1px solid var(--green-100)' }}>
           <Modal.Title style={{ color: 'var(--green-900)', fontSize: '1.1rem' }}>
             {editing ? `Edit entry` : 'Add an entry'}
@@ -173,7 +186,10 @@ export default function UnfinishedBusinessPage() {
                 autoFocus />
             </Form.Group>
             <Form.Group className="mb-3">
-              <Form.Label>What's unfinished</Form.Label>
+              <div className="d-flex justify-content-between align-items-center">
+                <Form.Label className="mb-0">What's unfinished</Form.Label>
+                <DictateButton dictation={descriptionDictation} />
+              </div>
               <Form.Control
                 as="textarea"
                 rows={6}
@@ -182,17 +198,22 @@ export default function UnfinishedBusinessPage() {
                 placeholder="Describe the apology, the reconciliation, or the loose end you'd like addressed."
                 style={{ lineHeight: 1.7, fontSize: '0.95rem' }}
               />
+              {descriptionDictation.supported && <DictationDisclosure />}
             </Form.Group>
             <Form.Group>
-              <Form.Label>Additional notes</Form.Label>
+              <div className="d-flex justify-content-between align-items-center">
+                <Form.Label className="mb-0">Additional notes</Form.Label>
+                <DictateButton dictation={notesDictation} />
+              </div>
               <Form.Control as="textarea" rows={2} value={form.notes}
                 onChange={e => setForm({ ...form, notes: e.target.value })}
                 placeholder="Anything else you'd like recorded alongside this." />
+              {notesDictation.supported && <DictationDisclosure />}
             </Form.Group>
           </Form>
         </Modal.Body>
         <Modal.Footer style={{ borderTop: '1px solid var(--border)' }}>
-          <Button variant="outline-secondary" onClick={() => setShowModal(false)}>Cancel</Button>
+          <Button variant="outline-secondary" onClick={closeModal}>Cancel</Button>
           <Button variant="primary" onClick={handleSave} disabled={saving}>
             {saving ? 'Saving...' : editing ? 'Save changes' : 'Save entry'}
           </Button>
