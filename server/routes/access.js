@@ -125,14 +125,27 @@ router.get('/:token', async (req, res) => {
       // SEC-20: property_items is vault-protected, same reasoning as above.
       case 'personal_messages': {
         const rows = await queryAll(
-          'SELECT id, recipient_name, relationship, message, notes, audio_r2_key FROM personal_messages WHERE user_id = $1',
+          'SELECT id, recipient_name, relationship, message, notes FROM personal_messages WHERE user_id = $1',
           [tokenRow.user_id]
         );
-        // Signed URL generated fresh per request, never stored - same pattern
-        // as the authenticated document download route in documents.js.
-        data.personal_messages = await Promise.all(rows.map(async ({ audio_r2_key, ...row }) => ({
+        // IDEA-34: up to 3 voice clips per message now, held in a child
+        // table rather than a single column - fetched in one batched query
+        // rather than per message. Signed URLs generated fresh per request,
+        // never stored - same pattern as the authenticated document download
+        // route in documents.js.
+        const clipRows = rows.length
+          ? await queryAll(
+              'SELECT id, message_id, r2_key, duration_seconds FROM personal_message_audio_clips WHERE message_id = ANY($1::int[]) ORDER BY created_at',
+              [rows.map(r => r.id)]
+            )
+          : [];
+        data.personal_messages = await Promise.all(rows.map(async row => ({
           ...row,
-          audio_url: audio_r2_key ? await getDownloadUrl(audio_r2_key) : null,
+          audio_clips: await Promise.all(
+            clipRows
+              .filter(c => c.message_id === row.id)
+              .map(async c => ({ id: c.id, audio_url: await getDownloadUrl(c.r2_key), duration_seconds: c.duration_seconds }))
+          ),
         })));
         break;
       }

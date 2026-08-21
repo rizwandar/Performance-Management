@@ -409,7 +409,7 @@ router.delete('/property-possessions/:id', requireAuth, requirePremium, async (r
 // ---------------------------------------------------------------------------
 router.get('/messages', requireAuth, async (req, res) => {
   const rows = await queryAll('SELECT * FROM personal_messages WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]);
-  res.json(await Promise.all(rows.map(withAudioUrl)));
+  res.json(await Promise.all(rows.map(withAudioClips)));
 });
 
 router.post('/messages', requireAuth, async (req, res) => {
@@ -436,18 +436,25 @@ router.put('/messages/:id', requireAuth, async (req, res) => {
 router.delete('/messages/:id', requireAuth, async (req, res) => {
   const item = await queryOne('SELECT * FROM personal_messages WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Message not found.' });
+  const clips = await queryAll('SELECT r2_key FROM personal_message_audio_clips WHERE message_id = $1', [item.id]);
+  await Promise.all(clips.map(c => deleteFile(c.r2_key).catch(() => {})));
+  // Legacy safety net: normally null post-migration (see database.js init),
+  // but harmless to also check here in case this ever runs before init.
   if (item.audio_r2_key) await deleteFile(item.audio_r2_key).catch(() => {});
   await query('DELETE FROM personal_messages WHERE id = $1', [item.id]);
   res.json({ success: true });
 });
 
-// IDEA-01: an optional recorded voice message alongside (not instead of) the
-// typed/dictated text. Open to all users, same as the rest of this section -
-// not premium-gated (unlike the vault-adjacent sections above). One audio
-// clip per message; a re-record replaces the previous R2 object.
+// IDEA-01/IDEA-34: up to 3 optional recorded voice clips alongside (not
+// instead of) the typed/dictated text. Open to all users, same as the rest of
+// this section - not premium-gated (unlike the vault-adjacent sections
+// above). Clips live in personal_message_audio_clips, one row per clip; the
+// legacy audio_r2_key etc. columns on personal_messages (IDEA-01's original
+// one-clip-per-row design) are no longer written to - see database.js.
 const AUDIO_MIME_TYPES = new Set(['audio/webm', 'audio/ogg', 'audio/mp4', 'audio/mpeg', 'audio/wav', 'audio/x-m4a']);
 const AUDIO_EXTENSIONS = new Set(['webm', 'ogg', 'mp4', 'm4a', 'mp3', 'wav']);
 const MAX_AUDIO_DURATION_SECONDS = 300; // 5 minutes - a soft guardrail on storage cost, not enforced against determined tampering
+const MAX_AUDIO_CLIPS_PER_MESSAGE = 3;
 
 // MediaRecorder in the browser reports mimeType with a codec parameter
 // (e.g. "audio/webm;codecs=opus"), which would never exact-match the plain
@@ -476,12 +483,23 @@ const audioUpload = multer({
   },
 });
 
-// A signed R2 URL never gets stored - only ever generated fresh per request,
-// same pattern as documents.js's download route.
-async function withAudioUrl(row) {
-  if (!row.audio_r2_key) return row;
-  const { audio_r2_key, ...rest } = row;
-  return { ...rest, audio_url: await getDownloadUrl(audio_r2_key) };
+// Signed R2 URLs never get stored - only ever generated fresh per request,
+// same pattern as documents.js's download route. Returns the message with an
+// audio_clips array (0-3 entries) instead of a single audio_url.
+async function withAudioClips(row) {
+  const clips = await queryAll(
+    'SELECT id, r2_key, duration_seconds FROM personal_message_audio_clips WHERE message_id = $1 ORDER BY created_at',
+    [row.id]
+  );
+  const { audio_r2_key, audio_mime_type, audio_size_bytes, audio_duration_seconds, ...rest } = row;
+  return {
+    ...rest,
+    audio_clips: await Promise.all(clips.map(async c => ({
+      id: c.id,
+      audio_url: await getDownloadUrl(c.r2_key),
+      duration_seconds: c.duration_seconds,
+    }))),
+  };
 }
 
 router.post('/messages/:id/audio', requireAuth, (req, res, next) => {
@@ -491,9 +509,16 @@ router.post('/messages/:id/audio', requireAuth, (req, res, next) => {
   });
 }, async (req, res) => {
   try {
-    const item = await queryOne('SELECT * FROM personal_messages WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
+    const item = await queryOne('SELECT id FROM personal_messages WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
     if (!item) return res.status(404).json({ error: 'Message not found.' });
     if (!req.file) return res.status(400).json({ error: 'No recording provided.' });
+
+    const existingCount = await queryOne(
+      'SELECT COUNT(*)::int AS c FROM personal_message_audio_clips WHERE message_id = $1', [item.id]
+    );
+    if (existingCount.c >= MAX_AUDIO_CLIPS_PER_MESSAGE) {
+      return res.status(400).json({ error: 'This message already has the maximum of 3 voice recordings. Delete one first to add another.' });
+    }
 
     const mimeType = baseMimeType(req.file.mimetype) || 'audio/webm';
     const ext = (req.file.originalname.split('.').pop() || 'webm').replace(/[^a-zA-Z0-9]/g, '');
@@ -507,33 +532,56 @@ router.post('/messages/:id/audio', requireAuth, (req, res, next) => {
     const key = `${req.user.id}/messages/${item.id}/${uuidv4()}.${ext}`;
     await uploadFile({ key, buffer: req.file.buffer, mimeType });
 
-    const previousKey = item.audio_r2_key;
     const duration = Math.min(parseInt(req.body.duration_seconds, 10) || 0, MAX_AUDIO_DURATION_SECONDS) || null;
 
-    await query(`
-      UPDATE personal_messages
-      SET audio_r2_key = $1, audio_mime_type = $2, audio_size_bytes = $3, audio_duration_seconds = $4, updated_at = NOW()
-      WHERE id = $5
-    `, [key, mimeType, req.file.size, duration, item.id]);
+    let clipId;
+    try {
+      clipId = await transaction(async (client) => {
+        // Re-check the count inside the transaction, with a row lock on the
+        // parent message, to close the race between the early check above
+        // and this insert - two concurrent uploads for the same message
+        // could otherwise both pass the first check and both land, pushing
+        // the message past 3 clips.
+        await client.query('SELECT id FROM personal_messages WHERE id = $1 FOR UPDATE', [item.id]);
+        const recount = await client.query(
+          'SELECT COUNT(*)::int AS c FROM personal_message_audio_clips WHERE message_id = $1', [item.id]
+        );
+        if (recount.rows[0].c >= MAX_AUDIO_CLIPS_PER_MESSAGE) {
+          throw Object.assign(new Error('MAX_CLIPS'), { code: 'MAX_CLIPS' });
+        }
+        const insertRes = await client.query(`
+          INSERT INTO personal_message_audio_clips (message_id, r2_key, mime_type, size_bytes, duration_seconds)
+          VALUES ($1, $2, $3, $4, $5) RETURNING id
+        `, [item.id, key, mimeType, req.file.size, duration]);
+        return insertRes.rows[0].id;
+      });
+    } catch (err) {
+      if (err.code === 'MAX_CLIPS') {
+        await deleteFile(key).catch(() => {});
+        return res.status(400).json({ error: 'This message already has the maximum of 3 voice recordings. Delete one first to add another.' });
+      }
+      throw err;
+    }
 
-    if (previousKey) await deleteFile(previousKey).catch(() => {});
+    await query('UPDATE personal_messages SET updated_at = NOW() WHERE id = $1', [item.id]);
 
-    res.json({ audio_url: await getDownloadUrl(key), audio_duration_seconds: duration });
+    res.status(201).json({ id: clipId, audio_url: await getDownloadUrl(key), duration_seconds: duration });
   } catch (err) {
     console.error('Voice message upload error:', err);
     res.status(500).json({ error: "We couldn't save your recording. Please try again." });
   }
 });
 
-router.delete('/messages/:id/audio', requireAuth, async (req, res) => {
-  const item = await queryOne('SELECT * FROM personal_messages WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
+router.delete('/messages/:id/audio/:clipId', requireAuth, async (req, res) => {
+  const item = await queryOne('SELECT id FROM personal_messages WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Message not found.' });
-  if (item.audio_r2_key) await deleteFile(item.audio_r2_key).catch(() => {});
-  await query(`
-    UPDATE personal_messages
-    SET audio_r2_key = NULL, audio_mime_type = NULL, audio_size_bytes = NULL, audio_duration_seconds = NULL, updated_at = NOW()
-    WHERE id = $1
-  `, [item.id]);
+  const clip = await queryOne(
+    'SELECT * FROM personal_message_audio_clips WHERE id = $1 AND message_id = $2', [req.params.clipId, item.id]
+  );
+  if (!clip) return res.status(404).json({ error: 'Voice recording not found.' });
+  await deleteFile(clip.r2_key).catch(() => {});
+  await query('DELETE FROM personal_message_audio_clips WHERE id = $1', [clip.id]);
+  await query('UPDATE personal_messages SET updated_at = NOW() WHERE id = $1', [item.id]);
   res.json({ success: true });
 });
 
