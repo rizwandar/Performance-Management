@@ -8,9 +8,14 @@ const { generateAccessLink } = require('../lib/inactivityTimer');
 
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
 
+// SEC-20: legal_documents, financial_items, and property_items are
+// vault-protected and must never be grantable as a regular trusted-contact
+// permission, same reasoning as digital_life/household_info/
+// digital_credentials already being absent from this set. See the matching
+// comment in routes/access.js.
 const VALID_SECTIONS = new Set([
-  'legal_documents', 'financial_items', 'funeral_wishes', 'medical_wishes',
-  'people_to_notify', 'property_items', 'personal_messages', 'songs_that_define_me',
+  'funeral_wishes', 'medical_wishes',
+  'people_to_notify', 'personal_messages', 'songs_that_define_me',
   'life_wishes', 'children_dependants',
 ]);
 

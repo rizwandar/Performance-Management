@@ -8,13 +8,15 @@ import SectionHero from '../../components/SectionHero'
 
 const API = import.meta.env.VITE_API_URL
 
+// SEC-20: legal_documents, financial_items, and property_items are
+// vault-protected and were removed from here. They can never be safely
+// shared via a trusted-contact access link (no way for the link viewer to
+// supply the vault password), so they should not be offered as a grantable
+// permission at all.
 const SECTIONS = [
-  { id: 'legal_documents',      label: 'Legal Documents' },
-  { id: 'financial_items',      label: 'Financial Affairs' },
   { id: 'funeral_wishes',       label: 'Funeral Wishes' },
   { id: 'medical_wishes',       label: 'Medical Wishes' },
   { id: 'people_to_notify',     label: 'People to Notify' },
-  { id: 'property_items',       label: 'Property & Possessions' },
   { id: 'personal_messages',    label: 'Messages to Loved Ones' },
   { id: 'songs_that_define_me', label: 'Songs That Define Me' },
   { id: 'life_wishes',          label: 'My Bucket List' },
