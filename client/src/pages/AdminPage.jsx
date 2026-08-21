@@ -26,6 +26,7 @@ const THEMES = [
   { id: 'highcontrast', name: 'High Contrast', description: 'Maximum contrast, accessibility-first', swatch: ['#111111', '#C05000', '#FFFFFF'] },
   { id: 'softmist',    name: 'Soft Mist',      description: 'Very low contrast, gentle and calm',    swatch: ['#4A5A65', '#A89870', '#F8F9FA'] },
   { id: 'keepsake',    name: 'Keepsake',       description: 'Cream, walnut & marigold, like a treasured box of letters', swatch: ['#3A2E22', '#E0A438', '#FAF3E8'] },
+  { id: 'heirloom',    name: 'Heirloom',       description: 'Dark forest-green landing page, cream dashboard with italic headings, and plain white bordered cards', swatch: ['#14301F', '#F1EAD9', '#E4DAC0'] },
 ]
 
 const FONTS = [
