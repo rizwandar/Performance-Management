@@ -513,6 +513,18 @@ async function init() {
     )
   `);
 
+  // Org billing (server/routes/stripeWebhook.js upsertOrgFromSubscription,
+  // server/routes/orgPortal.js) has referenced these three columns since org
+  // billing was first added, but the migration adding them to the schema was
+  // never included - a pre-existing gap, only surfaced now because
+  // findConsumerUserByCustomerId's organization-exclusion check (also
+  // pre-existing) queries stripe_customer_id unconditionally on every
+  // consumer payment/refund/cancellation webhook event, regardless of
+  // whether ORG_PORTAL_ENABLED is set.
+  await pool.query(`ALTER TABLE organizations ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT`);
+  await pool.query(`ALTER TABLE organizations ADD COLUMN IF NOT EXISTS stripe_subscription_id TEXT`);
+  await pool.query(`ALTER TABLE organizations ADD COLUMN IF NOT EXISTS billing_status TEXT`);
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS organization_locations (
       id              SERIAL PRIMARY KEY,
