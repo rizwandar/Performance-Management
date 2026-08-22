@@ -38,7 +38,7 @@ export default function PricingPage() {
   return (
     <div style={{ maxWidth: 980, margin: '0 auto' }}>
       <div style={{ marginBottom: 24, textAlign: 'center' }}>
-        <h2 style={{ color: 'var(--green-900)', fontFamily: 'Georgia, serif', marginBottom: 8 }}>
+        <h2 style={{ color: 'var(--heading-color, var(--green-900))', fontFamily: 'Georgia, serif', marginBottom: 8 }}>
           Organization Pricing
         </h2>
         <p style={{ color: 'var(--text-muted)', maxWidth: 640, margin: '0 auto' }}>

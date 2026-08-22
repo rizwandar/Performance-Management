@@ -52,7 +52,7 @@ export default function OrgCustomersPage() {
   return (
     <div>
       <div className="d-flex justify-content-between align-items-center mb-3">
-        <h2 style={{ color: 'var(--green-900)', fontFamily: 'Georgia, serif', margin: 0 }}>Customers</h2>
+        <h2 style={{ color: 'var(--heading-color, var(--green-900))', fontFamily: 'Georgia, serif', margin: 0 }}>Customers</h2>
         <Button size="sm" onClick={() => setShowAdd(true)} style={{ background: 'var(--green-800)', border: 'none' }}>
           + Add Customer
         </Button>

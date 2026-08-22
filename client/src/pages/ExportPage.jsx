@@ -143,7 +143,7 @@ export default function ExportPage() {
 
       {/* ── Page heading ──────────────────────────────────────────────────── */}
       <div style={{ marginBottom: 32 }}>
-        <h2 style={{ color: 'var(--green-900)', fontFamily: 'Georgia, serif', marginBottom: 6 }}>
+        <h2 style={{ color: 'var(--heading-color, var(--green-900))', fontFamily: 'Georgia, serif', marginBottom: 6 }}>
           Download Your Plans
         </h2>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', lineHeight: 1.6, marginBottom: 0 }}>

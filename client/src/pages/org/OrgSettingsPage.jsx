@@ -154,7 +154,7 @@ export default function OrgSettingsPage() {
 
   return (
     <div>
-      <h2 style={{ color: 'var(--green-900)', fontFamily: 'Georgia, serif', marginBottom: 24 }}>Settings</h2>
+      <h2 style={{ color: 'var(--heading-color, var(--green-900))', fontFamily: 'Georgia, serif', marginBottom: 24 }}>Settings</h2>
       {alert && <Alert variant={alert.type}>{alert.msg}</Alert>}
 
       <div style={card}>

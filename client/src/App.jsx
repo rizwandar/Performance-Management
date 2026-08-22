@@ -100,6 +100,11 @@ const DEFAULT_CARD_TOKENS = {
   // Heading display style (e.g. italic) — 'normal' everywhere except themes
   // that opt in.
   '--heading-style': 'normal',
+  // Major page/section-title heading colour (SectionHero.jsx, DashboardPage's
+  // hero heading, etc). Defaults to today's --green-900 for every existing
+  // theme so this is a no-op visual change for them; only heirloom overrides
+  // it below with a brighter mid-green.
+  '--heading-color': 'var(--green-900)',
 }
 
 const THEME_VARS = {
@@ -199,6 +204,7 @@ const THEME_VARS = {
     '--hero-outline-color': 'var(--green-800)',
     '--hero-lead-color': 'var(--text-muted)',
     '--heading-style': 'normal',
+    '--heading-color': 'var(--green-900)',
   },
   // Heirloom — dark forest-green landing hero with cream text, cream/parchment
   // dashboard with italic dark-green headings, and plain white group cards
@@ -231,6 +237,11 @@ const THEME_VARS = {
     // already inherit the selected FONT and use var(--green-900) for
     // colour, so italic is the only new treatment needed here).
     '--heading-style': 'italic',
+    // Major page/section-title headings: --green-900 (#14301F) reads as
+    // near-black rather than clearly green at this darkness, so heirloom
+    // uses its own --green-700 (a richer mid-green) for headings specifically
+    // instead of the shared default above.
+    '--heading-color': '#2C6242',
   },
 }
 
@@ -747,7 +758,7 @@ function AppContent() {
     }}>
       <div style={{ maxWidth: 480, textAlign: 'center' }}>
         <div style={{ fontSize: '3rem', marginBottom: 16 }}>🔧</div>
-        <h2 style={{ color: 'var(--green-900)', fontFamily: 'Georgia, serif', marginBottom: 12 }}>
+        <h2 style={{ color: 'var(--heading-color, var(--green-900))', fontFamily: 'Georgia, serif', marginBottom: 12 }}>
           We'll be back shortly
         </h2>
         <p style={{ color: 'var(--text-muted)', lineHeight: 1.7, marginBottom: 24 }}>

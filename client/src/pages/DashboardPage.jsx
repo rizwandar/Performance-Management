@@ -351,7 +351,7 @@ export default function DashboardPage() {
           )}
         </div>
         <h2 style={{
-          color: 'var(--green-900)', fontFamily: 'Georgia, serif', fontWeight: 700,
+          color: 'var(--heading-color, var(--green-900))', fontFamily: 'Georgia, serif', fontWeight: 700,
           fontSize: '2rem', lineHeight: 1.25, margin: '0 0 12px', maxWidth: '22ch',
         }}>
           Your <mark>story</mark> is waiting to be told
