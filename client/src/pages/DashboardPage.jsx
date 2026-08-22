@@ -71,15 +71,6 @@ const ICON_SETS = {
 // ---------------------------------------------------------------------------
 const GROUPS = [
   {
-    id:          'people',
-    label:       'Your People',
-    description: 'The important people in your life and who should be involved.',
-    cardBg:      '#F7EDE7',
-    cardBorder:  '#E4C8B4',
-    startedBorder: '#B87A50',
-    iconBg:      '#EDD8C8',
-  },
-  {
     id:          'legacy',
     label:       'Your Legacy',
     description: 'Who you are, what you love, and what you want to leave behind.',
@@ -87,6 +78,15 @@ const GROUPS = [
     cardBorder:  '#E8D8A8',
     startedBorder: '#C9A84C',
     iconBg:      '#F5EAC8',
+  },
+  {
+    id:          'people',
+    label:       'Your People',
+    description: 'The important people in your life and who should be involved.',
+    cardBg:      '#F7EDE7',
+    cardBorder:  '#E4C8B4',
+    startedBorder: '#B87A50',
+    iconBg:      '#EDD8C8',
   },
   {
     id:          'wishes',
@@ -130,14 +130,14 @@ const PREMIUM_BOUNDARY_GROUP = 'affairs'
 const SECTIONS = [
   // ── Your Legacy ────────────────────────────────────────────────────────────
   {
-    id: 'how_to_be_remembered', label: "How I'd Like to Be Remembered",
-    icon: '🕯️', route: '/sections/how-to-be-remembered', group: 'legacy',
-    description: 'Share your values, your story, and the things that define you, so those you love will always know who you were.',
-  },
-  {
     id: 'personal_messages', label: 'Messages to Loved Ones',
     icon: '💌', route: '/sections/messages', group: 'legacy',
     description: 'Write heartfelt letters to the people who matter most. Words they can hold onto long after you\'re gone.',
+  },
+  {
+    id: 'how_to_be_remembered', label: "How I'd Like to Be Remembered",
+    icon: '🕯️', route: '/sections/how-to-be-remembered', group: 'legacy',
+    description: 'Share your values, your story, and the things that define you, so those you love will always know who you were.',
   },
   {
     id: 'songs_that_define_me', label: 'Songs That Define Me',
@@ -150,29 +150,7 @@ const SECTIONS = [
     description: "The dreams you're still chasing, the places you want to see, and the experiences that light you up.",
   },
 
-  // ── Your Wishes ────────────────────────────────────────────────────────────
-  {
-    id: 'funeral_wishes', label: 'Funeral & End-of-Life Wishes',
-    icon: '🕊️', route: '/sections/funeral-wishes', group: 'wishes',
-    description: 'Your gentle guidance for the farewell that truly reflects who you are and what you believe.',
-  },
-  {
-    id: 'medical_wishes', label: 'Medical & Care Wishes',
-    icon: '🏥', route: '/sections/medical-wishes', group: 'wishes',
-    description: 'Your preferences for care and treatment, giving those who love you the clarity to act on your behalf.',
-  },
-
   // ── Your People ────────────────────────────────────────────────────────────
-  {
-    id: 'key_contacts', label: 'Key Contacts',
-    icon: '🤝', route: '/sections/key-contacts', group: 'people',
-    description: 'The important people to call on: your lawyer, doctor, financial adviser, and trusted support.',
-  },
-  {
-    id: 'people_to_notify', label: 'People to Notify',
-    icon: '👥', route: '/sections/people-to-notify', group: 'people',
-    description: 'The friends, family, and colleagues who should hear the news directly and with care.',
-  },
   {
     id: 'children-dependants', label: 'Your Loved Ones',
     icon: '👶', route: '/sections/children-dependants', group: 'people',
@@ -183,17 +161,39 @@ const SECTIONS = [
     icon: '🐾', route: '/sections/pet-care', group: 'people',
     description: 'Feeding routines, vet details, and caretaker wishes so your pets are looked after too.',
   },
+  {
+    id: 'key_contacts', label: 'Key Contacts',
+    icon: '🤝', route: '/sections/key-contacts', group: 'people',
+    description: 'The important people to call on: your lawyer, doctor, financial adviser, and trusted support.',
+  },
+  {
+    id: 'people_to_notify', label: 'People to Notify',
+    icon: '👥', route: '/sections/people-to-notify', group: 'people',
+    description: 'The friends, family, and colleagues who should hear the news directly and with care.',
+  },
+
+  // ── Your Wishes ────────────────────────────────────────────────────────────
+  {
+    id: 'medical_wishes', label: 'Medical & Care Wishes',
+    icon: '🏥', route: '/sections/medical-wishes', group: 'wishes',
+    description: 'Your preferences for care and treatment, giving those who love you the clarity to act on your behalf.',
+  },
+  {
+    id: 'funeral_wishes', label: 'Funeral & End-of-Life Wishes',
+    icon: '🕊️', route: '/sections/funeral-wishes', group: 'wishes',
+    description: 'Your gentle guidance for the farewell that truly reflects who you are and what you believe.',
+  },
 
   // ── Your Affairs ───────────────────────────────────────────────────────────
-  {
-    id: 'legal_documents', label: 'Personal & Legal Documents',
-    icon: '📄', route: '/sections/legal-documents', group: 'affairs',
-    description: 'Your will, powers of attorney, and identity documents, safely organized and easy to locate.',
-  },
   {
     id: 'property_items', label: 'Property & Possessions',
     icon: '🏡', route: '/sections/property-possessions', group: 'affairs',
     description: 'A clear record of your home, vehicles, valuables, and the possessions that matter most.',
+  },
+  {
+    id: 'household-info', label: 'Practical Household Information',
+    icon: '🔑', route: '/sections/household-info', group: 'affairs',
+    description: 'Practical details about utilities, subscriptions, and services that keep everyday life running smoothly.',
   },
   {
     id: 'financial_items', label: 'Financial Affairs',
@@ -201,14 +201,14 @@ const SECTIONS = [
     description: 'Your accounts, investments, insurance policies, and financial affairs, all in one place.',
   },
   {
+    id: 'legal_documents', label: 'Personal & Legal Documents',
+    icon: '📄', route: '/sections/legal-documents', group: 'affairs',
+    description: 'Your will, powers of attorney, and identity documents, safely organized and easy to locate.',
+  },
+  {
     id: 'digital_credentials', label: 'Digital Life',
     icon: '💻', route: '/sections/digital-life', group: 'affairs',
     description: 'Your online accounts and passwords, secured by your vault password and accessible when needed.',
-  },
-  {
-    id: 'household-info', label: 'Practical Household Information',
-    icon: '🔑', route: '/sections/household-info', group: 'affairs',
-    description: 'Practical details about utilities, subscriptions, and services that keep everyday life running smoothly.',
   },
 ]
 
@@ -223,6 +223,9 @@ export default function DashboardPage() {
   const [loading, setLoading]         = useState(true)
   const [iconSet, setIconSet]         = useState('classic')
   const [upgradeModal, setUpgradeModal] = useState(null)
+  // Groups the user has manually re-expanded after they collapsed to a
+  // finished summary row. Session-only: resets on reload, never persisted.
+  const [expandedGroups, setExpandedGroups] = useState(() => new Set())
 
   useEffect(() => {
     axios.get(`${API}/sections/completion`)
@@ -242,6 +245,16 @@ export default function DashboardPage() {
   const isNewUser    = startedCount === 0
   const nextSection   = SECTIONS.find(s => !isStarted(s)) || SECTIONS[0]
   const progressPct   = Math.round((startedCount / SECTIONS.length) * 100)
+
+  // "Continue where you left off": walk sections in the order they actually
+  // appear on the page (group by group, in GROUPS order; within a group, in
+  // SECTIONS order) and suggest the first one that hasn't been started yet.
+  // Deliberately re-derived from the live GROUPS/SECTIONS arrays rather than
+  // hardcoding a section, so an independent reordering of either array (e.g.
+  // by "warmth") is picked up automatically.
+  const nextIncompleteSection = GROUPS
+    .flatMap(group => SECTIONS.filter(s => s.group === group.id))
+    .find(s => !isStarted(s))
 
   if (loading) return (
     <div className="text-center py-5">
@@ -370,10 +383,40 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* ── Continue where you left off ──────────────────────────────────── */}
+      {nextIncompleteSection && (
+        <p style={{
+          fontSize: '0.82rem', color: 'var(--text-muted)', margin: '0 0 18px',
+        }}>
+          Next:{' '}
+          <button
+            type="button"
+            onClick={() => navigate(nextIncompleteSection.route)}
+            style={{
+              background: 'none', border: 'none', padding: 0,
+              color: 'var(--green-800)', fontWeight: 700, textDecoration: 'underline',
+              cursor: 'pointer', fontFamily: 'inherit', fontSize: 'inherit',
+            }}
+          >
+            {nextIncompleteSection.label}
+          </button>
+        </p>
+      )}
+
       {/* ── Section groups ─────────────────────────────────────────────────── */}
       {GROUPS.map((group, gi) => {
         const groupSections = SECTIONS.filter(s => s.group === group.id)
         const groupStarted  = groupSections.filter(isStarted).length
+        // A group only collapses once every section in it has at least one
+        // entry, the same "started" signal the overall progress bar uses.
+        // A brand-new account (nothing started anywhere) never sees this.
+        const groupComplete = groupSections.length > 0 && groupStarted === groupSections.length
+        const groupCollapsed = groupComplete && !expandedGroups.has(group.id)
+        const expandGroup = () => setExpandedGroups(prev => {
+          const next = new Set(prev)
+          next.add(group.id)
+          return next
+        })
 
         return (
           <div key={group.id} style={{ marginBottom: gi < GROUPS.length - 1 ? 36 : 0 }}>
@@ -423,27 +466,81 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {/* Group heading */}
-            <div style={{ marginBottom: 14 }}>
-              <div className="d-flex align-items-baseline gap-2 flex-wrap">
-                <h5 style={{
-                  color: 'var(--green-900)', marginBottom: 0,
-                  fontFamily: 'Georgia, serif', fontSize: '1.25rem',
-                }}>
-                  {group.label}
-                </h5>
-                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                  {groupStarted}/{groupSections.length} started
+            {groupCollapsed ? (
+              /* Finished group: collapsed to a single summary row */
+              <button
+                type="button"
+                onClick={expandGroup}
+                aria-expanded={false}
+                aria-label={`${group.label}, all ${groupSections.length} sections started. Expand to view.`}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  width: '100%', gap: 12,
+                  background: group.cardBg,
+                  border: `1px var(--card-border-style, solid) ${group.cardBorder}`,
+                  borderRadius: 12, padding: '14px 20px',
+                  cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit',
+                }}
+              >
+                <span className="d-flex align-items-center gap-2" style={{ minWidth: 0 }}>
+                  <span style={{
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    width: 26, height: 26, borderRadius: '50%', flexShrink: 0,
+                    background: group.startedBorder, color: 'var(--group-pill-text, #ffffff)',
+                    fontSize: '0.82rem', fontWeight: 700,
+                  }}>
+                    ✓
+                  </span>
+                  <h5 style={{
+                    color: 'var(--green-900)', marginBottom: 0,
+                    fontFamily: 'Georgia, serif', fontSize: '1.15rem',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>
+                    {group.label}
+                  </h5>
                 </span>
-              </div>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginBottom: 0, marginTop: 2 }}>
-                {group.description}
-              </p>
-            </div>
+                <span style={{
+                  fontSize: '0.8rem', fontWeight: 700, color: group.startedBorder, flexShrink: 0,
+                }}>
+                  {groupStarted} of {groupSections.length}
+                </span>
+              </button>
+            ) : (
+              <>
+                {/* Group heading */}
+                <div style={{ marginBottom: 14 }}>
+                  <div className="d-flex align-items-baseline gap-2 flex-wrap">
+                    <h5 style={{
+                      color: 'var(--green-900)', marginBottom: 0,
+                      fontFamily: 'Georgia, serif', fontSize: '1.25rem',
+                    }}>
+                      {group.label}
+                    </h5>
+                    <span
+                      aria-label={`${groupStarted} of ${groupSections.length} sections done in ${group.label}`}
+                      style={{
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        fontVariantNumeric: 'tabular-nums',
+                        color: group.startedBorder,
+                        background: group.iconBg,
+                        border: `1px solid ${group.cardBorder}`,
+                        borderRadius: 10,
+                        padding: '1px 8px',
+                        lineHeight: 1.6,
+                      }}
+                    >
+                      {groupStarted} of {groupSections.length} done
+                    </span>
+                  </div>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginBottom: 0, marginTop: 2 }}>
+                    {group.description}
+                  </p>
+                </div>
 
-            {/* Cards */}
-            <Row className="g-3">
-              {groupSections.map(section => {
+                {/* Cards */}
+                <Row className="g-3">
+                  {groupSections.map(section => {
                 const started  = isStarted(section)
                 const cnt      = count(section)
                 const locked   = !isPremium && !FREE_ROUTES.has(section.route)
@@ -545,7 +642,9 @@ export default function DashboardPage() {
                   </Col>
                 )
               })}
-            </Row>
+                </Row>
+              </>
+            )}
           </div>
         )
       })}
