@@ -105,6 +105,26 @@ const DEFAULT_CARD_TOKENS = {
   // theme so this is a no-op visual change for them; only heirloom overrides
   // it below with a brighter mid-green.
   '--heading-color': 'var(--green-900)',
+  // Per-theme typeface overrides for the Dashboard's headline/body/UI-chrome
+  // text (used by the Storybook theme to pair Playfair Display/Lora/Inter).
+  // Default to exactly what the Dashboard already renders today: headings
+  // hardcode Georgia inline (unaffected by the separate admin font picker),
+  // while body copy and UI chrome have no explicit font-family and simply
+  // inherit body's --site-font. Explicit here (not left to a var() fallback)
+  // so a theme switch away from Storybook can't leave its font choice stuck
+  // (applyTheme only sets properties present in the incoming theme object).
+  '--heading-font': "Georgia, 'Times New Roman', serif",
+  '--body-font': 'inherit',
+  '--ui-font': 'inherit',
+}
+
+const FONT_STACKS = {
+  georgia:  "Georgia, 'Times New Roman', serif",
+  lora:     "'Lora', Georgia, serif",
+  inter:    "'Inter', system-ui, sans-serif",
+  playfair: "'Playfair Display', Georgia, serif",
+  merriweather: "'Merriweather', Georgia, serif",
+  opensans: "'Open Sans', system-ui, sans-serif",
 }
 
 const THEME_VARS = {
@@ -205,6 +225,11 @@ const THEME_VARS = {
     '--hero-lead-color': 'var(--text-muted)',
     '--heading-style': 'normal',
     '--heading-color': 'var(--green-900)',
+    // Keepsake doesn't spread DEFAULT_CARD_TOKENS, so (like the hero/heading
+    // tokens above) it needs its own explicit reset for these too.
+    '--heading-font': "Georgia, 'Times New Roman', serif",
+    '--body-font': 'inherit',
+    '--ui-font': 'inherit',
   },
   // Heirloom — dark forest-green landing hero with cream text, cream/parchment
   // dashboard with italic dark-green headings, and plain white group cards
@@ -243,15 +268,50 @@ const THEME_VARS = {
     // instead of the shared default above.
     '--heading-color': '#2C6242',
   },
-}
-
-const FONT_STACKS = {
-  georgia:  "Georgia, 'Times New Roman', serif",
-  lora:     "'Lora', Georgia, serif",
-  inter:    "'Inter', system-ui, sans-serif",
-  playfair: "'Playfair Display', Georgia, serif",
-  merriweather: "'Merriweather', Georgia, serif",
-  opensans: "'Open Sans', system-ui, sans-serif",
+  // Storybook — the Dashboard-interior half of "The Keepsake Direction"
+  // storyboard (IDEA-10): deep forest ink on parchment, a muted brass accent
+  // (not a brighter gold), and a wine/burgundy accent used sparingly - only
+  // on "Your People" - for the one thing the storyboard calls out as
+  // genuinely different in kind (an emergency contact, a recorded voice),
+  // rather than spreading it across every card. Also the first theme to pair
+  // three distinct typefaces on the Dashboard - Playfair Display for
+  // headline-level text, Lora for body/descriptive copy, Inter for UI chrome
+  // - via the --heading-font/--body-font/--ui-font tokens above, reusing the
+  // app's existing FONT_STACKS entries rather than hardcoding new font
+  // strings. This is independent of whatever single font the separate admin
+  // font picker has selected (see DEFAULT_CARD_TOKENS's reset of the same
+  // three keys, so switching away from Storybook can't leave a stuck font).
+  storybook: {
+    '--green-900': '#14301F', '--green-800': '#1F4A30', '--green-700': '#2F5A3C',
+    '--green-600': '#3D7050', '--green-100': '#D9E6DC', '--green-50': '#F1F6F1',
+    '--gold': '#A47C3E', '--gold-light': '#C4A06C', '--gold-50': '#FBF3E4',
+    '--parchment': '#F1EAD9', '--parchment-dark': '#E4DAC0',
+    '--bs-primary': '#1F4A30', '--bs-primary-rgb': '31, 74, 48',
+    ...DEFAULT_CARD_TOKENS,
+    '--wine': '#6B2A38',
+    '--card-radius': '10px', '--card-radius-sm': '8px',
+    '--card-border-style': 'solid', '--card-border-color': '#E4DAC0',
+    '--btn-radius': '3px',
+    '--btn-cta-bg': '#A47C3E', '--btn-cta-color': '#14301F', '--btn-cta-hover-bg': '#8C6530',
+    '--progress-fill': 'linear-gradient(90deg, #A47C3E, #2F5A3C)',
+    '--input-radius': '6px',
+    // Dashboard group cards: plain white with the storyboard's warm
+    // parchment-dark border, matching every group - except "Your People",
+    // which alone gets the wine accent described above.
+    '--group-legacy-bg': '#fff', '--group-legacy-border': '#E4DAC0', '--group-legacy-icon': '#F3E9D4', '--group-legacy-pill': '#A47C3E',
+    '--group-people-bg': '#fff', '--group-people-border': '#E4DAC0', '--group-people-icon': '#F3E3E6', '--group-people-pill': '#6B2A38',
+    '--group-wishes-bg': '#fff', '--group-wishes-border': '#E4DAC0', '--group-wishes-icon': '#E4EDE6', '--group-wishes-pill': '#2F5A3C',
+    '--group-affairs-bg': '#fff', '--group-affairs-border': '#E4DAC0', '--group-affairs-icon': '#EDEAE0', '--group-affairs-pill': '#14301F',
+    '--group-pill-text': '#ffffff',
+    '--hero-bg': 'transparent',
+    '--hero-heading-color': 'var(--green-900)',
+    '--hero-outline-color': 'var(--green-800)',
+    '--hero-lead-color': 'var(--text-muted)',
+    '--heading-style': 'italic',
+    '--heading-font': FONT_STACKS.playfair,
+    '--body-font': FONT_STACKS.lora,
+    '--ui-font': FONT_STACKS.inter,
+  },
 }
 
 export function applyTheme(themeId) {

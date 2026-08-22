@@ -27,6 +27,7 @@ const THEMES = [
   { id: 'softmist',    name: 'Soft Mist',      description: 'Very low contrast, gentle and calm',    swatch: ['#4A5A65', '#A89870', '#F8F9FA'] },
   { id: 'keepsake',    name: 'Keepsake',       description: 'Cream, walnut & marigold, like a treasured box of letters', swatch: ['#3A2E22', '#E0A438', '#FAF3E8'] },
   { id: 'heirloom',    name: 'Heirloom',       description: 'Dark forest-green landing page, cream dashboard with italic headings, and plain white bordered cards', swatch: ['#14301F', '#F1EAD9', '#E4DAC0'] },
+  { id: 'storybook',   name: 'Storybook',      description: 'Deepened forest, muted brass & a wine accent, with Playfair Display headings and Lora body copy on the Dashboard', swatch: ['#14301F', '#A47C3E', '#6B2A38'] },
 ]
 
 const FONTS = [
