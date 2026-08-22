@@ -19,7 +19,7 @@ function ErrorFallback() {
       maxWidth: 520, margin: '60px auto 0', textAlign: 'center', padding: '0 24px',
     }}>
       <h2 style={{
-        color: 'var(--green-900)', fontFamily: 'Georgia, serif',
+        color: 'var(--heading-color, var(--green-900))', fontFamily: 'Georgia, serif',
         marginBottom: 12, fontSize: '1.6rem',
       }}>
         Something went wrong

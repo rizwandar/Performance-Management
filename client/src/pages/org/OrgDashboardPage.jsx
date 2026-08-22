@@ -32,7 +32,7 @@ export default function OrgDashboardPage() {
 
   return (
     <div>
-      <h2 style={{ color: 'var(--green-900)', fontFamily: 'Georgia, serif', marginBottom: 24 }}>
+      <h2 style={{ color: 'var(--heading-color, var(--green-900))', fontFamily: 'Georgia, serif', marginBottom: 24 }}>
         Organization Dashboard
       </h2>
 
