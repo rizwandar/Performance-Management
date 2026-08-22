@@ -3,15 +3,22 @@ const router  = express.Router();
 const { queryOne, queryAll } = require('../db/database');
 const { markUserDeceased } = require('../lib/deceased');
 const { getDownloadUrl } = require('../lib/r2');
+const { isVaultProtectedSection } = require('../lib/vaultSections');
 
 // An executor's access ignores individually-granted permissions and always sees
 // every section except the vault (digital_life), which is never shareable via
 // any access link, executor or otherwise. This mirrors VALID_SECTIONS in
 // routes/trustedContacts.js, which never allows 'digital_life' to be granted
 // as a regular permission either.
+// SEC-20 (ported directly to main - see PR description): legal_documents,
+// financial_items, and property_items are all vault-protected (see
+// VAULT_PROTECTED_SECTIONS in lib/vaultSections.js) and must never appear
+// here. An access-link viewer (trusted contact or executor) has no way to
+// supply the vault password, so there is no legitimate path for
+// vault-protected content to reach this endpoint at all.
 const EXECUTOR_SECTIONS = [
-  'legal_documents', 'financial_items', 'funeral_wishes', 'medical_wishes',
-  'people_to_notify', 'property_items', 'personal_messages', 'songs_that_define_me',
+  'funeral_wishes', 'medical_wishes',
+  'people_to_notify', 'personal_messages', 'songs_that_define_me',
   'life_wishes', 'children_dependants',
 ];
 
@@ -33,12 +40,18 @@ router.get('/:token', async (req, res) => {
     return res.status(404).json({ error: 'This link is invalid or has expired. Please ask the account holder to generate a new link.' });
   }
 
-  const permissions = tokenRow.is_executor
+  // SEC-20: filter out vault-protected sections defensively, in addition to
+  // their removal from EXECUTOR_SECTIONS above - this also closes the gap for
+  // any trusted_contact_permissions row that already references one of these
+  // section_ids from before this fix (VALID_SECTIONS in trustedContacts.js
+  // only gates *setting* new permissions, not reading ones already stored).
+  const permissions = (tokenRow.is_executor
     ? EXECUTOR_SECTIONS
     : (await queryAll(
         'SELECT section_id FROM trusted_contact_permissions WHERE contact_id = $1',
         [tokenRow.contact_id]
-      )).map(p => p.section_id);
+      )).map(p => p.section_id)
+  ).filter(sectionId => !isVaultProtectedSection(sectionId));
 
   const owner = await queryOne(
     'SELECT name, date_of_birth, about_me, legacy_message, country_code, is_deceased FROM users WHERE id = $1',
@@ -49,18 +62,9 @@ router.get('/:token', async (req, res) => {
 
   for (const sectionId of permissions) {
     switch (sectionId) {
-      case 'legal_documents':
-        data.legal_documents = await queryAll(
-          'SELECT id, document_type, title, held_by, location, notes, created_at FROM legal_documents WHERE user_id = $1',
-          [tokenRow.user_id]
-        );
-        break;
-      case 'financial_items':
-        data.financial_items = await queryAll(
-          'SELECT id, category, institution, account_type, account_reference, contact_name, contact_phone, notes, created_at FROM financial_items WHERE user_id = $1',
-          [tokenRow.user_id]
-        );
-        break;
+      // SEC-20: legal_documents and financial_items are vault-protected and
+      // are filtered out of `permissions` above before this loop runs, so
+      // these cases are intentionally absent, not an oversight.
       case 'digital_life':
         data.digital_life_note = 'Digital credentials are encrypted and cannot be shared via access links.';
         break;
@@ -82,12 +86,7 @@ router.get('/:token', async (req, res) => {
           [tokenRow.user_id]
         );
         break;
-      case 'property_items':
-        data.property_items = await queryAll(
-          'SELECT id, category, title, description, location, intended_recipient, notes FROM property_items WHERE user_id = $1',
-          [tokenRow.user_id]
-        );
-        break;
+      // SEC-20: property_items is vault-protected, same reasoning as above.
       case 'personal_messages': {
         const rows = await queryAll(
           'SELECT id, recipient_name, relationship, message, notes, audio_r2_key FROM personal_messages WHERE user_id = $1',

@@ -287,13 +287,14 @@ function ExecutorChecklist() {
 // ---------------------------------------------------------------------------
 // Section label map
 // ---------------------------------------------------------------------------
+// SEC-20 (ported directly to main): legal_documents, financial_items, and
+// property_items are vault-protected and were removed from here. An access
+// link can never legitimately carry vault-protected content, and the server
+// (access.js) now filters them out server-side too.
 const SECTION_CONFIG = {
-  legal_documents:   { label: 'Legal Documents',         Component: LegalDocuments,   dataKey: 'legal_documents' },
-  financial_items:   { label: 'Financial Affairs',       Component: FinancialItems,   dataKey: 'financial_items' },
   funeral_wishes:    { label: 'Funeral Wishes',          Component: FuneralWishes,    dataKey: 'funeral_wishes' },
   medical_wishes:    { label: 'Medical Wishes',          Component: MedicalWishes,    dataKey: 'medical_wishes' },
   people_to_notify:  { label: 'People to Notify',        Component: PeopleToNotify,   dataKey: 'people_to_notify' },
-  property_items:    { label: 'Property & Possessions',  Component: PropertyItems,    dataKey: 'property_items' },
   personal_messages: { label: 'Messages to Loved Ones',  Component: PersonalMessages, dataKey: 'personal_messages' },
   songs_that_define_me: { label: 'Songs That Define Me', Component: SongsThatDefineMe, dataKey: 'songs_that_define_me' },
   life_wishes:       { label: "My Bucket List",          Component: LifeWishes,       dataKey: 'life_wishes' },
