@@ -21,7 +21,7 @@ export default function AccessibilityPage() {
   return (
     <div style={{ maxWidth: 820, margin: '0 auto' }}>
       <div style={{ marginBottom: 36 }}>
-        <h2 style={{ color: 'var(--green-900)', fontFamily: 'Georgia, serif', marginBottom: 8 }}>
+        <h2 style={{ color: 'var(--heading-color, var(--green-900))', fontFamily: 'Georgia, serif', marginBottom: 8 }}>
           Accessibility Statement
         </h2>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>

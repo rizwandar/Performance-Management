@@ -13,8 +13,8 @@ const { uploadFile, getDownloadUrl, deleteFile } = require('../lib/r2');
 const { markUserDeceased } = require('../lib/deceased');
 const { stripe } = require('../lib/stripe');
 const { getOverageConfig } = require('../lib/orgBilling');
-const { setAuthCookies } = require('../lib/authCookies');
 const { matchesExtension } = require('../lib/fileSignature');
+const { setAuthCookies } = require('../lib/authCookies');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } });
 

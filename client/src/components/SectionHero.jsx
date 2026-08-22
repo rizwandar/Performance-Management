@@ -18,7 +18,7 @@ export default function SectionHero({ eyebrow, headline, highlight, subtext, cta
         {eyebrow}
       </span>
       <h2 style={{
-        color: 'var(--green-900)', fontFamily: 'Georgia, serif', fontWeight: 700,
+        color: 'var(--heading-color, var(--green-900))', fontFamily: 'Georgia, serif', fontWeight: 700,
         fontSize: '1.7rem', lineHeight: 1.3, margin: '0 0 10px', maxWidth: '34ch',
       }}>
         {parts ? <>{parts[0]}<mark>{highlight}</mark>{parts[1]}</> : headline}
