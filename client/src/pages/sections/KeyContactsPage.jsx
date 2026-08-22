@@ -11,14 +11,22 @@ const API = import.meta.env.VITE_API_URL
 // SEC-20 (ported directly to main): legal_documents, financial_items, and
 // property_items are vault-protected and were removed from here. They can
 // never be safely shared via a trusted-contact access link.
+// IDEA-32: medical_wishes replaced by doctors + medical_records (donation_bank,
+// the third piece of that split, is vault-protected and stays excluded).
+// IDEA-19: unfinished_business and last_moments added, same access model as
+// the other non-vault sections here. insurance_items is a known pre-existing
+// gap (OPS-30), not fixed here.
 const SECTIONS = [
   { id: 'funeral_wishes',       label: 'Funeral Wishes' },
-  { id: 'medical_wishes',       label: 'Medical Wishes' },
+  { id: 'doctors',              label: 'Doctors' },
+  { id: 'medical_records',      label: 'Medical Records' },
   { id: 'people_to_notify',     label: 'People to Notify' },
   { id: 'personal_messages',    label: 'Messages to Loved Ones' },
   { id: 'songs_that_define_me', label: 'Songs That Define Me' },
   { id: 'life_wishes',          label: 'My Bucket List' },
   { id: 'children_dependants',  label: 'Your Loved Ones' },
+  { id: 'unfinished_business',  label: 'Unfinished Business' },
+  { id: 'last_moments',         label: 'Your Last Moments' },
 ]
 
 const POSITIONS = [1, 2, 3]

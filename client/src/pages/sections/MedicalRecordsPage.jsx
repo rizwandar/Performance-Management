@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, Form, Row, Col, Alert, Spinner } from 'react-bootstrap'
+import { Button, Form, Alert, Spinner } from 'react-bootstrap'
 import axios from 'axios'
 import SectionHero from '../../components/SectionHero'
 import ShareSectionTrigger from '../../components/ShareSectionTrigger'
@@ -9,12 +9,14 @@ import ShareSectionHistory from '../../components/ShareSectionHistory'
 const API = import.meta.env.VITE_API_URL
 
 const empty = {
-  organ_donation: '', organ_donation_details: '', advance_care_directive: false,
-  directive_location: '', dnr_preference: '', gp_name: '', gp_phone: '',
-  hospital_preference: '', current_medications: '', medical_conditions: '', notes: '',
+  advance_care_directive: false, directive_location: '', dnr_preference: '',
+  current_medications: '', medical_conditions: '', notes: '',
 }
 
-export default function MedicalWishesPage() {
+// IDEA-32: Medical Records, split out of the old combined Medical & Care
+// Wishes section along with Doctors and Donation Bank. Not vault-protected,
+// same protection level (none) the old section had for these fields.
+export default function MedicalRecordsPage() {
   const navigate = useNavigate()
   const [form, setForm]       = useState(empty)
   const [loading, setLoading] = useState(true)
@@ -24,26 +26,25 @@ export default function MedicalWishesPage() {
   const [hasData, setHasData] = useState(false)
 
   useEffect(() => {
-    axios.get(`${API}/sections/medical-wishes`)
+    axios.get(`${API}/sections/medical-records`)
       .then(r => {
-        if (r.data && r.data.organ_donation) {
+        const has = r.data && (
+          r.data.advance_care_directive || r.data.directive_location || r.data.dnr_preference ||
+          r.data.current_medications || r.data.medical_conditions || r.data.notes
+        )
+        if (has) {
           setHasData(true)
           setForm({
-            organ_donation:          r.data.organ_donation           || '',
-            organ_donation_details:  r.data.organ_donation_details   || '',
-            advance_care_directive:  !!r.data.advance_care_directive,
-            directive_location:      r.data.directive_location        || '',
-            dnr_preference:          r.data.dnr_preference            || '',
-            gp_name:                 r.data.gp_name                   || '',
-            gp_phone:                r.data.gp_phone                  || '',
-            hospital_preference:     r.data.hospital_preference       || '',
-            current_medications:     r.data.current_medications       || '',
-            medical_conditions:      r.data.medical_conditions        || '',
-            notes:                   r.data.notes                     || '',
+            advance_care_directive: !!r.data.advance_care_directive,
+            directive_location:     r.data.directive_location     || '',
+            dnr_preference:         r.data.dnr_preference         || '',
+            current_medications:    r.data.current_medications    || '',
+            medical_conditions:     r.data.medical_conditions     || '',
+            notes:                  r.data.notes                 || '',
           })
         }
       })
-      .catch(() => setError("We couldn't load your medical wishes. Please try again."))
+      .catch(() => setError("We couldn't load your medical records. Please try again."))
       .finally(() => setLoading(false))
   }, [])
 
@@ -56,12 +57,12 @@ export default function MedicalWishesPage() {
     setError('')
     setSaving(true)
     try {
-      await axios.put(`${API}/sections/medical-wishes`, form)
-      setSuccess('Your medical wishes have been saved.')
+      await axios.put(`${API}/sections/medical-records`, form)
+      setSuccess('Your medical records have been saved.')
       setHasData(true)
       setTimeout(() => setSuccess(''), 3000)
     } catch (err) {
-      setError(err.response?.data?.error || "We couldn't save your wishes. Please try again.")
+      setError(err.response?.data?.error || "We couldn't save this. Please try again.")
     }
     setSaving(false)
   }
@@ -88,8 +89,8 @@ export default function MedicalWishesPage() {
         eyebrow="Your Wishes"
         headline="Care, on your terms"
         highlight="your terms"
-        subtext="Your medical preferences and details help ensure you receive the care you'd choose, and make things easier for your loved ones and medical team."
-        secondaryAction={<ShareSectionTrigger section="medical_wishes" sectionLabel="Medical Wishes" />}
+        subtext="Your advance care directive, DNR preference, and medical history help ensure you receive the care you'd choose, and make things easier for your loved ones and medical team."
+        secondaryAction={<ShareSectionTrigger section="medical_records" sectionLabel="Medical Records" />}
       />
 
       <div className="mb-4">
@@ -98,7 +99,7 @@ export default function MedicalWishesPage() {
             background: 'var(--green-50)', border: '1px solid var(--green-100)',
             borderRadius: 8, padding: '10px 16px', fontSize: '0.9rem', color: 'var(--green-800)',
           }}>
-            Your wishes are saved. Update them any time.
+            Your medical records are saved. Update them any time.
           </div>
         )}
       </div>
@@ -107,41 +108,6 @@ export default function MedicalWishesPage() {
       {error && <Alert variant="danger">{error}</Alert>}
 
       <Form>
-        {/* Organ donation */}
-        <div style={{ background: 'var(--parchment)', borderRadius: 10, padding: '20px 24px', marginBottom: 24 }}>
-          <h6 style={{ color: 'var(--green-900)', marginBottom: 16 }}>Organ & Tissue Donation</h6>
-
-          <Form.Group className="mb-3">
-            <Form.Label style={{ fontWeight: 600 }}>Organ donation preference</Form.Label>
-            <div className="d-flex gap-3 flex-wrap">
-              {[
-                { value: 'yes',    label: 'Yes, donate all' },
-                { value: 'some',   label: 'Some organs only' },
-                { value: 'no',     label: 'No' },
-                { value: 'unsure', label: 'Not decided' },
-              ].map(opt => (
-                <Form.Check key={opt.value} type="radio" id={`od-${opt.value}`}
-                  label={opt.label} name="organ_donation"
-                  value={opt.value}
-                  checked={form.organ_donation === opt.value}
-                  onChange={set('organ_donation')}
-                />
-              ))}
-            </div>
-          </Form.Group>
-
-          {(form.organ_donation === 'yes' || form.organ_donation === 'some') && (
-            <Form.Group>
-              <Form.Label>Details</Form.Label>
-              <Form.Control as="textarea" rows={2} value={form.organ_donation_details}
-                onChange={set('organ_donation_details')}
-                placeholder={form.organ_donation === 'some'
-                  ? "Which organs or tissues you consent to donate..."
-                  : "Any specific instructions or notes..."} />
-            </Form.Group>
-          )}
-        </div>
-
         {/* Advance care directive */}
         <div style={{ background: 'var(--parchment)', borderRadius: 10, padding: '20px 24px', marginBottom: 24 }}>
           <h6 style={{ color: 'var(--green-900)', marginBottom: 16 }}>Advance Care Directive</h6>
@@ -181,30 +147,6 @@ export default function MedicalWishesPage() {
           </Form.Group>
         </div>
 
-        {/* GP & hospital */}
-        <div style={{ background: 'var(--parchment)', borderRadius: 10, padding: '20px 24px', marginBottom: 24 }}>
-          <h6 style={{ color: 'var(--green-900)', marginBottom: 16 }}>Medical Contacts & Preferences</h6>
-
-          <Row className="g-3 mb-3">
-            <Col md={6}>
-              <Form.Label>GP / Doctor name</Form.Label>
-              <Form.Control value={form.gp_name} onChange={set('gp_name')}
-                placeholder="e.g. Dr Jane Smith" />
-            </Col>
-            <Col md={6}>
-              <Form.Label>GP phone</Form.Label>
-              <Form.Control value={form.gp_phone} onChange={set('gp_phone')}
-                placeholder="e.g. (03) 9123 4567" />
-            </Col>
-          </Row>
-
-          <Form.Group>
-            <Form.Label>Preferred hospital</Form.Label>
-            <Form.Control value={form.hospital_preference} onChange={set('hospital_preference')}
-              placeholder="e.g. Royal Melbourne Hospital" />
-          </Form.Group>
-        </div>
-
         {/* Medical information */}
         <div style={{ background: 'var(--parchment)', borderRadius: 10, padding: '20px 24px', marginBottom: 24 }}>
           <h6 style={{ color: 'var(--green-900)', marginBottom: 16 }}>Medical Information</h6>
@@ -235,7 +177,7 @@ export default function MedicalWishesPage() {
 
         <div className="d-flex align-items-center gap-3 flex-wrap">
           <Button variant="primary" onClick={handleSave} disabled={saving}>
-            {saving ? 'Saving...' : hasData ? 'Update my wishes' : 'Save my wishes'}
+            {saving ? 'Saving...' : hasData ? 'Update my records' : 'Save my records'}
           </Button>
           <button className="btn btn-link p-0"
             style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '0.9rem' }}
@@ -247,7 +189,7 @@ export default function MedicalWishesPage() {
         {error   && <Alert variant="danger"  className="mt-3">{error}</Alert>}
       </Form>
 
-      <ShareSectionHistory section="medical_wishes" />
+      <ShareSectionHistory section="medical_records" />
     </div>
   )
 }

@@ -9,24 +9,29 @@ const API = import.meta.env.VITE_API_URL || '/api'
 const FREE_FEATURES = [
   'How I\'d Like to Be Remembered',
   'Messages to Loved Ones',
+  'Unfinished Business',
   'Songs That Define Me',
   'My Bucket List',
   'Funeral and End-of-Life Wishes',
-  'Medical and Care Wishes',
+  'Doctors',
+  'Medical Records',
   'Key Contacts',
   'People to Notify',
   'Your Loved Ones',
   'Pet Care',
+  'Insurance',
   'Trusted contact access permissions',
 ]
 
 const PREMIUM_FEATURES = [
   'All free sections',
+  'Your Last Moments (a dedicated final recording or letter)',
   'Personal and Legal Documents',
   'Property and Possessions',
   'Financial Affairs',
   'Digital Life (vault-encrypted)',
   'Practical Household Information',
+  'Donation Bank (vault-encrypted)',
   'Document and photo uploads',
   'Full PDF export (including vault)',
   'Inactivity timer and notifications',
@@ -151,7 +156,7 @@ export default function UpgradePage() {
   return (
     <div style={{ maxWidth: 1180, margin: '0 auto' }}>
       <div style={{ textAlign: 'center', marginBottom: 48 }}>
-        <h2 style={{ fontFamily: 'Georgia, serif', color: 'var(--green-900)', marginBottom: 12 }}>
+        <h2 style={{ fontFamily: 'Georgia, serif', color: 'var(--heading-color, var(--green-900))', marginBottom: 12 }}>
           Choose Your Plan
         </h2>
         <p style={{ color: 'var(--text-muted)', maxWidth: 520, margin: '0 auto', lineHeight: 1.7 }}>

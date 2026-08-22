@@ -1099,6 +1099,168 @@ async function init() {
   await pool.query(`ALTER TABLE personal_messages ADD COLUMN IF NOT EXISTS audio_size_bytes INTEGER`);
   await pool.query(`ALTER TABLE personal_messages ADD COLUMN IF NOT EXISTS audio_duration_seconds INTEGER`);
 
+  // IDEA-29: Insurance, a new standalone section. Deliberately a flat list
+  // (one policy per row), not IQ121's 7-way category split - policy_type is
+  // free text rather than a rigid enum, matching the shape of the other
+  // simple flat sections (e.g. property_items). Unlike Property, Financial,
+  // Legal Documents, Household Info, and Digital Life, this section is NOT
+  // part of the shared vault - it holds no field-level encryption and no
+  // vault_password gating, same pattern as pets/children_dependants/
+  // people_to_notify.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS insurance_items (
+      id             SERIAL PRIMARY KEY,
+      user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      policy_type    TEXT,
+      provider       TEXT,
+      policy_number  TEXT,
+      contact        TEXT,
+      beneficiary    TEXT,
+      notes          TEXT,
+      created_at     TIMESTAMPTZ DEFAULT NOW(),
+      updated_at     TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  // IDEA-19: "Unfinished Business" - a new standalone section for
+  // reconciliation, apologies, and other relationships or matters the owner
+  // wants addressed, deliberately distinct from both Messages to Loved Ones
+  // (final words per recipient) and My Bucket List (aspirational future
+  // goals). Structured as one entry per person/topic, same per-recipient
+  // shape as personal_messages, just with a `description` field instead of
+  // a single `message` and no audio attachment. Not vault-protected, not
+  // requirePremium-gated, same free-tier pattern as pets/insurance_items/
+  // children_dependants above.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS unfinished_business (
+      id             SERIAL PRIMARY KEY,
+      user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      name           TEXT NOT NULL,
+      description    TEXT,
+      notes          TEXT,
+      created_at     TIMESTAMPTZ DEFAULT NOW(),
+      updated_at     TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  // IDEA-30: "Your Last Moments", a new standalone section, distinct from
+  // (not a replacement for) Messages to Loved Ones - one weightier, single
+  // recording/letter per user rather than a list of messages to different
+  // recipients. One row per user (like funeral_wishes/medical_wishes), not
+  // enforced with a UNIQUE constraint - same soft-singleton pattern those two
+  // tables use, managed by the route (check-existing-then-insert-or-update)
+  // rather than the schema. audio_* columns mirror personal_messages' IDEA-01
+  // shape exactly (same R2 upload pipeline, same fileSignature verification),
+  // created directly here rather than via a later ALTER TABLE since this
+  // table is new and never existed without them.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS last_moments (
+      id                     SERIAL PRIMARY KEY,
+      user_id                INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      message                TEXT,
+      notes                  TEXT,
+      audio_r2_key           TEXT,
+      audio_mime_type        TEXT,
+      audio_size_bytes       INTEGER,
+      audio_duration_seconds INTEGER,
+      created_at             TIMESTAMPTZ DEFAULT NOW(),
+      updated_at             TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  // IDEA-32: Medical & Care Wishes split into three independent sections
+  // (16 sections becomes 18): Doctors and Medical Records (both open/free,
+  // same protection level the old medical_wishes had), and Donation Bank
+  // (organ/body/blood donation preferences), which is NEW to the shared vault
+  // (Legal Documents, Digital Life, Financial Affairs, Property & Possessions,
+  // Practical Household Information) rather than staying unprotected - this
+  // is more sensitive personal-medical data than the rest of old Medical, and
+  // the user explicitly asked for it to be vault-gated and field-encrypted.
+  //
+  // doctors and medical_records mirror medical_wishes' original single-record-
+  // per-user shape exactly (funeral_wishes/medical_wishes precedent), just
+  // with its columns partitioned by topic. donation_bank additionally carries
+  // both a plaintext column and an _enc column per field, exactly like
+  // legal_documents/financial_items/property_items/household_info do (see
+  // vaultFields.js) - not because donation_bank ever had pre-SEC-03 plaintext
+  // data of its own, but so the one-time migration below (which cannot
+  // encrypt anything - it runs at server startup with no vault password
+  // available for any user) can write the migrated values as legacy
+  // plaintext, then have them opportunistically upgraded to _enc on the
+  // user's first authenticated read/write, via the exact same
+  // decryptRow/migrateRow machinery every other vault table already uses for
+  // its own pre-encryption rows. TABLE_FIELDS in vaultFields.js includes
+  // donation_bank for this reason.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS doctors (
+      id                   SERIAL PRIMARY KEY,
+      user_id              INTEGER UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      gp_name              TEXT,
+      gp_phone             TEXT,
+      hospital_preference  TEXT,
+      updated_at           TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS medical_records (
+      id                       SERIAL PRIMARY KEY,
+      user_id                  INTEGER UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      advance_care_directive   INTEGER DEFAULT 0,
+      directive_location       TEXT,
+      dnr_preference           TEXT,
+      current_medications      TEXT,
+      medical_conditions       TEXT,
+      notes                    TEXT,
+      updated_at               TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS donation_bank (
+      id                          SERIAL PRIMARY KEY,
+      user_id                     INTEGER UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      organ_donation              TEXT,
+      organ_donation_enc          TEXT,
+      organ_donation_details      TEXT,
+      organ_donation_details_enc  TEXT,
+      updated_at                  TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  // One-time backfill of every existing medical_wishes row, split across the
+  // three new tables by field, then the source rows are deleted entirely
+  // (unlike the IDEA-18 pets split, which only removed the 'pet'-typed subset -
+  // here the whole of medical_wishes is being retired, not just part of it).
+  // Guarded on doctors being empty rather than a separate flag column, same
+  // pattern as the IDEA-18 pets migration - this only ever needs to run once.
+  // medical_wishes itself is deliberately left in the schema (not dropped),
+  // consistent with this project's non-destructive migration convention.
+  const medicalAlreadyMigrated = await queryOne('SELECT id FROM doctors LIMIT 1');
+  if (!medicalAlreadyMigrated) {
+    await pool.query(`
+      INSERT INTO doctors (user_id, gp_name, gp_phone, hospital_preference, updated_at)
+      SELECT user_id, gp_name, gp_phone, hospital_preference, updated_at
+      FROM medical_wishes
+    `);
+    await pool.query(`
+      INSERT INTO medical_records
+        (user_id, advance_care_directive, directive_location, dnr_preference, current_medications, medical_conditions, notes, updated_at)
+      SELECT user_id, advance_care_directive, directive_location, dnr_preference, current_medications, medical_conditions, notes, updated_at
+      FROM medical_wishes
+    `);
+    // organ_donation/organ_donation_details land in donation_bank's plaintext
+    // columns for now (see the long comment above) - encrypted into
+    // organ_donation_enc/organ_donation_details_enc the next time each user's
+    // row is read or written through the vault-checked routes.
+    await pool.query(`
+      INSERT INTO donation_bank (user_id, organ_donation, organ_donation_details, updated_at)
+      SELECT user_id, organ_donation, organ_donation_details, updated_at
+      FROM medical_wishes
+    `);
+    await pool.query(`DELETE FROM medical_wishes`);
+  }
+
   console.log('[db] PostgreSQL schema ready');
 }
 

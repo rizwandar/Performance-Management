@@ -41,7 +41,12 @@ import LegalDocumentsPage     from './pages/sections/LegalDocumentsPage'
 import FinancialAffairsPage   from './pages/sections/FinancialAffairsPage'
 import DigitalLifePage        from './pages/sections/DigitalLifePage'
 import FuneralWishesPage      from './pages/sections/FuneralWishesPage'
-import MedicalWishesPage      from './pages/sections/MedicalWishesPage'
+import DoctorsPage            from './pages/sections/DoctorsPage'
+import MedicalRecordsPage     from './pages/sections/MedicalRecordsPage'
+import DonationBankPage       from './pages/sections/DonationBankPage'
+import InsurancePage          from './pages/sections/InsurancePage'
+import UnfinishedBusinessPage from './pages/sections/UnfinishedBusinessPage'
+import LastMomentsPage        from './pages/sections/LastMomentsPage'
 import PeopleToNotifyPage     from './pages/sections/PeopleToNotifyPage'
 import PropertyPossessionsPage from './pages/sections/PropertyPossessionsPage'
 import MessagesPage           from './pages/sections/MessagesPage'
@@ -744,12 +749,17 @@ function AppContent() {
           <Route path="/sections/financial-affairs"    element={<ProtectedRoute><FinancialAffairsPage /></ProtectedRoute>} />
           <Route path="/sections/digital-life"         element={<ProtectedRoute><DigitalLifePage /></ProtectedRoute>} />
           <Route path="/sections/funeral-wishes"       element={<ProtectedRoute><FuneralWishesPage /></ProtectedRoute>} />
-          <Route path="/sections/medical-wishes"       element={<ProtectedRoute><MedicalWishesPage /></ProtectedRoute>} />
+          <Route path="/sections/doctors"              element={<ProtectedRoute><DoctorsPage /></ProtectedRoute>} />
+          <Route path="/sections/medical-records"      element={<ProtectedRoute><MedicalRecordsPage /></ProtectedRoute>} />
+          <Route path="/sections/donation-bank"        element={<ProtectedRoute><DonationBankPage /></ProtectedRoute>} />
           <Route path="/sections/people-to-notify"     element={<ProtectedRoute><PeopleToNotifyPage /></ProtectedRoute>} />
           <Route path="/sections/property-possessions" element={<ProtectedRoute><PropertyPossessionsPage /></ProtectedRoute>} />
           <Route path="/sections/messages"             element={<ProtectedRoute><MessagesPage /></ProtectedRoute>} />
           <Route path="/sections/songs-that-define-me" element={<ProtectedRoute><SongsThatDefineMePage /></ProtectedRoute>} />
           <Route path="/sections/lifes-wishes"         element={<ProtectedRoute><LifesWishesPage /></ProtectedRoute>} />
+          <Route path="/sections/unfinished-business"  element={<ProtectedRoute><UnfinishedBusinessPage /></ProtectedRoute>} />
+          <Route path="/sections/insurance"            element={<ProtectedRoute><InsurancePage /></ProtectedRoute>} />
+          <Route path="/sections/last-moments"         element={<ProtectedRoute><LastMomentsPage /></ProtectedRoute>} />
 
           <Route path="/sections/household-info"        element={<ProtectedRoute><HouseholdInfoPage /></ProtectedRoute>} />
           <Route path="/sections/children-dependants"  element={<ProtectedRoute><ChildrenDependantsPage /></ProtectedRoute>} />

@@ -10,7 +10,7 @@ const { getDownloadUrl } = require('./r2');
 
 // Vault-protected sections (SEC-03) can't be decrypted on demand once the
 // owner isn't present to supply the vault password (see vault.js — the
-// password is never stored server-side). Those five instead get a one-time
+// password is never stored server-side). Those six instead get a one-time
 // snapshot taken at share time; everything else stays live.
 const SECTION_META = {
   legal_documents:      { label: 'Legal Documents',              isVault: true,  kind: 'list' },
@@ -19,7 +19,12 @@ const SECTION_META = {
   property_items:       { label: 'Property & Possessions',        isVault: true,  kind: 'list' },
   household_info:       { label: 'Household Info',                isVault: true,  kind: 'list' },
   funeral_wishes:       { label: 'Funeral Wishes',                isVault: false, kind: 'single' },
-  medical_wishes:       { label: 'Medical Wishes',                isVault: false, kind: 'single' },
+  // IDEA-32: doctors and medical_records replace the old medical_wishes
+  // (split into 3 sections). donation_bank is the third - vault-protected,
+  // like the four list-shaped vault sections above, but single-record.
+  doctors:              { label: 'Doctors',                       isVault: false, kind: 'single' },
+  medical_records:      { label: 'Medical Records',                isVault: false, kind: 'single' },
+  donation_bank:        { label: 'Donation Bank',                  isVault: true,  kind: 'single' },
   people_to_notify:     { label: 'People to Notify',              isVault: false, kind: 'list' },
   personal_messages:    { label: 'Messages to Loved Ones',        isVault: false, kind: 'list' },
   songs_that_define_me: { label: 'Songs That Define Me',          isVault: false, kind: 'list' },
@@ -27,6 +32,9 @@ const SECTION_META = {
   children_dependants:  { label: 'Your Loved Ones',                isVault: false, kind: 'list' },
   pets:                 { label: 'Pet Care',                      isVault: false, kind: 'list' },
   how_to_be_remembered: { label: "How I'd Like to Be Remembered", isVault: false, kind: 'single' },
+  insurance_items:      { label: 'Insurance',                     isVault: false, kind: 'list' },
+  unfinished_business:  { label: 'Unfinished Business',           isVault: false, kind: 'list' },
+  last_moments:         { label: 'Your Last Moments',              isVault: false, kind: 'single' },
 };
 
 function isValidSection(key) {
@@ -51,24 +59,33 @@ const SINGLE_FIELDS = {
     ['special_requests',   'Special requests'],
     ['notes',              'Additional notes'],
   ],
-  medical_wishes: [
-    ['organ_donation',         'Organ donation', cap],
-    ['organ_donation_details', 'Organ donation details'],
-    ['advance_care_directive', 'Advance care directive', yn],
-    ['directive_location',     'Directive location'],
-    ['dnr_preference',         'DNR preference', cap],
+  doctors: [
     ['gp_name',                'GP name'],
     ['gp_phone',                'GP phone'],
     ['hospital_preference',    'Hospital preference'],
+  ],
+  medical_records: [
+    ['advance_care_directive', 'Advance care directive', yn],
+    ['directive_location',     'Directive location'],
+    ['dnr_preference',         'DNR preference', cap],
     ['current_medications',    'Current medications'],
     ['medical_conditions',     'Medical conditions'],
     ['notes',                  'Notes'],
+  ],
+  donation_bank: [
+    ['organ_donation',         'Organ donation', cap],
+    ['organ_donation_details', 'Organ donation details'],
   ],
   how_to_be_remembered: [
     ['about_me',        'About me'],
     ['life_story',      'My life story'],
     ['remembered_for',  'How I would like to be remembered'],
     ['legacy_message',  'A message to you all'],
+  ],
+  last_moments: [
+    ['message',   'Your words'],
+    ['audio_url', 'Voice recording', null, 'audio'],
+    ['notes',     'Notes'],
   ],
 };
 
@@ -151,6 +168,17 @@ const LIST_FIELDS = {
       ['alternate_contact', 'Alternate contact'], ['notes', 'Notes'],
     ],
   },
+  insurance_items: {
+    titleKey: 'provider', titleFallback: 'Unnamed policy',
+    fields: [
+      ['policy_type', 'Policy type'], ['policy_number', 'Policy number'],
+      ['contact', 'Contact'], ['beneficiary', 'Beneficiary'], ['notes', 'Notes'],
+    ],
+  },
+  unfinished_business: {
+    titleKey: 'name',
+    fields: [['description', 'Description'], ['notes', 'Notes']],
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -161,8 +189,14 @@ async function fetchRawSectionData(sectionKey, userId, vaultKey) {
   switch (sectionKey) {
     case 'funeral_wishes':
       return queryOne('SELECT * FROM funeral_wishes WHERE user_id = $1', [userId]);
-    case 'medical_wishes':
-      return queryOne('SELECT * FROM medical_wishes WHERE user_id = $1', [userId]);
+    case 'doctors':
+      return queryOne('SELECT * FROM doctors WHERE user_id = $1', [userId]);
+    case 'medical_records':
+      return queryOne('SELECT * FROM medical_records WHERE user_id = $1', [userId]);
+    case 'donation_bank': {
+      const row = await queryOne('SELECT * FROM donation_bank WHERE user_id = $1', [userId]);
+      return row ? decryptRow('donation_bank', row, vaultKey).decrypted : null;
+    }
     case 'how_to_be_remembered':
       return queryOne('SELECT about_me, life_story, remembered_for, legacy_message FROM users WHERE id = $1', [userId]);
     case 'people_to_notify':
@@ -184,6 +218,17 @@ async function fetchRawSectionData(sectionKey, userId, vaultKey) {
       return queryAll('SELECT * FROM children_dependants WHERE user_id = $1 ORDER BY created_at', [userId]);
     case 'pets':
       return queryAll('SELECT * FROM pets WHERE user_id = $1 ORDER BY created_at', [userId]);
+    case 'insurance_items':
+      return queryAll('SELECT * FROM insurance_items WHERE user_id = $1 ORDER BY created_at DESC', [userId]);
+    case 'unfinished_business':
+      return queryAll('SELECT * FROM unfinished_business WHERE user_id = $1 ORDER BY created_at', [userId]);
+    case 'last_moments': {
+      const row = await queryOne('SELECT * FROM last_moments WHERE user_id = $1', [userId]);
+      if (!row) return null;
+      // Signed URL generated fresh per request, same pattern as personal_messages above.
+      const { audio_r2_key, ...rest } = row;
+      return { ...rest, audio_url: audio_r2_key ? await getDownloadUrl(audio_r2_key) : null };
+    }
 
     case 'legal_documents':
     case 'financial_items':
