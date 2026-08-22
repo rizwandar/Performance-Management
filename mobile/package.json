@@ -15,7 +15,7 @@
     "axios": "^1.15.2",
     "expo": "~54.0.34",
     "expo-constants": "~18.0.13",
-    "expo-device": "~8.0.10",
+    "expo-device": "~57.0.1",
     "expo-linking": "~8.0.12",
     "expo-notifications": "~0.32.17",
     "expo-router": "~6.0.23",
