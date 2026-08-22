@@ -335,7 +335,7 @@ export default function DashboardPage() {
         <div className="d-flex align-items-center gap-2 flex-wrap" style={{ marginBottom: 8 }}>
           <span style={{
             fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
-            color: 'var(--green-700)',
+            color: 'var(--green-700)', fontFamily: 'var(--ui-font, inherit)',
           }}>
             {isNewUser ? `Welcome, ${user?.name?.split(' ')[0]}` : `Welcome back, ${user?.name?.split(' ')[0]}`}
           </span>
@@ -344,19 +344,19 @@ export default function DashboardPage() {
               display: 'inline-flex', alignItems: 'center', gap: 5,
               fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.03em',
               color: 'var(--green-900)', background: 'var(--gold-light, #E8B97A)',
-              borderRadius: 12, padding: '4px 11px',
+              borderRadius: 12, padding: '4px 11px', fontFamily: 'var(--ui-font, inherit)',
             }}>
               ✨ PREMIUM
             </span>
           )}
         </div>
         <h2 style={{
-          color: 'var(--heading-color, var(--green-900))', fontFamily: 'Georgia, serif', fontWeight: 700,
+          color: 'var(--heading-color, var(--green-900))', fontFamily: 'var(--heading-font, Georgia, serif)', fontWeight: 700,
           fontSize: '2rem', lineHeight: 1.25, margin: '0 0 12px', maxWidth: '22ch',
         }}>
           Your <mark>story</mark> is waiting to be told
         </h2>
-        <p className="text-muted mb-3" style={{ maxWidth: 540, lineHeight: 1.65 }}>
+        <p className="text-muted mb-3" style={{ maxWidth: 540, lineHeight: 1.65, fontFamily: 'var(--body-font, inherit)' }}>
           You have {SECTIONS.length} sections to work through, at whatever pace feels right for you.
           There is no right order, and no rush.
         </p>
@@ -366,11 +366,11 @@ export default function DashboardPage() {
           <div className="d-flex align-items-baseline justify-content-between" style={{ marginBottom: 6 }}>
             <span style={{
               fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
-              color: 'var(--green-700)',
+              color: 'var(--green-700)', fontFamily: 'var(--ui-font, inherit)',
             }}>
               Your plan so far
             </span>
-            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--green-800)' }}>
+            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--green-800)', fontFamily: 'var(--ui-font, inherit)' }}>
               {progressPct}%
             </span>
           </div>
@@ -389,17 +389,17 @@ export default function DashboardPage() {
               transition: 'width 0.4s ease',
             }} />
           </div>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.78rem', marginTop: 6, marginBottom: 0 }}>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.78rem', marginTop: 6, marginBottom: 0, fontFamily: 'var(--ui-font, inherit)' }}>
             {startedCount} of {SECTIONS.length} sections started
           </p>
         </div>
 
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-          <button type="button" className="btn btn-primary" style={{ fontWeight: 600, padding: '10px 22px' }}
+          <button type="button" className="btn btn-primary" style={{ fontWeight: 600, padding: '10px 22px', fontFamily: 'var(--ui-font, inherit)' }}
             onClick={() => navigate(nextSection.route)}>
             Continue my plans →
           </button>
-          <button type="button" className="btn btn-outline-primary" style={{ fontWeight: 600, padding: '10px 22px' }}
+          <button type="button" className="btn btn-outline-primary" style={{ fontWeight: 600, padding: '10px 22px', fontFamily: 'var(--ui-font, inherit)' }}
             onClick={() => navigate('/export')}>
             Export as PDF
           </button>
@@ -415,10 +415,10 @@ export default function DashboardPage() {
           border: '1px solid var(--green-100)',
           borderRadius: 12, padding: '28px 32px', marginBottom: 28,
         }}>
-          <h5 style={{ color: 'var(--green-900)', fontFamily: 'Georgia, serif', marginBottom: 8 }}>
+          <h5 style={{ color: 'var(--green-900)', fontFamily: 'var(--heading-font, Georgia, serif)', marginBottom: 8 }}>
             A few good places to begin
           </h5>
-          <p style={{ color: 'var(--text-muted)', lineHeight: 1.7, marginBottom: 20, maxWidth: 560 }}>
+          <p style={{ color: 'var(--text-muted)', lineHeight: 1.7, marginBottom: 20, maxWidth: 560, fontFamily: 'var(--body-font, inherit)' }}>
             Most people start with what feels most urgent or most personal to them.
           </p>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 20 }}>
@@ -435,14 +435,14 @@ export default function DashboardPage() {
                   background: '#fff', border: '1px solid var(--green-100)',
                   borderRadius: 8, padding: '8px 16px',
                   color: 'var(--green-800)', fontSize: '0.88rem',
-                  cursor: 'pointer', fontFamily: 'inherit',
+                  cursor: 'pointer', fontFamily: 'var(--ui-font, inherit)',
                 }}
               >
                 {s.label}
               </button>
             ))}
           </div>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginBottom: 0 }}>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginBottom: 0, fontFamily: 'var(--body-font, inherit)' }}>
             Or simply scroll down and click any section that calls to you.
           </p>
         </div>
@@ -451,7 +451,7 @@ export default function DashboardPage() {
       {/* ── Continue where you left off ──────────────────────────────────── */}
       {nextIncompleteSection && (
         <p style={{
-          fontSize: '0.82rem', color: 'var(--text-muted)', margin: '0 0 18px',
+          fontSize: '0.82rem', color: 'var(--text-muted)', margin: '0 0 18px', fontFamily: 'var(--ui-font, inherit)',
         }}>
           Next:{' '}
           <button
@@ -501,19 +501,20 @@ export default function DashboardPage() {
                   <span style={{
                     fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.08em',
                     color: 'var(--green-800)', textTransform: 'uppercase', whiteSpace: 'nowrap',
+                    fontFamily: 'var(--ui-font, inherit)',
                   }}>
                     🔒 Premium sections
                   </span>
                   <div style={{ flex: 1, height: 1, background: 'var(--gold-light, #E8D8A8)' }} />
                 </div>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', lineHeight: 1.6, maxWidth: 540, margin: '0 auto' }}>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', lineHeight: 1.6, maxWidth: 540, margin: '0 auto', fontFamily: 'var(--body-font, inherit)' }}>
                   {isPremium
                     ? 'The sections below are part of your Premium plan: your legal, financial, property, digital, and household records.'
                     : signupTrialExpired
                       ? "Your 30-day free trial has ended. Everything above is still free, forever, but the sections below, your legal, financial, property, digital, and household records, are now Premium-only. Nothing you recorded during your trial was lost."
                       : 'Everything above is free, forever. The sections below, your legal, financial, property, digital, and household records, require a Premium plan to add or edit.'}
                 </p>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.78rem', lineHeight: 1.6, maxWidth: 540, margin: '8px auto 0', fontStyle: 'italic' }}>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.78rem', lineHeight: 1.6, maxWidth: 540, margin: '8px auto 0', fontStyle: 'italic', fontFamily: 'var(--body-font, inherit)' }}>
                   🔐 Your Personal &amp; Legal Documents and Digital Life sections hold your most sensitive
                   information, so they're protected by a separate vault password, on top of your regular
                   sign-in, that only you know and that is never stored on our servers.
@@ -524,7 +525,7 @@ export default function DashboardPage() {
                     style={{
                       marginTop: 14, background: 'var(--green-800)', color: '#fff', border: 'none',
                       borderRadius: 8, padding: '8px 20px', fontSize: '0.85rem', fontWeight: 600,
-                      cursor: 'pointer', fontFamily: 'inherit',
+                      cursor: 'pointer', fontFamily: 'var(--ui-font, inherit)',
                     }}
                   >
                     See Premium plans
@@ -560,7 +561,7 @@ export default function DashboardPage() {
                   </span>
                   <h5 style={{
                     color: 'var(--green-900)', marginBottom: 0,
-                    fontFamily: 'Georgia, serif', fontSize: '1.15rem',
+                    fontFamily: 'var(--heading-font, Georgia, serif)', fontSize: '1.15rem',
                     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                   }}>
                     {group.label}
@@ -568,6 +569,7 @@ export default function DashboardPage() {
                 </span>
                 <span style={{
                   fontSize: '0.8rem', fontWeight: 700, color: group.startedBorder, flexShrink: 0,
+                  fontFamily: 'var(--ui-font, inherit)',
                 }}>
                   {groupStarted} of {groupSections.length}
                 </span>
@@ -579,7 +581,7 @@ export default function DashboardPage() {
                   <div className="d-flex align-items-baseline gap-2 flex-wrap">
                     <h5 style={{
                       color: 'var(--green-900)', marginBottom: 0,
-                      fontFamily: 'Georgia, serif', fontSize: '1.25rem',
+                      fontFamily: 'var(--heading-font, Georgia, serif)', fontSize: '1.25rem',
                     }}>
                       {group.label}
                     </h5>
@@ -595,12 +597,13 @@ export default function DashboardPage() {
                         borderRadius: 10,
                         padding: '1px 8px',
                         lineHeight: 1.6,
+                        fontFamily: 'var(--ui-font, inherit)',
                       }}
                     >
                       {groupStarted} of {groupSections.length} done
                     </span>
                   </div>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginBottom: 0, marginTop: 2 }}>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginBottom: 0, marginTop: 2, fontFamily: 'var(--body-font, inherit)' }}>
                     {group.description}
                   </p>
                 </div>
@@ -650,6 +653,7 @@ export default function DashboardPage() {
                           marginBottom: 6,
                           fontSize: '0.88rem',
                           lineHeight: 1.35,
+                          fontFamily: 'var(--body-font, inherit)',
                         }}>
                           {section.label}
                         </p>
@@ -661,6 +665,7 @@ export default function DashboardPage() {
                           lineHeight: 1.55,
                           marginBottom: 0,
                           flex: 1,
+                          fontFamily: 'var(--body-font, inherit)',
                         }}>
                           {section.description}
                         </p>
@@ -672,6 +677,7 @@ export default function DashboardPage() {
                               <Badge bg={null} style={{
                                 fontSize: '0.67rem', background: '#8A7A6A',
                                 color: '#ffffff', fontWeight: 600, border: 'none', padding: '3px 8px',
+                                fontFamily: 'var(--ui-font, inherit)',
                               }}>
                                 🔒 Premium
                               </Badge>
@@ -684,12 +690,13 @@ export default function DashboardPage() {
                                 fontWeight: 600,
                                 border: 'none',
                                 padding: '3px 8px',
+                                fontFamily: 'var(--ui-font, inherit)',
                               }}>
                                 Not started
                               </Badge>
                             )}
                             {!locked && cnt !== null && cnt > 0 && (
-                              <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--green-800)' }}>
+                              <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--green-800)', fontFamily: 'var(--ui-font, inherit)' }}>
                                 {cnt} {cnt === 1 ? 'item' : 'items'}
                               </span>
                             )}
