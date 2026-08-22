@@ -156,7 +156,7 @@ export default function UpgradePage() {
   return (
     <div style={{ maxWidth: 1180, margin: '0 auto' }}>
       <div style={{ textAlign: 'center', marginBottom: 48 }}>
-        <h2 style={{ fontFamily: 'Georgia, serif', color: 'var(--green-900)', marginBottom: 12 }}>
+        <h2 style={{ fontFamily: 'Georgia, serif', color: 'var(--heading-color, var(--green-900))', marginBottom: 12 }}>
           Choose Your Plan
         </h2>
         <p style={{ color: 'var(--text-muted)', maxWidth: 520, margin: '0 auto', lineHeight: 1.7 }}>

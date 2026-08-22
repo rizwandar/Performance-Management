@@ -10,7 +10,7 @@ export default function NotFoundPage() {
     }}>
       <p style={{ fontSize: '3.5rem', marginBottom: 8 }}>404</p>
       <h2 style={{
-        color: 'var(--green-900)', fontFamily: 'Georgia, serif',
+        color: 'var(--heading-color, var(--green-900))', fontFamily: 'Georgia, serif',
         marginBottom: 12, fontSize: '1.6rem',
       }}>
         Page not found
