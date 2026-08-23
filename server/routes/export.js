@@ -54,7 +54,7 @@ async function buildBaseData(uid) {
     queryOne('SELECT * FROM doctors           WHERE user_id = $1', [uid]),
     queryOne('SELECT * FROM medical_records   WHERE user_id = $1', [uid]),
     queryAll('SELECT * FROM people_to_notify  WHERE user_id = $1 ORDER BY created_at', [uid]),
-    queryAll('SELECT * FROM personal_messages WHERE user_id = $1 ORDER BY created_at', [uid]),
+    queryAll('SELECT * FROM personal_messages WHERE user_id = $1 ORDER BY created_at', [uid]), // audio_clip_count attached below (IDEA-34)
     queryAll('SELECT * FROM songs_that_define_me WHERE user_id = $1 ORDER BY added_at', [uid]),
     queryAll('SELECT * FROM life_wishes       WHERE user_id = $1 ORDER BY created_at', [uid]),
     queryAll('SELECT * FROM trusted_contacts  WHERE user_id = $1 ORDER BY sequence', [uid]),
@@ -65,6 +65,17 @@ async function buildBaseData(uid) {
     queryAll('SELECT * FROM unfinished_business WHERE user_id = $1 ORDER BY created_at', [uid]),
     queryOne('SELECT * FROM last_moments      WHERE user_id = $1', [uid]),
   ]);
+
+  // IDEA-34: a PDF can't embed playable audio (see generatePdf.js), so it only
+  // needs each message's clip count, not the clips or their R2 keys/URLs.
+  if (messages.length) {
+    const counts = await queryAll(
+      'SELECT message_id, COUNT(*)::int AS c FROM personal_message_audio_clips WHERE message_id = ANY($1::int[]) GROUP BY message_id',
+      [messages.map(m => m.id)]
+    );
+    const countByMessage = Object.fromEntries(counts.map(r => [r.message_id, r.c]));
+    messages.forEach(m => { m.audio_clip_count = countByMessage[m.id] || 0; });
+  }
 
   return {
     user, settings,

@@ -12,11 +12,18 @@ const API = import.meta.env.VITE_API_URL
 // email content, so this page always matches what the recipient's email said).
 // ---------------------------------------------------------------------------
 function FieldRow({ label, value, type }) {
+  // 'audio' (last_moments) is a single signed URL string; 'audio_list'
+  // (personal_messages, IDEA-34) is an array of up to 3 - render one player
+  // per clip, stacked, under a single label.
   return (
     <div style={{ display: 'flex', gap: 12, marginBottom: 8, flexWrap: 'wrap' }}>
       <span style={{ minWidth: 190, fontWeight: 600, color: 'var(--green-900)', fontSize: '0.9rem' }}>{label}</span>
       {type === 'audio' ? (
         <audio controls src={value} style={{ flex: 1, minWidth: 240, height: 36 }} />
+      ) : type === 'audio_list' ? (
+        <div style={{ flex: 1, minWidth: 240, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {value.map((url, i) => <audio key={i} controls src={url} style={{ width: '100%', height: 36 }} />)}
+        </div>
       ) : (
         <span style={{ flex: 1, color: 'var(--text)', fontSize: '0.9rem' }}>{value}</span>
       )}
