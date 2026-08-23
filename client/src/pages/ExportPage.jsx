@@ -73,7 +73,7 @@ export default function ExportPage() {
       downloadBlob(response.data, `in-good-hands-${safeName()}-complete.pdf`)
       // A successful export just proved this password correct - refresh (or
       // start) the shared 30-minute vault session with it, same as unlocking
-      // any of the five vault sections would.
+      // any of the six vault sections would.
       unlockVault(vaultPassword)
     } catch (err) {
       // With responseType:'blob', error body is a Blob; parse it as JSON
@@ -143,7 +143,7 @@ export default function ExportPage() {
 
       {/* ── Page heading ──────────────────────────────────────────────────── */}
       <div style={{ marginBottom: 32 }}>
-        <h2 style={{ color: 'var(--green-900)', fontFamily: 'Georgia, serif', marginBottom: 6 }}>
+        <h2 style={{ color: 'var(--heading-color, var(--green-900))', fontFamily: 'Georgia, serif', marginBottom: 6 }}>
           Download Your Plans
         </h2>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', lineHeight: 1.6, marginBottom: 0 }}>
