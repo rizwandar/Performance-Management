@@ -20,7 +20,8 @@ const ICON_SETS = {
     financial_items:      '💼',
     digital_credentials:  '💻',
     funeral_wishes:       '🕊️',
-    medical_wishes:       '🏥',
+    doctors:              '🩺',
+    medical_records:      '🏥',
     people_to_notify:     '👥',
     property_items:       '🏡',
     personal_messages:    '💌',
@@ -29,6 +30,10 @@ const ICON_SETS = {
     'household-info':     '🔑',
     'children-dependants':'👶',
     'pet-care':            '🐾',
+    insurance_items:      '🛡️',
+    unfinished_business:  '🕊️',
+    last_moments:         '🎙️',
+    donation_bank:        '🩸',
   },
   heritage: {
     how_to_be_remembered: '🕯️',
@@ -37,7 +42,8 @@ const ICON_SETS = {
     financial_items:      '🪙',
     digital_credentials:  '🔐',
     funeral_wishes:       '🕯️',
-    medical_wishes:       '🌿',
+    doctors:              '⚕️',
+    medical_records:      '🌿',
     people_to_notify:     '🤝',
     property_items:       '🗝️',
     personal_messages:    '✉️',
@@ -46,6 +52,13 @@ const ICON_SETS = {
     'household-info':     '🏠',
     'children-dependants':'👨‍👩‍👧',
     'pet-care':            '🐕',
+    insurance_items:      '☂️',
+    unfinished_business:  '🕊️',
+    // Distinct from unfinished_business's dove above (both landed off the
+    // same staging base and originally picked the same emoji) - reuses the
+    // mic used for this section in the classic theme instead.
+    last_moments:         '🎙️',
+    donation_bank:        '❤️',
   },
   modern: {
     how_to_be_remembered: '🕯️',
@@ -54,7 +67,8 @@ const ICON_SETS = {
     financial_items:      '💳',
     digital_credentials:  '📱',
     funeral_wishes:       '🕊️',
-    medical_wishes:       '💊',
+    doctors:              '📟',
+    medical_records:      '💊',
     people_to_notify:     '👨‍👩‍👧‍👦',
     property_items:       '🏘️',
     personal_messages:    '💬',
@@ -63,6 +77,10 @@ const ICON_SETS = {
     'household-info':     '⚙️',
     'children-dependants':'🎒',
     'pet-care':            '🐶',
+    insurance_items:      '📑',
+    unfinished_business:  '🕊️',
+    last_moments:         '🎤',
+    donation_bank:        '🅾️',
   },
 }
 
@@ -114,11 +132,21 @@ const FREE_ROUTES = new Set([
   '/sections/songs-that-define-me',
   '/sections/lifes-wishes',
   '/sections/funeral-wishes',
-  '/sections/medical-wishes',
+  '/sections/unfinished-business',
+  // IDEA-32: doctors and medical-records replace medical-wishes at the same
+  // (free) protection level. donation-bank is deliberately NOT listed here -
+  // it's vault-protected/Premium-only, unlike the rest of the old Medical
+  // & Care Wishes section.
+  '/sections/doctors',
+  '/sections/medical-records',
   '/sections/key-contacts',
   '/sections/people-to-notify',
   '/sections/children-dependants',
   '/sections/pet-care',
+  // IDEA-29: Insurance is not vault-protected (unlike the other sections in
+  // its 'affairs' dashboard group below), so it's free-plan accessible too,
+  // consistent with the server not gating it behind requirePremium.
+  '/sections/insurance',
 ])
 
 // First group id after which all remaining sections are premium-only.
@@ -149,6 +177,16 @@ const SECTIONS = [
     icon: '✨', route: '/sections/lifes-wishes', group: 'legacy',
     description: "The dreams you're still chasing, the places you want to see, and the experiences that light you up.",
   },
+  {
+    id: 'last_moments', label: 'Your Last Moments',
+    icon: '🎙️', route: '/sections/last-moments', group: 'legacy',
+    description: 'One last, lasting recording or letter for the people you love most: separate from your other messages.',
+  },
+  {
+    id: 'unfinished_business', label: 'Unfinished Business',
+    icon: '🕊️', route: '/sections/unfinished-business', group: 'legacy',
+    description: 'Reconciliation, apologies, and the relationships or matters you\'d still like to set right.',
+  },
 
   // ── Your People ────────────────────────────────────────────────────────────
   {
@@ -174,9 +212,14 @@ const SECTIONS = [
 
   // ── Your Wishes ────────────────────────────────────────────────────────────
   {
-    id: 'medical_wishes', label: 'Medical & Care Wishes',
-    icon: '🏥', route: '/sections/medical-wishes', group: 'wishes',
-    description: 'Your preferences for care and treatment, giving those who love you the clarity to act on your behalf.',
+    id: 'medical_records', label: 'Medical Records',
+    icon: '🏥', route: '/sections/medical-records', group: 'wishes',
+    description: 'Your advance care directive, DNR preference, current medications, and conditions your carers should know.',
+  },
+  {
+    id: 'doctors', label: 'Doctors',
+    icon: '🩺', route: '/sections/doctors', group: 'wishes',
+    description: 'Your GP, specialists, and preferred hospital, so your care team is easy to find in a hurry.',
   },
   {
     id: 'funeral_wishes', label: 'Funeral & End-of-Life Wishes',
@@ -209,6 +252,16 @@ const SECTIONS = [
     id: 'digital_credentials', label: 'Digital Life',
     icon: '💻', route: '/sections/digital-life', group: 'affairs',
     description: 'Your online accounts and passwords, secured by your vault password and accessible when needed.',
+  },
+  {
+    id: 'insurance_items', label: 'Insurance',
+    icon: '🛡️', route: '/sections/insurance', group: 'affairs',
+    description: 'Your life, health, home, auto, and other insurance policies, with who to contact and who benefits.',
+  },
+  {
+    id: 'donation_bank', label: 'Donation Bank',
+    icon: '🩸', route: '/sections/donation-bank', group: 'affairs',
+    description: 'Your organ, tissue, and body donation preferences, vault-protected like the rest of your most sensitive records.',
   },
 ]
 

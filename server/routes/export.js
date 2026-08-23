@@ -7,6 +7,7 @@ const requirePremium = require('../middleware/requiresPremium');
 const { generatePdf } = require('../lib/generatePdf');
 const { deriveKey, decryptField, verifyVaultPassword } = require('../lib/vault');
 const { recordVaultAttempt, getVaultLockStatus, resetVaultAttempts } = require('../lib/vaultAttempts');
+const { decryptRow } = require('../lib/vaultFields');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
 
@@ -44,11 +45,13 @@ async function buildBaseData(uid) {
   const settings     = Object.fromEntries(settingsRows.map(r => [r.key, r.value]));
 
   const [
-    funeralWishes, medicalWishes, peopleToNotify, messages,
-    songsDefineMe, lifeWishes, trustedContacts, childrenDependants, pets,
+    funeralWishes, doctors, medicalRecords, peopleToNotify, messages,
+    songsDefineMe, lifeWishes, trustedContacts, childrenDependants, pets, insuranceItems,
+    unfinishedBusiness, lastMoments,
   ] = await Promise.all([
     queryOne('SELECT * FROM funeral_wishes    WHERE user_id = $1', [uid]),
-    queryOne('SELECT * FROM medical_wishes    WHERE user_id = $1', [uid]),
+    queryOne('SELECT * FROM doctors           WHERE user_id = $1', [uid]),
+    queryOne('SELECT * FROM medical_records   WHERE user_id = $1', [uid]),
     queryAll('SELECT * FROM people_to_notify  WHERE user_id = $1 ORDER BY created_at', [uid]),
     queryAll('SELECT * FROM personal_messages WHERE user_id = $1 ORDER BY created_at', [uid]),
     queryAll('SELECT * FROM songs_that_define_me WHERE user_id = $1 ORDER BY added_at', [uid]),
@@ -56,21 +59,28 @@ async function buildBaseData(uid) {
     queryAll('SELECT * FROM trusted_contacts  WHERE user_id = $1 ORDER BY sequence', [uid]),
     queryAll('SELECT * FROM children_dependants WHERE user_id = $1 ORDER BY created_at', [uid]),
     queryAll('SELECT * FROM pets              WHERE user_id = $1 ORDER BY created_at', [uid]),
+    queryAll('SELECT * FROM insurance_items   WHERE user_id = $1 ORDER BY created_at', [uid]),
+    // IDEA-19: same non-vault, always-included pattern as personal_messages above.
+    queryAll('SELECT * FROM unfinished_business WHERE user_id = $1 ORDER BY created_at', [uid]),
+    queryOne('SELECT * FROM last_moments      WHERE user_id = $1', [uid]),
   ]);
 
   return {
     user, settings,
     funeralWishes:  funeralWishes  || {},
-    medicalWishes:  medicalWishes  || {},
+    doctors:        doctors        || {},
+    medicalRecords: medicalRecords || {},
     peopleToNotify, messages, songsDefineMe,
-    lifeWishes, trustedContacts, childrenDependants, pets,
+    lifeWishes, trustedContacts, childrenDependants, pets, insuranceItems,
+    unfinishedBusiness,
+    lastMoments: lastMoments || {},
   };
 }
 
 // Vault-protected data only. Caller must have already verified the vault
 // password before calling this - it does not check anything itself.
 async function loadVaultData(uid, key) {
-  const [legalDocs, financialItems, propertyItems, householdInfo, credRows] = await Promise.all([
+  const [legalDocs, financialItems, propertyItems, householdInfo, credRows, donationBankRow] = await Promise.all([
     queryAll('SELECT * FROM legal_documents WHERE user_id = $1 ORDER BY created_at', [uid]),
     queryAll('SELECT * FROM financial_items WHERE user_id = $1 ORDER BY created_at', [uid]),
     queryAll('SELECT * FROM property_items  WHERE user_id = $1 ORDER BY created_at', [uid]),
@@ -79,6 +89,11 @@ async function loadVaultData(uid, key) {
       'SELECT id, service, service_url, username_enc, password_enc, notes_enc, created_at FROM digital_credentials WHERE user_id = $1 ORDER BY service',
       [uid]
     ),
+    // IDEA-32: Donation Bank, single row per user like funeral_wishes/
+    // medical_wishes, but vault-protected and field-encrypted like the four
+    // list-shaped tables above - decrypted here the same way, just without a
+    // .map() since there's at most one row.
+    queryOne('SELECT * FROM donation_bank WHERE user_id = $1', [uid]),
   ]);
 
   const credentials = credRows.map(row => ({
@@ -89,7 +104,9 @@ async function loadVaultData(uid, key) {
     notes:       decryptField(row.notes_enc, key),
   }));
 
-  return { legalDocs, financialItems, propertyItems, householdInfo, credentials };
+  const donationBank = donationBankRow ? decryptRow('donation_bank', donationBankRow, key).decrypted : {};
+
+  return { legalDocs, financialItems, propertyItems, householdInfo, credentials, donationBank };
 }
 
 async function loadLogo(settings) {

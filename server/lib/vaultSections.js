@@ -9,6 +9,10 @@ const VAULT_PROTECTED_SECTIONS = new Set([
   'property_items',
   'household_info',
   'digital_credentials',
+  // IDEA-32: split out of the old medical_wishes section. More sensitive
+  // personal-medical data than the rest of what was there, so it joins the
+  // shared vault instead of staying unprotected like Doctors/Medical Records.
+  'donation_bank',
 ]);
 
 function isVaultProtectedSection(sectionId) {

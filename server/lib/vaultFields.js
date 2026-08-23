@@ -9,6 +9,13 @@ const TABLE_FIELDS = {
   financial_items: ['category', 'institution', 'account_type', 'account_reference', 'contact_name', 'contact_phone', 'notes'],
   property_items:  ['category', 'title', 'description', 'location', 'intended_recipient', 'notes'],
   household_info:  ['category', 'title', 'provider', 'account_reference', 'contact', 'notes'],
+  // IDEA-32: donation_bank never had pre-encryption plaintext data of its
+  // own (it's a brand new table), but carries plain + _enc columns anyway so
+  // the one-time medical_wishes migration in database.js (which cannot
+  // encrypt anything at server-startup time, with no vault password
+  // available) can write legacy plaintext, upgraded to _enc via this exact
+  // machinery on the user's first authenticated read/write.
+  donation_bank:   ['organ_donation', 'organ_donation_details'],
 };
 
 // Decrypt a row's vault-protected fields for the given table. A row written

@@ -25,12 +25,17 @@ router.get('/stats', auth, adminOnly, async (req, res) => {
       (SELECT COUNT(*) FROM financial_items)    +
       (SELECT COUNT(*) FROM digital_credentials)+
       (SELECT COUNT(*) FROM funeral_wishes)     +
-      (SELECT COUNT(*) FROM medical_wishes)     +
+      (SELECT COUNT(*) FROM doctors)            +
+      (SELECT COUNT(*) FROM medical_records)    +
+      (SELECT COUNT(*) FROM donation_bank)      +
       (SELECT COUNT(*) FROM people_to_notify)   +
       (SELECT COUNT(*) FROM property_items)     +
       (SELECT COUNT(*) FROM personal_messages)  +
       (SELECT COUNT(*) FROM songs_that_define_me)+
-      (SELECT COUNT(*) FROM life_wishes)
+      (SELECT COUNT(*) FROM life_wishes)        +
+      (SELECT COUNT(*) FROM insurance_items)    +
+      (SELECT COUNT(*) FROM unfinished_business)+
+      (SELECT COUNT(*) FROM last_moments)
     )::int as c
   `);
   res.json({
@@ -69,12 +74,17 @@ router.get('/users', auth, adminOnly, async (req, res) => {
              (SELECT COUNT(*) FROM financial_items     WHERE user_id = u.id) +
              (SELECT COUNT(*) FROM digital_credentials WHERE user_id = u.id) +
              (SELECT COUNT(*) FROM funeral_wishes      WHERE user_id = u.id) +
-             (SELECT COUNT(*) FROM medical_wishes      WHERE user_id = u.id) +
+             (SELECT COUNT(*) FROM doctors             WHERE user_id = u.id) +
+             (SELECT COUNT(*) FROM medical_records     WHERE user_id = u.id) +
+             (SELECT COUNT(*) FROM donation_bank       WHERE user_id = u.id) +
              (SELECT COUNT(*) FROM people_to_notify    WHERE user_id = u.id) +
              (SELECT COUNT(*) FROM property_items      WHERE user_id = u.id) +
              (SELECT COUNT(*) FROM personal_messages   WHERE user_id = u.id) +
              (SELECT COUNT(*) FROM songs_that_define_me WHERE user_id = u.id) +
-             (SELECT COUNT(*) FROM life_wishes         WHERE user_id = u.id)
+             (SELECT COUNT(*) FROM life_wishes         WHERE user_id = u.id) +
+             (SELECT COUNT(*) FROM insurance_items     WHERE user_id = u.id) +
+             (SELECT COUNT(*) FROM unfinished_business WHERE user_id = u.id) +
+             (SELECT COUNT(*) FROM last_moments        WHERE user_id = u.id)
            )::int as total_entries,
            COALESCE(s.plan, 'free') as plan,
            (s.provider = 'admin_grant') as is_honorary,
@@ -111,18 +121,23 @@ router.get('/users/:id', auth, adminOnly, async (req, res) => {
   if (!user) return res.status(404).json({ error: 'User not found' });
 
   const [
-    ld, fi, dc, fw, mw, ptn, pi, pm, stm, lw
+    ld, fi, dc, fw, doc, mr, db, ptn, pi, pm, stm, lw, ins, ub, lm
   ] = await Promise.all([
     queryOne('SELECT COUNT(*)::int as c FROM legal_documents     WHERE user_id = $1', [user.id]),
     queryOne('SELECT COUNT(*)::int as c FROM financial_items     WHERE user_id = $1', [user.id]),
     queryOne('SELECT COUNT(*)::int as c FROM digital_credentials WHERE user_id = $1', [user.id]),
     queryOne('SELECT COUNT(*)::int as c FROM funeral_wishes      WHERE user_id = $1', [user.id]),
-    queryOne('SELECT COUNT(*)::int as c FROM medical_wishes      WHERE user_id = $1', [user.id]),
+    queryOne('SELECT COUNT(*)::int as c FROM doctors             WHERE user_id = $1', [user.id]),
+    queryOne('SELECT COUNT(*)::int as c FROM medical_records     WHERE user_id = $1', [user.id]),
+    queryOne('SELECT COUNT(*)::int as c FROM donation_bank       WHERE user_id = $1', [user.id]),
     queryOne('SELECT COUNT(*)::int as c FROM people_to_notify    WHERE user_id = $1', [user.id]),
     queryOne('SELECT COUNT(*)::int as c FROM property_items      WHERE user_id = $1', [user.id]),
     queryOne('SELECT COUNT(*)::int as c FROM personal_messages   WHERE user_id = $1', [user.id]),
     queryOne('SELECT COUNT(*)::int as c FROM songs_that_define_me WHERE user_id = $1', [user.id]),
     queryOne('SELECT COUNT(*)::int as c FROM life_wishes         WHERE user_id = $1', [user.id]),
+    queryOne('SELECT COUNT(*)::int as c FROM insurance_items     WHERE user_id = $1', [user.id]),
+    queryOne('SELECT COUNT(*)::int as c FROM unfinished_business WHERE user_id = $1', [user.id]),
+    queryOne('SELECT COUNT(*)::int as c FROM last_moments        WHERE user_id = $1', [user.id]),
   ]);
 
   const completion = {
@@ -130,12 +145,17 @@ router.get('/users/:id', auth, adminOnly, async (req, res) => {
     financial_items:     fi.c,
     digital_credentials: dc.c,
     funeral_wishes:      fw.c,
-    medical_wishes:      mw.c,
+    doctors:             doc.c,
+    medical_records:     mr.c,
+    donation_bank:       db.c,
     people_to_notify:    ptn.c,
     property_items:      pi.c,
     personal_messages:   pm.c,
     songs_that_define_me: stm.c,
     life_wishes:         lw.c,
+    insurance_items:     ins.c,
+    unfinished_business: ub.c,
+    last_moments:        lm.c,
   };
 
   const recentAudit = await queryAll(`

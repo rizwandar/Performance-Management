@@ -90,21 +90,66 @@ function FuneralWishes({ data }) {
   )
 }
 
-function MedicalWishes({ data, countryCode }) {
-  if (!data) return <p className="text-muted small">No medical wishes recorded.</p>
+function Doctors({ data, countryCode }) {
+  if (!data) return <p className="text-muted small">No doctors recorded.</p>
   return (
     <ItemCard>
-      <FieldRow label="Organ donation"          value={data.organ_donation} />
-      <FieldRow label="Organ donation details"  value={data.organ_donation_details} />
-      <FieldRow label="Advance care directive"  value={data.advance_care_directive ? 'Yes' : 'No'} />
-      <FieldRow label="Directive location"      value={data.directive_location} />
-      <FieldRow label="DNR preference"          value={data.dnr_preference} />
       <FieldRow label="GP name"                 value={data.gp_name} />
       <FieldRow label="GP phone"                value={formatPhone(data.gp_phone, countryCode)} />
       <FieldRow label="Hospital preference"     value={data.hospital_preference} />
+    </ItemCard>
+  )
+}
+
+function MedicalRecords({ data }) {
+  if (!data) return <p className="text-muted small">No medical records recorded.</p>
+  return (
+    <ItemCard>
+      <FieldRow label="Advance care directive"  value={data.advance_care_directive ? 'Yes' : 'No'} />
+      <FieldRow label="Directive location"      value={data.directive_location} />
+      <FieldRow label="DNR preference"          value={data.dnr_preference} />
       <FieldRow label="Current medications"     value={data.current_medications} />
       <FieldRow label="Medical conditions"      value={data.medical_conditions} />
       <FieldRow label="Notes"                   value={data.notes} />
+    </ItemCard>
+  )
+}
+
+function UnfinishedBusiness({ data }) {
+  if (!data?.length) return <p className="text-muted small">Nothing recorded.</p>
+  return data.map(d => (
+    <ItemCard key={d.id}>
+      <p style={{ fontWeight: 700, color: 'var(--green-900)', marginBottom: 2 }}>{d.name}</p>
+      {d.description && (
+        <p style={{ fontStyle: 'italic', color: 'var(--text)', margin: '8px 0', lineHeight: 1.7,
+          borderLeft: '3px solid var(--gold)', paddingLeft: 12 }}>
+          "{d.description}"
+        </p>
+      )}
+      <FieldRow label="Notes" value={d.notes} />
+    </ItemCard>
+  ))
+}
+
+function LastMoments({ data }) {
+  if (!data || (!data.message && !data.audio_url && !data.notes)) {
+    return <p className="text-muted small">Nothing recorded.</p>
+  }
+  return (
+    <ItemCard>
+      {data.message && (
+        <p style={{ fontStyle: 'italic', color: 'var(--text)', margin: '8px 0', lineHeight: 1.7,
+          borderLeft: '3px solid var(--gold)', paddingLeft: 12 }}>
+          "{data.message}"
+        </p>
+      )}
+      {data.audio_url && (
+        <div style={{ margin: '8px 0' }}>
+          <p className="text-muted small mb-1">🎤 Voice recording</p>
+          <audio controls src={data.audio_url} style={{ width: '100%', maxWidth: 360, height: 36 }} />
+        </div>
+      )}
+      <FieldRow label="Notes" value={data.notes} />
     </ItemCard>
   )
 }
@@ -293,12 +338,15 @@ function ExecutorChecklist() {
 // (access.js) now filters them out server-side too.
 const SECTION_CONFIG = {
   funeral_wishes:    { label: 'Funeral Wishes',          Component: FuneralWishes,    dataKey: 'funeral_wishes' },
-  medical_wishes:    { label: 'Medical Wishes',          Component: MedicalWishes,    dataKey: 'medical_wishes' },
+  doctors:           { label: 'Doctors',                 Component: Doctors,          dataKey: 'doctors' },
+  medical_records:   { label: 'Medical Records',         Component: MedicalRecords,   dataKey: 'medical_records' },
   people_to_notify:  { label: 'People to Notify',        Component: PeopleToNotify,   dataKey: 'people_to_notify' },
   personal_messages: { label: 'Messages to Loved Ones',  Component: PersonalMessages, dataKey: 'personal_messages' },
   songs_that_define_me: { label: 'Songs That Define Me', Component: SongsThatDefineMe, dataKey: 'songs_that_define_me' },
   life_wishes:       { label: "My Bucket List",          Component: LifeWishes,       dataKey: 'life_wishes' },
   children_dependants: { label: 'Your Loved Ones', Component: ChildrenDependants, dataKey: 'children_dependants' },
+  unfinished_business: { label: 'Unfinished Business',   Component: UnfinishedBusiness, dataKey: 'unfinished_business' },
+  last_moments:      { label: 'Your Last Moments',       Component: LastMoments,      dataKey: 'last_moments' },
 }
 
 // ---------------------------------------------------------------------------

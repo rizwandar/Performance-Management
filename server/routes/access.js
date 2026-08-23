@@ -16,10 +16,19 @@ const { isVaultProtectedSection } = require('../lib/vaultSections');
 // here. An access-link viewer (trusted contact or executor) has no way to
 // supply the vault password, so there is no legitimate path for
 // vault-protected content to reach this endpoint at all.
+// IDEA-19: unfinished_business follows personal_messages' access model
+// exactly here too - see the matching note in routes/trustedContacts.js.
+// IDEA-32: medical_wishes replaced by doctors + medical_records (both open,
+// same as the section it replaces). donation_bank, the third piece of the
+// old Medical & Care Wishes split, is deliberately NOT added here - it's
+// vault-protected (new to the shared vault), same treatment as
+// household_info/digital_credentials, which were never in this list either.
+// insurance_items is NOT included here either - a known pre-existing gap
+// (same one pets/pet_care has), logged as OPS-30, not fixed here.
 const EXECUTOR_SECTIONS = [
-  'funeral_wishes', 'medical_wishes',
+  'funeral_wishes', 'doctors', 'medical_records',
   'people_to_notify', 'personal_messages', 'songs_that_define_me',
-  'life_wishes', 'children_dependants',
+  'life_wishes', 'children_dependants', 'unfinished_business', 'last_moments',
 ];
 
 async function loadTokenRow(token) {
@@ -74,9 +83,15 @@ router.get('/:token', async (req, res) => {
           [tokenRow.user_id]
         );
         break;
-      case 'medical_wishes':
-        data.medical_wishes = await queryOne(
-          'SELECT organ_donation, organ_donation_details, advance_care_directive, directive_location, dnr_preference, gp_name, gp_phone, hospital_preference, current_medications, medical_conditions, notes FROM medical_wishes WHERE user_id = $1',
+      case 'doctors':
+        data.doctors = await queryOne(
+          'SELECT gp_name, gp_phone, hospital_preference FROM doctors WHERE user_id = $1',
+          [tokenRow.user_id]
+        );
+        break;
+      case 'medical_records':
+        data.medical_records = await queryOne(
+          'SELECT advance_care_directive, directive_location, dnr_preference, current_medications, medical_conditions, notes FROM medical_records WHERE user_id = $1',
           [tokenRow.user_id]
         );
         break;
@@ -120,6 +135,26 @@ router.get('/:token', async (req, res) => {
           [tokenRow.user_id]
         );
         break;
+      case 'unfinished_business':
+        data.unfinished_business = await queryAll(
+          'SELECT id, name, description, notes FROM unfinished_business WHERE user_id = $1',
+          [tokenRow.user_id]
+        );
+        break;
+      case 'last_moments': {
+        const row = await queryOne(
+          'SELECT message, notes, audio_r2_key FROM last_moments WHERE user_id = $1',
+          [tokenRow.user_id]
+        );
+        if (row) {
+          const { audio_r2_key, ...rest } = row;
+          data.last_moments = {
+            ...rest,
+            audio_url: audio_r2_key ? await getDownloadUrl(audio_r2_key) : null,
+          };
+        }
+        break;
+      }
     }
   }
 
