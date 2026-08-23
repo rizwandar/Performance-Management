@@ -15,7 +15,8 @@ const API = import.meta.env.VITE_API_URL
 const ICON_SETS = {
   classic: {
     how_to_be_remembered: '🕯️',
-    key_contacts:         '🤝',
+    emergency_contact:    '📞',
+    trusted_contacts:     '🤝',
     legal_documents:      '📄',
     financial_items:      '💼',
     digital_credentials:  '💻',
@@ -37,7 +38,8 @@ const ICON_SETS = {
   },
   heritage: {
     how_to_be_remembered: '🕯️',
-    key_contacts:         '🤝',
+    emergency_contact:    '📞',
+    trusted_contacts:     '🤝',
     legal_documents:      '📜',
     financial_items:      '🪙',
     digital_credentials:  '🔐',
@@ -62,7 +64,8 @@ const ICON_SETS = {
   },
   modern: {
     how_to_be_remembered: '🕯️',
-    key_contacts:         '🤝',
+    emergency_contact:    '📞',
+    trusted_contacts:     '🤝',
     legal_documents:      '📋',
     financial_items:      '💳',
     digital_credentials:  '📱',
@@ -139,7 +142,8 @@ const FREE_ROUTES = new Set([
   // & Care Wishes section.
   '/sections/doctors',
   '/sections/medical-records',
-  '/sections/key-contacts',
+  '/sections/emergency-contact',
+  '/sections/trusted-contacts',
   '/sections/people-to-notify',
   '/sections/children-dependants',
   '/sections/pet-care',
@@ -200,9 +204,14 @@ const SECTIONS = [
     description: 'Feeding routines, vet details, and caretaker wishes so your pets are looked after too.',
   },
   {
-    id: 'key_contacts', label: 'Key Contacts',
-    icon: '🤝', route: '/sections/key-contacts', group: 'people',
-    description: 'The important people to call on: your lawyer, doctor, financial adviser, and trusted support.',
+    id: 'emergency_contact', label: 'Emergency Contact',
+    icon: '📞', route: '/sections/emergency-contact', group: 'people',
+    description: 'The first person to call in an emergency: always reachable, and ready to act on your behalf.',
+  },
+  {
+    id: 'trusted_contacts', label: 'Trusted Contacts',
+    icon: '🤝', route: '/sections/trusted-contacts', group: 'people',
+    description: 'The people who should be given access to your plans when the time comes, and what each of them can see.',
   },
   {
     id: 'people_to_notify', label: 'People to Notify',
@@ -413,7 +422,7 @@ export default function DashboardPage() {
             {[
               { label: 'How I\'d Like to Be Remembered', route: '/sections/how-to-be-remembered' },
               { label: 'Funeral and End-of-Life Wishes',  route: '/sections/funeral-wishes' },
-              { label: 'Key Contacts',                    route: '/sections/key-contacts' },
+              { label: 'Emergency Contact',               route: '/sections/emergency-contact' },
               { label: 'Messages to Loved Ones',          route: '/sections/messages' },
             ].map(s => (
               <button

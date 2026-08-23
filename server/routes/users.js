@@ -33,6 +33,7 @@ router.get('/me', auth, async (req, res) => {
     SELECT id, name, email, date_of_birth, about_me, legacy_message,
            life_story, remembered_for, country_code,
            emergency_contact_name, emergency_contact_phone, emergency_contact_email,
+           emergency_contact_relationship, emergency_contact_notes,
            marital_status, spouse_name, spouse_phone, spouse_email, spouse_is_executor,
            songs_enabled, bucket_list_enabled, is_admin, created_at,
            security_question
@@ -117,6 +118,7 @@ router.put('/me', auth, async (req, res) => {
   const { name, email, date_of_birth, about_me, legacy_message,
           life_story, remembered_for,
           emergency_contact_name, emergency_contact_phone, emergency_contact_email,
+          emergency_contact_relationship, emergency_contact_notes,
           marital_status, spouse_name, spouse_phone, spouse_email, spouse_is_executor } = req.body;
   try {
     const existing = await queryOne('SELECT name, email FROM users WHERE id = $1', [req.user.id]);
@@ -125,8 +127,8 @@ router.put('/me', auth, async (req, res) => {
         life_story=$6, remembered_for=$7,
         emergency_contact_name=$8, emergency_contact_phone=$9, emergency_contact_email=$10,
         marital_status=$11, spouse_name=$12, spouse_phone=$13, spouse_email=$14,
-        spouse_is_executor=$15
-      WHERE id=$16
+        spouse_is_executor=$15, emergency_contact_relationship=$16, emergency_contact_notes=$17
+      WHERE id=$18
     `, [
       name  ?? existing.name,
       email ?? existing.email,
@@ -136,6 +138,7 @@ router.put('/me', auth, async (req, res) => {
       emergency_contact_email || null,
       marital_status || null, spouse_name || null, spouse_phone || null, spouse_email || null,
       !!spouse_is_executor,
+      emergency_contact_relationship || null, emergency_contact_notes || null,
       req.user.id,
     ]);
 
