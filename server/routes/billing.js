@@ -2,7 +2,7 @@ const express = require('express');
 const router  = express.Router();
 const { queryOne, queryAll } = require('../db/database');
 const auth    = require('../middleware/auth');
-const { getUserPlan } = require('../lib/subscription');
+const { getAccessInfo } = require('../lib/subscription');
 const { stripe, PRICE_IDS } = require('../lib/stripe');
 const { upsertFromSubscription } = require('./stripeWebhook');
 
@@ -31,8 +31,18 @@ router.get('/subscription', auth, async (req, res) => {
 });
 
 router.get('/access', auth, async (req, res) => {
-  const plan = await getUserPlan(req.user.id);
-  res.json({ plan, is_premium: plan === 'premium' });
+  // BIL-08: also surfaces the no-card signup trial state, so the client can
+  // tell "your trial just ended" apart from "you're on the free plan and
+  // hit a limit" - see subscription.js's getAccessInfo for how signup_trial_*
+  // composes with a real Stripe subscription (which always wins).
+  const { plan, signupTrialActive, signupTrialExpired, signupTrialEndsAt } = await getAccessInfo(req.user.id);
+  res.json({
+    plan,
+    is_premium: plan === 'premium',
+    signup_trial_active: signupTrialActive,
+    signup_trial_expired: signupTrialExpired,
+    signup_trial_ends_at: signupTrialEndsAt,
+  });
 });
 
 router.get('/plans', (req, res) => {
@@ -64,7 +74,10 @@ router.get('/plans', (req, res) => {
       {
         id:            'monthly',
         name:          'Premium Monthly',
-        description:   'Full access to all 20 sections, billed monthly',
+        // NOTE: section count verified against DashboardPage.jsx's SECTIONS
+        // array length as of this edit. Reverify there before trusting this
+        // number again if another section-adding branch has landed since.
+        description:   'Full access to all 21 sections, billed monthly',
         price_monthly: 10,
         price_annual:  null,
         features: [

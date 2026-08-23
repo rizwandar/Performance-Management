@@ -165,6 +165,7 @@ const { checkInactivity, cleanupExpiredTokens } = require('./lib/inactivityTimer
 const { expireOrgPremiumGrants } = require('./lib/orgPremiumExpiry');
 const { sendTrialReminders } = require('./lib/trialReminder');
 const { sendCardExpiryReminders } = require('./lib/cardExpiryReminder');
+const { sendSignupTrialReminders } = require('./lib/signupTrialReminder');
 cron.schedule('0 8 * * *', () => {
   console.log('[inactivity] Running daily check...');
   checkInactivity().catch(err => console.error('[inactivity] Check failed:', err.message));
@@ -172,6 +173,11 @@ cron.schedule('0 8 * * *', () => {
   expireOrgPremiumGrants().catch(err => console.error('[org-premium] Expiry sweep failed:', err.message));
   sendTrialReminders().catch(err => console.error('[billing] Trial reminder sweep failed:', err.message));
   sendCardExpiryReminders().catch(err => console.error('[billing] Card-expiry reminder sweep failed:', err.message));
+  // BIL-08: day-25/day-28 reminders for the universal no-card 30-day vault
+  // trial. No explicit "lock" job runs at day 30 - once the trial window
+  // passes, getUserPlan() in lib/subscription.js simply stops returning
+  // 'premium' for that user, the same way any other free-plan check works.
+  sendSignupTrialReminders().catch(err => console.error('[billing] Signup trial reminder sweep failed:', err.message));
 });
 
 const { runBackup } = require('./lib/backup');
