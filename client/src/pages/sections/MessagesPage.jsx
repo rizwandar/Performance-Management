@@ -13,12 +13,13 @@ const API = import.meta.env.VITE_API_URL
 
 const empty = { recipient_name: '', relationship: '', message: '' }
 
-// IDEA-01 -------------------------------------------------------------------
+// IDEA-01/IDEA-34 -------------------------------------------------------------
 // Two additional ways to leave a message, alongside typing: dictate it (Web
-// Speech API, converts speech to text in the textarea) and/or record an
-// actual voice clip (MediaRecorder, uploaded to R2 via the server). Either,
-// both, or neither - a message can be text-only, audio-only, or both.
+// Speech API, converts speech to text in the textarea) and/or record up to 3
+// actual voice clips (MediaRecorder, uploaded to R2 via the server, one at a
+// time). Any mix - a message can be text-only, audio-only (1-3 clips), or both.
 const MAX_RECORDING_SECONDS = 300 // 5 minutes - keeps individual clips small; storage isn't premium-gated so this is the guardrail
+const MAX_AUDIO_CLIPS = 3
 const RECORDER_MIME_CANDIDATES = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg']
 
 const recordingSupported  = typeof window !== 'undefined' && !!navigator.mediaDevices?.getUserMedia && typeof window.MediaRecorder !== 'undefined'
@@ -61,13 +62,17 @@ export default function MessagesPage() {
     setValue: v => setForm(f => ({ ...f, message: v })),
   })
 
-  // Voice message state
+  // Voice message state. Up to MAX_AUDIO_CLIPS existing clips per message,
+  // shown as a list, plus at most one not-yet-uploaded recording staged at a
+  // time (recordedBlob). An existing message (known id) uploads/deletes each
+  // clip immediately; a brand-new message stages its first clip and uploads
+  // it once the surrounding message row is created by the main Save button.
   const [recording, setRecording]                 = useState(false)
   const [recordSeconds, setRecordSeconds]          = useState(0)
   const [recordedBlob, setRecordedBlob]            = useState(null)
   const [recordedPreviewUrl, setRecordedPreviewUrl] = useState(null)
-  const [existingAudioUrl, setExistingAudioUrl]    = useState(null)
-  const [audioRemoved, setAudioRemoved]            = useState(false)
+  const [existingClips, setExistingClips]          = useState([]) // [{id, audio_url, duration_seconds}]
+  const [audioBusy, setAudioBusy]                  = useState(false) // immediate upload/delete in flight
   const [recordError, setRecordError]              = useState('')
   const mediaRecorderRef = useRef(null)
   const audioChunksRef   = useRef([])
@@ -145,11 +150,6 @@ export default function MessagesPage() {
     secondsRef.current = 0
   }
 
-  const removeExistingAudio = () => {
-    setExistingAudioUrl(null)
-    setAudioRemoved(true)
-  }
-
   const resetAudioState = () => {
     if (recording) stopRecording()
     setRecordedPreviewUrl(prev => {
@@ -160,9 +160,45 @@ export default function MessagesPage() {
     setRecordSeconds(0)
     secondsRef.current = 0
     setRecordError('')
-    setAudioRemoved(false)
-    setExistingAudioUrl(null)
+    setAudioBusy(false)
+    setExistingClips([])
     setPendingId(null)
+  }
+
+  // messageId is known immediately when editing an existing message, or once
+  // the first Save has created a brand-new one (pendingId). Clip upload/
+  // delete only act immediately once an id exists to attach them to.
+  const messageId = editing?.id ?? pendingId
+
+  const uploadPendingClip = async () => {
+    if (!recordedBlob || !messageId) return
+    setAudioBusy(true)
+    setRecordError('')
+    try {
+      const fd = new FormData()
+      fd.append('audio', recordedBlob, `recording.${audioExtension(recordedBlob.type)}`)
+      fd.append('duration_seconds', String(recordSeconds))
+      const res = await axios.post(`${API}/sections/messages/${messageId}/audio`, fd)
+      setExistingClips(prev => [...prev, { id: res.data.id, audio_url: res.data.audio_url, duration_seconds: res.data.duration_seconds }])
+      discardNewRecording()
+    } catch (err) {
+      setRecordError(err.response?.data?.error || "We couldn't save that recording. Please try again.")
+    }
+    setAudioBusy(false)
+  }
+
+  const deleteClip = async (clipId) => {
+    if (!messageId) return
+    if (!window.confirm('Delete this voice recording? This cannot be undone.')) return
+    setAudioBusy(true)
+    setRecordError('')
+    try {
+      await axios.delete(`${API}/sections/messages/${messageId}/audio/${clipId}`)
+      setExistingClips(prev => prev.filter(c => c.id !== clipId))
+    } catch {
+      setRecordError("We couldn't delete that recording. Please try again.")
+    }
+    setAudioBusy(false)
   }
 
   const closeModal = () => {
@@ -187,7 +223,7 @@ export default function MessagesPage() {
     })
     setError('')
     resetAudioState()
-    setExistingAudioUrl(item.audio_url || null)
+    setExistingClips(item.audio_clips || [])
     setShowModal(true)
   }
 
@@ -206,13 +242,14 @@ export default function MessagesPage() {
         setPendingId(id)
       }
 
+      // Any still-pending recording (not yet uploaded via the immediate
+      // "Save recording" button, e.g. a brand-new message's first clip,
+      // whose upload had to wait for this row to exist) goes up now.
       if (recordedBlob) {
         const fd = new FormData()
         fd.append('audio', recordedBlob, `recording.${audioExtension(recordedBlob.type)}`)
         fd.append('duration_seconds', String(recordSeconds))
         await axios.post(`${API}/sections/messages/${id}/audio`, fd)
-      } else if (audioRemoved) {
-        await axios.delete(`${API}/sections/messages/${id}/audio`)
       }
 
       setShowModal(false)
@@ -306,10 +343,15 @@ export default function MessagesPage() {
                         )}
                       </div>
                     )}
-                    {item.audio_url && (
+                    {item.audio_clips?.length > 0 && (
                       <div className="mt-2">
-                        <p className="text-muted small mb-1">🎤 Voice message</p>
-                        <audio controls src={item.audio_url} style={{ width: '100%', maxWidth: 360, height: 36 }} />
+                        <p className="text-muted small mb-1">
+                          🎤 {item.audio_clips.length === 1 ? 'Voice message' : `Voice messages (${item.audio_clips.length})`}
+                        </p>
+                        {item.audio_clips.map(clip => (
+                          <audio key={clip.id} controls src={clip.audio_url}
+                            style={{ width: '100%', maxWidth: 360, height: 36, marginBottom: 4, display: 'block' }} />
+                        ))}
                       </div>
                     )}
                   </div>
@@ -364,10 +406,26 @@ export default function MessagesPage() {
             </Form.Group>
 
             <Form.Group className="mb-3">
-              <Form.Label>
-                Voice message <span className="text-muted fw-normal small">(optional, in addition to or instead of writing)</span>
-              </Form.Label>
+              <div className="d-flex justify-content-between align-items-center">
+                <Form.Label className="mb-1">
+                  Voice messages <span className="text-muted fw-normal small">(optional, in addition to or instead of writing)</span>
+                </Form.Label>
+                {(existingClips.length > 0 || recordedBlob) && (
+                  <span className="text-muted small">{existingClips.length + (recordedBlob ? 1 : 0)} of {MAX_AUDIO_CLIPS}</span>
+                )}
+              </div>
               {recordError && <Alert variant="warning" className="py-2 small mb-2">{recordError}</Alert>}
+
+              {existingClips.length > 0 && (
+                <div className="mb-2">
+                  {existingClips.map(clip => (
+                    <div key={clip.id} className="d-flex align-items-center gap-2 mb-2">
+                      <audio controls src={clip.audio_url} style={{ flex: 1, maxWidth: 300, height: 36 }} />
+                      <Button size="sm" variant="outline-danger" disabled={audioBusy} onClick={() => deleteClip(clip.id)}>🗑 Delete</Button>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {!recordingSupported ? (
                 <p className="text-muted small mb-0">Voice recording isn't supported in this browser.</p>
@@ -381,22 +439,26 @@ export default function MessagesPage() {
                 <div>
                   <audio controls src={recordedPreviewUrl} style={{ width: '100%', maxWidth: 360, height: 36 }} />
                   <div className="d-flex gap-2 mt-2">
-                    <Button size="sm" variant="outline-secondary" onClick={() => { discardNewRecording(); startRecording(); }}>
+                    {messageId && (
+                      <Button size="sm" variant="success" disabled={audioBusy} onClick={uploadPendingClip}>
+                        {audioBusy ? 'Saving…' : '💾 Save recording'}
+                      </Button>
+                    )}
+                    <Button size="sm" variant="outline-secondary" disabled={audioBusy} onClick={() => { discardNewRecording(); startRecording(); }}>
                       🔁 Re-record
                     </Button>
-                    <Button size="sm" variant="outline-danger" onClick={discardNewRecording}>🗑 Discard</Button>
+                    <Button size="sm" variant="outline-danger" disabled={audioBusy} onClick={discardNewRecording}>🗑 Discard</Button>
                   </div>
+                  {!messageId && (
+                    <p className="text-muted small mb-0 mt-1">This recording will be saved along with your message.</p>
+                  )}
                 </div>
-              ) : existingAudioUrl ? (
-                <div>
-                  <audio controls src={existingAudioUrl} style={{ width: '100%', maxWidth: 360, height: 36 }} />
-                  <div className="d-flex gap-2 mt-2">
-                    <Button size="sm" variant="outline-secondary" onClick={startRecording}>🔁 Re-record</Button>
-                    <Button size="sm" variant="outline-danger" onClick={removeExistingAudio}>🗑 Remove</Button>
-                  </div>
-                </div>
+              ) : existingClips.length >= MAX_AUDIO_CLIPS ? (
+                <p className="text-muted small mb-0">You've reached the maximum of {MAX_AUDIO_CLIPS} voice recordings for this message. Delete one above to record another.</p>
               ) : (
-                <Button size="sm" variant="outline-secondary" onClick={startRecording}>🎙️ Record a voice message</Button>
+                <Button size="sm" variant="outline-secondary" onClick={startRecording}>
+                  🎙️ {existingClips.length > 0 ? 'Record another' : 'Record a voice message'}
+                </Button>
               )}
             </Form.Group>
           </Form>
