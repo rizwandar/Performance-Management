@@ -31,6 +31,39 @@ const EXECUTOR_SECTIONS = [
   'life_wishes', 'children_dependants', 'unfinished_business', 'last_moments',
 ];
 
+// OPS-29: attach any files uploaded against this section (e.g. a scanned
+// will, a property deed, an insurance policy) so an executor/trusted contact
+// can actually open the document, not just see its text metadata. Deliberately
+// excluded for 'digital_life' and for anything in VAULT_PROTECTED_SECTIONS
+// (legal_documents, financial_items, property_items, household_info,
+// digital_credentials): an access link has no vault password to check
+// against (see checkVault in lib/vaultAuth.js, which every authenticated
+// document download goes through), so a vault-protected file can never be
+// safely surfaced here. As of SEC-20, none of the 5 vault-protected sections
+// (legal_documents, financial_items, property_items, household_info,
+// digital_credentials) or digital_life reach this loop at all (they're
+// filtered out of `permissions` and absent from EXECUTOR_SECTIONS /
+// trustedContacts.js's VALID_SECTIONS), but the checks below stay in place
+// as an explicit guard, not an incidental one.
+async function loadSectionDocuments(userId, sectionId) {
+  if (sectionId === 'digital_life' || isVaultProtectedSection(sectionId)) return [];
+
+  const docs = await queryAll(
+    `SELECT id, item_id, original_name, size_bytes, mime_type, r2_key
+     FROM uploaded_documents WHERE user_id = $1 AND section_id = $2`,
+    [userId, sectionId]
+  );
+  if (!docs.length) return [];
+
+  // Signed URL generated fresh per request, never stored - same pattern as
+  // the personal_messages audio attachment above and the authenticated
+  // document download route in documents.js.
+  return Promise.all(docs.map(async ({ r2_key, ...doc }) => ({
+    ...doc,
+    download_url: await getDownloadUrl(r2_key),
+  })));
+}
+
 async function loadTokenRow(token) {
   // expires_at IS NULL means "never expires" - currently only ever set that way
   // for an executor's link (see lib/inactivityTimer.js's generateAccessLink).
@@ -156,6 +189,9 @@ router.get('/:token', async (req, res) => {
         break;
       }
     }
+
+    const documents = await loadSectionDocuments(tokenRow.user_id, sectionId);
+    if (documents.length) data[`${sectionId}_documents`] = documents;
   }
 
   res.json({
