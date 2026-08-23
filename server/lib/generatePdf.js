@@ -601,7 +601,8 @@ function generatePdf(data, outputStream) {
 
   // ── Page 5: Your Loved Ones + Pet Care + Insurance ──────────────────────────
   // Financial Affairs and Practical Household Information are vault-protected -
-  // rendered on the vault page below.
+  // rendered on the vault page below. Insurance (IDEA-29) is not vault-protected
+  // and belongs here alongside the other standard sections.
   doc.addPage();
 
   sectionHeader(doc, 'Your Loved Ones', palette, fonts);

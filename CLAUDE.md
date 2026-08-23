@@ -4,7 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**In Good Hands** is an end-of-life planning web and mobile app. Users record personal wishes, legal documents, financial details, medical preferences, funeral wishes, and more across 15 sections. Designated trusted contacts can access this information when the owner becomes inactive.
+**In Good Hands** is an end-of-life planning web and mobile app. Users record personal wishes, legal documents, financial details, medical preferences, funeral wishes, and more across 21 sections. Designated trusted contacts can access this information when the owner becomes inactive.
+
+<!-- NOTE: section count reconciled to 21 after IDEA-19 (Unfinished Business),
+     IDEA-30 (Your Last Moments), and IDEA-32 (Medical split into Doctors/
+     Medical Records/Donation Bank, net +2) all landed off the same staging
+     base (17 baseline + 2 + 2). Verify against DashboardPage.jsx's SECTIONS
+     array length before trusting this number if another section-adding
+     branch lands concurrently. -->
 
 Stack: React (web) + Expo/React Native (mobile) + Express (API) + PostgreSQL (database) + Cloudflare R2 (file storage).
 
@@ -62,7 +69,7 @@ The client and mobile apps import from `@in-good-hands/shared`. The Vite config 
 - `server/middleware/adminAuth.js` — requires `req.user.role === 'admin'`
 - Rate limiting: 20 req/15 min on auth routes, 200 req/15 min on API routes
 
-**Vault encryption:** `server/lib/vault.js` — AES-256-GCM encryption for digital credentials (Section 3). Encryption key derived from `VAULT_KEY` env var.
+**Vault encryption:** `server/lib/vault.js` — AES-256-GCM encryption for digital credentials (Section 3). No server-held key: each encryption key is derived on the fly via scrypt from the user's own vault password (never stored) plus their userId. There is no `VAULT_KEY` env var.
 
 **File uploads:** `server/lib/r2.js` — Cloudflare R2 via AWS S3 SDK. Env vars: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`.
 
@@ -78,7 +85,7 @@ The client and mobile apps import from `@in-good-hands/shared`. The Vite config 
 - `context/AuthContext.jsx` — login/logout, cached user state. The session JWT itself lives only in an httpOnly cookie set by the server (SEC-09); the client never reads or stores it, only a `csrf_token` cookie value it echoes back as an `X-CSRF-Token` header on mutating requests.
 - `context/SubscriptionContext.jsx` — freemium plan state
 
-**Section pages** follow a consistent pattern: fetch data on mount, render a list of `ItemCard` components, open a `FormModal` for create/edit. The 15 sections are: Legal Documents, Digital Vault, Financial, Medical, Property, Messages, Funeral Wishes, Obituary, Music, Pets, Charities, Biography, Bucket List, Trusted Contacts, and (since IDEA-18) Pet Care as its own standalone section.
+**Section pages** follow a consistent pattern: fetch data on mount, render a list of `ItemCard` components, open a `FormModal` for create/edit. The sections include: Legal Documents, Digital Vault, Financial, Doctors, Medical Records, Donation Bank (since IDEA-32, split out of a formerly combined Medical & Care Wishes section - Donation Bank is vault-protected, Doctors and Medical Records are not), Property, Messages, Funeral Wishes, Obituary, Music, Pets, Charities, Biography, Bucket List, Trusted Contacts, Pet Care (its own standalone section since IDEA-18), Emergency Contact (since IDEA-27, split out of what was previously a combined "Key Contacts" page), Insurance (since IDEA-29), Unfinished Business (since IDEA-19, reconciliation/apologies/loose-ends, deliberately distinct from Bucket List and Messages to Loved Ones), and Your Last Moments (since IDEA-30, a single dedicated final recording/letter, distinct from the Messages section). This list has drifted from the actual dashboard before; verify against `client/src/pages/DashboardPage.jsx`'s `SECTIONS` array rather than trusting this sentence.
 
 **Admin panel** (`pages/Admin.jsx`) — theme/font switcher (3 warm themes, 3 fonts stored in `app_settings` table), logo upload for white-labelling, user management, maintenance tools.
 
@@ -107,10 +114,19 @@ R2_ACCESS_KEY_ID=
 R2_SECRET_ACCESS_KEY=
 R2_BUCKET_NAME=
 RESEND_API_KEY=
-VAULT_KEY=
 ```
 
 Optional: `ORG_PORTAL_ENABLED=true` registers the org/funeral-home portal routes (`organizations.js`, `orgPortal.js`, `orgPublic.js`, `orgRegister.js`). Unset or any other value keeps them unregistered entirely, not merely rejected (SEC-12) - this is the default in production since the org portal isn't part of the initial end-user launch. Set to `true` on staging/local dev to keep testing it.
+
+### Secrets management (Infisical)
+
+Decided 2026-08-05: secrets are moving from plaintext `.env` files / manually-pasted Render dashboard values to [Infisical](https://infisical.com), managed cloud tier. A real Infisical project now holds dev/staging/production environments, each with its own independent values (rotated/de-duplicated 2026-08-13 - `JWT_SECRET` and `RESEND_API_KEY` no longer share values across environments, and dead legacy entries like `DB_PATH`/`SECRET_WEBHOOK_SECRET` have been removed). `server/.env` still works as a local fallback (dotenv doesn't override already-set env vars, so it composes fine with the CLI below) - it isn't being ripped out, just superseded.
+
+- **Local dev:** `npm run dev:server:infisical` (root `package.json`) runs `infisical run --env=dev -- npm run dev --workspace=server`, which injects secrets from the Infisical `dev` environment as process env vars - nothing is written to disk. Requires the Infisical CLI (`npm install -g @infisical/cli`) and `infisical login` once per machine. `.infisical.json` (project ID + default environment slug, no secret values, safe to commit) lives at the repo root once `infisical init` has been run against the real project - currently only present on one machine, not yet committed.
+- **Staging/production: NOT yet synced automatically.** Render's own dashboard env vars are still the actual live source of truth for the running services - Infisical holds a separate copy of the same values that currently has to be updated by hand, alongside Render, every time a secret changes (this bit both JWT_SECRET and RESEND_API_KEY during the 2026-08-13 rotation - Infisical's copy and Render's live copy had drifted apart before that). The planned fix is Infisical's native Render Secret Sync integration (Project > Integrations > Secret Syncs > Render, one sync per Render service, connected with a Render API key entered directly in Infisical's UI), which would make Infisical the actual source of truth instead of a shadow copy - not connected yet.
+- **Known gap, tracked separately:** dev/staging/production currently share one Cloudflare R2 bucket (and staging/production share R2 credentials too) - not yet split into separate buckets/credentials per environment.
+- **CI:** no workflow currently needs a real secret (`smoke-test.yml` and `authz-probe.yml` both boot the server with safe, hardcoded CI-only values). If one ever does, the pattern is `Infisical/secrets-action` with OIDC auth and a machine identity scoped to that one project/environment - see [Infisical's GitHub Actions docs](https://infisical.com/docs/integrations/cicd/githubactions) - not a long-lived token sitting in GitHub secrets.
+- **Why Infisical over Doppler:** both were free at this project's team size (2 seats); Infisical was chosen for the free self-hosting fallback (MIT-licensed) if ever needed later, and because Doppler has no self-hosted option at all.
 
 ## Key Conventions
 
