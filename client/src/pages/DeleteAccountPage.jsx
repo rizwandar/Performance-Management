@@ -12,7 +12,7 @@ export default function DeleteAccountPage() {
   return (
     <div style={{ minHeight: '100vh', background: 'var(--parchment)', padding: '48px 16px' }}>
       <div style={{ maxWidth: 720, margin: '0 auto' }}>
-        <h1 style={{ fontFamily: 'Georgia, serif', color: 'var(--green-900)', marginBottom: 8 }}>
+        <h1 style={{ fontFamily: 'Georgia, serif', color: 'var(--heading-color, var(--green-900))', marginBottom: 8 }}>
           Account Deletion Request
         </h1>
         <p style={{ color: 'var(--text-muted)', marginBottom: 40 }}>In Good Hands</p>
@@ -39,7 +39,7 @@ export default function DeleteAccountPage() {
           {p('When your account is deleted, the following data is permanently and irreversibly removed from our systems:')}
           {li([
             'Your profile information (name, date of birth, about me, contact details).',
-            'All section data you have entered (legal documents, financial affairs, medical wishes, funeral wishes, messages, bucket list, and all other sections).',
+            'All section data you have entered (legal documents, financial affairs, medical records, funeral wishes, messages, bucket list, and all other sections).',
             'All uploaded files and documents stored in cloud storage.',
             'Trusted contact records and any associated access tokens.',
             'Your subscription record.',
