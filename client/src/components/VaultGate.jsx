@@ -145,9 +145,9 @@ export function VaultSetupScreen({ onSetup }) {
         </h5>
         <p className="text-muted small text-center mb-4">
           Your most sensitive information (Personal &amp; Legal Documents, Digital Vault credentials,
-          Financial Affairs, Property &amp; Possessions, and Household Information) is
+          Financial Affairs, Property &amp; Possessions, Household Information, and Donation Bank) is
           protected by a separate vault password that only you know.
-          Once set, it applies to all five sections.
+          Once set, it applies to all six sections.
         </p>
 
         {error && <Alert variant="danger">{error}</Alert>}
@@ -223,7 +223,7 @@ export function VaultLockScreen({ onUnlock, onReset }) {
   // The owner's own optional hint (IDEA-15), set at vault creation. Fetched
   // here rather than threaded down as a prop so every page that renders this
   // shared screen (Digital Life, Legal Documents, Financial Affairs, Property,
-  // Household Info) doesn't need its own copy of this logic.
+  // Household Info, Donation Bank) doesn't need its own copy of this logic.
   useEffect(() => {
     axios.get(`${API}/sections/digital-life/vault`)
       .then(r => setHint(r.data.hint || null))
@@ -392,8 +392,8 @@ export function VaultLockScreen({ onUnlock, onReset }) {
           <h5 style={{ color: '#9f1239', textAlign: 'center', marginBottom: 8 }}>Reset your vault</h5>
           <p className="small text-center mb-4" style={{ color: '#7f1d1d' }}>
             This will <strong>permanently delete all vault-protected data</strong>: Personal &amp; Legal
-            Documents, Digital Vault credentials, Financial Affairs, Property &amp; Possessions, and
-            Household Information. This cannot be undone.
+            Documents, Digital Vault credentials, Financial Affairs, Property &amp; Possessions,
+            Household Information, and Donation Bank. This cannot be undone.
             You will be able to set a new vault password afterwards.
           </p>
 

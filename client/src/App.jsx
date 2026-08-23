@@ -78,6 +78,53 @@ const DEFAULT_CARD_TOKENS = {
   '--btn-radius': '6px',
   '--btn-cta-bg': 'var(--green-800)', '--btn-cta-color': '#fff', '--btn-cta-hover-bg': 'var(--green-900)',
   '--progress-fill': 'linear-gradient(90deg, var(--green-800), var(--green-600))',
+  '--input-radius': '6px',
+  // Dashboard group-card tints: today's colour-coded-by-category look.
+  '--group-people-bg': '#F7EDE7', '--group-people-border': '#E4C8B4', '--group-people-icon': '#EDD8C8', '--group-people-pill': '#B87A50',
+  '--group-legacy-bg': '#FBF5E4', '--group-legacy-border': '#E8D8A8', '--group-legacy-icon': '#F5EAC8', '--group-legacy-pill': '#C9A84C',
+  '--group-wishes-bg': '#EEF4EE', '--group-wishes-border': '#C4DCC4', '--group-wishes-icon': '#D8ECD8', '--group-wishes-pill': '#5A9A5A',
+  '--group-affairs-bg': '#EEEAE5', '--group-affairs-border': '#D4CCC4', '--group-affairs-icon': '#E0D8D0', '--group-affairs-pill': '#8A7A6A',
+  '--group-pill-text': '#ffffff',
+  // Landing-page hero tokens: default to today's exact look (transparent hero
+  // panel, headings/lead/outline-button taking their normal colour from the
+  // rest of the theme) via indirection to each element's existing default
+  // variable, rather than a hardcoded hex, so every theme automatically
+  // tracks its own green-900/green-800/text-muted. Explicit on every theme
+  // (same reasoning as the card tokens above) so a theme switch can't leave
+  // a previous theme's hero override stuck via applyTheme's additive
+  // Object.entries().forEach.
+  '--hero-bg': 'transparent',
+  '--hero-heading-color': 'var(--green-900)',
+  '--hero-outline-color': 'var(--green-800)',
+  '--hero-lead-color': 'var(--text-muted)',
+  // Heading display style (e.g. italic) — 'normal' everywhere except themes
+  // that opt in.
+  '--heading-style': 'normal',
+  // Major page/section-title heading colour (SectionHero.jsx, DashboardPage's
+  // hero heading, etc). Defaults to today's --green-900 for every existing
+  // theme so this is a no-op visual change for them; only heirloom overrides
+  // it below with a brighter mid-green.
+  '--heading-color': 'var(--green-900)',
+  // Per-theme typeface overrides for the Dashboard's headline/body/UI-chrome
+  // text (used by the Storybook theme to pair Playfair Display/Lora/Inter).
+  // Default to exactly what the Dashboard already renders today: headings
+  // hardcode Georgia inline (unaffected by the separate admin font picker),
+  // while body copy and UI chrome have no explicit font-family and simply
+  // inherit body's --site-font. Explicit here (not left to a var() fallback)
+  // so a theme switch away from Storybook can't leave its font choice stuck
+  // (applyTheme only sets properties present in the incoming theme object).
+  '--heading-font': "Georgia, 'Times New Roman', serif",
+  '--body-font': 'inherit',
+  '--ui-font': 'inherit',
+}
+
+const FONT_STACKS = {
+  georgia:  "Georgia, 'Times New Roman', serif",
+  lora:     "'Lora', Georgia, serif",
+  inter:    "'Inter', system-ui, sans-serif",
+  playfair: "'Playfair Display', Georgia, serif",
+  merriweather: "'Merriweather', Georgia, serif",
+  opensans: "'Open Sans', system-ui, sans-serif",
 }
 
 const THEME_VARS = {
@@ -161,16 +208,110 @@ const THEME_VARS = {
     '--btn-radius': '999px',
     '--btn-cta-bg': '#E0A438', '--btn-cta-color': '#3A2E22', '--btn-cta-hover-bg': '#C68A2E',
     '--progress-fill': '#C97A56',
+    '--input-radius': '14px',
+    // Keepsake style guide: every dashboard group card is plain white with the
+    // same dashed cream border and a neutral icon circle, not colour-coded by category.
+    '--group-people-bg': '#fff', '--group-people-border': '#E8DCC8', '--group-people-icon': '#F0EAE0', '--group-people-pill': '#EDE6D8',
+    '--group-legacy-bg': '#fff', '--group-legacy-border': '#E8DCC8', '--group-legacy-icon': '#F0EAE0', '--group-legacy-pill': '#EDE6D8',
+    '--group-wishes-bg': '#fff', '--group-wishes-border': '#E8DCC8', '--group-wishes-icon': '#F0EAE0', '--group-wishes-pill': '#EDE6D8',
+    '--group-affairs-bg': '#fff', '--group-affairs-border': '#E8DCC8', '--group-affairs-icon': '#F0EAE0', '--group-affairs-pill': '#EDE6D8',
+    '--group-pill-text': '#3A2E22',
+    // Keepsake doesn't spread DEFAULT_CARD_TOKENS, so it needs its own
+    // explicit resets for the hero/heading tokens too (see the comment on
+    // DEFAULT_CARD_TOKENS above).
+    '--hero-bg': 'transparent',
+    '--hero-heading-color': 'var(--green-900)',
+    '--hero-outline-color': 'var(--green-800)',
+    '--hero-lead-color': 'var(--text-muted)',
+    '--heading-style': 'normal',
+    '--heading-color': 'var(--green-900)',
+    // Keepsake doesn't spread DEFAULT_CARD_TOKENS, so (like the hero/heading
+    // tokens above) it needs its own explicit reset for these too.
+    '--heading-font': "Georgia, 'Times New Roman', serif",
+    '--body-font': 'inherit',
+    '--ui-font': 'inherit',
   },
-}
-
-const FONT_STACKS = {
-  georgia:  "Georgia, 'Times New Roman', serif",
-  lora:     "'Lora', Georgia, serif",
-  inter:    "'Inter', system-ui, sans-serif",
-  playfair: "'Playfair Display', Georgia, serif",
-  merriweather: "'Merriweather', Georgia, serif",
-  opensans: "'Open Sans', system-ui, sans-serif",
+  // Heirloom — dark forest-green landing hero with cream text, cream/parchment
+  // dashboard with italic dark-green headings, and plain white group cards
+  // with a subtle border and only a slight radius (deliberately NOT
+  // Keepsake's dashed/26px treatment).
+  heirloom: {
+    '--green-900': '#14301F', '--green-800': '#1F4A30', '--green-700': '#2C6242',
+    '--green-600': '#3D7C57', '--green-100': '#D9E6DC', '--green-50': '#F1F6F1',
+    '--gold': '#B8863E', '--gold-light': '#D4A968', '--gold-50': '#FBF3E4',
+    '--parchment': '#F1EAD9', '--parchment-dark': '#E4DAC0',
+    '--bs-primary': '#14301F', '--bs-primary-rgb': '20, 48, 31',
+    ...DEFAULT_CARD_TOKENS,
+    // Plan/section cards: white, subtle warm border, only slightly rounded.
+    '--card-radius': '8px', '--card-radius-sm': '6px',
+    '--card-border-style': 'solid', '--card-border-color': '#E4DAC0',
+    // Dashboard group cards: uniform white (not colour-coded by category),
+    // same subtle border as the generic card style above.
+    '--group-people-bg': '#fff', '--group-people-border': '#E4DAC0', '--group-people-icon': '#F1EAD9', '--group-people-pill': '#14301F',
+    '--group-legacy-bg': '#fff', '--group-legacy-border': '#E4DAC0', '--group-legacy-icon': '#F1EAD9', '--group-legacy-pill': '#14301F',
+    '--group-wishes-bg': '#fff', '--group-wishes-border': '#E4DAC0', '--group-wishes-icon': '#F1EAD9', '--group-wishes-pill': '#14301F',
+    '--group-affairs-bg': '#fff', '--group-affairs-border': '#E4DAC0', '--group-affairs-icon': '#F1EAD9', '--group-affairs-pill': '#14301F',
+    '--group-pill-text': '#ffffff',
+    // Landing hero: dark forest-green background, light cream text, scoped
+    // to LandingPage.jsx's .landing-hero only (see index.css).
+    '--hero-bg': '#14301F',
+    '--hero-heading-color': '#F1EAD9',
+    '--hero-outline-color': '#F1EAD9',
+    '--hero-lead-color': '#F1EAD9',
+    // Section/group headings and page titles rendered in italic (they
+    // already inherit the selected FONT and use var(--green-900) for
+    // colour, so italic is the only new treatment needed here).
+    '--heading-style': 'italic',
+    // Major page/section-title headings: --green-900 (#14301F) reads as
+    // near-black rather than clearly green at this darkness, so heirloom
+    // uses its own --green-700 (a richer mid-green) for headings specifically
+    // instead of the shared default above.
+    '--heading-color': '#2C6242',
+  },
+  // Storybook — the Dashboard-interior half of "The Keepsake Direction"
+  // storyboard (IDEA-10): deep forest ink on parchment, a muted brass accent
+  // (not a brighter gold), and a wine/burgundy accent used sparingly - only
+  // on "Your People" - for the one thing the storyboard calls out as
+  // genuinely different in kind (an emergency contact, a recorded voice),
+  // rather than spreading it across every card. Also the first theme to pair
+  // three distinct typefaces on the Dashboard - Playfair Display for
+  // headline-level text, Lora for body/descriptive copy, Inter for UI chrome
+  // - via the --heading-font/--body-font/--ui-font tokens above, reusing the
+  // app's existing FONT_STACKS entries rather than hardcoding new font
+  // strings. This is independent of whatever single font the separate admin
+  // font picker has selected (see DEFAULT_CARD_TOKENS's reset of the same
+  // three keys, so switching away from Storybook can't leave a stuck font).
+  storybook: {
+    '--green-900': '#14301F', '--green-800': '#1F4A30', '--green-700': '#2F5A3C',
+    '--green-600': '#3D7050', '--green-100': '#D9E6DC', '--green-50': '#F1F6F1',
+    '--gold': '#A47C3E', '--gold-light': '#C4A06C', '--gold-50': '#FBF3E4',
+    '--parchment': '#F1EAD9', '--parchment-dark': '#E4DAC0',
+    '--bs-primary': '#1F4A30', '--bs-primary-rgb': '31, 74, 48',
+    ...DEFAULT_CARD_TOKENS,
+    '--wine': '#6B2A38',
+    '--card-radius': '10px', '--card-radius-sm': '8px',
+    '--card-border-style': 'solid', '--card-border-color': '#E4DAC0',
+    '--btn-radius': '3px',
+    '--btn-cta-bg': '#A47C3E', '--btn-cta-color': '#14301F', '--btn-cta-hover-bg': '#8C6530',
+    '--progress-fill': 'linear-gradient(90deg, #A47C3E, #2F5A3C)',
+    '--input-radius': '6px',
+    // Dashboard group cards: plain white with the storyboard's warm
+    // parchment-dark border, matching every group - except "Your People",
+    // which alone gets the wine accent described above.
+    '--group-legacy-bg': '#fff', '--group-legacy-border': '#E4DAC0', '--group-legacy-icon': '#F3E9D4', '--group-legacy-pill': '#A47C3E',
+    '--group-people-bg': '#fff', '--group-people-border': '#E4DAC0', '--group-people-icon': '#F3E3E6', '--group-people-pill': '#6B2A38',
+    '--group-wishes-bg': '#fff', '--group-wishes-border': '#E4DAC0', '--group-wishes-icon': '#E4EDE6', '--group-wishes-pill': '#2F5A3C',
+    '--group-affairs-bg': '#fff', '--group-affairs-border': '#E4DAC0', '--group-affairs-icon': '#EDEAE0', '--group-affairs-pill': '#14301F',
+    '--group-pill-text': '#ffffff',
+    '--hero-bg': 'transparent',
+    '--hero-heading-color': 'var(--green-900)',
+    '--hero-outline-color': 'var(--green-800)',
+    '--hero-lead-color': 'var(--text-muted)',
+    '--heading-style': 'italic',
+    '--heading-font': FONT_STACKS.playfair,
+    '--body-font': FONT_STACKS.lora,
+    '--ui-font': FONT_STACKS.inter,
+  },
 }
 
 export function applyTheme(themeId) {
@@ -677,7 +818,7 @@ function AppContent() {
     }}>
       <div style={{ maxWidth: 480, textAlign: 'center' }}>
         <div style={{ fontSize: '3rem', marginBottom: 16 }}>🔧</div>
-        <h2 style={{ color: 'var(--green-900)', fontFamily: 'Georgia, serif', marginBottom: 12 }}>
+        <h2 style={{ color: 'var(--heading-color, var(--green-900))', fontFamily: 'Georgia, serif', marginBottom: 12 }}>
           We'll be back shortly
         </h2>
         <p style={{ color: 'var(--text-muted)', lineHeight: 1.7, marginBottom: 24 }}>
