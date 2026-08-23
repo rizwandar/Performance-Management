@@ -26,6 +26,8 @@ const THEMES = [
   { id: 'highcontrast', name: 'High Contrast', description: 'Maximum contrast, accessibility-first', swatch: ['#111111', '#C05000', '#FFFFFF'] },
   { id: 'softmist',    name: 'Soft Mist',      description: 'Very low contrast, gentle and calm',    swatch: ['#4A5A65', '#A89870', '#F8F9FA'] },
   { id: 'keepsake',    name: 'Keepsake',       description: 'Cream, walnut & marigold, like a treasured box of letters', swatch: ['#3A2E22', '#E0A438', '#FAF3E8'] },
+  { id: 'heirloom',    name: 'Heirloom',       description: 'Dark forest-green landing page, cream dashboard with italic headings, and plain white bordered cards', swatch: ['#14301F', '#F1EAD9', '#E4DAC0'] },
+  { id: 'storybook',   name: 'Storybook',      description: 'Deepened forest, muted brass & a wine accent, with Playfair Display headings and Lora body copy on the Dashboard', swatch: ['#14301F', '#A47C3E', '#6B2A38'] },
 ]
 
 const FONTS = [
@@ -63,7 +65,8 @@ const SECTION_LABELS = {
   financial_items:     'Financial Affairs',
   digital_credentials: 'Digital Life',
   funeral_wishes:      'Funeral Wishes',
-  medical_wishes:      'Medical Wishes',
+  doctors:             'Doctors',
+  medical_records:     'Medical Records',
   people_to_notify:    'People to Notify',
   property_items:      'Property',
   personal_messages:   'Messages',
@@ -454,17 +457,20 @@ COLOR PALETTE: Earthy, grounded, trustworthy. Forest green (primary), warm gold 
 
 ---
 
-THE 15 SECTIONS (grouped into 4 dashboard groups):
+THE 21 SECTIONS (grouped into 4 dashboard groups):
+(Note: this count has drifted before - verify against DashboardPage.jsx's SECTIONS array if precision matters.)
 
 YOUR LEGACY:
 - How I'd Like to Be Remembered: life story, about me, what I want to be remembered for, a legacy message. Fields stored directly on the users table.
 - Messages to Loved Ones: personal messages table. One message per recipient. Recipient name, relationship, message text, notes.
+- Unfinished Business (IDEA-19): unfinished_business table. One entry per person/topic - reconciliation, apologies, loose ends. Fields: name, description, notes. Deliberately distinct from Messages to Loved Ones (final words per recipient) and My Bucket List (aspirational future goals). NOT vault-protected, free-plan accessible. Follows personal_messages' exact access model: included in the Trusted Contacts permission list, executor/access-link data, the ad-hoc section-share feature, and both PDF/standard export paths.
 - Songs That Define Me: songs_that_define_me table. Integrated with Deezer search API (proxied through backend). Fields: deezer_id, title, artist, album, why_meaningful.
 - My Bucket List: life_wishes table. Status field: dream, planning, or completed.
 
 YOUR WISHES:
 - Funeral and End-of-Life Wishes: single record per user. Covers burial preference, ceremony type/location, funeral home, pre-paid plan, music preferences, readings, flowers, donation charity, special requests. Also supports a portrait photo (funeral_main role) and up to 20 gallery photos (funeral_gallery role) via uploaded_documents table.
-- Medical and Care Wishes: single record per user. Organ donation preference, advance care directive flag and location, DNR preference, GP details, hospital preference, current medications, medical conditions, notes.
+- Doctors (IDEA-32, split out of the old Medical & Care Wishes): single record per user. GP name, GP phone, hospital preference.
+- Medical Records (IDEA-32, split out of the old Medical & Care Wishes): single record per user. Advance care directive flag and location, DNR preference, current medications, medical conditions, notes.
 
 YOUR PEOPLE:
 - Emergency Contact: a single person to call right away in a crisis, stored on the users table (name, relationship, phone, email, notes). Does NOT receive plan access. (IDEA-27, split out of the old combined "Key Contacts" section.)
@@ -479,6 +485,8 @@ YOUR AFFAIRS:
 - Financial Affairs: vault-protected (shared vault). financial_items table. Category, institution, account_type, account_reference, contact_name, contact_phone, notes.
 - Digital Life: vault-protected (shared vault). digital_credentials table with AES-256-GCM encrypted fields (service, service_url, username, password, notes).
 - Practical Household Information: vault-protected (shared vault). household_info table. Title, category, provider, account_reference, contact, notes.
+- Insurance (IDEA-29): NOT vault-protected, free-plan accessible. insurance_items table. Policy type (free text - already accommodates "Health" alongside Life/Home/Auto/etc, no schema change needed), provider, policy number, contact, beneficiary, notes. A flat list, not a rigid category enum. Wired into the ad-hoc section-share feature; not yet added to the Trusted Contacts permission list (see below), which was already missing Practical Household Information, Digital Life, and Pet Care before this section existed.
+- Donation Bank (IDEA-32, split out of the old Medical & Care Wishes): vault-protected (shared vault) - NEW to the shared vault, unlike Doctors/Medical Records which stayed unprotected. donation_bank table. Organ donation preference and details, both field-encrypted like the other vault sections.
 
 ---
 
@@ -487,7 +495,7 @@ VAULT ENCRYPTION:
 - Key derivation: scrypt (N=16384, r=8, p=1) from vault_password + userId. Salt = "igh-vault-v1-" + userId.
 - Password NEVER stored: verified by decrypting a known constant ("in-good-hands-vault-verified") stored as check_enc in the digital_vault table.
 - Each encrypted field stored as JSON: {ciphertext, iv, tag} all hex-encoded. Fresh random IV per field.
-- Legal Documents, Digital Life, Financial Affairs, Property & Possessions, and Practical Household Information share ONE vault and ONE password, and every text field in all five is field-level encrypted (not just Digital Life).
+- Legal Documents, Digital Life, Financial Affairs, Property & Possessions, Practical Household Information, and Donation Bank (IDEA-32) share ONE vault and ONE password, and every text field in all six is field-level encrypted (not just Digital Life).
 - Vault reset: user-initiated, requires account password. Permanently deletes all vault data. Irreversible (there is no other way to recover data once the vault password is lost).
 - Failed unlock attempts: after 3, force logout with a warning email. After 5, a 15-minute timed lockout (not deletion) with a notification email; it auto-reopens on its own, and the correct password unlocks immediately even mid-lockout. Nothing is ever deleted for a wrong attempt.
 - Destructive vault operations (deleting a vault-protected record, resetting the vault, changing the vault password) all re-verify the vault password server-side immediately before acting, the same check used for list/create/update on the same routes.
@@ -496,7 +504,7 @@ VAULT ENCRYPTION:
 
 TRUSTED CONTACTS SYSTEM:
 - Up to 3 trusted contacts per user.
-- Each contact has section-level permissions (which of the 15 sections they can view).
+- Each contact has section-level permissions (which of the 21 sections they can view). Insurance and Pet Care are not yet wired into this list (a pre-existing gap - see the Insurance entry above); Unfinished Business (IDEA-19) and Your Last Moments (IDEA-30) ARE wired in, matching Messages to Loved Ones' access model exactly. Donation Bank (IDEA-32) is deliberately excluded, same as the other vault-protected sections.
 - Access via a signed link emailed to the contact. No separate login required. Valid 72 hours for the two non-Legacy-Contact slots; the Legacy Contact's link never expires (found and fixed 2026-08-06: the owner, who'd normally resend an expired link, is by definition unreachable once the plan is actually triggered).
 - Tokens stored in trusted_contact_tokens table (contact_id, token, expires_at). expires_at is NULL for a Legacy Contact's token, meaning it never expires.
 - Digital credentials (vault) are NEVER accessible to trusted contacts, Legacy Contact included.
@@ -515,8 +523,8 @@ INACTIVITY TIMER:
 
 ADMIN PANEL:
 - Accessible to users with is_admin=1 only.
-- Tabs: Overview (stats), Users (search and manage, including honorary premium grant/revoke), Activity (audit log), Appearance (theme/font/icon set), Branding (site name and logo), Organizations (funeral-home white-label portal management, gated behind ORG_PORTAL_ENABLED), Settings (password reset method), Marketing (campaign landing page list and acquisition_source signup breakdown), Versions (client/admin/org_portal semver change log), App Blueprint (this documentation).
-- 9 color themes (including Keepsake, a tokenized cream/walnut/marigold theme with its own card radius, border style, and button treatment), 6 font choices, 3 icon sets. All stored in app_settings key-value table.
+- Tabs: Overview (stats), Users (search and manage, including honorary premium grant/revoke), Activity (audit log), Vault Security (audit log of vault reset/destroy/recovery events), Appearance (theme/font/icon set), Branding (site name and logo), Organizations (funeral-home white-label portal management, gated behind ORG_PORTAL_ENABLED), Settings (password reset method), Marketing (campaign landing page list and acquisition_source signup breakdown), Versions (client/admin/org_portal semver change log), App Blueprint (this documentation).
+- 11 color themes (including Keepsake, Heirloom, and Storybook, each a fully tokenized theme with its own card radius, border style, button treatment, and - for Heirloom/Storybook - heading style, landing-hero colours, and dashboard group-card tints), 6 font choices, 3 icon sets. All stored in app_settings key-value table.
 - Admin can upload a logo via Cloudflare R2 for white-labelling.
 - Admin can change site name (white-label support via BrandingContext).
 
@@ -681,18 +689,20 @@ Please confirm the stack choices above (or tell me which to change), and then we
           </div>
 
           <div style={card}>
-            <BpSection title="The 15 Sections at a Glance">
+            <BpSection title="The 21 Sections at a Glance">
               <p className="text-muted small mb-3">Organized into four groups on the dashboard. Users fill in as much or as little as they choose.</p>
               {[
                 { group: 'Your Legacy', color: '#C9A84C', icon: '✨', sections: [
                   { label: 'How I\'d Like to Be Remembered', desc: 'Your life story, what you want to be remembered for, and a final message.' },
                   { label: 'Messages to Loved Ones', desc: 'Personal letters and notes for specific people in your life.' },
+                  { label: 'Unfinished Business', desc: 'Reconciliation, apologies, and relationships or matters you would still like to set right (IDEA-19).' },
                   { label: 'Songs That Define Me', desc: 'Music that has shaped who you are, with a search tool to find tracks easily.' },
                   { label: 'My Bucket List', desc: 'Dreams, plans, and things you have already accomplished.' },
                 ]},
                 { group: 'Your Wishes', color: '#5A9A5A', icon: '🕊️', sections: [
                   { label: 'Funeral and End-of-Life Wishes', desc: 'Burial or cremation preference, ceremony type, music, readings, photos, and more.' },
-                  { label: 'Medical and Care Wishes', desc: 'Organ donation, advance care directive, DNR preference, GP details, and medical history.' },
+                  { label: 'Doctors', desc: 'GP details and preferred hospital, split out of the old Medical and Care Wishes (IDEA-32).' },
+                  { label: 'Medical Records', desc: 'Advance care directive, DNR preference, and medical history, split out of the old Medical and Care Wishes (IDEA-32).' },
                 ]},
                 { group: 'Your People', color: '#B87A50', icon: '🤝', sections: [
                   { label: 'Emergency Contact', desc: 'The first person to call in an emergency. Does not receive access to your plans.' },
@@ -707,6 +717,8 @@ Please confirm the stack choices above (or tell me which to change), and then we
                   { label: 'Financial Affairs', desc: 'Bank accounts, investments, insurance, super, and other financial interests.' },
                   { label: 'Digital Life', desc: 'Usernames and passwords for your online accounts, encrypted so only you can read them.' },
                   { label: 'Practical Household Information', desc: 'Utility providers, subscriptions, memberships, and other practical details.' },
+                  { label: 'Insurance', desc: 'Life, health, home, auto, and other policies: provider, policy number, contact, and beneficiary. Not vault-protected.' },
+                  { label: 'Donation Bank', desc: 'Organ and tissue donation preferences, split out of the old Medical and Care Wishes (IDEA-32). Vault-protected, unlike Doctors and Medical Records.' },
                 ]},
               ].map(group => (
                 <div key={group.group} style={{ marginBottom: 20 }}>
@@ -727,12 +739,12 @@ Please confirm the stack choices above (or tell me which to change), and then we
           <div style={card}>
             <BpSection title="Key Capabilities">
               <BpTable rows={[
-                ['Secure vault', 'Five sections (Legal Documents, Digital Life, Financial Affairs, Property & Possessions, Practical Household Information) share one vault password that is never stored on the server. Only the user can unlock their vault, and every text field in all five sections is individually encrypted with a key derived from that password.'],
+                ['Secure vault', 'Six sections (Legal Documents, Digital Life, Financial Affairs, Property & Possessions, Practical Household Information, Donation Bank) share one vault password that is never stored on the server. Only the user can unlock their vault, and every text field in all six sections is individually encrypted with a key derived from that password.'],
                 ['Trusted contact access', 'Users choose up to 3 trusted contacts and control exactly which sections each one can view. Contacts receive a secure link (no login required); 72-hour validity for non-Legacy-Contact contacts, non-expiring for the designated Legacy Contact.'],
                 ['Inactivity timer', 'Users set a period of inactivity (2 to 24 months). If they have not logged in by then, their trusted contacts are automatically notified with access links.'],
                 ['PDF export', 'Users can download a complete PDF summary of all their plans. A full export option includes vault contents if the vault password is provided at download time.'],
                 ['File attachments', 'Upload photos and documents (PDF, images, Word docs) to Legal Documents, Financial Affairs, Property & Possessions, and Practical Household Information. Stored securely in Cloudflare R2, access-controlled with short-lived signed URLs.'],
-                ['Premium billing', 'Free plan covers 10 of the 15 sections. Premium ($10/month or $100/year via Stripe Checkout) unlocks the 5 vault-protected sections, document uploads, full (vault-inclusive) PDF export, and the inactivity timer. Users manage or cancel/reinstate their subscription from My Profile; admins can also grant or revoke an honorary premium plan without a real Stripe subscription.'],
+                ['Premium billing', 'Free plan covers 14 of the 21 sections. Premium ($10/month or $100/year via Stripe Checkout) unlocks the 6 vault-protected sections plus Your Last Moments, document uploads, full (vault-inclusive) PDF export, and the inactivity timer. Users manage or cancel/reinstate their subscription from My Profile; admins can also grant or revoke an honorary premium plan without a real Stripe subscription.'],
                 ['Admin panel', 'Operators can customize colors, fonts, site name, and logo. View all users, audit logs, and manage accounts.'],
                 ['White-label ready', 'The site name and logo can be changed by the admin. All emails and the PDF use the configured name.'],
               ]} />
@@ -744,7 +756,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
               <BpTable rows={[
                 ['Not a legal service', 'The application does not provide legal advice. It is a planning and document-organization tool only.'],
                 ['Not a will', 'Entries in this application do not replace a legally executed will or any other legal document.'],
-                ['Files are not vault-key-encrypted', 'All five vault-protected sections (Legal Documents, Financial Affairs, Property & Possessions, Digital Life, Practical Household Information) have their text fields encrypted with a vault-password-derived key. Uploaded files (attachments and photos) are access-controlled with short-lived signed URLs and encrypted at rest by Cloudflare R2 as a platform default, but are not additionally encrypted with the vault password.'],
+                ['Files are not vault-key-encrypted', 'All six vault-protected sections (Legal Documents, Financial Affairs, Property & Possessions, Digital Life, Practical Household Information, Donation Bank) have their text fields encrypted with a vault-password-derived key. Uploaded files (attachments and photos) are access-controlled with short-lived signed URLs and encrypted at rest by Cloudflare R2 as a platform default, but are not additionally encrypted with the vault password. (Donation Bank has no file-upload capability of its own, so this applies to it only in the sense that no exception was carved out.)'],
                 ['Not a backup service', 'Physical documents referenced in the app are stored by the user. Only the metadata (where to find them) is recorded here.'],
               ]} />
             </BpSection>
@@ -759,7 +771,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
             <BpSection title="User Journey">
               <BpTable rows={[
                 ['Registration', 'User provides name, email, date of birth, and password. A welcome email is sent. They land on the dashboard.'],
-                ['Dashboard', 'Shows 15 section cards grouped into 4 color-coded groups. Each card shows completion status (Not started, In progress, Done). A progress bar shows overall completion.'],
+                ['Dashboard', 'Shows 21 section cards grouped into 4 color-coded groups. Each card shows completion status (Not started, In progress, Done). A progress bar shows overall completion.'],
                 ['First visit', 'New users see a welcome card with four suggested starting sections. Returning users see "Welcome back".'],
                 ['Filling sections', 'Each section has its own page with a form or list UI. Changes are saved immediately or via explicit Save buttons.'],
                 ['Vault setup', 'The first time a user visits Digital Life or Legal Documents, they are prompted to create a vault password. This password is separate from their account password and is never stored.'],
@@ -772,11 +784,16 @@ Please confirm the stack choices above (or tell me which to change), and then we
 
           <div style={card}>
             <BpSection title="Section Detail: Emergency Contact & Trusted Contacts">
-              <p className="text-muted small mb-3">Two distinct subsystems, split into separate section pages since IDEA-27 (previously one combined "Key Contacts" page).</p>
+              <p className="text-muted small mb-3">
+                Two distinct subsystems, previously combined on one "Key Contacts" page. Split into their own
+                pages (IDEA-27) since they serve different purposes: Emergency Contact is a simple, always-on
+                "call this person now" record; Trusted Contacts is tied to the app's access-grant and inactivity
+                system. Each now has its own dashboard card and route, matching every other section's one-page-per-section pattern.
+              </p>
               <BpTable rows={[
-                ['Emergency contact', 'A single person to call in an emergency. Stored on the users table (emergency_contact_name, emergency_contact_phone, emergency_contact_email). Does NOT receive plan access.'],
-                ['Trusted contacts', 'Up to 3 people who can view the user\'s plans. Stored in trusted_contacts table with sequence 1, 2, or 3.'],
-                ['Section permissions', 'For each trusted contact, the user selects which of the 15 sections that person can see. Stored in trusted_contact_permissions table.'],
+                ['Emergency contact', 'A single person to call in an emergency. Stored on the users table (emergency_contact_name, emergency_contact_relationship, emergency_contact_phone, emergency_contact_email, emergency_contact_notes). Does NOT receive plan access. Route: /sections/emergency-contact.'],
+                ['Trusted contacts', 'Up to 3 people who can view the user\'s plans. Stored in trusted_contacts table with sequence 1, 2, or 3, unchanged by the IDEA-27 page split. Route: /sections/trusted-contacts.'],
+                ['Section permissions', 'For each trusted contact, the user selects which sections that person can see. Stored in trusted_contact_permissions table. Insurance (IDEA-29) and Pet Care are not yet included in this list. Unfinished Business (IDEA-19) IS included, matching Messages to Loved Ones exactly.'],
                 ['Access links', 'A signed link is emailed to the contact, giving read-only access to permitted sections (or everything except the vault, for the Legacy Contact). No account or login needed. 72-hour validity for non-Legacy-Contact contacts, non-expiring for the Legacy Contact.'],
                 ['Token storage', 'Tokens stored in trusted_contact_tokens table (contact_id, token, expires_at). Old token replaced when a new link is sent.'],
                 ['Expired access', 'The access page checks token expiry and shows a friendly expired message if the link is too old.'],
@@ -817,7 +834,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
               <BpTable rows={[
                 ['Standard export', 'GET /api/export. No vault password needed. Vault sections show a "protected" notice.'],
                 ['Full export', 'POST /api/export with vault_password in the request body. Vault sections fully included. A sensitive data warning box appears in the PDF.'],
-                ['What is included', 'All 15 sections. Cover page with logo, user name, and date. Grouped logically across content pages.'],
+                ['What is included', 'All 21 sections. Cover page with logo, user name, and date. Grouped logically across content pages.'],
                 ['Layout', 'A4 two-column layout. Each item rendered as a card. Page breaks handled automatically.'],
                 ['Branding', 'The current theme and font from app_settings are applied. Logo is fetched from R2 and embedded on the cover page.'],
                 ['Download behavior', 'The browser receives the PDF as a stream and downloads it as a file. No temp files are created on the server.'],
@@ -845,7 +862,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
                 ['Overview', 'Total users, new registrations this month, logins in the last 7 days, total entries across all section tables.'],
                 ['User management', 'Search users by name or email. View full profile, section completion, and audit log for any user. Reset their password. Delete their account.'],
                 ['Activity log', 'Recent actions across all users: logins, failures, registrations, password changes. Filterable by user.'],
-                ['Appearance', '9 color themes, 6 font choices, 3 icon sets. Changes apply live via CSS variables and are persisted in app_settings.'],
+                ['Appearance', '11 color themes, 6 font choices, 3 icon sets. Changes apply live via CSS variables and are persisted in app_settings.'],
                 ['Branding', 'Change the site name (stored in app_settings, displayed via BrandingContext throughout the app and in emails/PDF). Upload a custom logo (stored in R2). Choose from preset logo illustrations.'],
                 ['Settings', 'Toggle whether password reset also requires date-of-birth or security-question confirmation in addition to the emailed link (Resend). The link itself is always required, never optional.'],
                 ['Marketing', 'Lists the code-defined campaign landing pages (client/lp/*.html) with their live URLs, and a live breakdown of signups by acquisition_source pulled straight from the users table. No separate marketing database or A/B testing infrastructure yet.'],
@@ -937,7 +954,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
         LandingPage.jsx
         LoginPage.jsx, RegisterPage.jsx
         ForgotPasswordPage.jsx, ResetPasswordPage.jsx
-        DashboardPage.jsx    # 15 section cards, 4 groups, earthy colors
+        DashboardPage.jsx    # 21 section cards, 4 groups, earthy colors
         ProfilePage.jsx      # Personal details, password, vault password, billing management
         AccessPage.jsx       # Public trusted-contact read-only view
         AdminPage.jsx        # Full admin panel
@@ -948,7 +965,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
       components/
         VaultGate.jsx        # Shared VaultSetupScreen + VaultLockScreen
         FileAttachments.jsx  # Shared upload/list/download widget, parameterized by sectionId
-        SectionHero.jsx      # Shared folded-corner hero panel used by all 15 section pages
+        SectionHero.jsx      # Shared folded-corner hero panel used by all 21 section pages
 
   server/                    # Express 5 backend
     instrument.js            # Sentry init, required first (before any other import)
@@ -971,7 +988,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
     routes/
       auth.js                # /api/auth: login, register, logout, forgot/reset password
       users.js               # /api/users/me: profile, timer, emergency contact
-      sections.js            # /api/sections: all 15 sections + vault endpoints + completion
+      sections.js            # /api/sections: all 21 sections + vault endpoints + completion
       documents.js           # /api/documents: file upload/download/delete + photos
       export.js              # /api/export: GET (standard) + POST (with vault)
       admin.js               # /api/admin: stats, users, activity log, versions, backups list/trigger
@@ -1011,7 +1028,19 @@ Please confirm the stack choices above (or tell me which to change), and then we
             },
             {
               table: 'medical_wishes',
-              fields: 'id, user_id, organ_donation, organ_donation_details, advance_care_directive (0/1), directive_location, dnr_preference, gp_name, gp_phone, hospital_preference, current_medications, medical_conditions, notes. Single record per user.',
+              fields: 'DEPRECATED (IDEA-32): superseded by doctors, medical_records, and donation_bank below, which its existing rows were migrated into. The table itself is left in place, empty, per this project\'s non-destructive migration convention - no route reads or writes it any more.',
+            },
+            {
+              table: 'doctors',
+              fields: 'id, user_id, gp_name, gp_phone, hospital_preference, updated_at. Single record per user. Not vault-protected (IDEA-32, split out of medical_wishes).',
+            },
+            {
+              table: 'medical_records',
+              fields: 'id, user_id, advance_care_directive (0/1), directive_location, dnr_preference, current_medications, medical_conditions, notes, updated_at. Single record per user. Not vault-protected (IDEA-32, split out of medical_wishes).',
+            },
+            {
+              table: 'donation_bank',
+              fields: 'id, user_id, organ_donation_enc, organ_donation_details_enc, updated_at (plus legacy plaintext organ_donation/organ_donation_details columns, always NULL for rows created after the one-time migration). Single record per user. Vault-protected and field-encrypted (SEC-03 pattern) - NEW to the shared vault as of IDEA-32, unlike doctors/medical_records above.',
             },
             {
               table: 'people_to_notify',
@@ -1080,20 +1109,22 @@ Please confirm the stack choices above (or tell me which to change), and then we
         </BpSection>
       </div>
 
-      {/* 5. The 15 sections */}
+      {/* 5. The 21 sections */}
       <div style={card}>
-        <BpSection title="5. The 15 User Sections">
+        <BpSection title="5. The 21 User Sections">
           <p className="text-muted small mb-3">Grouped into 4 dashboard groups. Each section has its own route and full CRUD via /api/sections.</p>
           {[
             { group: 'Your Legacy', color: '#C9A84C', sections: [
               { id: 'how_to_be_remembered', label: "How I'd Like to Be Remembered", route: '/sections/how-to-be-remembered', note: 'Fields on users table: life_story, about_me, remembered_for, legacy_message' },
               { id: 'personal_messages', label: 'Messages to Loved Ones', route: '/sections/messages', note: 'personal_messages table. One message per recipient.' },
+              { id: 'unfinished_business', label: 'Unfinished Business', route: '/sections/unfinished-business', note: 'unfinished_business table (IDEA-19). One entry per person/topic: name, description, notes. NOT vault-protected, free-plan accessible. Access/export model deliberately mirrors personal_messages exactly (Trusted Contacts permission list, executor access, ad-hoc section share, PDF/standard export).' },
               { id: 'songs_that_define_me', label: 'Songs That Define Me', route: '/sections/songs-that-define-me', note: 'songs_that_define_me table. Deezer search via /api/deezer proxy.' },
               { id: 'life_wishes', label: 'My Bucket List', route: '/sections/lifes-wishes', note: 'life_wishes table. Status: dream/planning/completed.' },
             ]},
             { group: 'Your Wishes', color: '#5A9A5A', sections: [
               { id: 'funeral_wishes', label: 'Funeral & End-of-Life Wishes', route: '/sections/funeral-wishes', note: 'Single record per user. Also supports portrait photo (funeral_main) + up to 20 gallery photos (funeral_gallery) via uploaded_documents.' },
-              { id: 'medical_wishes', label: 'Medical & Care Wishes', route: '/sections/medical-wishes', note: 'Single record per user. Includes DNR, organ donation, advance care directive.' },
+              { id: 'doctors', label: 'Doctors', route: '/sections/doctors', note: 'Single record per user. GP name/phone, hospital preference. Not vault-protected (IDEA-32, split out of the old Medical & Care Wishes).' },
+              { id: 'medical_records', label: 'Medical Records', route: '/sections/medical-records', note: 'Single record per user. Advance care directive, DNR preference, medications, conditions, notes. Not vault-protected (IDEA-32, split out of the old Medical & Care Wishes).' },
             ]},
             { group: 'Your People', color: '#B87A50', sections: [
               { id: 'emergency_contact', label: 'Emergency Contact', route: '/sections/emergency-contact', note: 'Fields on users table: emergency_contact_name/_relationship/_phone/_email/_notes. Saved via PUT /api/users/me, not /api/sections. Does not receive plan access.' },
@@ -1108,6 +1139,8 @@ Please confirm the stack choices above (or tell me which to change), and then we
               { id: 'financial_items', label: 'Financial Affairs', route: '/sections/financial-affairs', note: 'Vault-protected. Uses shared vault (digital_vault). Text fields AES-256-GCM encrypted with the vault key. financial_items table. Up to 2 file attachments per item via uploaded_documents.' },
               { id: 'digital_credentials', label: 'Digital Life', route: '/sections/digital-life', note: 'Vault-protected. digital_credentials table. Fields AES-256-GCM encrypted. Shares vault with the other Your Affairs sections.' },
               { id: 'household-info', label: 'Practical Household Information', route: '/sections/household-info', note: 'Vault-protected. Uses shared vault (digital_vault). Text fields AES-256-GCM encrypted with the vault key. household_info table. Up to 2 file attachments per item via uploaded_documents.' },
+              { id: 'insurance_items', label: 'Insurance', route: '/sections/insurance', note: 'NOT vault-protected, free-plan accessible (IDEA-29). insurance_items table: policy_type, provider, policy_number, contact, beneficiary, notes. No file attachments, no encryption.' },
+              { id: 'donation_bank', label: 'Donation Bank', route: '/sections/donation-bank', note: 'Vault-protected (IDEA-32, split out of the old Medical & Care Wishes - NEW to the shared vault, unlike Doctors/Medical Records). donation_bank table: organ_donation, organ_donation_details, both field-encrypted. Single record per user, read/written via POST .../donation-bank/view + PUT .../donation-bank rather than the list routes the other vault sections use.' },
             ]},
           ].map(group => (
             <div key={group.group} style={{ marginBottom: 18 }}>
@@ -1132,11 +1165,11 @@ Please confirm the stack choices above (or tell me which to change), and then we
             ['Algorithm', 'AES-256-GCM (authenticated encryption)'],
             ['Key derivation', 'scrypt (N=16384, r=8, p=1) from vault_password + userId. Salt = "igh-vault-v1-" + userId. Produces 32-byte key.'],
             ['Password storage', 'NEVER stored. Not even hashed. Verified by decrypting a known constant (CHECK_CONSTANT = "in-good-hands-vault-verified") stored as check_enc in digital_vault.'],
-            ['Encrypted fields', 'Each field stored as JSON: {ciphertext, iv, tag} all hex-encoded. Fresh random IV per field. Covers digital_credentials and, since SEC-03, every text field in legal_documents, financial_items, property_items, and household_info too.'],
-            ['Shared vault', 'Legal Documents, Digital Life, Financial Affairs, Property & Possessions, and Practical Household Information all share ONE vault. Same password, same digital_vault row.'],
+            ['Encrypted fields', 'Each field stored as JSON: {ciphertext, iv, tag} all hex-encoded. Fresh random IV per field. Covers digital_credentials and, since SEC-03, every text field in legal_documents, financial_items, property_items, and household_info too - joined by donation_bank (IDEA-32).'],
+            ['Shared vault', 'Legal Documents, Digital Life, Financial Affairs, Property & Possessions, Practical Household Information, and Donation Bank (IDEA-32) all share ONE vault. Same password, same digital_vault row.'],
             ['Vault setup', 'POST /api/sections/digital-life/vault. Creates check_enc. Only works once per user.'],
             ['Vault verify', 'POST /api/sections/digital-life/vault/verify. Returns 200/401. Used to unlock UI.'],
-            ['Vault reset', 'DELETE /api/sections/digital-life/vault. Requires account password. Deletes digital_credentials, digital_vault, and every row (plus R2 file attachments) across all five vault-protected tables in one transaction. Irreversible.'],
+            ['Vault reset', 'DELETE /api/sections/digital-life/vault. Requires account password. Deletes digital_credentials, digital_vault, and every row (plus R2 file attachments) across all six vault-protected tables in one transaction. Irreversible.'],
             ['Change password', 'POST /api/sections/digital-life/vault/change. Decrypts all fields with old key, re-encrypts with new key in a single transaction.'],
             ['Destructive-op re-verification (SEC-06)', 'DELETE routes on legal-documents, financial-affairs, property-possessions, and household-info now call the same checkVault() helper used by list/create/update, matching the pattern digital-life delete already used. Fixed a gap where those four DELETE routes previously required no vault password at all.'],
             ['Standard export cannot leak vault data (SEC-02)', 'generatePdf() only ever renders financial_items/property_items/household_info/legal_documents/credentials from a vaultData object populated exclusively by the vault-checked complete-export path; the standard (GET) export never has access to it, so a future code change cannot accidentally render vault content into a standard export the way it once could.'],
@@ -1193,7 +1226,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
             ['Theme support', 'Reads site_theme and site_font from app_settings. THEME_PALETTES and getFonts() in generatePdf.js map to PDFKit built-in fonts (Times/Helvetica).'],
             ['Logo support', 'Reads site_logo from app_settings, fetches buffer via getFileBuffer(), embeds on cover page.'],
             ['Cover page', 'Dark header band, logo/brand name, user name, document date, legal disclaimer.'],
-            ['Content pages', '6 pages covering all 15 sections grouped logically.'],
+            ['Content pages', '6 pages covering all 21 sections grouped logically.'],
             ['Item cards', 'renderCardAt() renders a single item card at explicit (x,y). renderCards() places cards in 2-column grid with page-break logic.'],
             ['UI for export', 'ExportPage.jsx at /export. Two cards: standard and complete. Warm language and sensitive data warning.'],
           ]} />
@@ -1230,11 +1263,11 @@ Please confirm the stack choices above (or tell me which to change), and then we
             ['Marketing tab', 'GET /api/admin/marketing/campaigns returns a hardcoded list of the campaign landing pages (client/lp/*.html, one per Google Ads audience segment) plus a live GROUP BY acquisition_source query against the users table. acquisition_source is set only by the landing pages\' own signup form (server/routes/auth.js), never by the regular in-app registration flow.'],
             ['App Blueprint tab', 'Three-level documentation: L1 Feature Overview, L2 Product Specification, L3 Technical Reference. PDF download and rebuild prompt download.'],
             ['Theme storage', 'app_settings table keys: site_theme, site_font, site_icon_set, site_logo.'],
-            ['Themes available', 'Forest, Dusk, Terracotta, Ocean, Rose Garden, Midnight, High Contrast, Soft Mist, Keepsake.'],
+            ['Themes available', 'Forest, Dusk, Terracotta, Ocean, Rose Garden, Midnight, High Contrast, Soft Mist, Keepsake, Heirloom, Storybook.'],
             ['Fonts available', 'Georgia, Lora, Playfair Display, Merriweather, Inter, Open Sans.'],
             ['Icon sets', 'Classic, Heritage, Modern. Applied to dashboard section card icons.'],
             ['Design tokens', 'Card radius, card border style, button radius/CTA color, and progress-bar fill color are all CSS custom properties driven per theme (--card-radius, --card-border-style, --btn-radius, --btn-cta-bg, --progress-fill, etc.), rather than hardcoded per page. Keepsake is the first theme to use a non-default radius/border combination (dotted stitched-border cards, folded-corner hero panel).'],
-            ['SectionHero component', 'client/src/components/SectionHero.jsx gives all 15 section pages (and the Dashboard) the same hero-panel treatment, so a theme like Keepsake can restyle every section consistently from one shared component.'],
+            ['SectionHero component', 'client/src/components/SectionHero.jsx gives all 21 section pages (and the Dashboard) the same hero-panel treatment, so a theme like Keepsake can restyle every section consistently from one shared component.'],
           ]} />
         </BpSection>
       </div>
@@ -1258,7 +1291,10 @@ SECTIONS      GET /api/sections/completion (counts per section)
               POST/PUT/DELETE /api/sections/financial-affairs
               POST /api/sections/financial-affairs/list (vault auth, only way to read)
               GET/PUT /api/sections/funeral-wishes
-              GET/PUT /api/sections/medical-wishes
+              GET/PUT /api/sections/doctors
+              GET/PUT /api/sections/medical-records
+              PUT /api/sections/donation-bank (vault auth)
+              POST /api/sections/donation-bank/view (vault auth, only way to read)
               GET/POST/PUT/DELETE /api/sections/people-to-notify
               POST/PUT/DELETE /api/sections/property-possessions
               POST /api/sections/property-possessions/list (vault auth, only way to read)
@@ -1384,7 +1420,7 @@ CLIENT (Render Static Site, baked in at build time)
           <BpTable rows={[
             ['No em-dashes', 'Never use em-dashes (—) anywhere in the application. Use commas, colons, or periods instead.'],
             ['Vault password not stored', 'The vault password is never stored or hashed on the server. Loss of the vault password means permanent loss of vault data. This is by design and communicated clearly to users.'],
-            ['Shared vault', 'Legal Documents, Digital Life, Financial Affairs, Property & Possessions, and Practical Household Information all use one vault. One password protects all five. Set up via the Digital Life section or Legal Documents section; managed in My Profile.'],
+            ['Shared vault', 'Legal Documents, Digital Life, Financial Affairs, Property & Possessions, Practical Household Information, and Donation Bank all use one vault. One password protects all six. Set up via the Digital Life section or Legal Documents section; managed in My Profile.'],
             ['Trusted contact access', 'Only a signed link is used, no separate trusted contact login credentials. 72-hour expiry for non-Legacy-Contact contacts; the designated Legacy Contact\'s link never expires. Trusted contacts cannot access digital credentials (vault) ever.'],
             ['PDF streaming', 'PDFKit pipes directly to the HTTP response stream. No temp files. Vault password for full export comes as POST body, never in URL.'],
             ['PostgreSQL on Render', 'Managed Postgres, paid Basic plan, connected via a pg.Pool connection pool. SSL required for any non-localhost connection.'],
@@ -2240,6 +2276,7 @@ export default function AdminPage() {
                   <h6 style={{ color: 'var(--green-900)', marginBottom: 8 }}>Emergency Contact</h6>
                   <p className="small mb-0">
                     {selectedUser.emergency_contact_name}
+                    {selectedUser.emergency_contact_relationship && ` (${selectedUser.emergency_contact_relationship})`}
                     {selectedUser.emergency_contact_phone && ` · ${formatPhone(selectedUser.emergency_contact_phone, selectedUser.country_code)}`}
                     {selectedUser.emergency_contact_email && ` · ${selectedUser.emergency_contact_email}`}
                   </p>

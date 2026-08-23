@@ -599,7 +599,7 @@ function generatePdf(data, outputStream) {
 
   addPageFooter(doc, pageNum, palette, fonts);
 
-  // ── Page 5: Your Loved Ones + Pet Care ──────────────────────────────────────
+  // ── Page 5: Your Loved Ones + Pet Care + Insurance ──────────────────────────
   // Financial Affairs and Practical Household Information are vault-protected -
   // rendered on the vault page below.
   doc.addPage();
