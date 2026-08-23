@@ -8,7 +8,7 @@ const { deriveKey, encryptField, decryptField } = require('../lib/vault');
 const { sendEmail } = require('../lib/sendEmail');
 const { sectionSharedEmail } = require('../lib/emailTemplates');
 const {
-  SECTION_META, isValidSection, fetchRawSectionData, buildSectionView, renderViewToEmailHtml,
+  SECTION_META, isValidSection, fetchRawSectionData, fetchSectionDocuments, buildSectionView, renderViewToEmailHtml,
 } = require('../lib/sectionShareContent');
 
 const CLIENT_URL   = process.env.CLIENT_URL || 'http://localhost:5173';
@@ -199,8 +199,14 @@ router.post('/access/:token', async (req, res) => {
     }
     view = JSON.parse(json);
   } else {
-    const raw = await fetchRawSectionData(share.section, share.user_id, null);
-    view = buildSectionView(share.section, raw);
+    // Fetched live on every guest visit, same as the section's own data, so a
+    // freshly signed download URL is generated on every access rather than
+    // ever being persisted (see fetchSectionDocuments in sectionShareContent.js).
+    const [raw, documents] = await Promise.all([
+      fetchRawSectionData(share.section, share.user_id, null),
+      fetchSectionDocuments(share.section, share.user_id),
+    ]);
+    view = buildSectionView(share.section, raw, documents);
   }
 
   await query(`UPDATE section_shares SET accessed_at = COALESCE(accessed_at, NOW()) WHERE id = $1`, [share.id]);
