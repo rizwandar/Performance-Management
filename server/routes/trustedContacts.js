@@ -42,7 +42,7 @@ router.get('/', requireAuth, async (req, res) => {
 });
 
 router.post('/', requireAuth, async (req, res) => {
-  const { sequence, name, relationship, email, phone, visible_sections = [] } = req.body;
+  const { sequence, name, relationship, email, phone, invite_message, visible_sections = [] } = req.body;
 
   if (!name)     return res.status(400).json({ error: 'Name is required.' });
   if (!sequence) return res.status(400).json({ error: 'Sequence (1, 2, or 3) is required.' });
@@ -58,10 +58,10 @@ router.post('/', requireAuth, async (req, res) => {
 
   const contactId = await transaction(async (client) => {
     const r = await client.query(`
-      INSERT INTO trusted_contacts (user_id, sequence, name, relationship, email, phone)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO trusted_contacts (user_id, sequence, name, relationship, email, phone, invite_message)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING id
-    `, [req.user.id, sequence, name, relationship || null, email || null, phone || null]);
+    `, [req.user.id, sequence, name, relationship || null, email || null, phone || null, invite_message || null]);
     const cid = r.rows[0].id;
     for (const sectionId of visible_sections) {
       await client.query(
@@ -83,14 +83,15 @@ router.put('/:id', requireAuth, async (req, res) => {
   );
   if (!contact) return res.status(404).json({ error: 'Contact not found.' });
 
-  const { name, relationship, email, phone } = req.body;
+  const { name, relationship, email, phone, invite_message } = req.body;
   await query(`
-    UPDATE trusted_contacts SET name = $1, relationship = $2, email = $3, phone = $4 WHERE id = $5
+    UPDATE trusted_contacts SET name = $1, relationship = $2, email = $3, phone = $4, invite_message = $5 WHERE id = $6
   `, [
     name         ?? contact.name,
     relationship ?? contact.relationship,
     email        ?? contact.email,
     phone        ?? contact.phone,
+    invite_message ?? contact.invite_message,
     contact.id,
   ]);
 
@@ -235,6 +236,7 @@ router.post('/:id/access-link', requireAuth, async (req, res) => {
         ownerName:     owner.name,
         accessLink,
         expiresHours:  contact.is_executor ? null : 72,
+        personalMessage: contact.invite_message || null,
       }),
     });
   } catch (err) {

@@ -12,7 +12,7 @@ const PREMIUM_SECTIONS = [
   'All 4 free sections',
   'Funeral and End-of-Life Wishes',
   'Medical and Care Wishes',
-  'Key Contacts',
+  'Emergency Contact',
   'People to Notify',
   'Your Loved Ones',
   'Personal and Legal Documents',

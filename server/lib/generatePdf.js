@@ -520,31 +520,33 @@ function generatePdf(data, outputStream) {
     doc.moveDown(0.5).fillColor(TEXT);
   }
 
-  sectionHeader(doc, 'Key Contacts', palette, fonts);
-  const hasEmergency = user.emergency_contact_name;
-  if (!hasEmergency && !(trustedContacts?.length)) {
+  // IDEA-27: Emergency Contact and Trusted Contacts are now separate sections
+  // on the dashboard (previously one combined "Key Contacts" section), so
+  // they get their own sectionHeader here too, sharing this page the same
+  // way Children & Dependants + Pet Care do (IDEA-18).
+  sectionHeader(doc, 'Emergency Contact', palette, fonts);
+  if (!user.emergency_contact_name) {
     noData(doc, fonts);
   } else {
-    if (hasEmergency) {
-      doc.font(fonts.bold).fontSize(9).fillColor(palette.dark)
-         .text('Emergency Contact', LEFT_X, doc.y, { width: PAGE_W - MARGIN * 2 }).moveDown(0.2);
-      renderFields(doc, [
-        ['Name',  user.emergency_contact_name],
-        ['Phone', user.emergency_contact_phone],
-        ['Email', user.emergency_contact_email],
-      ], fonts);
-      doc.moveDown(0.3);
-    }
-    if (trustedContacts?.length) {
-      doc.font(fonts.bold).fontSize(9).fillColor(palette.dark)
-         .text('Trusted Contacts', LEFT_X, doc.y, { width: PAGE_W - MARGIN * 2 }).moveDown(0.2);
-      renderCards(doc, trustedContacts.map(tc => [
-        { label: '',             value: tc.name },
-        { label: 'Relationship', value: tc.relationship },
-        { label: 'Email',        value: tc.email },
-        { label: 'Phone',        value: tc.phone },
-      ]), palette, fonts);
-    }
+    renderFields(doc, [
+      ['Name',         user.emergency_contact_name],
+      ['Relationship', user.emergency_contact_relationship],
+      ['Phone',        user.emergency_contact_phone],
+      ['Email',        user.emergency_contact_email],
+      ['Notes',        user.emergency_contact_notes],
+    ], fonts);
+  }
+
+  sectionHeader(doc, 'Trusted Contacts', palette, fonts);
+  if (!trustedContacts?.length) {
+    noData(doc, fonts);
+  } else {
+    renderCards(doc, trustedContacts.map(tc => [
+      { label: '',             value: tc.name },
+      { label: 'Relationship', value: tc.relationship },
+      { label: 'Email',        value: tc.email },
+      { label: 'Phone',        value: tc.phone },
+    ]), palette, fonts);
   }
 
   sectionHeader(doc, 'People to Notify', palette, fonts);

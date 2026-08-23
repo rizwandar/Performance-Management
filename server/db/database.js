@@ -1261,6 +1261,22 @@ async function init() {
     await pool.query(`DELETE FROM medical_wishes`);
   }
 
+  // IDEA-27: Emergency Contact split out of Key Contacts into its own
+  // section. Reuses the existing emergency_contact_name/_phone/_email
+  // columns on users (already wired through GET/PUT /users/me, the standard
+  // PDF export, and the admin panel) rather than a new table - these two
+  // new nullable columns just round the shape out to match a regular
+  // contact (name, relationship, phone, notes).
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS emergency_contact_relationship TEXT`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS emergency_contact_notes TEXT`);
+
+  // IDEA-22: optional short personal note the owner can write to a trusted
+  // contact when adding/editing them, e.g. "This is important to me, please
+  // take a look when you can". Free text, nullable, no length cap, same as
+  // other optional notes fields elsewhere in the app. Included in the access
+  // link email sent from the "Send access link" flow.
+  await pool.query(`ALTER TABLE trusted_contacts ADD COLUMN IF NOT EXISTS invite_message TEXT`);
+
   console.log('[db] PostgreSQL schema ready');
 }
 

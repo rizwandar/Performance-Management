@@ -15,7 +15,7 @@ const FREE_FEATURES = [
   'Funeral and End-of-Life Wishes',
   'Doctors',
   'Medical Records',
-  'Key Contacts',
+  'Emergency Contact',
   'People to Notify',
   'Your Loved Ones',
   'Pet Care',

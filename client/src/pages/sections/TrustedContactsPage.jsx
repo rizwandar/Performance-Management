@@ -5,17 +5,17 @@ import axios from 'axios'
 import { useAuth } from '../../context/AuthContext'
 import { formatPhone } from '@in-good-hands/shared/format'
 import SectionHero from '../../components/SectionHero'
+import DictateButton from '../../components/DictateButton'
+import DictationDisclosure from '../../components/DictationDisclosure'
+import { useDictation } from '../../hooks/useDictation'
 
 const API = import.meta.env.VITE_API_URL
 
-// SEC-20 (ported directly to main): legal_documents, financial_items, and
-// property_items are vault-protected and were removed from here. They can
-// never be safely shared via a trusted-contact access link.
-// IDEA-32: medical_wishes replaced by doctors + medical_records (donation_bank,
-// the third piece of that split, is vault-protected and stays excluded).
-// IDEA-19: unfinished_business and last_moments added, same access model as
-// the other non-vault sections here. insurance_items is a known pre-existing
-// gap (OPS-30), not fixed here.
+// SEC-20: legal_documents, financial_items, and property_items are
+// vault-protected and were removed from here. They can never be safely
+// shared via a trusted-contact access link (no way for the link viewer to
+// supply the vault password), so they should not be offered as a grantable
+// permission at all.
 const SECTIONS = [
   { id: 'funeral_wishes',       label: 'Funeral Wishes' },
   { id: 'doctors',              label: 'Doctors' },
@@ -30,24 +30,12 @@ const SECTIONS = [
 ]
 
 const POSITIONS = [1, 2, 3]
-const emptyContact = { sequence: '', name: '', relationship: '', email: '', phone: '' }
+const emptyContact = { sequence: '', name: '', relationship: '', email: '', phone: '', invite_message: '' }
 
-export default function KeyContactsPage() {
+export default function TrustedContactsPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
 
-  // ── Emergency contact state ────────────────────────────────────────────────
-  const [ecLoading, setEcLoading]   = useState(true)
-  const [ecSaving, setEcSaving]     = useState(false)
-  const [ecSuccess, setEcSuccess]   = useState('')
-  const [ecError, setEcError]       = useState('')
-  const [ecForm, setEcForm] = useState({
-    emergency_contact_name:  '',
-    emergency_contact_phone: '',
-    emergency_contact_email: '',
-  })
-
-  // ── Trusted contacts state ─────────────────────────────────────────────────
   const [contacts, setContacts]   = useState([])
   const [tcLoading, setTcLoading] = useState(true)
   const [tcError, setTcError]     = useState('')
@@ -59,6 +47,12 @@ export default function KeyContactsPage() {
   const [permissions, setPermissions]     = useState([])
   const [saving, setSaving]               = useState(false)
   const [modalError, setModalError]       = useState('')
+
+  const inviteMessageDictation = useDictation({ getValue: () => form.invite_message, setValue: v => setForm(f => ({ ...f, invite_message: v })) })
+  const closeModal = () => {
+    inviteMessageDictation.stopDictation()
+    setShowModal(false)
+  }
 
   const [showLinkModal, setShowLinkModal] = useState(false)
   const [linkContact, setLinkContact]     = useState(null)
@@ -87,17 +81,7 @@ export default function KeyContactsPage() {
       .finally(() => setTcLoading(false))
   }
 
-  // ── Load both on mount ─────────────────────────────────────────────────────
   useEffect(() => {
-    axios.get(`${API}/users/me`)
-      .then(r => setEcForm({
-        emergency_contact_name:  r.data.emergency_contact_name  || '',
-        emergency_contact_phone: r.data.emergency_contact_phone || '',
-        emergency_contact_email: r.data.emergency_contact_email || '',
-      }))
-      .catch(() => {})
-      .finally(() => setEcLoading(false))
-
     axios.get(`${API}/users/me/timer`)
       .then(r => setInactivityMonths(r.data.inactivity_period_months || 12))
       .catch(() => {})
@@ -105,23 +89,6 @@ export default function KeyContactsPage() {
     loadContacts()
   }, [])
 
-  // ── Emergency contact save ─────────────────────────────────────────────────
-  const saveEcForm = async () => {
-    setEcSaving(true)
-    setEcError('')
-    try {
-      await axios.put(`${API}/users/me`, ecForm)
-      setEcSuccess('Emergency contact saved.')
-      setTimeout(() => setEcSuccess(''), 3000)
-    } catch {
-      setEcError("We couldn't save this. Please try again.")
-    }
-    setEcSaving(false)
-  }
-
-  const setEc = field => e => setEcForm(f => ({ ...f, [field]: e.target.value }))
-
-  // ── Trusted contacts helpers ───────────────────────────────────────────────
   const takenSequences = contacts.map(c => c.sequence)
 
   const openAdd = () => {
@@ -135,7 +102,10 @@ export default function KeyContactsPage() {
 
   const openEdit = (contact) => {
     setEditingContact(contact)
-    setForm({ sequence: contact.sequence, name: contact.name, relationship: contact.relationship || '', email: contact.email || '', phone: contact.phone || '' })
+    setForm({
+      sequence: contact.sequence, name: contact.name, relationship: contact.relationship || '',
+      email: contact.email || '', phone: contact.phone || '', invite_message: contact.invite_message || '',
+    })
     setPermissions(contact.visible_sections || [])
     setModalError('')
     setShowModal(true)
@@ -154,14 +124,16 @@ export default function KeyContactsPage() {
       if (editingContact) {
         await axios.put(`${API}/trusted-contacts/${editingContact.id}`, {
           name: form.name, relationship: form.relationship, email: form.email, phone: form.phone,
+          invite_message: form.invite_message,
         })
         await axios.put(`${API}/trusted-contacts/${editingContact.id}/permissions`, { visible_sections: permissions })
       } else {
         await axios.post(`${API}/trusted-contacts`, {
           sequence: form.sequence, name: form.name, relationship: form.relationship,
-          email: form.email, phone: form.phone, visible_sections: permissions,
+          email: form.email, phone: form.phone, invite_message: form.invite_message, visible_sections: permissions,
         })
       }
+      inviteMessageDictation.stopDictation()
       setShowModal(false)
       setTcSuccess(editingContact ? `${form.name}'s details updated.` : `${form.name} added.`)
       loadContacts()
@@ -238,54 +210,11 @@ export default function KeyContactsPage() {
 
       <SectionHero
         eyebrow="Your People"
-        headline="The people to call on"
-        highlight="call on"
-        subtext="The people who matter most in an emergency, the trusted contacts who will be given access to your plans when the time comes, and the one person you trust to confirm it and set everything in motion."
+        headline="The people you trust"
+        highlight="trust"
+        subtext="The trusted contacts who will be given access to your plans when the time comes, and the one person you trust to confirm it and set everything in motion."
       />
 
-      {/* ── Emergency Contact ───────────────────────────────────────────────── */}
-      <div style={{ background: 'var(--parchment)', borderRadius: 'var(--card-radius-sm, 12px)', padding: '24px', marginBottom: 28, border: '1px solid var(--border)' }}>
-        <h6 style={{ color: 'var(--green-900)', marginBottom: 4 }}>Emergency Contact</h6>
-        <p className="text-muted small mb-1">
-          The first person to call if you are in an emergency and unable to speak for yourself.
-          This is typically a partner, close family member, or trusted friend who is always reachable.
-        </p>
-        <p className="text-muted small mb-4" style={{ fontStyle: 'italic' }}>
-          Unlike trusted contacts, your emergency contact does not receive access to your plans. They are simply someone to call in a crisis.
-        </p>
-
-        {ecSuccess && <Alert variant="success" className="py-2">{ecSuccess}</Alert>}
-        {ecError   && <Alert variant="danger"  className="py-2">{ecError}</Alert>}
-
-        {ecLoading ? (
-          <Spinner animation="border" size="sm" style={{ color: 'var(--green-800)' }} />
-        ) : (
-          <>
-            <Row className="g-3 mb-3">
-              <Col md={6}>
-                <Form.Label>Name</Form.Label>
-                <Form.Control value={ecForm.emergency_contact_name} onChange={setEc('emergency_contact_name')}
-                  placeholder="Full name" />
-              </Col>
-              <Col md={6}>
-                <Form.Label>Phone</Form.Label>
-                <Form.Control value={ecForm.emergency_contact_phone} onChange={setEc('emergency_contact_phone')}
-                  placeholder="e.g. 0400 123 456" />
-              </Col>
-            </Row>
-            <Form.Group className="mb-4">
-              <Form.Label>Email</Form.Label>
-              <Form.Control type="email" value={ecForm.emergency_contact_email} onChange={setEc('emergency_contact_email')}
-                placeholder="email@example.com" />
-            </Form.Group>
-            <Button variant="primary" onClick={saveEcForm} disabled={ecSaving}>
-              {ecSaving ? 'Saving...' : 'Save emergency contact'}
-            </Button>
-          </>
-        )}
-      </div>
-
-      {/* ── Trusted Contacts ────────────────────────────────────────────────── */}
       <div style={{ background: 'var(--parchment)', borderRadius: 'var(--card-radius-sm, 12px)', padding: '24px 24px 16px', marginBottom: 16, border: '1px solid var(--border)' }}>
         <div className="d-flex justify-content-between align-items-start mb-1 flex-wrap gap-2">
           <h6 style={{ color: 'var(--green-900)', margin: 0 }}>Trusted Contacts</h6>
@@ -436,7 +365,7 @@ export default function KeyContactsPage() {
       )}
 
       {/* ── Add / Edit Modal ─────────────────────────────────────────────────── */}
-      <Modal show={showModal} onHide={() => setShowModal(false)} centered size="lg">
+      <Modal show={showModal} onHide={closeModal} centered size="lg">
         <Modal.Header closeButton style={{ background: 'var(--green-50)', borderBottom: '1px solid var(--green-100)' }}>
           <Modal.Title style={{ color: 'var(--green-900)', fontSize: '1.1rem' }}>
             {editingContact ? `Edit: ${editingContact.name}` : 'Add a trusted contact'}
@@ -491,6 +420,18 @@ export default function KeyContactsPage() {
                   placeholder="optional" />
               </Form.Group>
             </Col>
+            <Col xs={12}>
+              <Form.Group>
+                <div className="d-flex justify-content-between align-items-center">
+                  <Form.Label className="mb-0">Personal message</Form.Label>
+                  <DictateButton dictation={inviteMessageDictation} />
+                </div>
+                <Form.Control as="textarea" rows={2} value={form.invite_message}
+                  onChange={e => setForm(f => ({ ...f, invite_message: e.target.value }))}
+                  placeholder="Optional: a short note to include when you send this person their access link, e.g. This is important to me, please take a look when you can." />
+                {inviteMessageDictation.supported && <DictationDisclosure />}
+              </Form.Group>
+            </Col>
           </Row>
           <hr style={{ borderColor: 'var(--border)', margin: '20px 0 16px' }} />
           <p style={{ fontWeight: 600, color: 'var(--green-900)', marginBottom: 10, fontSize: '0.95rem' }}>
@@ -510,7 +451,7 @@ export default function KeyContactsPage() {
           </Row>
         </Modal.Body>
         <Modal.Footer style={{ borderTop: '1px solid var(--border)' }}>
-          <Button variant="outline-secondary" onClick={() => setShowModal(false)}>Cancel</Button>
+          <Button variant="outline-secondary" onClick={closeModal}>Cancel</Button>
           <Button variant="primary" onClick={handleSave} disabled={saving}>
             {saving ? 'Saving…' : editingContact ? 'Save changes' : 'Add contact'}
           </Button>
