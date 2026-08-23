@@ -467,7 +467,8 @@ YOUR WISHES:
 - Medical and Care Wishes: single record per user. Organ donation preference, advance care directive flag and location, DNR preference, GP details, hospital preference, current medications, medical conditions, notes.
 
 YOUR PEOPLE:
-- Key Contacts: emergency contact stored on the users table (name, phone, email). Trusted contacts in a separate trusted_contacts table (max 3 per user, with sequence 1/2/3). Trusted contacts get 72-hour access links to view permitted sections, except the designated Legacy Contact, whose link never expires.
+- Emergency Contact: a single person to call right away in a crisis, stored on the users table (name, relationship, phone, email, notes). Does NOT receive plan access. (IDEA-27, split out of the old combined "Key Contacts" section.)
+- Trusted Contacts: up to 3 people in a separate trusted_contacts table (max 3 per user, with sequence 1/2/3), each with section-level view permissions. Trusted contacts get 72-hour access links to view permitted sections, except the designated Legacy Contact, whose link never expires. (IDEA-27, split out of the old combined "Key Contacts" section; the underlying trusted_contacts table and routes are unchanged.)
 - People to Notify: people_to_notify table. People who should be contacted when the user passes. Name, relationship, email, phone, notified_by, notes.
 - Your Loved Ones: children_dependants table. Name, type (child/elderly_parent/other), DOB, special needs, preferred guardian, alternate guardian, notes.
 - Pet Care: pets table (IDEA-18, split out of Your Loved Ones). Name, age, special needs/care instructions, preferred caretaker + contact, alternate caretaker + contact, notes.
@@ -694,7 +695,8 @@ Please confirm the stack choices above (or tell me which to change), and then we
                   { label: 'Medical and Care Wishes', desc: 'Organ donation, advance care directive, DNR preference, GP details, and medical history.' },
                 ]},
                 { group: 'Your People', color: '#B87A50', icon: '🤝', sections: [
-                  { label: 'Key Contacts', desc: 'An emergency contact and up to three trusted contacts who can securely view your plans.' },
+                  { label: 'Emergency Contact', desc: 'The first person to call in an emergency. Does not receive access to your plans.' },
+                  { label: 'Trusted Contacts', desc: 'Up to three people who can securely view your plans, with one optionally designated your Legacy Contact.' },
                   { label: 'People to Notify', desc: 'A list of people who should be contacted when you pass, and who should contact them.' },
                   { label: 'Your Loved Ones', desc: 'Details for children or other dependants including preferred guardians.' },
                   { label: 'Pet Care', desc: 'Feeding routines, vet details, and preferred caretakers for your pets.' },
@@ -761,7 +763,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
                 ['First visit', 'New users see a welcome card with four suggested starting sections. Returning users see "Welcome back".'],
                 ['Filling sections', 'Each section has its own page with a form or list UI. Changes are saved immediately or via explicit Save buttons.'],
                 ['Vault setup', 'The first time a user visits Digital Life or Legal Documents, they are prompted to create a vault password. This password is separate from their account password and is never stored.'],
-                ['Trusted contacts', 'Set up in Key Contacts. User adds up to 3 contacts, assigns section permissions, and can send them a secure access link at any time.'],
+                ['Trusted contacts', 'Set up in the dedicated Trusted Contacts section. User adds up to 3 contacts, assigns section permissions, and can send them a secure access link at any time.'],
                 ['PDF export', 'Available at /export. Standard version excludes vault sections. Full version prompts for vault password.'],
                 ['Inactivity timer', 'Set in My Profile settings. If the user does not log in within their chosen period, trusted contacts are emailed access links automatically.'],
               ]} />
@@ -769,8 +771,8 @@ Please confirm the stack choices above (or tell me which to change), and then we
           </div>
 
           <div style={card}>
-            <BpSection title="Section Detail: Key Contacts">
-              <p className="text-muted small mb-3">Two distinct subsystems within one section page.</p>
+            <BpSection title="Section Detail: Emergency Contact & Trusted Contacts">
+              <p className="text-muted small mb-3">Two distinct subsystems, split into separate section pages since IDEA-27 (previously one combined "Key Contacts" page).</p>
               <BpTable rows={[
                 ['Emergency contact', 'A single person to call in an emergency. Stored on the users table (emergency_contact_name, emergency_contact_phone, emergency_contact_email). Does NOT receive plan access.'],
                 ['Trusted contacts', 'Up to 3 people who can view the user\'s plans. Stored in trusted_contacts table with sequence 1, 2, or 3.'],
@@ -1094,7 +1096,8 @@ Please confirm the stack choices above (or tell me which to change), and then we
               { id: 'medical_wishes', label: 'Medical & Care Wishes', route: '/sections/medical-wishes', note: 'Single record per user. Includes DNR, organ donation, advance care directive.' },
             ]},
             { group: 'Your People', color: '#B87A50', sections: [
-              { id: 'key_contacts', label: 'Key Contacts', route: '/sections/key-contacts', note: 'Emergency contact on users table. Trusted contacts in trusted_contacts table (max 3, sequence 1-3).' },
+              { id: 'emergency_contact', label: 'Emergency Contact', route: '/sections/emergency-contact', note: 'Fields on users table: emergency_contact_name/_relationship/_phone/_email/_notes. Saved via PUT /api/users/me, not /api/sections. Does not receive plan access.' },
+              { id: 'trusted_contacts', label: 'Trusted Contacts', route: '/sections/trusted-contacts', note: 'trusted_contacts table (max 3, sequence 1-3), CRUD via /api/trusted-contacts, not /api/sections. Unchanged by the IDEA-27 page split.' },
               { id: 'people_to_notify', label: 'People to Notify', route: '/sections/people-to-notify', note: 'people_to_notify table.' },
               { id: 'children-dependants', label: 'Your Loved Ones', route: '/sections/children-dependants', note: 'children_dependants table.' },
               { id: 'pet-care', label: 'Pet Care', route: '/sections/pet-care', note: 'pets table (IDEA-18, split out of Your Loved Ones).' },
@@ -1265,7 +1268,8 @@ SECTIONS      GET /api/sections/completion (counts per section)
               POST/PUT/DELETE /api/sections/household-info
               POST /api/sections/household-info/list (vault auth, only way to read)
               GET/POST/PUT/DELETE /api/sections/children-dependants
-              GET/POST/DELETE     /api/sections/key-contacts (trusted contacts)
+              GET/PUT             /api/users/me (emergency contact fields)
+              GET/POST/PUT/DELETE /api/trusted-contacts (trusted contacts)
 
 VAULT         POST /api/sections/digital-life/vault (setup)
               POST /api/sections/digital-life/vault/verify
