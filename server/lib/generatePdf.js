@@ -452,7 +452,7 @@ function generatePdf(data, outputStream) {
 
   addPageFooter(doc, pageNum, palette, fonts);
 
-  // ── Page 3: Messages + Key Contacts + People to Notify ────────────────────
+  // ── Page 3: Messages + Emergency Contact + Trusted Contacts + People to Notify ──
   doc.addPage();
 
   sectionHeader(doc, 'Messages to Loved Ones', palette, fonts);
