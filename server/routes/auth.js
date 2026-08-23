@@ -166,12 +166,15 @@ router.post('/register', registerRules, validate, async (req, res) => {
       queryOne("SELECT version FROM policy_versions WHERE module = 'tos' ORDER BY version DESC LIMIT 1"),
     ]);
 
+    // BIL-08: every new signup automatically gets a 30-day no-card vault
+    // trial starting now, independent of Stripe entirely - see
+    // lib/subscription.js for how this composes with a real subscription.
     const result = await query(`
       INSERT INTO users (name, email, password_hash, date_of_birth, country_code, privacy_consent,
                          privacy_consent_at, privacy_version_consented, tos_version_consented,
                          email_verified, email_verification_token, email_verification_expires_at,
-                         acquisition_source)
-      VALUES ($1, $2, $3, $4, $5, 1, NOW(), $6, $7, 0, $8, $9, $10)
+                         acquisition_source, signup_trial_started_at)
+      VALUES ($1, $2, $3, $4, $5, 1, NOW(), $6, $7, 0, $8, $9, $10, NOW())
       RETURNING id
     `, [name, email, hash, date_of_birth || null, country_code || null,
         privacyVersion?.version ?? null, tosVersion?.version ?? null, verifyToken, verifyExpiry,
