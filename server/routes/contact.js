@@ -1,6 +1,7 @@
 const express = require('express');
 const router  = express.Router();
 const { sendEmail } = require('../lib/sendEmail');
+const { query } = require('../db/database');
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@igh.local';
 
@@ -49,6 +50,15 @@ router.post('/', async (req, res) => {
       </div>
     </div>
   `;
+
+  // Persist the submission independently of the email notification below -
+  // a failed or missed email should not mean the message is gone with no
+  // record it ever arrived (IDEA-09). Best-effort: an insert failure is
+  // logged, not surfaced to the submitter, and does not block the email.
+  query(
+    'INSERT INTO contact_submissions (name, email, subject_type, message) VALUES ($1, $2, $3, $4)',
+    [name.trim(), email.trim(), subject_type || null, message.trim()]
+  ).catch(err => console.error('[contact] Failed to persist submission:', err.message));
 
   try {
     await sendEmail({

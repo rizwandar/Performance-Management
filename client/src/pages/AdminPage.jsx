@@ -77,7 +77,7 @@ const SECTION_LABELS = {
 // ---------------------------------------------------------------------------
 // Tab navigation
 // ---------------------------------------------------------------------------
-const TABS = ['Overview', 'Users', 'Activity', 'Vault Security', 'Appearance', 'Branding', 'Organizations', 'Settings', 'Legal', 'Marketing', 'Versions', 'Security', 'App Blueprint']
+const TABS = ['Overview', 'Users', 'Activity', 'Vault Security', 'Appearance', 'Branding', 'Organizations', 'Settings', 'Legal', 'Marketing', 'Versions', 'Security', 'Contact', 'App Blueprint']
 // Overview stays as its own pinned button; everything else lives in the "More sections" dropdown.
 const DROPDOWN_TABS = TABS.filter(t => t !== 'Overview')
 
@@ -529,7 +529,7 @@ INACTIVITY TIMER:
 
 ADMIN PANEL:
 - Accessible to users with is_admin=1 only.
-- Tabs: Overview (stats), Users (search and manage, including honorary premium grant/revoke), Activity (audit log), Vault Security (audit log of vault reset/destroy/recovery events), Appearance (theme/font/icon set), Branding (site name and logo), Organizations (funeral-home white-label portal management, gated behind ORG_PORTAL_ENABLED), Settings (password reset method), Marketing (campaign landing page list and acquisition_source signup breakdown), Versions (client/admin/org_portal semver change log), App Blueprint (this documentation).
+- Tabs: Overview (stats), Users (search and manage, including honorary premium grant/revoke), Activity (audit log), Vault Security (audit log of vault reset/destroy/recovery events), Appearance (theme/font/icon set), Branding (site name and logo), Organizations (funeral-home white-label portal management, gated behind ORG_PORTAL_ENABLED), Settings (password reset method), Marketing (campaign landing page list and acquisition_source signup breakdown), Versions (client/admin/org_portal semver change log), Security (security review findings log), Contact (contact-form submission inbox, persisted independently of the admin-notification email so a missed/failed email doesn't lose the message; mark read/unread, delete), App Blueprint (this documentation).
 - 11 color themes (including Keepsake, Heirloom, and Storybook, each a fully tokenized theme with its own card radius, border style, button treatment, and - for Heirloom/Storybook - heading style, landing-hero colours, and dashboard group-card tints), 6 font choices, 3 icon sets. All stored in app_settings key-value table.
 - Admin can upload a logo via Cloudflare R2 for white-labelling.
 - Admin can change site name (white-label support via BrandingContext).
@@ -1515,6 +1515,12 @@ export default function AdminPage() {
   const [findingSaving, setFindingSaving] = useState(false)
   const [findingError, setFindingError]   = useState('')
 
+  // Contact tab state (IDEA-09: contact-form submission inbox)
+  const [submissions, setSubmissions]           = useState([])
+  const [loadingSubmissions, setLoadingSubmissions] = useState(false)
+  const [submissionFilter, setSubmissionFilter] = useState('all')
+  const [confirmDeleteSubmission, setConfirmDeleteSubmission] = useState(null)
+
   const runInactivityCheckNow = async () => {
     setRunningInactivityCheck(true)
     try {
@@ -1590,6 +1596,16 @@ export default function AdminPage() {
       .finally(() => setLoadingFindings(false))
   }, [tab])
 
+  // Load contact-form submissions when switching to Contact tab
+  useEffect(() => {
+    if (tab !== 'Contact') return
+    setLoadingSubmissions(true)
+    axios.get(`${API}/admin/contact-submissions`)
+      .then(r => setSubmissions(r.data))
+      .catch(() => showAlert('danger', "Couldn't load contact submissions."))
+      .finally(() => setLoadingSubmissions(false))
+  }, [tab])
+
   const addFinding = async () => {
     setFindingError('')
     if (!newFinding.title.trim()) return setFindingError('A title is required.')
@@ -1620,6 +1636,26 @@ export default function AdminPage() {
       setFindings(fs => fs.map(f => f.id === id ? { ...f, status, resolved_at: status === 'resolved' ? new Date().toISOString() : f.resolved_at } : f))
     } catch {
       showAlert('danger', "Couldn't update this finding's status.")
+    }
+  }
+
+  const markSubmissionStatus = async (id, status) => {
+    try {
+      await axios.put(`${API}/admin/contact-submissions/${id}`, { status })
+      setSubmissions(s => s.map(x => x.id === id ? { ...x, status } : x))
+    } catch {
+      showAlert('danger', "Couldn't update this submission.")
+    }
+  }
+
+  const deleteSubmission = async (id) => {
+    try {
+      await axios.delete(`${API}/admin/contact-submissions/${id}`)
+      setConfirmDeleteSubmission(null)
+      setSubmissions(s => s.filter(x => x.id !== id))
+      showAlert('success', 'Submission deleted.')
+    } catch {
+      showAlert('danger', "Couldn't delete this submission.")
     }
   }
 
@@ -2711,6 +2747,60 @@ export default function AdminPage() {
         </div>
       )}
 
+      {/* ── Contact ────────────────────────────────────────────────────────── */}
+      {tab === 'Contact' && (
+        <div>
+          <p className="text-muted small mb-3">
+            Every contact-form submission (site footer / support page), persisted independently of
+            the email notification sent to the admin inbox - so a missed or failed email doesn't
+            mean the message is lost.
+          </p>
+
+          <div className="d-flex gap-2 mb-3 flex-wrap">
+            {['all', 'new', 'read'].map(s => (
+              <Button key={s} size="sm"
+                variant={submissionFilter === s ? 'primary' : 'outline-secondary'}
+                onClick={() => setSubmissionFilter(s)}>
+                {s === 'all' ? 'All' : s}
+                {s !== 'all' && ` (${submissions.filter(x => x.status === s).length})`}
+              </Button>
+            ))}
+          </div>
+
+          {loadingSubmissions && <Spinner animation="border" size="sm" style={{ color: 'var(--green-800)' }} />}
+
+          <div style={{ maxHeight: 600, overflowY: 'auto' }}>
+            {submissions
+              .filter(x => submissionFilter === 'all' || x.status === submissionFilter)
+              .map(s => (
+                <div key={s.id} style={{ background: 'var(--parchment)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 18px', marginBottom: 10 }}>
+                  <div className="d-flex justify-content-between align-items-start flex-wrap gap-2">
+                    <div>
+                      <Badge bg={s.status === 'new' ? 'warning' : 'secondary'} className="me-2">{s.status}</Badge>
+                      {s.subject_type && (
+                        <Badge bg="light" text="dark" className="me-2" style={{ border: '1px solid var(--border)' }}>{s.subject_type}</Badge>
+                      )}
+                      <span style={{ fontWeight: 600, color: 'var(--green-900)' }}>{s.name}</span>
+                      <span className="text-muted small ms-2">&lt;{s.email}&gt;</span>
+                    </div>
+                    <div className="d-flex gap-2">
+                      {s.status === 'new'
+                        ? <Button size="sm" variant="outline-secondary" onClick={() => markSubmissionStatus(s.id, 'read')}>Mark read</Button>
+                        : <Button size="sm" variant="outline-secondary" onClick={() => markSubmissionStatus(s.id, 'new')}>Mark unread</Button>}
+                      <Button size="sm" variant="outline-danger" onClick={() => setConfirmDeleteSubmission(s)}>Delete</Button>
+                    </div>
+                  </div>
+                  <p className="small mb-1 mt-2" style={{ whiteSpace: 'pre-wrap' }}>{s.message}</p>
+                  <span className="text-muted" style={{ fontSize: '0.78rem' }}>{formatDate(s.created_at)}</span>
+                </div>
+              ))}
+            {!loadingSubmissions && submissions.filter(x => submissionFilter === 'all' || x.status === submissionFilter).length === 0 && (
+              <p className="text-muted small">No submissions{submissionFilter === 'all' ? '' : ` marked "${submissionFilter}"`}.</p>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ── App Blueprint ──────────────────────────────────────────────────── */}
       {tab === 'App Blueprint' && <AppBlueprint />}
 
@@ -2728,6 +2818,25 @@ export default function AdminPage() {
         <Modal.Footer>
           <Button variant="outline-secondary" size="sm" onClick={() => setConfirmDelete(null)}>Cancel</Button>
           <Button variant="danger" size="sm" onClick={() => deleteUser(confirmDelete.id)}>
+            Yes, delete permanently
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* ── Delete submission confirmation ──────────────────────────────────── */}
+      <Modal show={!!confirmDeleteSubmission} onHide={() => setConfirmDeleteSubmission(null)} centered size="sm">
+        <Modal.Header closeButton>
+          <Modal.Title style={{ fontSize: '1rem', color: 'var(--green-900)' }}>Delete submission?</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <p className="small mb-0">
+            This will permanently delete the message from <strong>{confirmDeleteSubmission?.name}</strong>.
+            This cannot be undone.
+          </p>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="outline-secondary" size="sm" onClick={() => setConfirmDeleteSubmission(null)}>Cancel</Button>
+          <Button variant="danger" size="sm" onClick={() => deleteSubmission(confirmDeleteSubmission.id)}>
             Yes, delete permanently
           </Button>
         </Modal.Footer>

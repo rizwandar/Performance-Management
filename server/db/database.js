@@ -1476,6 +1476,27 @@ async function init() {
   // this idea were never explicitly confirmed by the user.
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS nudge_sent_at TIMESTAMPTZ`);
 
+  // IDEA-09: persist every contact-form submission (server/routes/contact.js)
+  // instead of relying solely on the outbound admin-notification email - if
+  // the email fails or is missed, the message would otherwise be gone with
+  // no record it ever arrived. subject_type is free text, not a CHECK enum,
+  // mirroring how the route itself treats it (an unrecognised value just
+  // falls back to a "General Enquiry" label rather than being rejected).
+  // status is a simple new/read toggle rather than the fuller open/
+  // monitoring/resolved/accepted_risk lifecycle security_findings uses -
+  // this is a lightweight inbox, not a tracked review process.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS contact_submissions (
+      id            SERIAL PRIMARY KEY,
+      name          TEXT NOT NULL,
+      email         TEXT NOT NULL,
+      subject_type  TEXT,
+      message       TEXT NOT NULL,
+      status        TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'read')),
+      created_at    TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
   console.log('[db] PostgreSQL schema ready');
 }
 
