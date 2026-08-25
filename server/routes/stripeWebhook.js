@@ -7,7 +7,7 @@ const { countActiveCustomers, getOverageConfig } = require('../lib/orgBilling');
 const { sendEmail } = require('../lib/sendEmail');
 const {
   paymentConfirmationEmail, refundConfirmationEmail, subscriptionCancelledEmail,
-  subscriptionReinstatedEmail,
+  subscriptionReinstatedEmail, paymentFailedEmail,
 } = require('../lib/emailTemplates');
 
 const PRICE_TO_PLAN = {
@@ -406,11 +406,50 @@ module.exports.handler = async (req, res) => {
         await addGrowthOverageIfNeeded(event.data.object);
         break;
       }
-      // invoice.payment_failed needs no explicit handling here: Stripe moves
-      // the subscription itself to status 'past_due' and fires
+      // IDEA-13: dunning email. Stripe itself still owns the retry schedule
+      // and the eventual past_due -> canceled transition: it moves the
+      // subscription to status 'past_due' and fires
       // customer.subscription.updated for that, which already revokes access
       // via the status check in lib/subscription.js (consumer) / billing_status
-      // (org).
+      // (org) - none of that changes here. This case only adds the
+      // previously-missing "your payment failed, please update your card"
+      // email, the same gap paymentConfirmationEmail/refundConfirmationEmail/
+      // subscriptionCancelledEmail above already closed for their own events.
+      // Org billing customers are skipped (findConsumerUserForInvoice returns
+      // null for them), matching every other email case in this file - org
+      // dunning emails are a separate, not-yet-built scope.
+      case 'invoice.payment_failed': {
+        const invoice = event.data.object;
+        if (invoice.amount_due > 0) {
+          const user = await findConsumerUserForInvoice(invoice);
+          if (user) {
+            const priceId = invoice.lines?.data?.[0]?.price?.id || user.provider_price_id;
+            const amount = `$${(invoice.amount_due / 100).toFixed(2)}`;
+            // next_payment_attempt is null on the final failed attempt (no
+            // more retries scheduled, subscription is about to go past_due
+            // for good) and set to a future unix timestamp otherwise.
+            const nextRetryDate = invoice.next_payment_attempt
+              ? new Date(invoice.next_payment_attempt * 1000)
+                  .toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+              : null;
+            await query(
+              'INSERT INTO subscription_events (user_id, event_type, metadata) VALUES ($1, $2, $3)',
+              [user.id, 'payment_failed', JSON.stringify({ amount, planName: PLAN_DISPLAY[priceId] || 'Premium', nextRetryDate })]
+            ).catch(err => console.error('[stripe webhook] Failed to log payment_failed event:', err.message));
+            await sendEmail({
+              to:      user.email,
+              subject: `Action needed: your ${APP_NAME} payment didn't go through`,
+              html:    paymentFailedEmail({
+                name:      user.name,
+                planName:  PLAN_DISPLAY[priceId] || 'Premium',
+                amount,
+                nextRetryDate,
+              }),
+            }).catch(err => console.error('[stripe webhook] Payment failed email send failed:', err.message));
+          }
+        }
+        break;
+      }
       default:
         break;
     }

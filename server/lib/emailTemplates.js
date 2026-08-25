@@ -365,6 +365,47 @@ function subscriptionReinstatedEmail({ name, nextBillingDate, price }) {
 }
 
 // ---------------------------------------------------------------------------
+// Payment failed (IDEA-13) - sent when a subscription renewal charge fails
+// (invoice.payment_failed). Stripe itself still owns the retry schedule and
+// the eventual past_due -> canceled transition (handled by the existing
+// customer.subscription.updated/.deleted logic elsewhere in this file), this
+// is purely the missing "please fix your card" notification in between, in
+// the same spirit as cardExpiringReminderEmail below but for a charge that
+// has already failed rather than a card that is merely about to expire.
+// ---------------------------------------------------------------------------
+function paymentFailedEmail({ name, planName, amount, nextRetryDate }) {
+  const retryLine = nextRetryDate
+    ? `We'll automatically try again on <strong>${nextRetryDate}</strong>. If you update your
+       payment method before then, we'll use it for that attempt.`
+    : `We won't be able to try again automatically. Please update your payment method as soon
+       as possible to avoid losing access to ${APP_NAME} Premium.`;
+
+  return layout(`
+    <p>Dear ${name},</p>
+    <p>
+      We were unable to process your payment of <strong>${amount}</strong> for your
+      <strong>${APP_NAME} ${planName}</strong> subscription. This can happen for a few reasons:
+      an expired card, insufficient funds, or your bank declining the charge.
+    </p>
+    <p style="background:#FFF7ED; border:1px solid #FED7AA; border-radius:8px; padding:14px 16px; color:#92400E; font-size:14px;">
+      ${retryLine}
+    </p>
+    <p>
+      To keep your subscription active and avoid any interruption, please update your payment
+      method from your account settings.
+    </p>
+    ${button('Update my payment method', `${APP_URL}/profile/settings`)}
+    <p style="color:#6B7280; font-size:14px;">
+      If you have any questions or need a hand, feel free to reach out to us.
+    </p>
+    <p style="color:#6B7280; font-size:14px;">
+      With care,<br/>
+      The ${APP_NAME} team
+    </p>
+  `);
+}
+
+// ---------------------------------------------------------------------------
 // Card expiring reminder (BIL-07) - sent 14 and 7 days before the card on
 // file for the subscription expires, so payment doesn't silently fail.
 // ---------------------------------------------------------------------------
@@ -986,6 +1027,7 @@ module.exports = {
   refundConfirmationEmail,
   subscriptionCancelledEmail,
   subscriptionReinstatedEmail,
+  paymentFailedEmail,
   cardExpiringReminderEmail,
   inactivityContactNotificationEmail,
   executorDesignatedEmail,
