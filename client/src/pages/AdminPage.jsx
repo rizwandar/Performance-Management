@@ -77,9 +77,15 @@ const SECTION_LABELS = {
 // ---------------------------------------------------------------------------
 // Tab navigation
 // ---------------------------------------------------------------------------
-const TABS = ['Overview', 'Users', 'Activity', 'Vault Security', 'Appearance', 'Branding', 'Organizations', 'Settings', 'Legal', 'Marketing', 'Versions', 'App Blueprint']
+const TABS = ['Overview', 'Users', 'Activity', 'Vault Security', 'Appearance', 'Branding', 'Organizations', 'Settings', 'Legal', 'Marketing', 'Versions', 'Security', 'App Blueprint']
 // Overview stays as its own pinned button; everything else lives in the "More sections" dropdown.
 const DROPDOWN_TABS = TABS.filter(t => t !== 'Overview')
+
+const FINDING_CATEGORIES = ['authorization', 'injection', 'xss', 'secrets', 'infrastructure', 'session', 'documentation', 'ci-cd', 'other']
+const FINDING_SEVERITIES = ['info', 'low', 'medium', 'high', 'critical']
+const FINDING_STATUSES   = ['open', 'monitoring', 'resolved', 'accepted_risk']
+const SEVERITY_COLOR = { info: 'secondary', low: 'success', medium: 'warning', high: 'danger', critical: 'dark' }
+const STATUS_COLOR   = { open: 'danger', monitoring: 'warning', resolved: 'success', accepted_risk: 'secondary' }
 
 const VERSION_MODULES = [
   { id: 'client',     label: 'Client App' },
@@ -1501,6 +1507,14 @@ export default function AdminPage() {
   const [versionError, setVersionError]   = useState('')
   const [runningInactivityCheck, setRunningInactivityCheck] = useState(false)
 
+  // Security tab state
+  const [findings, setFindings]           = useState([])
+  const [loadingFindings, setLoadingFindings] = useState(false)
+  const [findingFilter, setFindingFilter] = useState('all')
+  const [newFinding, setNewFinding]       = useState({ title: '', category: 'other', severity: 'medium', status: 'open', summary: '', details: '', source: '', related_link: '' })
+  const [findingSaving, setFindingSaving] = useState(false)
+  const [findingError, setFindingError]   = useState('')
+
   const runInactivityCheckNow = async () => {
     setRunningInactivityCheck(true)
     try {
@@ -1565,6 +1579,49 @@ export default function AdminPage() {
       .catch(() => showAlert('danger', "Couldn't load marketing data."))
       .finally(() => setLoadingMarketing(false))
   }, [tab])
+
+  // Load findings when switching to Security tab
+  useEffect(() => {
+    if (tab !== 'Security') return
+    setLoadingFindings(true)
+    axios.get(`${API}/admin/security-findings`)
+      .then(r => setFindings(r.data))
+      .catch(() => showAlert('danger', "Couldn't load security findings."))
+      .finally(() => setLoadingFindings(false))
+  }, [tab])
+
+  const addFinding = async () => {
+    setFindingError('')
+    if (!newFinding.title.trim()) return setFindingError('A title is required.')
+    if (!newFinding.summary.trim()) return setFindingError('A short summary is required.')
+    setFindingSaving(true)
+    try {
+      await axios.post(`${API}/admin/security-findings`, {
+        ...newFinding,
+        title: newFinding.title.trim(),
+        summary: newFinding.summary.trim(),
+        details: newFinding.details.trim() || null,
+        source: newFinding.source.trim() || null,
+        related_link: newFinding.related_link.trim() || null,
+      })
+      setNewFinding({ title: '', category: 'other', severity: 'medium', status: 'open', summary: '', details: '', source: '', related_link: '' })
+      const r = await axios.get(`${API}/admin/security-findings`)
+      setFindings(r.data)
+      showAlert('success', 'Finding logged.')
+    } catch (err) {
+      setFindingError(err.response?.data?.error || "Couldn't save this finding.")
+    }
+    setFindingSaving(false)
+  }
+
+  const updateFindingStatus = async (id, status) => {
+    try {
+      await axios.put(`${API}/admin/security-findings/${id}`, { status })
+      setFindings(fs => fs.map(f => f.id === id ? { ...f, status, resolved_at: status === 'resolved' ? new Date().toISOString() : f.resolved_at } : f))
+    } catch {
+      showAlert('danger', "Couldn't update this finding's status.")
+    }
+  }
 
   const addVersion = async () => {
     setVersionError('')
@@ -2545,6 +2602,110 @@ export default function AdminPage() {
               onChange={e => setNewVersion(v => ({ ...v, summary: e.target.value }))} />
             <Button size="sm" variant="primary" onClick={addVersion} disabled={versionSaving}>
               {versionSaving ? 'Saving…' : 'Add entry'}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Security ───────────────────────────────────────────────────────── */}
+      {tab === 'Security' && (
+        <div>
+          <p className="text-muted small mb-3">
+            A running log of security review findings (audits, IDOR/authorization probes, infra
+            reviews) so they survive past whatever conversation produced them - visible here in
+            dev, staging, and production alike, and readable back by a future review without
+            needing the original chat history.
+          </p>
+
+          <div className="d-flex gap-2 mb-3 flex-wrap">
+            {['all', ...FINDING_STATUSES].map(s => (
+              <Button key={s} size="sm"
+                variant={findingFilter === s ? 'primary' : 'outline-secondary'}
+                onClick={() => setFindingFilter(s)}>
+                {s === 'all' ? 'All' : s.replace('_', ' ')}
+                {s !== 'all' && ` (${findings.filter(f => f.status === s).length})`}
+              </Button>
+            ))}
+          </div>
+
+          {loadingFindings && <Spinner animation="border" size="sm" style={{ color: 'var(--green-800)' }} />}
+
+          <div className="mb-4" style={{ maxHeight: 520, overflowY: 'auto' }}>
+            {findings
+              .filter(f => findingFilter === 'all' || f.status === findingFilter)
+              .map(f => (
+                <div key={f.id} style={{ background: 'var(--parchment)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 18px', marginBottom: 10 }}>
+                  <div className="d-flex justify-content-between align-items-start flex-wrap gap-2">
+                    <div>
+                      <Badge bg={SEVERITY_COLOR[f.severity]} className="me-2">{f.severity}</Badge>
+                      <Badge bg="light" text="dark" className="me-2" style={{ border: '1px solid var(--border)' }}>{f.category}</Badge>
+                      <span style={{ fontWeight: 600, color: 'var(--green-900)' }}>{f.title}</span>
+                    </div>
+                    <Form.Select size="sm" style={{ width: 160 }} value={f.status}
+                      onChange={e => updateFindingStatus(f.id, e.target.value)}>
+                      {FINDING_STATUSES.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
+                    </Form.Select>
+                  </div>
+                  <p className="small mb-1 mt-2">{f.summary}</p>
+                  {f.details && <p className="text-muted small mb-1">{f.details}</p>}
+                  <div className="d-flex justify-content-between flex-wrap gap-2">
+                    <span className="text-muted" style={{ fontSize: '0.78rem' }}>
+                      {formatDate(f.discovered_at)}{f.source ? ` · ${f.source}` : ''}
+                    </span>
+                    {f.related_link && (
+                      <a href={f.related_link} target="_blank" rel="noreferrer" style={{ fontSize: '0.78rem' }}>Related link</a>
+                    )}
+                  </div>
+                </div>
+              ))}
+            {!loadingFindings && findings.filter(f => findingFilter === 'all' || f.status === findingFilter).length === 0 && (
+              <p className="text-muted small">No findings logged{findingFilter === 'all' ? '' : ` with status "${findingFilter}"`}.</p>
+            )}
+          </div>
+
+          <div style={{ background: 'var(--parchment)', border: '1px solid var(--border)', borderRadius: 12, padding: '20px 24px', maxWidth: 640 }}>
+            <h6 style={{ color: 'var(--green-900)', marginBottom: 12 }}>Log a new finding</h6>
+            {findingError && <Alert variant="danger" className="py-2">{findingError}</Alert>}
+            <Form.Control size="sm" className="mb-2" placeholder="Title"
+              value={newFinding.title} onChange={e => setNewFinding(v => ({ ...v, title: e.target.value }))} />
+            <Row className="g-2 mb-2">
+              <Col xs={4}>
+                <Form.Select size="sm" value={newFinding.category}
+                  onChange={e => setNewFinding(v => ({ ...v, category: e.target.value }))}>
+                  {FINDING_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </Form.Select>
+              </Col>
+              <Col xs={4}>
+                <Form.Select size="sm" value={newFinding.severity}
+                  onChange={e => setNewFinding(v => ({ ...v, severity: e.target.value }))}>
+                  {FINDING_SEVERITIES.map(s => <option key={s} value={s}>{s}</option>)}
+                </Form.Select>
+              </Col>
+              <Col xs={4}>
+                <Form.Select size="sm" value={newFinding.status}
+                  onChange={e => setNewFinding(v => ({ ...v, status: e.target.value }))}>
+                  {FINDING_STATUSES.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
+                </Form.Select>
+              </Col>
+            </Row>
+            <Form.Control as="textarea" rows={2} size="sm" className="mb-2"
+              placeholder="Short summary..."
+              value={newFinding.summary} onChange={e => setNewFinding(v => ({ ...v, summary: e.target.value }))} />
+            <Form.Control as="textarea" rows={2} size="sm" className="mb-2"
+              placeholder="Details / evidence / recommendation (optional)"
+              value={newFinding.details} onChange={e => setNewFinding(v => ({ ...v, details: e.target.value }))} />
+            <Row className="g-2 mb-2">
+              <Col xs={6}>
+                <Form.Control size="sm" placeholder="Source (optional)"
+                  value={newFinding.source} onChange={e => setNewFinding(v => ({ ...v, source: e.target.value }))} />
+              </Col>
+              <Col xs={6}>
+                <Form.Control size="sm" placeholder="Related link (optional)"
+                  value={newFinding.related_link} onChange={e => setNewFinding(v => ({ ...v, related_link: e.target.value }))} />
+              </Col>
+            </Row>
+            <Button size="sm" variant="primary" onClick={addFinding} disabled={findingSaving}>
+              {findingSaving ? 'Saving…' : 'Add finding'}
             </Button>
           </div>
         </div>
