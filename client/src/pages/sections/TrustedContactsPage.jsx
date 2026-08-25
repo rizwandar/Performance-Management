@@ -16,6 +16,11 @@ const API = import.meta.env.VITE_API_URL
 // shared via a trusted-contact access link (no way for the link viewer to
 // supply the vault password), so they should not be offered as a grantable
 // permission at all.
+// OPS-30: 'pet-care' and 'insurance_items' were confirmed non-vault-protected
+// but were missing from both this checkbox list and the server's
+// VALID_SECTIONS allowlist in server/routes/trustedContacts.js, so an owner
+// could never share them via a trusted-contact access link even though
+// neither is vault-protected. Added to both here.
 const SECTIONS = [
   { id: 'funeral_wishes',       label: 'Funeral Wishes' },
   { id: 'doctors',              label: 'Doctors' },
@@ -27,6 +32,8 @@ const SECTIONS = [
   { id: 'children_dependants',  label: 'Your Loved Ones' },
   { id: 'unfinished_business',  label: 'Unfinished Business' },
   { id: 'last_moments',         label: 'Your Last Moments' },
+  { id: 'pet-care',             label: 'Pet Care' },
+  { id: 'insurance_items',      label: 'Insurance' },
 ]
 
 const POSITIONS = [1, 2, 3]
