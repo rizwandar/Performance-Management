@@ -166,6 +166,7 @@ const { expireOrgPremiumGrants } = require('./lib/orgPremiumExpiry');
 const { sendTrialReminders } = require('./lib/trialReminder');
 const { sendCardExpiryReminders } = require('./lib/cardExpiryReminder');
 const { sendSignupTrialReminders } = require('./lib/signupTrialReminder');
+const { sendUnfinishedSectionsNudges } = require('./lib/unfinishedSectionsNudge');
 cron.schedule('0 8 * * *', () => {
   console.log('[inactivity] Running daily check...');
   checkInactivity().catch(err => console.error('[inactivity] Check failed:', err.message));
@@ -178,6 +179,10 @@ cron.schedule('0 8 * * *', () => {
   // passes, getUserPlan() in lib/subscription.js simply stops returning
   // 'premium' for that user, the same way any other free-plan check works.
   sendSignupTrialReminders().catch(err => console.error('[billing] Signup trial reminder sweep failed:', err.message));
+  // IDEA-02: one-time "unfinished sections" nudge - see
+  // lib/unfinishedSectionsNudge.js for the eligibility rules and the
+  // trigger/cadence/audience defaults assumed for this feature.
+  sendUnfinishedSectionsNudges().catch(err => console.error('[nudge] Unfinished-sections nudge sweep failed:', err.message));
 });
 
 const { runBackup } = require('./lib/backup');
