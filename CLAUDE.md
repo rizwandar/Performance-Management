@@ -87,7 +87,7 @@ The client and mobile apps import from `@in-good-hands/shared`. The Vite config 
 
 **Section pages** follow a consistent pattern: fetch data on mount, render a list of `ItemCard` components, open a `FormModal` for create/edit. The sections include: Legal Documents, Digital Vault, Financial, Doctors, Medical Records, Donation Bank (since IDEA-32, split out of a formerly combined Medical & Care Wishes section - Donation Bank is vault-protected, Doctors and Medical Records are not), Property, Messages, Funeral Wishes, Obituary, Music, Pets, Charities, Biography, Bucket List, Trusted Contacts, Pet Care (its own standalone section since IDEA-18), Emergency Contact (since IDEA-27, split out of what was previously a combined "Key Contacts" page), Insurance (since IDEA-29), Unfinished Business (since IDEA-19, reconciliation/apologies/loose-ends, deliberately distinct from Bucket List and Messages to Loved Ones), and Your Last Moments (since IDEA-30, a single dedicated final recording/letter, distinct from the Messages section). This list has drifted from the actual dashboard before; verify against `client/src/pages/DashboardPage.jsx`'s `SECTIONS` array rather than trusting this sentence.
 
-**Admin panel** (`pages/Admin.jsx`) — theme/font switcher (3 warm themes, 3 fonts stored in `app_settings` table), logo upload for white-labelling, user management, maintenance tools.
+**Admin panel** (`pages/AdminPage.jsx`) — theme/font switcher (11 color themes, 6 fonts stored in `app_settings` table), logo upload for white-labelling, user management, security findings log, maintenance tools.
 
 ### Mobile (`mobile/`)
 
@@ -108,13 +108,15 @@ Required in `server/.env`:
 ```
 JWT_SECRET=
 DATABASE_URL=
-CORS_ORIGIN=http://localhost:5173
+CLIENT_URL=http://localhost:5173
 R2_ACCOUNT_ID=
 R2_ACCESS_KEY_ID=
 R2_SECRET_ACCESS_KEY=
 R2_BUCKET_NAME=
 RESEND_API_KEY=
 ```
+
+`CLIENT_URL` is the only var controlling CORS (`server/index.js`) - if it's unset at runtime, the CORS middleware falls back to reflecting whatever `Origin` header the request sends with `Access-Control-Allow-Credentials: true`, which allows any site to make authenticated, cookie-carrying requests to the API. This file previously (incorrectly) documented this var as `CORS_ORIGIN`, which the code never reads - verify the actual deployed value is named `CLIENT_URL` wherever this service is hosted, not just in this list.
 
 Optional: `ORG_PORTAL_ENABLED=true` registers the org/funeral-home portal routes (`organizations.js`, `orgPortal.js`, `orgPublic.js`, `orgRegister.js`). Unset or any other value keeps them unregistered entirely, not merely rejected (SEC-12) - this is the default in production since the org portal isn't part of the initial end-user launch. Set to `true` on staging/local dev to keep testing it.
 
@@ -149,3 +151,13 @@ Whenever a change is pushed that touches one of these areas, add a version entry
 | `org_portal` | Org/funeral-home portal pages, `server/routes/orgPortal.js`, `server/routes/organizations.js` |
 
 Bump PATCH for fixes, MINOR for new backwards-compatible features, MAJOR for breaking changes. Insert via a one-off script (`query('INSERT INTO app_versions (module, version, summary) VALUES ($1, $2, $3)', [...])`) or the admin UI form.
+
+### Security findings log
+
+Security review results (audits, authorization/IDOR probes, infra reviews, secrets/session/vault-handling decisions) are logged to the `security_findings` table, not just left in chat history — the whole point is that they survive past whatever session produced them and are readable in dev, staging, and production alike. Visible in the admin panel's **Security** tab (`GET/POST/PUT /api/admin/security-findings`, admin-only).
+
+**When to check it:** at the start of a security-related task, `GET /api/admin/security-findings` (or query the table directly) before re-deriving findings from scratch — a prior review may already cover it.
+
+**When to add to it:** after any nontrivial security review, decision, or fix — not just vulnerabilities found, but "checked X, it's clean" results and explicit decisions (e.g. "not pursuing RLS, relying on the authz-probe CI check instead") are worth logging too, so a future review doesn't re-litigate the same question from zero.
+
+Each row has: `title`, `category` (`authorization` / `injection` / `xss` / `secrets` / `infrastructure` / `session` / `documentation` / `ci-cd` / `other`), `severity` (`info` / `low` / `medium` / `high` / `critical`), `status` (`open` / `monitoring` / `resolved` / `accepted_risk`), `summary`, optional `details`, optional `source` (e.g. `"Claude Code security review, 2026-08-05"`), optional `related_link` (e.g. a GitHub issue URL), `discovered_at`, `resolved_at`.
