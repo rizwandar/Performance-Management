@@ -1015,8 +1015,40 @@ function sectionSharedEmail({ recipientName, ownerName, sectionLabel, contentHtm
   `);
 }
 
+// ---------------------------------------------------------------------------
+// Unfinished sections nudge (IDEA-02) - a single, one-time reminder for
+// accounts that started their plan but haven't finished every section.
+// Deliberately warm and low-pressure, matching welcomeEmail's tone: this is
+// not a countdown or a "you're behind" message, just a gentle invitation
+// back in. See unfinishedSectionsNudge.js for the eligibility rules.
+// ---------------------------------------------------------------------------
+function unfinishedSectionsNudgeEmail({ name, startedCount, totalCount }) {
+  return layout(`
+    <p>Dear ${name},</p>
+    <p>
+      A little while ago you started putting together your plan on <strong>${APP_NAME}</strong>.
+      You've already made a start on <strong>${startedCount} of ${totalCount}</strong> sections,
+      and we wanted to gently check in.
+    </p>
+    <p>
+      There's no deadline and no pressure. Whenever you have a few quiet minutes,
+      picking up where you left off, even just one more section, adds real clarity
+      for the people who matter to you.
+    </p>
+    ${button('Continue my plan', `${APP_URL}/profile`)}
+    <p style="color:#6B7280; font-size:14px;">
+      This is a one-time reminder. We won't send it again.
+    </p>
+    <p style="color:#6B7280; font-size:14px;">
+      With care,<br/>
+      The ${APP_NAME} team
+    </p>
+  `);
+}
+
 module.exports = {
   emailVerificationEmail,
+  unfinishedSectionsNudgeEmail,
   sectionSharedEmail,
   welcomeEmail,
   passwordResetEmail,

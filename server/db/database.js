@@ -1465,6 +1465,17 @@ async function init() {
   // link email sent from the "Send access link" flow.
   await pool.query(`ALTER TABLE trusted_contacts ADD COLUMN IF NOT EXISTS invite_message TEXT`);
 
+  // IDEA-02: one-shot "you've started but not finished" nudge email for
+  // users who started their plan but have not completed every section.
+  // nudge_sent_at dedupes it so the daily sweep (unfinishedSectionsNudge.js)
+  // never refires for the same account - same one-shot pattern as
+  // trial_25d_reminder_sent_at / trial_28d_reminder_sent_at above and
+  // BIL-07's card_expiry_*_sent_at columns. Deliberately one-time-only (not
+  // recurring) as the safer, less spammy default - see the memory/PR notes
+  // for the full "assumptions made" list, since trigger/cadence/audience for
+  // this idea were never explicitly confirmed by the user.
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS nudge_sent_at TIMESTAMPTZ`);
+
   console.log('[db] PostgreSQL schema ready');
 }
 
