@@ -297,6 +297,36 @@ router.put('/security-findings/:id', auth, adminOnly, async (req, res) => {
   res.json({ success: true });
 });
 
+// Contact-form submission inbox (IDEA-09): server/routes/contact.js persists
+// every submission to contact_submissions independently of the outbound
+// email notification, so a missed/failed email doesn't lose the message.
+// Readable/manageable from the admin panel's new tab. Mirrors the
+// security-findings routes just above (same auth/adminOnly convention).
+router.get('/contact-submissions', auth, adminOnly, async (req, res) => {
+  const rows = await queryAll(
+    'SELECT * FROM contact_submissions ORDER BY created_at DESC'
+  );
+  res.json(rows);
+});
+
+router.put('/contact-submissions/:id', auth, adminOnly, async (req, res) => {
+  const existing = await queryOne('SELECT id FROM contact_submissions WHERE id = $1', [req.params.id]);
+  if (!existing) return res.status(404).json({ error: 'Submission not found.' });
+  const { status } = req.body;
+  if (!['new', 'read'].includes(status)) {
+    return res.status(400).json({ error: "status must be one of: new, read" });
+  }
+  await query('UPDATE contact_submissions SET status = $1 WHERE id = $2', [status, req.params.id]);
+  res.json({ success: true });
+});
+
+router.delete('/contact-submissions/:id', auth, adminOnly, async (req, res) => {
+  const existing = await queryOne('SELECT id FROM contact_submissions WHERE id = $1', [req.params.id]);
+  if (!existing) return res.status(404).json({ error: 'Submission not found.' });
+  await query('DELETE FROM contact_submissions WHERE id = $1', [req.params.id]);
+  res.json({ success: true });
+});
+
 router.get('/users/:id/activity', auth, adminOnly, async (req, res) => {
   const user = await queryOne('SELECT id, name, email FROM users WHERE id = $1 AND is_admin = 0', [req.params.id]);
   if (!user) return res.status(404).json({ error: 'User not found' });
