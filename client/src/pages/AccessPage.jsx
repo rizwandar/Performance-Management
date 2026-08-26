@@ -325,6 +325,46 @@ function ChildrenDependants({ data, documents }) {
   ))
 }
 
+// OPS-30: Pet Care and Insurance were confirmed non-vault-protected and
+// added to VALID_SECTIONS/EXECUTOR_SECTIONS server-side; these two renderers
+// mirror ChildrenDependants/PropertyItems above (a simple list-shaped,
+// non-vault section) rather than being copied from anywhere pre-existing.
+function PetCare({ data, documents }) {
+  if (!data?.length) return <p className="text-muted small">No pets recorded.</p>
+  return data.map(d => (
+    <ItemCard key={d.id}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 4, marginBottom: 4 }}>
+        <span style={{ fontWeight: 700, color: 'var(--green-900)' }}>{d.name}</span>
+        {d.age && <span className="text-muted small">{d.age}</span>}
+      </div>
+      <FieldRow label="Special needs / care"     value={d.special_needs} />
+      <FieldRow label="Preferred caretaker"      value={d.preferred_caretaker} />
+      <FieldRow label="Their contact details"    value={d.caretaker_contact} />
+      <FieldRow label="Alternate caretaker"      value={d.alternate_caretaker} />
+      <FieldRow label="Their contact details"    value={d.alternate_contact} />
+      <FieldRow label="Notes"                    value={d.notes} />
+      <DocumentList documents={itemDocuments(documents, d.id)} />
+    </ItemCard>
+  ))
+}
+
+function InsuranceItems({ data, documents }) {
+  if (!data?.length) return <p className="text-muted small">No insurance policies recorded.</p>
+  return data.map(d => (
+    <ItemCard key={d.id}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 4, marginBottom: 4 }}>
+        <span style={{ fontWeight: 700, color: 'var(--green-900)' }}>{d.provider || 'Unnamed policy'}</span>
+        {d.policy_type && <Badge bg={null} style={{ background: 'var(--green-100)', color: 'var(--green-900)', fontWeight: 500 }}>{d.policy_type}</Badge>}
+      </div>
+      <FieldRow label="Policy number" value={d.policy_number} />
+      <FieldRow label="Contact"       value={d.contact} />
+      <FieldRow label="Beneficiary"   value={d.beneficiary} />
+      <FieldRow label="Notes"         value={d.notes} />
+      <DocumentList documents={itemDocuments(documents, d.id)} />
+    </ItemCard>
+  ))
+}
+
 // ---------------------------------------------------------------------------
 // Executor task checklist (IDEA-06) — general starting points shown once an
 // executor has confirmed the passing, not legal advice, and not tracked or
@@ -400,6 +440,8 @@ const SECTION_CONFIG = {
   children_dependants: { label: 'Your Loved Ones', Component: ChildrenDependants, dataKey: 'children_dependants' },
   unfinished_business: { label: 'Unfinished Business',   Component: UnfinishedBusiness, dataKey: 'unfinished_business' },
   last_moments:      { label: 'Your Last Moments',       Component: LastMoments,      dataKey: 'last_moments' },
+  'pet-care':        { label: 'Pet Care',                Component: PetCare,          dataKey: 'pet-care' },
+  insurance_items:   { label: 'Insurance',               Component: InsuranceItems,   dataKey: 'insurance_items' },
 }
 
 // ---------------------------------------------------------------------------

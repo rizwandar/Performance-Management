@@ -23,12 +23,16 @@ const { isVaultProtectedSection } = require('../lib/vaultSections');
 // old Medical & Care Wishes split, is deliberately NOT added here - it's
 // vault-protected (new to the shared vault), same treatment as
 // household_info/digital_credentials, which were never in this list either.
-// insurance_items is NOT included here either - a known pre-existing gap
-// (same one pets/pet_care has), logged as OPS-30, not fixed here.
+// OPS-30: 'pet-care' (table `pets`) and 'insurance_items' were confirmed
+// non-vault-protected (see VAULT_PROTECTED_SECTIONS in lib/vaultSections.js)
+// and added here, matching VALID_SECTIONS in routes/trustedContacts.js.
+// household_info and digital_life/digital_credentials remain excluded - they
+// stay vault-protected and must never appear in this list.
 const EXECUTOR_SECTIONS = [
   'funeral_wishes', 'doctors', 'medical_records',
   'people_to_notify', 'personal_messages', 'songs_that_define_me',
   'life_wishes', 'children_dependants', 'unfinished_business', 'last_moments',
+  'pet-care', 'insurance_items',
 ];
 
 // OPS-29: attach any files uploaded against this section (e.g. a scanned
@@ -201,6 +205,23 @@ router.get('/:token', async (req, res) => {
         }
         break;
       }
+      // OPS-30: 'pet-care' and 'insurance_items' were confirmed
+      // non-vault-protected and added to EXECUTOR_SECTIONS above; these two
+      // cases are new.
+      case 'pet-care':
+        data['pet-care'] = await queryAll(
+          `SELECT id, name, age, special_needs, preferred_caretaker,
+                  caretaker_contact, alternate_caretaker, alternate_contact, notes
+           FROM pets WHERE user_id = $1 ORDER BY name`,
+          [tokenRow.user_id]
+        );
+        break;
+      case 'insurance_items':
+        data.insurance_items = await queryAll(
+          'SELECT id, policy_type, provider, policy_number, contact, beneficiary, notes FROM insurance_items WHERE user_id = $1 ORDER BY created_at DESC',
+          [tokenRow.user_id]
+        );
+        break;
     }
 
     const documents = await loadSectionDocuments(tokenRow.user_id, sectionId);
