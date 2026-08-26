@@ -470,8 +470,8 @@ async function init() {
   // already trigger a confirmation email, logged independently of whether
   // that email send succeeds so a Resend outage never silently loses the
   // event. event_type is one of: 'cancelled', 'reinstated',
-  // 'payment_succeeded', 'refunded'. metadata is a JSON string with
-  // whatever context is useful for that event type (amount, price, plan);
+  // 'payment_succeeded', 'refunded', 'payment_failed' (IDEA-13). metadata is
+  // a JSON string with whatever context is useful for that event type (amount, price, plan);
   // kept as TEXT rather than a typed JSON column to match the metadata
   // columns already used elsewhere in this file (user_audit_logs,
   // organization_billing_events).
