@@ -299,12 +299,12 @@ module.exports.handler = async (req, res) => {
               // billing history even if the Resend send fails or times out.
               await query(
                 'INSERT INTO subscription_events (user_id, event_type, metadata) VALUES ($1, $2, $3)',
-                [user.id, 'cancelled', JSON.stringify({ accessUntilDate })]
+                [user.id, 'cancelled', JSON.stringify({ accessUntilDate, stripeRef: subscription.id })]
               ).catch(err => console.error('[stripe webhook] Failed to log cancellation event:', err.message));
               await sendEmail({
                 to:      user.email,
                 subject: `Your ${APP_NAME} subscription has been cancelled`,
-                html:    subscriptionCancelledEmail({ name: user.name, accessUntilDate }),
+                html:    subscriptionCancelledEmail({ name: user.name, accessUntilDate, stripeRef: subscription.id }),
               }).catch(err => console.error('[stripe webhook] Cancellation email failed:', err.message));
             }
           }
@@ -326,12 +326,12 @@ module.exports.handler = async (req, res) => {
                 : null;
               await query(
                 'INSERT INTO subscription_events (user_id, event_type, metadata) VALUES ($1, $2, $3)',
-                [user.id, 'reinstated', JSON.stringify({ nextBillingDate, price })]
+                [user.id, 'reinstated', JSON.stringify({ nextBillingDate, price, stripeRef: subscription.id })]
               ).catch(err => console.error('[stripe webhook] Failed to log reinstatement event:', err.message));
               await sendEmail({
                 to:      user.email,
                 subject: `Your ${APP_NAME} subscription has been reinstated`,
-                html:    subscriptionReinstatedEmail({ name: user.name, nextBillingDate, price }),
+                html:    subscriptionReinstatedEmail({ name: user.name, nextBillingDate, price, stripeRef: subscription.id }),
               }).catch(err => console.error('[stripe webhook] Reinstatement email failed:', err.message));
             }
           }
@@ -362,7 +362,7 @@ module.exports.handler = async (req, res) => {
             // well would just show each payment twice on the client.
             await query(
               'INSERT INTO subscription_events (user_id, event_type, metadata) VALUES ($1, $2, $3)',
-              [user.id, 'payment_succeeded', JSON.stringify({ amount, planName: PLAN_DISPLAY[priceId] || 'Premium', chargeDate })]
+              [user.id, 'payment_succeeded', JSON.stringify({ amount, planName: PLAN_DISPLAY[priceId] || 'Premium', chargeDate, stripeRef: invoice.id })]
             ).catch(err => console.error('[stripe webhook] Failed to log payment_succeeded event:', err.message));
             await sendEmail({
               to:      user.email,
@@ -373,6 +373,7 @@ module.exports.handler = async (req, res) => {
                 price:       amount,
                 chargeDate,
                 receiptUrl:  invoice.hosted_invoice_url || null,
+                stripeRef:   invoice.id,
               }),
             }).catch(err => console.error('[stripe webhook] Payment confirmation email failed:', err.message));
           }
@@ -388,7 +389,7 @@ module.exports.handler = async (req, res) => {
           const amount = `$${(charge.amount_refunded / 100).toFixed(2)}`;
           await query(
             'INSERT INTO subscription_events (user_id, event_type, metadata) VALUES ($1, $2, $3)',
-            [user.id, 'refunded', JSON.stringify({ amount, chargeDate })]
+            [user.id, 'refunded', JSON.stringify({ amount, chargeDate, stripeRef: charge.id })]
           ).catch(err => console.error('[stripe webhook] Failed to log refunded event:', err.message));
           await sendEmail({
             to:      user.email,
@@ -397,6 +398,7 @@ module.exports.handler = async (req, res) => {
               name:   user.name,
               amount,
               chargeDate,
+              stripeRef: charge.id,
             }),
           }).catch(err => console.error('[stripe webhook] Refund confirmation email failed:', err.message));
         }
@@ -434,7 +436,7 @@ module.exports.handler = async (req, res) => {
               : null;
             await query(
               'INSERT INTO subscription_events (user_id, event_type, metadata) VALUES ($1, $2, $3)',
-              [user.id, 'payment_failed', JSON.stringify({ amount, planName: PLAN_DISPLAY[priceId] || 'Premium', nextRetryDate })]
+              [user.id, 'payment_failed', JSON.stringify({ amount, planName: PLAN_DISPLAY[priceId] || 'Premium', nextRetryDate, stripeRef: invoice.id })]
             ).catch(err => console.error('[stripe webhook] Failed to log payment_failed event:', err.message));
             await sendEmail({
               to:      user.email,
@@ -444,6 +446,7 @@ module.exports.handler = async (req, res) => {
                 planName:  PLAN_DISPLAY[priceId] || 'Premium',
                 amount,
                 nextRetryDate,
+                stripeRef: invoice.id,
               }),
             }).catch(err => console.error('[stripe webhook] Payment failed email send failed:', err.message));
           }

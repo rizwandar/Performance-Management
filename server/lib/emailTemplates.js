@@ -262,7 +262,7 @@ function signupTrialEndingReminderEmail({ name, daysLeft, endDate }) {
 // Payment confirmation (BIL-07) - sent right after a successful charge,
 // whether that's the first payment after a trial or a routine renewal.
 // ---------------------------------------------------------------------------
-function paymentConfirmationEmail({ name, planName, price, chargeDate, receiptUrl }) {
+function paymentConfirmationEmail({ name, planName, price, chargeDate, receiptUrl, stripeRef }) {
   return layout(`
     <p>Dear ${name},</p>
     <p>
@@ -271,6 +271,9 @@ function paymentConfirmationEmail({ name, planName, price, chargeDate, receiptUr
       successfully. Thank you for continuing to trust us with your planning.
     </p>
     ${receiptUrl ? button('View my receipt', receiptUrl) : ''}
+    <p style="color:#6B7280; font-size:14px;">
+      Reference: ${escapeHtml(stripeRef)}
+    </p>
     <p style="color:#6B7280; font-size:14px;">
       You can review your billing history any time from your account settings.
     </p>
@@ -284,7 +287,7 @@ function paymentConfirmationEmail({ name, planName, price, chargeDate, receiptUr
 // ---------------------------------------------------------------------------
 // Refund confirmation (BIL-07) - sent when Stripe processes a refund.
 // ---------------------------------------------------------------------------
-function refundConfirmationEmail({ name, amount, chargeDate }) {
+function refundConfirmationEmail({ name, amount, chargeDate, stripeRef }) {
   return layout(`
     <p>Dear ${name},</p>
     <p>
@@ -294,6 +297,9 @@ function refundConfirmationEmail({ name, amount, chargeDate }) {
     <p>
       The refund has been sent back to your original payment method. Depending on your
       bank or card issuer, it may take a few business days to appear on your statement.
+    </p>
+    <p style="color:#6B7280; font-size:14px;">
+      Reference: ${escapeHtml(stripeRef)}
     </p>
     <p style="color:#6B7280; font-size:14px;">
       If you have any questions about this refund, feel free to reach out to us.
@@ -311,7 +317,7 @@ function refundConfirmationEmail({ name, amount, chargeDate }) {
 // the subscription actually terminates weeks later, so the user gets
 // confirmation right away that their request went through.
 // ---------------------------------------------------------------------------
-function subscriptionCancelledEmail({ name, accessUntilDate }) {
+function subscriptionCancelledEmail({ name, accessUntilDate, stripeRef }) {
   return layout(`
     <p>Dear ${name},</p>
     <p>
@@ -328,6 +334,9 @@ function subscriptionCancelledEmail({ name, accessUntilDate }) {
     </p>
     ${button('Manage my subscription', `${APP_URL}/profile/settings`)}
     <p style="color:#6B7280; font-size:14px;">
+      Reference: ${escapeHtml(stripeRef)}
+    </p>
+    <p style="color:#6B7280; font-size:14px;">
       With care,<br/>
       The ${APP_NAME} team
     </p>
@@ -341,7 +350,7 @@ function subscriptionCancelledEmail({ name, accessUntilDate }) {
 // Billing Portal's own undo-cancel action, so the user has written
 // confirmation that normal billing has actually resumed.
 // ---------------------------------------------------------------------------
-function subscriptionReinstatedEmail({ name, nextBillingDate, price }) {
+function subscriptionReinstatedEmail({ name, nextBillingDate, price, stripeRef }) {
   return layout(`
     <p>Dear ${name},</p>
     <p>
@@ -358,6 +367,9 @@ function subscriptionReinstatedEmail({ name, nextBillingDate, price }) {
     </p>
     ${button('Manage my subscription', `${APP_URL}/profile/settings`)}
     <p style="color:#6B7280; font-size:14px;">
+      Reference: ${escapeHtml(stripeRef)}
+    </p>
+    <p style="color:#6B7280; font-size:14px;">
       With care,<br/>
       The ${APP_NAME} team
     </p>
@@ -373,7 +385,7 @@ function subscriptionReinstatedEmail({ name, nextBillingDate, price }) {
 // the same spirit as cardExpiringReminderEmail below but for a charge that
 // has already failed rather than a card that is merely about to expire.
 // ---------------------------------------------------------------------------
-function paymentFailedEmail({ name, planName, amount, nextRetryDate }) {
+function paymentFailedEmail({ name, planName, amount, nextRetryDate, stripeRef }) {
   const retryLine = nextRetryDate
     ? `We'll automatically try again on <strong>${nextRetryDate}</strong>. If you update your
        payment method before then, we'll use it for that attempt.`
@@ -395,6 +407,9 @@ function paymentFailedEmail({ name, planName, amount, nextRetryDate }) {
       method from your account settings.
     </p>
     ${button('Update my payment method', `${APP_URL}/profile/settings`)}
+    <p style="color:#6B7280; font-size:14px;">
+      Reference: ${escapeHtml(stripeRef)}
+    </p>
     <p style="color:#6B7280; font-size:14px;">
       If you have any questions or need a hand, feel free to reach out to us.
     </p>
