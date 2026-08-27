@@ -312,31 +312,24 @@ module.exports.handler = async (req, res) => {
           // particular event's payload happened to say. Canceled
           // subscriptions stay retrievable on Stripe's side, so this works
           // the same for customer.subscription.deleted too.
-          let subscription;
-          try {
-            subscription = await stripe.subscriptions.retrieve(eventSubscription.id);
-            await upsertFromSubscription(subscription, subscription.metadata?.user_id);
-          } catch (err) {
-            // REV-29 follow-up: the retrieve() above (and the DB write right
-            // after it) are a new failure point that did not exist when this
-            // handler just read event.data.object directly. event.id was
-            // already recorded in processed_stripe_events before this switch
-            // ran (REV-11 dedup, above), so without this, a transient
-            // failure here (Stripe hiccup, network blip, timeout) would
-            // leave the event marked "seen" forever - Stripe's automatic
-            // retry of the same event.id would then hit that dedup
-            // short-circuit and get silently skipped, permanently dropping
-            // this subscription update (a canceled subscription in
-            // particular generates no further event to self-correct with,
-            // so the row could get stuck at a stale "active" status
-            // indefinitely). Delete the dedupe row we just inserted so
-            // Stripe's retry is reprocessed cleanly instead of skipped, then
-            // rethrow - the outer try/catch below still logs the original
-            // error and returns 500, telling Stripe to retry, unchanged.
-            await query('DELETE FROM processed_stripe_events WHERE event_id = $1', [event.id])
-              .catch(delErr => console.error('[stripe webhook] Failed to roll back dedupe row after retrieve/upsert failure:', delErr.message));
-            throw err;
-          }
+          //
+          // REV-29 follow-up, resolved by OPS-35: the retrieve() below (and
+          // the DB write right after it) are a failure point that did not
+          // exist when this handler just read event.data.object directly.
+          // event.id was already recorded in processed_stripe_events before
+          // this switch ran (REV-11 dedup, above), so a transient failure
+          // here (Stripe hiccup, network blip, timeout) needs the dedupe row
+          // rolled back or Stripe's retry of the same event.id would hit
+          // that dedup short-circuit and get silently skipped, permanently
+          // dropping this subscription update (a canceled subscription in
+          // particular generates no further event to self-correct with, so
+          // the row could get stuck at a stale "active" status
+          // indefinitely). That rollback used to be a local try/catch right
+          // here; it is now handled generically for every case in this
+          // switch by the outer catch block below, so this can just await
+          // directly and let a failure propagate there.
+          const subscription = await stripe.subscriptions.retrieve(eventSubscription.id);
+          await upsertFromSubscription(subscription, subscription.metadata?.user_id);
 
           // BIL-07: confirm the cancellation right away, the moment
           // cancel_at_period_end flips to true (the user clicked Cancel -
@@ -515,6 +508,21 @@ module.exports.handler = async (req, res) => {
     }
     res.json({ received: true });
   } catch (err) {
+    // OPS-35: event.id was recorded in processed_stripe_events before the
+    // switch above ran (REV-11 dedup, above), so a failure partway through
+    // any case here (a DB error, a Stripe API call failure, etc.) would
+    // otherwise leave the event marked "processed" despite never actually
+    // completing. Stripe's automatic retry of that same event.id would then
+    // hit the dedup check and get silently skipped as a duplicate,
+    // permanently losing whatever that event should have caused, with no
+    // error and no retry ever succeeding. Deleting the dedupe row here,
+    // generically for every event type, so Stripe's retry is reprocessed
+    // cleanly instead of skipped, replaces the narrower per-case version of
+    // this same fix that used to live only inside the
+    // customer.subscription.updated/deleted case (see the REV-29 comment
+    // above).
+    await query('DELETE FROM processed_stripe_events WHERE event_id = $1', [event.id])
+      .catch(delErr => console.error('[stripe webhook] Failed to roll back dedupe row after processing failure:', delErr.message));
     console.error('[stripe webhook] Handler failed:', err.message, err.stack);
     res.status(500).json({ error: 'Webhook handler failed' });
   }
