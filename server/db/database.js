@@ -1802,6 +1802,25 @@ async function init() {
     });
   }
 
+  // Self-heal: an earlier version of this line created idx_last_moments_user_id
+  // as a plain (non-unique) index, before REV-27 changed it to CREATE UNIQUE
+  // INDEX for the ON CONFLICT upsert in sections.js's PUT /last-moments to
+  // work against. CREATE UNIQUE INDEX IF NOT EXISTS only checks the index
+  // NAME, not its definition - since an index with this exact name already
+  // existed, it silently no-op'd on every single deploy since REV-27 shipped,
+  // permanently leaving the index non-unique and every last-moments save
+  // failing with "no unique or exclusion constraint matching the ON CONFLICT
+  // specification". Confirmed live in production 2026-08-27 (0 rows, 0
+  // duplicates ever successfully saved) via a temporary read-only diagnostic
+  // route - safe to drop and recreate unconditionally, no data risk. Cheap
+  // SELECT on every boot; the DROP+CREATE branch only ever fires once per
+  // environment, then never again.
+  const lastMomentsIndex = await pool.query(
+    `SELECT indexdef FROM pg_indexes WHERE indexname = 'idx_last_moments_user_id'`
+  );
+  if (lastMomentsIndex.rows.length > 0 && !lastMomentsIndex.rows[0].indexdef.toUpperCase().includes('UNIQUE')) {
+    await pool.query(`DROP INDEX idx_last_moments_user_id`);
+  }
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_last_moments_user_id ON last_moments(user_id)`);
 
   // doctors, medical_records, and donation_bank were missed by the REV-08
