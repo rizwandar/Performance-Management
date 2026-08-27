@@ -509,7 +509,26 @@ router.delete('/property-possessions/:id', requireAuth, requirePremium, async (r
 // ---------------------------------------------------------------------------
 router.get('/messages', requireAuth, async (req, res) => {
   const rows = await queryAll('SELECT * FROM personal_messages WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]);
-  res.json(await Promise.all(rows.map(withAudioClips)));
+  // REV-24: batch-fetch all audio clips in one query instead of N+1 (one per
+  // message). The same pattern is already used in server/routes/access.js for
+  // the same data structure.
+  const clipRows = rows.length
+    ? await queryAll(
+        'SELECT id, message_id, r2_key, duration_seconds FROM personal_message_audio_clips WHERE message_id = ANY($1::int[]) ORDER BY created_at',
+        [rows.map(r => r.id)]
+      )
+    : [];
+  res.json(await Promise.all(rows.map(async row => {
+    const { audio_r2_key, audio_mime_type, audio_size_bytes, audio_duration_seconds, ...rest } = row;
+    return {
+      ...rest,
+      audio_clips: await Promise.all(
+        clipRows
+          .filter(c => c.message_id === row.id)
+          .map(async c => ({ id: c.id, audio_url: await getDownloadUrl(c.r2_key), duration_seconds: c.duration_seconds }))
+      ),
+    };
+  })));
 });
 
 router.post('/messages', requireAuth, async (req, res) => {
@@ -590,25 +609,6 @@ async function withAudioUrl(row) {
   if (!row.audio_r2_key) return row;
   const { audio_r2_key, ...rest } = row;
   return { ...rest, audio_url: await getDownloadUrl(audio_r2_key) };
-}
-
-// Signed R2 URLs never get stored - only ever generated fresh per request,
-// same pattern as documents.js's download route. Returns the message with an
-// audio_clips array (0-3 entries) instead of a single audio_url.
-async function withAudioClips(row) {
-  const clips = await queryAll(
-    'SELECT id, r2_key, duration_seconds FROM personal_message_audio_clips WHERE message_id = $1 ORDER BY created_at',
-    [row.id]
-  );
-  const { audio_r2_key, audio_mime_type, audio_size_bytes, audio_duration_seconds, ...rest } = row;
-  return {
-    ...rest,
-    audio_clips: await Promise.all(clips.map(async c => ({
-      id: c.id,
-      audio_url: await getDownloadUrl(c.r2_key),
-      duration_seconds: c.duration_seconds,
-    }))),
-  };
 }
 
 router.post('/messages/:id/audio', requireAuth, (req, res, next) => {
@@ -1249,16 +1249,14 @@ router.get('/last-moments', requireAuth, async (req, res) => {
 
 router.put('/last-moments', requireAuth, requirePremium, async (req, res) => {
   const { message, notes } = req.body;
-  const existing = await queryOne('SELECT id FROM last_moments WHERE user_id = $1', [req.user.id]);
-  if (existing) {
-    await query(`
-      UPDATE last_moments SET message=$1, notes=$2, updated_at=NOW() WHERE user_id=$3
-    `, [message ?? null, notes ?? null, req.user.id]);
-  } else {
-    await query(`
-      INSERT INTO last_moments (user_id, message, notes) VALUES ($1, $2, $3)
-    `, [req.user.id, message || null, notes || null]);
-  }
+  // REV-27: use UPSERT (INSERT ... ON CONFLICT) instead of check-then-insert
+  // to prevent race conditions. The UNIQUE constraint on user_id now enforces
+  // one row per user at the database level.
+  await query(`
+    INSERT INTO last_moments (user_id, message, notes, updated_at)
+    VALUES ($1, $2, $3, NOW())
+    ON CONFLICT (user_id) DO UPDATE SET message=$2, notes=$3, updated_at=NOW()
+  `, [req.user.id, message ?? null, notes ?? null]);
   res.json({ success: true });
 });
 
@@ -1271,13 +1269,17 @@ router.post('/last-moments/audio', requireAuth, requirePremium, (req, res, next)
   try {
     if (!req.file) return res.status(400).json({ error: 'No recording provided.' });
 
+    // REV-27: use UPSERT (INSERT ... ON CONFLICT ... RETURNING) to atomically
+    // create-or-get the row, preventing race conditions where a concurrent PUT
+    // and POST both try to create the row. This also allows us to fetch the
+    // previous audio key to clean it up.
     // A recording can arrive before any row exists yet (the text side may
     // still be blank) - create the row on demand, same as an empty PUT would.
-    let item = await queryOne('SELECT * FROM last_moments WHERE user_id = $1', [req.user.id]);
-    if (!item) {
-      const result = await query('INSERT INTO last_moments (user_id) VALUES ($1) RETURNING *', [req.user.id]);
-      item = result.rows[0];
-    }
+    const result = await query(
+      'INSERT INTO last_moments (user_id) VALUES ($1) ON CONFLICT (user_id) DO UPDATE SET user_id=$1 RETURNING *',
+      [req.user.id]
+    );
+    const item = result.rows[0];
 
     const mimeType = baseMimeType(req.file.mimetype) || 'audio/webm';
     const ext = (req.file.originalname.split('.').pop() || 'webm').replace(/[^a-zA-Z0-9]/g, '');
