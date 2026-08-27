@@ -1804,6 +1804,16 @@ async function init() {
 
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_last_moments_user_id ON last_moments(user_id)`);
 
+  // doctors, medical_records, and donation_bank were missed by the REV-08
+  // sweep above (they're not vault/completion tables that sweep already
+  // targeted). Added as part of REV-25: the admin Users list now aggregates
+  // these via LEFT JOIN (SELECT user_id, COUNT(*) ... GROUP BY user_id)
+  // instead of a correlated subquery per row, and that aggregate needs an
+  // index on user_id to avoid a full table scan on every page load.
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_doctors_user_id ON doctors(user_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_medical_records_user_id ON medical_records(user_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_donation_bank_user_id ON donation_bank(user_id)`);
+
   // Composite indexes for the two most expensive query shapes the REV-08
   // review identified: user_audit_logs is queried per-user filtered by
   // action and ordered by created_at (admin.js's per-row audit-log lookup),
