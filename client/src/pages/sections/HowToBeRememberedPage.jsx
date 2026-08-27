@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Button, Form, Alert, Spinner, OverlayTrigger, Popover } from 'react-bootstrap'
 import axios from 'axios'
 import SectionHero from '../../components/SectionHero'
+import SectionFooterNav from '../../components/SectionFooterNav'
 import ShareSectionTrigger from '../../components/ShareSectionTrigger'
 import ShareSectionHistory from '../../components/ShareSectionHistory'
 import DictateButton from '../../components/DictateButton'
@@ -220,16 +221,13 @@ export default function HowToBeRememberedPage() {
         <Button variant="primary" onClick={handleSave} disabled={saving}>
           {saving ? 'Saving...' : 'Save'}
         </Button>
-        <button className="btn btn-link p-0"
-          style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '0.9rem' }}
-          onClick={() => navigate('/profile')}>
-          ← Back to my plans
-        </button>
       </div>
       {success && <Alert variant="success" className="mt-3">{success}</Alert>}
       {error   && <Alert variant="danger"  className="mt-3">{error}</Alert>}
 
       <ShareSectionHistory section="how_to_be_remembered" />
+
+      <SectionFooterNav sectionId="how_to_be_remembered" />
     </div>
   )
 }

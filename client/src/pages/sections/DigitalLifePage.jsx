@@ -5,6 +5,7 @@ import axios from 'axios'
 import { VaultSetupScreen, VaultLockScreen } from '../../components/VaultGate'
 import PasswordInput from '../../components/PasswordInput'
 import SectionHero from '../../components/SectionHero'
+import SectionFooterNav from '../../components/SectionFooterNav'
 import ShareSectionTrigger from '../../components/ShareSectionTrigger'
 import ShareSectionHistory from '../../components/ShareSectionHistory'
 import { useVaultSession } from '../../context/VaultSessionContext'
@@ -405,13 +406,7 @@ export default function DigitalLifePage() {
 
       <ShareSectionHistory section="digital_credentials" />
 
-      <div className="mt-4 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
-        <button className="btn btn-link p-0"
-          style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '0.9rem' }}
-          onClick={() => navigate('/profile')}>
-          ← Back to my plans
-        </button>
-      </div>
+      <SectionFooterNav sectionId="digital_credentials" />
     </div>
   )
 }

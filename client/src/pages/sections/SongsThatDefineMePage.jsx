@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Button, Alert, Spinner, InputGroup, Form } from 'react-bootstrap'
 import axios from 'axios'
 import SectionHero from '../../components/SectionHero'
+import SectionFooterNav from '../../components/SectionFooterNav'
 import ShareSectionTrigger from '../../components/ShareSectionTrigger'
 import ShareSectionHistory from '../../components/ShareSectionHistory'
 
@@ -287,13 +288,7 @@ export default function SongsThatDefineMePage() {
 
       <ShareSectionHistory section="songs_that_define_me" />
 
-      <div className="mt-4 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
-        <button className="btn btn-link p-0"
-          style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '0.9rem' }}
-          onClick={() => navigate('/profile')}>
-          ← Back to my plans
-        </button>
-      </div>
+      <SectionFooterNav sectionId="songs_that_define_me" />
     </div>
   )
 }

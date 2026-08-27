@@ -5,6 +5,7 @@ import axios from 'axios'
 import { useAuth } from '../../context/AuthContext'
 import { formatPhone } from '@in-good-hands/shared/format'
 import SectionHero from '../../components/SectionHero'
+import SectionFooterNav from '../../components/SectionFooterNav'
 import ShareSectionTrigger from '../../components/ShareSectionTrigger'
 import ShareSectionHistory from '../../components/ShareSectionHistory'
 import DictateButton from '../../components/DictateButton'
@@ -230,13 +231,7 @@ export default function PeopleToNotifyPage() {
 
       <ShareSectionHistory section="people_to_notify" />
 
-      <div className="mt-4 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
-        <button className="btn btn-link p-0"
-          style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '0.9rem' }}
-          onClick={() => navigate('/profile')}>
-          ← Back to my plans
-        </button>
-      </div>
+      <SectionFooterNav sectionId="people_to_notify" />
     </div>
   )
 }
