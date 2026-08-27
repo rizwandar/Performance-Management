@@ -252,7 +252,14 @@ router.put('/me', auth, async (req, res) => {
     if (err.code === '23505') {
       return res.status(409).json({ error: 'That email address is already registered to another account.' });
     }
-    res.status(500).json({ error: err.message });
+    // REV-26 (2026-08-26 review): this used to return err.message directly,
+    // leaking raw DB/driver error text (SQL fragments, table/column names) to
+    // the browser and bypassing the global handler's sanitization (SEC-08,
+    // see index.js). Log server-side, return a generic message to the client,
+    // matching the pattern already used by other routes (e.g. billing.js's
+    // /cancel, documents.js's upload/download routes).
+    console.error('[users] Profile update failed:', err.message);
+    res.status(500).json({ error: 'Could not save your profile. Please try again.' });
   }
 });
 
@@ -480,11 +487,9 @@ router.delete('/me', auth, async (req, res) => {
     }
   }
 
-  // Every R2 object this account owns has to be collected and deleted before
-  // the users row goes: the rows holding these keys all cascade away with it,
-  // and once they are gone nothing can ever find the objects again. Best
-  // effort per object, same as destroyVaultData(), so a storage hiccup never
-  // leaves someone with an account they cannot delete.
+  // Every R2 object this account owns has to be collected before the users
+  // row goes: the rows holding these keys all cascade away with it, and once
+  // they are gone nothing can ever find the objects again.
   //
   // REV-21 (2026-08-26 review): only uploaded_documents was collected here.
   // The voice recordings in personal_message_audio_clips (IDEA-01/IDEA-34) and
@@ -505,9 +510,6 @@ router.delete('/me', auth, async (req, res) => {
     ...await queryAll('SELECT audio_r2_key AS r2_key FROM personal_messages WHERE user_id = $1 AND audio_r2_key IS NOT NULL', [user.id]),
     ...await queryAll('SELECT audio_r2_key AS r2_key FROM last_moments WHERE user_id = $1 AND audio_r2_key IS NOT NULL', [user.id]),
   ];
-  for (const row of r2Rows) {
-    try { await deleteFile(row.r2_key); } catch { /* continue */ }
-  }
 
   // A deleted account should never keep being billed. Cancel immediately
   // (not cancel_at_period_end) since there's no account left to retain
@@ -521,7 +523,22 @@ router.delete('/me', auth, async (req, res) => {
     }
   }
 
+  // REV-31 (2026-08-26 review): this used to delete the R2 files before the
+  // users row, so a failed DELETE FROM users (a transient error, or any
+  // future FK constraint added to users without a cascade - see database.js
+  // for that exact class of bug happening before) would leave the account
+  // alive but every one of its files already irreversibly gone from R2, and
+  // the dangling uploaded_documents/etc rows pointing at nothing. Reordered
+  // to match admin.js's equivalent admin-triggered deletion (DELETE /users/:id):
+  // commit the DB row deletion first, then best-effort clean up R2 objects
+  // afterward, so a storage hiccup never leaves someone with an account they
+  // cannot delete, and a DB hiccup never leaves someone's files deleted out
+  // from under a still-live account.
   await query('DELETE FROM users WHERE id = $1', [user.id]);
+
+  for (const row of r2Rows) {
+    try { await deleteFile(row.r2_key); } catch { /* continue */ }
+  }
 
   sendEmail({
     to:      user.email,
