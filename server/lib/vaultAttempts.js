@@ -47,12 +47,22 @@ async function getVaultLockStatus(userId) {
 // keeps signing the session out and locking temporarily. Callers must handle
 // a null destroyAfter in their user-facing messages rather than printing
 // "N attempts remaining before deletion" for a vault that deletes nothing.
+//
+// REV-28: The vault_attempts counter is now incremented atomically via
+// UPDATE...RETURNING to prevent concurrent requests from both reading the
+// same count, incrementing it, and writing back the same value (which would
+// undercount attempts and weaken lockout/destroy thresholds).
 async function recordVaultAttempt(userId, req) {
+  // Atomically increment vault_attempts and return the updated user row in one round trip.
+  // This prevents concurrent requests from both reading count=N, incrementing to N+1,
+  // and both writing N+1, causing an undercount.
   const user = await queryOne(
-    'SELECT id, name, email, vault_attempts FROM users WHERE id = $1',
+    'UPDATE users SET vault_attempts = vault_attempts + 1 WHERE id = $1 RETURNING id, name, email, vault_attempts',
     [userId]
   );
   if (!user) return { attempts: 0, shouldLogout: false, vaultLocked: false, vaultDestroyed: false, lockedUntil: null };
+
+  const newAttempts = user.vault_attempts;
 
   const vault = await queryOne(
     'SELECT destroy_after_attempts, logout_after_attempts, lockout_after_attempts FROM digital_vault WHERE user_id = $1',
@@ -62,7 +72,6 @@ async function recordVaultAttempt(userId, req) {
   const logoutAfter    = vault?.logout_after_attempts    || DEFAULT_LOGOUT_THRESHOLD;
   const lockoutInterval = vault?.lockout_after_attempts  || DEFAULT_LOCKOUT_INTERVAL;
 
-  const newAttempts  = (user.vault_attempts || 0) + 1;
   const shouldLogout = newAttempts >= logoutAfter;
 
   if (destroyAfter !== null && newAttempts >= destroyAfter) {
@@ -82,7 +91,8 @@ async function recordVaultAttempt(userId, req) {
   const vaultLocked = newAttempts % lockoutInterval === 0;
   const lockedUntil = vaultLocked ? new Date(Date.now() + LOCKOUT_MINUTES * 60 * 1000) : null;
 
-  await query('UPDATE users SET vault_attempts = $1 WHERE id = $2', [newAttempts, userId]);
+  // vault_attempts was already incremented atomically in the UPDATE...RETURNING above.
+  // No separate UPDATE needed here.
 
   try {
     const ip = req?.headers?.['x-forwarded-for']?.split(',')[0].trim() || req?.socket?.remoteAddress || null;
