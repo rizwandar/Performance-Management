@@ -102,6 +102,16 @@ export function AuthProvider({ children }) {
     const stored = localStorage.getItem('user')
     return stored ? JSON.parse(stored) : null
   })
+  // Whether the cached `user` above has actually been confirmed against a
+  // live server session yet this page load. A cached user object can be
+  // stale - e.g. a tab was closed instead of clicking Logout, or a session
+  // simply expired with no open tab around to notice - and until this
+  // flips true, isLoggedIn() must not treat the cached value as
+  // authoritative. Otherwise privileged nav items (Premium badge, admin
+  // links, upgrade prompts) can render for a moment from stale cache before
+  // the mount-time session check below corrects them. No cached user at
+  // all means there's nothing privileged to gate, so start verified.
+  const [sessionVerified, setSessionVerified] = useState(() => !localStorage.getItem('user'))
   const [isViewAs, setIsViewAs] = useState(() => localStorage.getItem('viewAsActive') === '1')
   const viewAsTimerRef = useRef(null)
 
@@ -151,6 +161,7 @@ export function AuthProvider({ children }) {
     axios.get(`${import.meta.env.VITE_API_URL}/auth/csrf-token`)
       .then(r => setCsrfToken(r.data?.csrf_token))
       .catch(() => {/* left null - the interceptor's session_expired handling covers a truly dead session */})
+      .finally(() => setSessionVerified(true))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -162,6 +173,10 @@ export function AuthProvider({ children }) {
     if (csrfToken !== undefined) setCsrfToken(csrfToken)
     localStorage.setItem('user', JSON.stringify(userData))
     setUser(userData)
+    // This call itself is a live, just-confirmed server response (login,
+    // register, or a ProfilePage-style cache refresh) - not stale cache -
+    // so there's nothing to wait on verifying.
+    setSessionVerified(true)
   }
 
   // The view-as JWT is minted and set as the session cookie entirely
@@ -177,6 +192,7 @@ export function AuthProvider({ children }) {
     const viewAsUser = { id: null, name: customerName, is_admin: 0, editAllowed: !!editAllowed }
     localStorage.setItem('user', JSON.stringify(viewAsUser))
     setUser(viewAsUser)
+    setSessionVerified(true)
     setIsViewAs(true)
     clearViewAsTimer()
     viewAsTimerRef.current = setTimeout(() => { exitViewAs() }, 44 * 60 * 1000)
@@ -193,6 +209,7 @@ export function AuthProvider({ children }) {
         setCsrfToken(res.data?.csrf_token)
         localStorage.setItem('user', JSON.stringify(res.data.user))
         setUser(res.data.user)
+        setSessionVerified(true)
         return
       }
     } catch {
@@ -203,10 +220,17 @@ export function AuthProvider({ children }) {
     logout()
   }
 
+  // Deliberately NOT gated on sessionVerified: ProtectedRoute uses this to
+  // decide whether to redirect to /login, and a real logged-in user
+  // refreshing a protected page must not be bounced away from it for the
+  // brief moment before the mount-time check below resolves. sessionVerified
+  // is exposed separately below, for NavBar to gate privileged display
+  // elements (which don't need to be correct on the very first paint,
+  // just not misleadingly wrong for a moment).
   const isLoggedIn = () => !!user
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isLoggedIn, isViewAs, startViewAs, exitViewAs }}>
+    <AuthContext.Provider value={{ user, login, logout, isLoggedIn, isViewAs, startViewAs, exitViewAs, sessionVerified }}>
       {children}
     </AuthContext.Provider>
   )
