@@ -254,6 +254,28 @@ module.exports.handler = async (req, res) => {
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
+  // REV-11: Stripe delivers events at-least-once, so any event (including
+  // invoice.upcoming, which drives the REV-10 org-overage invoice item
+  // below) can arrive more than once. Recording event.id here, before any
+  // event-specific handling runs, and bailing out on a conflict makes every
+  // case in the switch below idempotent in one place, rather than needing a
+  // separate dedupe check per case. Return 200 on a duplicate delivery
+  // (not an error status) - Stripe interprets anything else as "retry this
+  // event again later", which is the opposite of what we want here.
+  try {
+    await query(
+      'INSERT INTO processed_stripe_events (event_id, event_type) VALUES ($1, $2)',
+      [event.id, event.type]
+    );
+  } catch (err) {
+    if (err.code === '23505') {
+      console.log(`[stripe webhook] Duplicate delivery of event ${event.id} (${event.type}), skipping`);
+      return res.json({ received: true });
+    }
+    console.error('[stripe webhook] Failed to record processed event id:', err.message);
+    return res.status(500).json({ error: 'Webhook handler failed' });
+  }
+
   try {
     switch (event.type) {
       case 'checkout.session.completed': {
