@@ -9,6 +9,7 @@ const {
 const { TABLE_FIELDS, decryptRow, migrateRow } = require('../lib/vaultFields');
 const { escrowAllTriples, tryRecoverKey } = require('../lib/vaultRecovery');
 const { recordVaultAttempt, getVaultLockStatus, resetVaultAttempts } = require('../lib/vaultAttempts');
+const { extractToken } = require('../lib/viewAsGuard');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
 
@@ -21,18 +22,17 @@ const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
 // requireAuth (which exposes this via req.isViewAs) hasn't run yet at this
 // point - same reasoning as sections.js's own comments on both checks.
 //
-// Reads the cookie first, same precedence as middleware/auth.js (SEC-09):
-// the web client's session - including the view-as session minted by
+// extractToken() (lib/viewAsGuard.js, REV-01 2026-08-26) reads the cookie
+// first, same precedence as middleware/auth.js (SEC-09): the web client's
+// session - including the view-as session minted by
 // POST /api/org-portal/customers/:id/view-as, which is delivered exclusively
 // as the httpOnly cookie, never a header - has had no readable token to put
 // in an Authorization header since SEC-09 shipped. A header-only check here
-// (the pattern sections.js itself uses) would silently no-op for every web
-// request and let the exact bypass this middleware exists to close straight
-// through. Only mobile's Bearer header has no cookie equivalent.
+// would silently no-op for every web request and let the exact bypass this
+// middleware exists to close straight through. Only mobile's Bearer header
+// has no cookie equivalent.
 router.use(async (req, res, next) => {
-  const header = req.headers.authorization;
-  const headerToken = header?.startsWith('Bearer ') ? header.slice(7) : null;
-  const token = req.cookies?.token || headerToken;
+  const token = extractToken(req);
   if (!token) return next();
   let decoded;
   try { decoded = jwt.verify(token, JWT_SECRET); } catch { return next(); }
