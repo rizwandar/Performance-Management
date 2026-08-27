@@ -44,7 +44,9 @@ function computeExpiresAt(user, lastActive) {
 // An executor's link never expires (contact.is_executor) - the owner, who'd
 // normally be the one to resend an expired link, is by definition unreachable
 // once the plan is actually triggered. The other two trusted-contact slots
-// keep the original 72-hour window, resendable by the owner at any time.
+// keep the original 72-hour window, resendable by the owner at any time -
+// except after death is confirmed (source: 'deceased_confirmed', REV-14
+// below), where there is no owner left to resend anything either.
 //
 // purpose: 'executor_preview' is the one exception (OPS-20) - the link sent
 // immediately alongside executorDesignatedEmail, before anything has actually
@@ -53,7 +55,17 @@ function computeExpiresAt(user, lastActive) {
 // inactivity period for any access at all - but this early link must not be
 // able to confirm a passing, only the later triggered links (inactivity
 // timeout, Report a Passing) can. 14 days, read-only, no demise-confirm.
-async function generateAccessLink(contact, { purpose } = {}) {
+//
+// source records which code path issued this token (see database.js for the
+// full list), so a later action can tell an automatic, demise-flow token
+// apart from one the owner deliberately created themselves - REV-13's login
+// handler (routes/auth.js) uses this to revoke only the automatic ones after
+// a false-alarm inactivity trigger, leaving the owner's own ad-hoc shares and
+// executor-preview link untouched. Defaults to 'executor_preview' when that
+// purpose is set, otherwise 'manual_share' (the owner-initiated
+// /:id/access-link route in routes/trustedContacts.js never passes one) -
+// every automatic caller below passes its own source explicitly.
+async function generateAccessLink(contact, { purpose, source } = {}) {
   const token = crypto.randomBytes(32).toString('hex');
   let expiresAt;
   let allowDemiseConfirm = true;
@@ -62,13 +74,21 @@ async function generateAccessLink(contact, { purpose } = {}) {
     allowDemiseConfirm = false;
   } else if (contact.is_executor) {
     expiresAt = null;
+  } else if (source === 'deceased_confirmed') {
+    // REV-14 fix: once death is confirmed, a non-executor's link gets exactly
+    // one 72-hour window with nobody left to resend it if it lapses unused
+    // (the owner is deceased, and deceased accounts are excluded from any
+    // other periodic re-notify loop). Mirror the executor's own non-expiring
+    // link instead, rather than building a separate resend path.
+    expiresAt = null;
   } else {
     expiresAt = new Date(Date.now() + EXPIRES_HOURS * 60 * 60 * 1000).toISOString();
   }
+  const resolvedSource = source || (purpose === 'executor_preview' ? 'executor_preview' : 'manual_share');
   await query('DELETE FROM trusted_contact_tokens WHERE contact_id = $1', [contact.id]);
   await query(
-    'INSERT INTO trusted_contact_tokens (contact_id, token, expires_at, allow_demise_confirm) VALUES ($1, $2, $3, $4)',
-    [contact.id, token, expiresAt, allowDemiseConfirm]
+    'INSERT INTO trusted_contact_tokens (contact_id, token, expires_at, allow_demise_confirm, source) VALUES ($1, $2, $3, $4, $5)',
+    [contact.id, token, expiresAt, allowDemiseConfirm, resolvedSource]
   );
   return `${CLIENT_URL}/access/${token}`;
 }
@@ -113,7 +133,12 @@ async function notifyTrustedContacts(user, { deceasedContext = false } = {}) {
     }
 
     attempted++;
-    const accessLink = await generateAccessLink(contact);
+    // REV-13: tag with the code path that issued this, so a later login can
+    // revoke only the automatic ones. REV-14: a deceased-context, non-executor
+    // link never expires either (see generateAccessLink) - reflect that in the
+    // email too, rather than telling the recipient a false 72-hour deadline.
+    const source = deceasedContext ? 'deceased_confirmed' : 'inactivity_trigger';
+    const accessLink = await generateAccessLink(contact, { source });
     try {
       await sendEmail({
         to:      contact.email,
@@ -122,7 +147,7 @@ async function notifyTrustedContacts(user, { deceasedContext = false } = {}) {
           recipientName: contact.name,
           ownerName:     user.name,
           accessLink,
-          expiresHours:  contact.is_executor ? null : EXPIRES_HOURS,
+          expiresHours:  (contact.is_executor || deceasedContext) ? null : EXPIRES_HOURS,
         }),
       });
       sentCount++;
@@ -162,7 +187,10 @@ async function notifyTrustedContacts(user, { deceasedContext = false } = {}) {
 // stamped on success, a retry only ever runs after a confirmed prior failure,
 // meaning no working link was ever delivered for the token being replaced).
 async function notifyExecutor(user, contact) {
-  const accessLink = await generateAccessLink(contact);
+  // REV-13: tagged 'inactivity_trigger' so a subsequent normal login (the
+  // owner turning out to be fine) can revoke this specific, non-expiring,
+  // demise-confirming token - see the login handler in routes/auth.js.
+  const accessLink = await generateAccessLink(contact, { source: 'inactivity_trigger' });
   let sent = false;
   try {
     await sendEmail({

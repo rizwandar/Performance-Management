@@ -659,6 +659,20 @@ async function init() {
   // notification this table ever receives (notifyPeopleToNotify in lib/deceased.js).
   await pool.query(`ALTER TABLE people_to_notify ADD COLUMN IF NOT EXISTS notified_at TIMESTAMPTZ`);
 
+  // REV-13/REV-14 fix: trusted_contact_tokens previously had no way to tell which
+  // code path issued a given token, so a login couldn't safely distinguish "the
+  // owner deliberately shared a link" (routes/trustedContacts.js's ad-hoc
+  // /:id/access-link route, or an executor-preview link) from "the inactivity
+  // timer or a Report a Passing submission issued this automatically because the
+  // owner looked unreachable." source records that origin: 'manual_share',
+  // 'executor_preview', 'inactivity_trigger', 'report_death', or
+  // 'deceased_confirmed'. Nullable and not backfilled for existing rows, since
+  // this table is only ever a short-lived, single-active-token-per-contact
+  // cache (see the DELETE-then-INSERT in generateAccessLink) rather than a
+  // durable record - an old NULL row is functionally equivalent to whichever
+  // token a fresh action of that same type would soon replace it with anyway.
+  await pool.query(`ALTER TABLE trusted_contact_tokens ADD COLUMN IF NOT EXISTS source TEXT`);
+
   // Version log: tracks the client app, admin panel, and org/funeral-home portal
   // as three independently-versioned areas (semver), even though all three ship
   // in the same deploy. A row is added whenever a change to that area is pushed.

@@ -254,6 +254,28 @@ router.post('/login', loginRules, validate, async (req, res) => {
         inactivity_contacts_notified_at = NULL
     WHERE id = $1
   `, [user.id]);
+
+  // REV-13 fix: a false-alarm inactivity trigger (or a mistaken/malicious
+  // Report a Passing submission) issues an executor token with expires_at =
+  // NULL and allow_demise_confirm = true - a permanent, still-live "confirm
+  // passing" link. Resetting the reminder/notified timestamps above did
+  // nothing about that already-issued token, so it kept working forever even
+  // after the owner demonstrably logged back in. Revoke only tokens tagged
+  // with the automatic inactivity-timer / report-death sources here; the
+  // owner's own deliberate ad-hoc shares ('manual_share') and the executor
+  // designation preview link ('executor_preview') are untouched, since those
+  // aren't tied to any inactivity/demise-confirmation trigger and logging in
+  // is not a reason to revoke them. Deceased-flow tokens ('deceased_confirmed')
+  // are also left alone: this account isn't marked deceased at this point
+  // (see the org-deactivation check above), so none should exist, and undoing
+  // a confirmed-deceased state is a separate concern this fix doesn't touch.
+  await query(
+    `DELETE FROM trusted_contact_tokens
+     WHERE source IN ('inactivity_trigger', 'report_death')
+       AND contact_id IN (SELECT id FROM trusted_contacts WHERE user_id = $1)`,
+    [user.id]
+  );
+
   auditLog(user.id, 'login_success', req);
 
   const token = jwt.sign(
