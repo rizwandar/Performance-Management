@@ -30,6 +30,7 @@ async function sendSignupTrialReminders() {
       WHERE u.signup_trial_started_at IS NOT NULL
         AND u.${column} IS NULL
         AND u.signup_trial_started_at <= NOW() - INTERVAL '${atDay} days'
+        AND u.signup_trial_started_at > NOW() - INTERVAL '${SIGNUP_TRIAL_DAYS} days'
         AND NOT EXISTS (
           -- Every user has a subscriptions row from registration (plan
           -- 'free', status 'active' - see auth.js's /register), so this
