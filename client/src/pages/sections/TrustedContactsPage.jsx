@@ -220,29 +220,18 @@ export default function TrustedContactsPage() {
         headline="The people you trust"
         highlight="trust"
         subtext="The trusted contacts who will be given access to your plans when the time comes, and the one person you trust to confirm it and set everything in motion."
+        cta={contacts.length < 3 ? { label: '+ Add a trusted contact', onClick: openAdd } : undefined}
       />
 
       <div style={{ background: 'var(--parchment)', borderRadius: 'var(--card-radius-sm, 12px)', padding: '24px 24px 16px', marginBottom: 16, border: '1px solid var(--border)' }}>
-        <div className="d-flex justify-content-between align-items-start mb-1 flex-wrap gap-2">
-          <h6 style={{ color: 'var(--green-900)', margin: 0 }}>Trusted Contacts</h6>
-          {contacts.length < 3 && (
-            <Button size="sm" variant="primary" onClick={openAdd}>+ Add contact</Button>
-          )}
-        </div>
+        <h6 style={{ color: 'var(--green-900)', margin: '0 0 8px' }}>Trusted Contacts</h6>
         <p className="text-muted small mb-1">
-          The people who should be given access to your plans when the time comes.
-          You can add up to 3 trusted contacts and choose exactly which sections each person can see.
-        </p>
-        <p className="text-muted small mb-1" style={{ fontStyle: 'italic' }}>
-          Unlike your emergency contact, trusted contacts receive a secure link to read your plans. You control what each person can access.
+          These are the people you trust enough to share your thoughts and plans with. Add up to
+          3 trusted contacts and choose exactly which sections each one can see.
         </p>
         <p className="text-muted small mb-0" style={{ fontStyle: 'italic' }}>
-          One of these three can also be made your <strong>Legacy Contact</strong>: the person notified
-          first if you stop logging in. They can view everything you've recorded except your
-          vault, and are the one who confirms what's happened. Only then are your other trusted
-          contacts and the people you've listed to notify actually informed.
-          {' '}Making someone your Legacy Contact emails them <strong>right away</strong> to explain the role,
-          not only if the inactivity timer ever lapses.
+          Unlike your emergency contact, each trusted contact receives a secure link to actually
+          read the sections you've chosen to share with them.
         </p>
       </div>
 
@@ -349,6 +338,18 @@ export default function TrustedContactsPage() {
                 </div>
               )
             })}
+          </div>
+
+          <div style={{ background: 'var(--green-50)', border: '1px solid var(--green-100)', borderRadius: 10, padding: '16px 20px', marginBottom: 16 }}>
+            <p style={{ fontWeight: 600, color: 'var(--green-900)', marginBottom: 6 }}>About the Legacy Contact</p>
+            <p className="text-muted small mb-0">
+              One of your three trusted contacts can also be made your <strong>Legacy Contact</strong>, the
+              person notified first if you stop logging in. They can see everything you've recorded except
+              your vault, and are the one who confirms what's happened. Only then are your other trusted
+              contacts and the people you've listed to notify actually informed. Making someone your Legacy
+              Contact emails them <strong>right away</strong> to explain the role, not only if the inactivity
+              timer ever lapses.
+            </p>
           </div>
 
           <div style={{ background: 'var(--gold-50)', border: '1px solid var(--gold-light)', borderRadius: 10, padding: '16px 20px' }}>
