@@ -516,7 +516,7 @@ function ProtectedRoute({ children, adminOnly = false, allowRoles = null }) {
 }
 
 function NavBar() {
-  const { user, isLoggedIn, isViewAs, logout } = useAuth()
+  const { user, isLoggedIn, isViewAs, logout, sessionVerified } = useAuth()
   const { siteName, logoUrl } = useBranding()
   const { isPremium } = useSubscription()
   const navigate = useNavigate()
@@ -537,7 +537,16 @@ function NavBar() {
         <Navbar.Toggle aria-label="Toggle navigation menu" />
         <Navbar.Collapse>
           <Nav className="ms-auto align-items-center">
-            {isLoggedIn() ? (
+            {/* Wait on sessionVerified before rendering the logged-in nav at
+                all: a cached `user` object can be stale (a dead session left
+                over from an earlier tab/login that never called logout()),
+                and rendering Premium/admin nav items off it before the
+                mount-time session check resolves produces a brief flash of
+                privileged-looking UI that then disappears once corrected.
+                Route access itself (ProtectedRoute) is unaffected - it still
+                uses the un-gated isLoggedIn() so a real logged-in user is
+                never bounced to /login while this resolves. */}
+            {isLoggedIn() && sessionVerified ? (
               <>
                 {!user?.is_admin && !user?.org_role && (
                   <>
