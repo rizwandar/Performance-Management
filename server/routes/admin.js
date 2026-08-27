@@ -200,6 +200,23 @@ router.post('/users/:id/revert-deceased', auth, adminOnly, async (req, res) => {
     `UPDATE users SET is_deceased = false, deceased_at = NULL, deceased_by = NULL WHERE id = $1`,
     [user.id]
   );
+
+  // OPS-36: when reverting a mistaken deceased marking, revoke all permanent
+  // deceased-confirmed tokens that were issued to this user's trusted contacts.
+  // REV-14 made these tokens permanent (expires_at = NULL) for all contacts,
+  // not just the executor, so they persist indefinitely even if the account is
+  // confirmed alive again. Revoke them on revert to prevent unauthorized access
+  // via stale deceased-access links. This mirrors the pattern in auth.js REV-13,
+  // which revokes inactivity-timer tokens on login; that fix deliberately does
+  // not touch deceased_confirmed tokens (separate concern), so this task closes
+  // that gap.
+  await query(
+    `DELETE FROM trusted_contact_tokens
+     WHERE source = 'deceased_confirmed'
+       AND contact_id IN (SELECT id FROM trusted_contacts WHERE user_id = $1)`,
+    [user.id]
+  );
+
   await query(
     'INSERT INTO user_audit_logs (user_id, action, metadata) VALUES ($1, $2, $3)',
     [req.user.id, 'deceased_status_reverted', JSON.stringify({ user_id: user.id })]
