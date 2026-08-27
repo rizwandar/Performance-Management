@@ -39,12 +39,26 @@ No test framework is configured.
 
 ## Production Safety Gate
 
-**Before promoting any code to production** (merging a `staging` → `main` PR, or any other action that pushes changes into the live production branch/environment), run an adversarial security review of the changes being promoted first:
+**Before promoting any code to production** (merging a PR into `main`, or any other action that pushes changes into the live production branch/environment), run an adversarial security review of the changes being promoted first:
 
 1. Run the `/security-review` skill against the full diff going into production (compare against `main`, not just the latest commit — a promotion can carry forward several commits).
 2. Review adversarially: actively look for ways a real attacker could hack, leak, or corrupt user data, not just style or correctness issues. Pay particular attention to authorization/access-control bypasses, cross-user data leakage (IDOR), injection, unvalidated/unsanitized input, insecure file uploads, secrets or vault-protected data leaking into logs/responses/error messages, and any change touching auth, vault encryption, billing, or the org portal.
 3. Severity gate: low/informational findings can be noted and the promotion can proceed. Any finding at **medium severity or above must pause the promotion** — report it and get explicit user sign-off before merging or deploying, do not resolve that judgment call unilaterally.
-4. This gate applies specifically to production promotions. It is not required for every regular commit on a feature/dev branch.
+4. **This review gate applies to every PR merged into `main`, regardless of whether it went through staging first.** Staging validation (below) is an additional step for higher-risk changes, not a substitute for this review.
+
+### Staging usage (reinstated 2026-08-27)
+
+`staging` was reset to exactly match `main` on 2026-08-27, after drifting significantly following an earlier 8-phase reconciliation project — do not let it drift again; treat any large `main`/`staging` diff as a problem to fix, not a normal state. The staging web service now runs on Render's Starter tier (no cold-start spin-down) and has a verified sending domain configured, so it is a reliable environment to actually test against.
+
+**Route a change through staging first, before `main`, when it touches:**
+- a database schema/migration change
+- authentication, sessions, or the vault encryption path
+- billing/Stripe (checkout, webhooks, subscription state)
+- the org/funeral-home portal (when that work resumes)
+
+For those: branch → PR into `staging` → verify the deployed behavior on staging directly → PR `staging` → `main` (still gated by the adversarial review above) → verify again on production after merge.
+
+**Everything else** (copy changes, UI/dashboard tweaks, small bug fixes, non-schema housekeeping) can go straight to a `main` PR as before — the adversarial review is the gate, not a staging hop. Don't add staging as ceremony for changes that don't need it; that's exactly the kind of unnecessary process cost that let staging drift out of sync last time.
 
 ## Architecture
 
