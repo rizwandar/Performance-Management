@@ -167,6 +167,7 @@ const { sendTrialReminders } = require('./lib/trialReminder');
 const { sendCardExpiryReminders } = require('./lib/cardExpiryReminder');
 const { sendSignupTrialReminders } = require('./lib/signupTrialReminder');
 const { sendUnfinishedSectionsNudges } = require('./lib/unfinishedSectionsNudge');
+const { deleteExpiredAuditLogs } = require('./lib/auditLogRetention');
 cron.schedule('0 8 * * *', () => {
   console.log('[inactivity] Running daily check...');
   checkInactivity().catch(err => console.error('[inactivity] Check failed:', err.message));
@@ -183,6 +184,12 @@ cron.schedule('0 8 * * *', () => {
   // lib/unfinishedSectionsNudge.js for the eligibility rules and the
   // trigger/cadence/audience defaults assumed for this feature.
   sendUnfinishedSectionsNudges().catch(err => console.error('[nudge] Unfinished-sections nudge sweep failed:', err.message));
+  // REV-23: enforces the Privacy Policy's 12-month audit-log retention promise
+  // (server/db/legalSeed.js, Data Retention section) by deleting expired rows
+  // from user_audit_logs.
+  deleteExpiredAuditLogs()
+    .then(count => { if (count > 0) console.log(`[audit-log-retention] Deleted ${count} expired user_audit_logs row(s).`); })
+    .catch(err => console.error('[audit-log-retention] Sweep failed:', err.message));
 });
 
 const { runBackup } = require('./lib/backup');
