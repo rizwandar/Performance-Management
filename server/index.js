@@ -42,7 +42,16 @@ app.use((req, res, next) => {
 // the raw request body, not JSON-parsed.
 app.post('/api/billing/webhook', express.raw({ type: 'application/json' }), require('./routes/stripeWebhook').handler);
 
-app.use(express.json({ limit: '10kb' }));
+// 10kb (the original default here) turned out too tight for sections that
+// deliberately invite long free-text - Your Last Moments ("a single,
+// weightier recording or letter") was designed for exactly that and had no
+// client-side length limit to warn a user before Save silently 413'd,
+// surfacing only as the generic catch-all error below. 256kb comfortably
+// covers even a very long multi-page letter (well over 250,000 characters)
+// while still bounding the worst case; per-section UI limits (see
+// LastMomentsPage.jsx) are the real guardrail that should trip first in
+// normal use, this is just a sane outer bound for the whole API.
+app.use(express.json({ limit: '256kb' }));
 app.use(cookieParser());
 
 const authLimiter = rateLimit({
