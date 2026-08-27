@@ -499,15 +499,31 @@ function contactAccessEmail({ recipientName, ownerName, accessLink, expiresHours
 // ---------------------------------------------------------------------------
 // Vault attempt alert
 // ---------------------------------------------------------------------------
-function vaultAttemptEmail({ name, attempts, remaining, maxAttempts }) {
-  const logoutWarning = attempts >= 3
+// maxAttempts is null whenever this account has NOT opted in to permanent
+// auto-destruction, which is the default for every vault since REV-22. In that
+// case the email must not imply a countdown to deletion: the only consequences
+// are the sign-out and the temporary lockout, and it should say so plainly.
+function vaultAttemptEmail({ name, attempts, remaining, maxAttempts, logoutAfter = 5, lockoutInterval = 5, lockoutMinutes = 3 }) {
+  const destroyEnabled = maxAttempts !== null && maxAttempts !== undefined;
+
+  const destroyLine = destroyEnabled
+    ? ` After ${maxAttempts} total incorrect attempts, your vault will be
+        <strong>permanently deleted</strong>, because this account has the optional
+        "maximum security" auto-delete setting switched on.`
+    : ` <strong>Nothing is deleted for incorrect attempts.</strong> Your vault-protected data
+        stays exactly where it is.`;
+
+  const logoutWarning = attempts >= logoutAfter
     ? `<p style="background:#FEF2F2; border:1px solid #FECACA; border-radius:8px; padding:14px 16px; color:#991B1B; font-size:14px;">
-        <strong>Security notice:</strong> After 3 incorrect attempts you are automatically signed out
-        and must log in again before trying. Every 5 attempts, your vault is temporarily locked for
-        15 minutes. After ${maxAttempts} total incorrect attempts, your vault will be
-        <strong>permanently deleted</strong> for your security - this account's configured threshold.
+        <strong>Security notice:</strong> After ${logoutAfter} incorrect attempts you are automatically signed out
+        and must log in again before trying. Every ${lockoutInterval} attempts, your vault is temporarily locked for
+        ${lockoutMinutes} minutes.${destroyLine}
        </p>`
     : '';
+
+  const counterLine = destroyEnabled
+    ? `<strong>Attempt ${attempts} of ${maxAttempts}</strong>${remaining > 0 ? ` before permanent deletion. ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining.` : '.'}`
+    : `<strong>Attempt ${attempts}.</strong> Nothing has been deleted.`;
 
   return layout(`
     <p>Dear ${name},</p>
@@ -515,7 +531,7 @@ function vaultAttemptEmail({ name, attempts, remaining, maxAttempts }) {
       We detected a failed attempt to access your vault on <strong>${APP_NAME}</strong>.
     </p>
     <p style="background:#FFF7ED; border:1px solid #FED7AA; border-radius:8px; padding:14px 16px; font-size:14px; color:#92400E;">
-      <strong>Attempt ${attempts} of ${maxAttempts}</strong>${remaining > 0 ? ` before permanent deletion. ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining.` : '.'}
+      ${counterLine}
     </p>
     ${logoutWarning}
     <p>
@@ -537,14 +553,14 @@ function vaultAttemptEmail({ name, attempts, remaining, maxAttempts }) {
 // ---------------------------------------------------------------------------
 // Vault temporarily locked notification
 // ---------------------------------------------------------------------------
-function vaultLockedEmail({ name, lockedUntil, minutes }) {
+function vaultLockedEmail({ name, lockedUntil, minutes, interval = 5 }) {
   const until = new Date(lockedUntil).toLocaleString('en-US', {
     dateStyle: 'medium', timeStyle: 'short',
   });
   return layout(`
     <p>Dear ${name},</p>
     <p>
-      After 5 consecutive failed vault password attempts, your vault on
+      After ${interval} consecutive failed vault password attempts, your vault on
       <strong>${APP_NAME}</strong> has been temporarily locked for ${minutes} minutes as a security measure.
     </p>
     <p style="background:#FFF7ED; border:1px solid #FED7AA; border-radius:8px; padding:14px 16px; color:#92400E; font-size:14px;">
@@ -570,8 +586,9 @@ function vaultDestroyedEmail({ name, attempts }) {
     <p>Dear ${name},</p>
     <p>
       After ${attempts} consecutive failed vault password attempts, your vault-protected data on
-      <strong>${APP_NAME}</strong> has been <strong>permanently deleted</strong>, per your account's
-      configured safety setting.
+      <strong>${APP_NAME}</strong> has been <strong>permanently deleted</strong>. This happened
+      because the optional "maximum security" auto-delete setting was switched on for your vault.
+      It is switched off by default, so this only applies to accounts that chose it.
     </p>
     <p style="background:#FEF2F2; border:1px solid #FECACA; border-radius:8px; padding:14px 16px; color:#991B1B; font-size:14px;">
       Legal documents, digital credentials, financial affairs, property, and household information

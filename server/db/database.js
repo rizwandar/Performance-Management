@@ -303,13 +303,81 @@ async function init() {
   await pool.query(`ALTER TABLE digital_vault ADD COLUMN IF NOT EXISTS recovery_enabled BOOLEAN NOT NULL DEFAULT false`);
   await pool.query(`ALTER TABLE digital_vault ADD COLUMN IF NOT EXISTS destroy_after_attempts INTEGER NOT NULL DEFAULT 100`);
 
+  // REV-22 (2026-08-26): auto-destruction is now OFF unless a user explicitly
+  // opts in. NULL is the chosen "disabled" representation: it is the only
+  // value that cannot also be read as a real threshold (0 or -1 would both be
+  // integers a future validator or off-by-one could treat as "destroy on the
+  // next attempt"), and it lets the column mean exactly "no threshold set."
+  // The catch is that NULL is falsy in JS, so the old
+  // `vault?.destroy_after_attempts || DEFAULT` pattern would silently turn
+  // destruction back on for every disabled vault. lib/vaultAttempts.js
+  // therefore checks for an explicit positive integer instead, and never
+  // falls back to a default. Relaxing NOT NULL and the DEFAULT is
+  // backwards-compatible: no column is dropped or renamed, and existing
+  // non-null values keep working exactly as before.
+  await pool.query(`ALTER TABLE digital_vault ALTER COLUMN destroy_after_attempts DROP NOT NULL`);
+  await pool.query(`ALTER TABLE digital_vault ALTER COLUMN destroy_after_attempts DROP DEFAULT`);
+
+  // One-time backfill of vaults still sitting on the old silent 100 default.
+  // The whole point of REV-22 is that nobody should be carrying an unrequested
+  // destroy setting for irreplaceable end-of-life data, and that applies to
+  // accounts created before this change just as much as to new ones. Rows with
+  // any other value were deliberately chosen by their owner and are left alone.
+  //
+  // The app_settings marker makes this run exactly once, ever. Without it, a
+  // user who later opts in via Profile > Vault Settings (which writes 100, the
+  // suggested value) would be silently switched back off on the next server
+  // boot, which is the opposite failure of the one this migration fixes.
+  const destroyBackfill = await pool.query(
+    `SELECT value FROM app_settings WHERE key = 'rev22_destroy_default_cleared'`
+  );
+  if (destroyBackfill.rows.length === 0) {
+    const cleared = await pool.query(
+      `UPDATE digital_vault SET destroy_after_attempts = NULL WHERE destroy_after_attempts = 100`
+    );
+    await pool.query(
+      `INSERT INTO app_settings (key, value) VALUES ('rev22_destroy_default_cleared', $1)
+       ON CONFLICT (key) DO NOTHING`,
+      [new Date().toISOString()]
+    );
+    console.log(`[db] REV-22: cleared the legacy destroy_after_attempts=100 default on ${cleared.rowCount} vault(s).`);
+  }
+
   // Also configurable, matching destroy_after_attempts's pattern: logout_after_attempts
-  // forces a sign-out once cumulative wrong attempts reach it (default 3);
-  // lockout_after_attempts triggers a repeating 15-minute throttle every time the
+  // forces a sign-out once cumulative wrong attempts reach it (default 5);
+  // lockout_after_attempts triggers a repeating short throttle every time the
   // attempt count is a multiple of it (default 5). Both independent of destroy_after_attempts
   // and of each other - see lib/vaultAttempts.js for how all three interact.
-  await pool.query(`ALTER TABLE digital_vault ADD COLUMN IF NOT EXISTS logout_after_attempts INTEGER NOT NULL DEFAULT 3`);
+  //
+  // REV-22 raised the logout default from 3 to 5 so it lines up with the
+  // lockout interval instead of firing earlier and separately. ADD COLUMN IF
+  // NOT EXISTS does not rewrite an existing column's default, so the explicit
+  // SET DEFAULT below is what actually changes it on an existing database.
+  await pool.query(`ALTER TABLE digital_vault ADD COLUMN IF NOT EXISTS logout_after_attempts INTEGER NOT NULL DEFAULT 5`);
   await pool.query(`ALTER TABLE digital_vault ADD COLUMN IF NOT EXISTS lockout_after_attempts INTEGER NOT NULL DEFAULT 5`);
+  await pool.query(`ALTER TABLE digital_vault ALTER COLUMN logout_after_attempts SET DEFAULT 5`);
+
+  // Same one-time, marker-guarded treatment for rows still on the old silent
+  // default of 3, so existing accounts actually behave the way the Security
+  // page and Privacy Policy now describe. This one is not a data-safety fix,
+  // it is only about the two numbers agreeing: being signed out is recoverable,
+  // unlike the destroy setting above. Rows on any other value were chosen
+  // deliberately and are left alone, and the marker stops a later deliberate
+  // choice of 3 from being overwritten on the next boot.
+  const logoutBackfill = await pool.query(
+    `SELECT value FROM app_settings WHERE key = 'rev22_logout_default_raised'`
+  );
+  if (logoutBackfill.rows.length === 0) {
+    const raised = await pool.query(
+      `UPDATE digital_vault SET logout_after_attempts = 5 WHERE logout_after_attempts = 3`
+    );
+    await pool.query(
+      `INSERT INTO app_settings (key, value) VALUES ('rev22_logout_default_raised', $1)
+       ON CONFLICT (key) DO NOTHING`,
+      [new Date().toISOString()]
+    );
+    console.log(`[db] REV-22: raised the legacy logout_after_attempts=3 default to 5 on ${raised.rowCount} vault(s).`);
+  }
 
   // The questions a user configured for vault-specific security-question
   // recovery. question_index is a stable 1..5 ordinal used to pair answers

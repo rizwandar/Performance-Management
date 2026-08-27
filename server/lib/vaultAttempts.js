@@ -2,12 +2,28 @@ const { queryOne, query } = require('../db/database');
 const { destroyVaultData } = require('./vaultDestroy');
 
 // Defaults for a vault row that predates these columns, or hasn't set them.
-// All three are independently configurable per-vault (digital_vault table) -
-// see routes/vaultRecovery.js's logout-threshold/lockout-threshold/destroy-threshold.
+// Both are independently configurable per-vault (digital_vault table) -
+// see routes/vaultRecovery.js's logout-threshold/lockout-threshold.
 const DEFAULT_LOCKOUT_INTERVAL = 5;   // temporary lockout every N attempts, as a throttle
-const DEFAULT_LOGOUT_THRESHOLD = 3;
-const LOCKOUT_MINUTES  = 15;
-const DEFAULT_DESTROY_AFTER = 100;
+const DEFAULT_LOGOUT_THRESHOLD = 5;   // REV-22: was 3, aligned with the lockout interval
+const LOCKOUT_MINUTES  = 3;           // REV-22: was 15, a throttle rather than a punishment
+
+// REV-22: there is deliberately NO default destroy threshold. Permanent
+// destruction of vault-protected data is opt-in only, and a vault with
+// destroy_after_attempts IS NULL never destroys anything, no matter how many
+// wrong guesses it sees. This value is only the number the client suggests
+// when a user explicitly turns the setting on.
+const OPT_IN_DESTROY_AFTER = 100;
+
+// Normalizes the raw destroy_after_attempts column into either a positive
+// integer threshold or null for "disabled". Deliberately NOT
+// `vault?.destroy_after_attempts || SOMETHING`: NULL, 0 and undefined are all
+// falsy, so an `||` fallback would silently re-enable permanent destruction on
+// exactly the vaults that have it switched off. Missing vault row, NULL, and
+// any non-positive value all mean disabled.
+function resolveDestroyAfter(raw) {
+  return Number.isInteger(raw) && raw > 0 ? raw : null;
+}
 
 // Checks whether the vault is currently under a lockout from a past run of
 // failed attempts. Returns the lockedUntil timestamp if still locked, or
@@ -23,8 +39,14 @@ async function getVaultLockStatus(userId) {
 // password resets it, via resetVaultAttempts) so a user-configured
 // destroy_after_attempts threshold is actually reachable - it used to be
 // zeroed the moment a lockout fired, which meant a cumulative threshold
-// above LOCKOUT_INTERVAL could never be hit. The 15-minute lockout still
-// fires every LOCKOUT_INTERVAL attempts as a throttle in between.
+// above LOCKOUT_INTERVAL could never be hit. The lockout still fires every
+// LOCKOUT_INTERVAL attempts as a throttle in between.
+//
+// destroyAfter comes back as null for the default, disabled case (REV-22), in
+// which case no number of wrong attempts destroys anything: the vault just
+// keeps signing the session out and locking temporarily. Callers must handle
+// a null destroyAfter in their user-facing messages rather than printing
+// "N attempts remaining before deletion" for a vault that deletes nothing.
 async function recordVaultAttempt(userId, req) {
   const user = await queryOne(
     'SELECT id, name, email, vault_attempts FROM users WHERE id = $1',
@@ -36,14 +58,14 @@ async function recordVaultAttempt(userId, req) {
     'SELECT destroy_after_attempts, logout_after_attempts, lockout_after_attempts FROM digital_vault WHERE user_id = $1',
     [userId]
   );
-  const destroyAfter   = vault?.destroy_after_attempts   || DEFAULT_DESTROY_AFTER;
+  const destroyAfter   = resolveDestroyAfter(vault?.destroy_after_attempts);
   const logoutAfter    = vault?.logout_after_attempts    || DEFAULT_LOGOUT_THRESHOLD;
   const lockoutInterval = vault?.lockout_after_attempts  || DEFAULT_LOCKOUT_INTERVAL;
 
   const newAttempts  = (user.vault_attempts || 0) + 1;
   const shouldLogout = newAttempts >= logoutAfter;
 
-  if (newAttempts >= destroyAfter) {
+  if (destroyAfter !== null && newAttempts >= destroyAfter) {
     await query('UPDATE users SET vault_attempts = 0, vault_locked_until = NULL WHERE id = $1', [userId]);
     await destroyVaultData(userId, {
       reason: 'vault_destroyed_max_attempts',
@@ -73,12 +95,12 @@ async function recordVaultAttempt(userId, req) {
     console.error('[vault-attempts] Audit log failed:', e.message);
   }
 
-  const remaining = Math.max(0, destroyAfter - newAttempts);
-  _sendAttemptEmail(user, newAttempts, remaining, destroyAfter);
+  const remaining = destroyAfter === null ? null : Math.max(0, destroyAfter - newAttempts);
+  _sendAttemptEmail(user, newAttempts, remaining, destroyAfter, logoutAfter, lockoutInterval);
 
   if (vaultLocked) {
     await query('UPDATE users SET vault_locked_until = $1 WHERE id = $2', [lockedUntil.toISOString(), userId]);
-    _sendLockedEmail(user, lockedUntil);
+    _sendLockedEmail(user, lockedUntil, lockoutInterval);
   }
 
   return {
@@ -91,23 +113,31 @@ async function resetVaultAttempts(userId) {
   await query('UPDATE users SET vault_attempts = 0, vault_locked_until = NULL WHERE id = $1', [userId]);
 }
 
-function _sendAttemptEmail(user, attempts, remaining, maxAttempts) {
+// maxAttempts is null when auto-destruction is disabled (the default since
+// REV-22), so the subject line and body must not promise a countdown to a
+// deletion that will never happen.
+function _sendAttemptEmail(user, attempts, remaining, maxAttempts, logoutAfter, lockoutInterval) {
   const { sendEmail } = require('./sendEmail');
   const { vaultAttemptEmail } = require('./emailTemplates');
   sendEmail({
     to:      user.email,
-    subject: `In Good Hands: Failed vault access attempt ${attempts} of ${maxAttempts}`,
-    html:    vaultAttemptEmail({ name: user.name, attempts, remaining, maxAttempts }),
+    subject: maxAttempts === null
+      ? `In Good Hands: Failed vault access attempt ${attempts}`
+      : `In Good Hands: Failed vault access attempt ${attempts} of ${maxAttempts}`,
+    html:    vaultAttemptEmail({
+      name: user.name, attempts, remaining, maxAttempts,
+      logoutAfter, lockoutInterval, lockoutMinutes: LOCKOUT_MINUTES,
+    }),
   }).catch(e => console.error('[vault-attempts] Email failed:', e.message));
 }
 
-function _sendLockedEmail(user, lockedUntil) {
+function _sendLockedEmail(user, lockedUntil, interval) {
   const { sendEmail } = require('./sendEmail');
   const { vaultLockedEmail } = require('./emailTemplates');
   sendEmail({
     to:      user.email,
     subject: 'In Good Hands: Your vault has been temporarily locked',
-    html:    vaultLockedEmail({ name: user.name, lockedUntil, minutes: LOCKOUT_MINUTES }),
+    html:    vaultLockedEmail({ name: user.name, lockedUntil, minutes: LOCKOUT_MINUTES, interval }),
   }).catch(e => console.error('[vault-attempts] Locked email failed:', e.message));
 }
 
@@ -122,6 +152,6 @@ function _sendDestroyedEmail(user, attempts) {
 }
 
 module.exports = {
-  recordVaultAttempt, resetVaultAttempts, getVaultLockStatus,
-  DEFAULT_LOCKOUT_INTERVAL, DEFAULT_LOGOUT_THRESHOLD, LOCKOUT_MINUTES, DEFAULT_DESTROY_AFTER,
+  recordVaultAttempt, resetVaultAttempts, getVaultLockStatus, resolveDestroyAfter,
+  DEFAULT_LOCKOUT_INTERVAL, DEFAULT_LOGOUT_THRESHOLD, LOCKOUT_MINUTES, OPT_IN_DESTROY_AFTER,
 };

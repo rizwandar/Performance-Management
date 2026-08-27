@@ -8,7 +8,7 @@ const {
 } = require('../lib/vault');
 const { TABLE_FIELDS, decryptRow, migrateRow } = require('../lib/vaultFields');
 const { escrowAllTriples, tryRecoverKey } = require('../lib/vaultRecovery');
-const { recordVaultAttempt, getVaultLockStatus, resetVaultAttempts } = require('../lib/vaultAttempts');
+const { recordVaultAttempt, getVaultLockStatus, resetVaultAttempts, LOCKOUT_MINUTES } = require('../lib/vaultAttempts');
 const { extractToken } = require('../lib/viewAsGuard');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
@@ -194,15 +194,23 @@ router.post('/recover', requireAuth, async (req, res) => {
         locked_until: newLockedUntil.toISOString(),
       });
     }
+    // destroyAfter is null unless the user opted in to permanent destruction
+    // (REV-22) - same handling as lib/vaultAuth.js, since this is the second
+    // guessing path into the same key and must describe the same behavior.
     if (shouldLogout) {
       return res.status(403).json({
-        error: `We couldn't verify at least 3 correct answers. For your security, you have been signed out. Please sign in again. (${attempts} of ${destroyAfter} attempts used.)`,
+        error: destroyAfter === null
+          ? `We couldn't verify at least 3 correct answers. For your security, you have been signed out. Please sign in again. Nothing has been deleted.`
+          : `We couldn't verify at least 3 correct answers. For your security, you have been signed out. Please sign in again. (${attempts} of ${destroyAfter} attempts used.)`,
         force_logout: true, attempts,
       });
     }
-    const remaining = Math.max(0, destroyAfter - attempts);
+    const remaining = destroyAfter === null ? null : Math.max(0, destroyAfter - attempts);
+    const throttleNote = `After ${logoutAfter} incorrect attempt${logoutAfter !== 1 ? 's' : ''} you will be signed out; every ${lockoutInterval}, your vault is temporarily locked for ${LOCKOUT_MINUTES} minutes.`;
     return res.status(401).json({
-      error: `We couldn't verify at least 3 correct answers. ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining before your vault is permanently deleted. After ${logoutAfter} incorrect attempt${logoutAfter !== 1 ? 's' : ''} you will be signed out; every ${lockoutInterval}, your vault is temporarily locked for 15 minutes.`,
+      error: destroyAfter === null
+        ? `We couldn't verify at least 3 correct answers. Nothing has been deleted. ${throttleNote}`
+        : `We couldn't verify at least 3 correct answers. ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining before your vault is permanently deleted. ${throttleNote}`,
       attempts, remaining,
     });
   }
@@ -256,12 +264,30 @@ router.post('/recover', requireAuth, async (req, res) => {
 });
 
 // PUT /api/sections/digital-life/recovery/destroy-threshold
+//
+// The opt-in switch for permanent auto-destruction (REV-22). Off is the
+// default for every vault, so this endpoint has to be able to say "off" as
+// well as "on at N":
+//   destroy_after_attempts: 3..1000  turns it on at that threshold
+//   destroy_after_attempts: null (or '' or false)  turns it off
+// Omitting the field entirely is rejected rather than guessed at: this setting
+// decides whether a user's irreplaceable data can be deleted, so an ambiguous
+// request should fail loudly instead of picking a side.
 router.put('/destroy-threshold', requireAuth, async (req, res) => {
-  const { vault_password, destroy_after_attempts } = req.body;
+  const { vault_password } = req.body;
   if (!vault_password) return res.status(400).json({ error: 'Your current vault password is required to confirm.' });
-  const n = parseInt(destroy_after_attempts, 10);
-  if (!Number.isInteger(n) || n < 3 || n > 1000) {
-    return res.status(400).json({ error: 'Please choose a value between 3 and 1000.' });
+  if (!Object.prototype.hasOwnProperty.call(req.body, 'destroy_after_attempts')) {
+    return res.status(400).json({ error: 'destroy_after_attempts is required (a number to turn this on, or null to turn it off).' });
+  }
+
+  const raw = req.body.destroy_after_attempts;
+  const disable = raw === null || raw === '' || raw === false;
+  let n = null;
+  if (!disable) {
+    n = parseInt(raw, 10);
+    if (!Number.isInteger(n) || n < 3 || n > 1000) {
+      return res.status(400).json({ error: 'Please choose a value between 3 and 1000.' });
+    }
   }
 
   const vault = await queryOne('SELECT id, check_enc FROM digital_vault WHERE user_id = $1', [req.user.id]);
@@ -273,12 +299,29 @@ router.put('/destroy-threshold', requireAuth, async (req, res) => {
   }
 
   await query('UPDATE digital_vault SET destroy_after_attempts = $1 WHERE id = $2', [n, vault.id]);
+
+  // Worth an audit trail either way: switching this on is a user consciously
+  // arming a destructive setting, and switching it off is a change in how
+  // their data can be lost. Both are the kind of thing support needs to be
+  // able to reconstruct later.
+  try {
+    const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress || null;
+    const ua = req.headers['user-agent'] || null;
+    await query(
+      'INSERT INTO user_audit_logs (user_id, action, ip_address, user_agent, metadata) VALUES ($1, $2, $3, $4, $5)',
+      [req.user.id, n === null ? 'vault_auto_destroy_disabled' : 'vault_auto_destroy_enabled', ip, ua,
+        JSON.stringify({ destroy_after_attempts: n })]
+    );
+  } catch (e) {
+    console.error('[vault-recovery] Audit log failed:', e.message);
+  }
+
   res.json({ success: true, destroy_after_attempts: n });
 });
 
 // PUT /api/sections/digital-life/recovery/logout-threshold
 // Same shape as destroy-threshold above: forces a sign-out once cumulative
-// wrong vault-password attempts reach this many (default 3). See
+// wrong vault-password attempts reach this many (default 5 since REV-22). See
 // lib/vaultAttempts.js for how this interacts with lockout/destroy.
 router.put('/logout-threshold', requireAuth, async (req, res) => {
   const { vault_password, logout_after_attempts } = req.body;
@@ -301,9 +344,10 @@ router.put('/logout-threshold', requireAuth, async (req, res) => {
 });
 
 // PUT /api/sections/digital-life/recovery/lockout-threshold
-// Sets the interval, every Nth wrong attempt triggers a repeating 15-minute
-// throttle (default 5, i.e. attempts 5, 10, 15... each lock the vault
-// temporarily). Independent of logout_after_attempts and destroy_after_attempts.
+// Sets the interval, every Nth wrong attempt triggers a repeating short
+// throttle (LOCKOUT_MINUTES in lib/vaultAttempts.js, 3 minutes since REV-22)
+// with default 5, i.e. attempts 5, 10, 15... each lock the vault temporarily.
+// Independent of logout_after_attempts and destroy_after_attempts.
 router.put('/lockout-threshold', requireAuth, async (req, res) => {
   const { vault_password, lockout_after_attempts } = req.body;
   if (!vault_password) return res.status(400).json({ error: 'Your current vault password is required to confirm.' });
