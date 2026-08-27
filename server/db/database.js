@@ -1497,6 +1497,52 @@ async function init() {
     )
   `);
 
+  // REV-08 (2026-08-26 security review): user_id foreign-key columns across
+  // the app's per-user tables had no index - Postgres does not auto-index FK
+  // columns (only the referenced side, users.id, is indexed via its PRIMARY
+  // KEY). Every one of these tables is queried by user_id on nearly every
+  // request (section reads, exports, account deletion, the admin panel), so
+  // each of those queries was doing a full table scan. Tables whose user_id
+  // is already UNIQUE (funeral_wishes, medical_wishes, digital_vault,
+  // subscriptions, doctors, medical_records, donation_bank) are skipped here:
+  // a UNIQUE constraint already creates its own index on that column.
+  // section_shares and personal_message_audio_clips already had the right
+  // index (see above), and organization_customers already has a partial
+  // unique index on user_id (organization_customers_one_org_per_user) -
+  // those are skipped too. Purely additive, same as every other migration in
+  // this file: safe to run on every boot, a no-op once the index exists.
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_trusted_contacts_user_id ON trusted_contacts(user_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_legal_documents_user_id ON legal_documents(user_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_financial_items_user_id ON financial_items(user_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_people_to_notify_user_id ON people_to_notify(user_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_property_items_user_id ON property_items(user_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_personal_messages_user_id ON personal_messages(user_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_songs_that_define_me_user_id ON songs_that_define_me(user_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_life_wishes_user_id ON life_wishes(user_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_household_info_user_id ON household_info(user_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_children_dependants_user_id ON children_dependants(user_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_digital_credentials_user_id ON digital_credentials(user_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_payment_methods_user_id ON payment_methods(user_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_subscription_events_user_id ON subscription_events(user_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_favourite_songs_user_id ON favourite_songs(user_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_bucket_list_items_user_id ON bucket_list_items(user_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_used_trial_fingerprints_user_id ON used_trial_fingerprints(user_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_pets_user_id ON pets(user_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_insurance_items_user_id ON insurance_items(user_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_unfinished_business_user_id ON unfinished_business(user_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_last_moments_user_id ON last_moments(user_id)`);
+
+  // Composite indexes for the two most expensive query shapes the REV-08
+  // review identified: user_audit_logs is queried per-user filtered by
+  // action and ordered by created_at (admin.js's per-row audit-log lookup),
+  // and uploaded_documents is queried per-user filtered by section_id/
+  // item_id for per-section completion counts (sections.js). A composite
+  // index with user_id leftmost also serves plain "WHERE user_id = ..."
+  // queries on its own, so no separate single-column index is added for
+  // either table.
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_user_audit_logs_user_action_created ON user_audit_logs(user_id, action, created_at)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_uploaded_documents_user_section_item ON uploaded_documents(user_id, section_id, item_id)`);
+
   console.log('[db] PostgreSQL schema ready');
 }
 
