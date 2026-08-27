@@ -36,6 +36,7 @@ import OrgSettingsPage        from './pages/org/OrgSettingsPage'
 import OrgTokenPage           from './pages/org/OrgTokenPage'
 import ViewAsBanner           from './components/ViewAsBanner'
 import SecurityPage           from './pages/SecurityPage'
+import FaqPage                from './pages/FaqPage'
 import NotFoundPage           from './pages/NotFoundPage'
 import LegalDocumentsPage     from './pages/sections/LegalDocumentsPage'
 import FinancialAffairsPage   from './pages/sections/FinancialAffairsPage'
@@ -875,6 +876,7 @@ function AppContent() {
           <Route path="/terms"             element={<TermsPage />} />
           <Route path="/accessibility"     element={<AccessibilityPage />} />
           <Route path="/security"          element={<SecurityPage />} />
+          <Route path="/faq"               element={<FaqPage />} />
           <Route path="/pricing"           element={<PricingPage />} />
           <Route path="/login"             element={<LoginPage />} />
           <Route path="/register"          element={<RegisterPage />} />
