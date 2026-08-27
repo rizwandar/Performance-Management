@@ -339,31 +339,24 @@ export default function TrustedContactsPage() {
           <div style={{ background: 'var(--green-50)', border: '1px solid var(--green-100)', borderRadius: 10, padding: '16px 20px', marginBottom: 16 }}>
             <p style={{ fontWeight: 600, color: 'var(--green-900)', marginBottom: 6 }}>About the Legacy Contact</p>
             <p className="text-muted small mb-0">
-              One of your three trusted contacts can also be made your <strong>Legacy Contact</strong>, the
-              person notified first if you stop logging in. They can see everything you've recorded except
-              your vault, and are the one who confirms what's happened. Only then are your other trusted
-              contacts and the people you've listed to notify actually informed. Making someone your Legacy
-              Contact emails them <strong>right away</strong> to explain the role, not only if the inactivity
-              timer ever lapses.
+              Your <strong>Legacy Contact</strong> is the person notified first if you stop logging in. They
+              can see everything you've recorded, except your vault.
             </p>
           </div>
 
           <div style={{ background: 'var(--gold-50)', border: '1px solid var(--gold-light)', borderRadius: 10, padding: '16px 20px' }}>
             <p style={{ fontWeight: 600, color: 'var(--green-900)', marginBottom: 6 }}>How trusted contact access works</p>
-            <ul className="text-muted small mb-0" style={{ paddingLeft: '1.2rem', lineHeight: 1.8 }}>
-              <li>Click <strong>Send access link</strong> to email a secure link to your contact.</li>
-              <li>For your two non-Legacy-Contact contacts, the link is valid for <strong>72 hours</strong> and gives read-only access to the sections you select.</li>
-              <li>Your <strong>Legacy Contact</strong>'s link is different: it doesn't expire, and gives read-only access to everything except your vault, since sections don't apply to their role.</li>
-              <li>Your digital credentials (passwords) are never included. They are encrypted and only accessible by you.</li>
-              <li>You can send a new link at any time. A new link invalidates the previous one.</li>
+            <ol className="text-muted small mb-0" style={{ paddingLeft: '1.2rem', lineHeight: 1.8 }}>
+              <li><strong>Send access link:</strong> sends a secure link to your trusted contact with read-only access to the sections you've selected for them, valid for 72 hours.</li>
               <li>
-                If you haven't logged in within <strong>{inactivityMonths} month{inactivityMonths === 1 ? '' : 's'}</strong>,
-                your <strong>Legacy Contact</strong> is notified first and can confirm what's happened. Only then are your
-                other trusted contacts emailed automatically. If you haven't designated a Legacy Contact, all trusted
-                contacts are notified directly instead. You can change this period any time in{' '}
+                <strong>Legacy Contact:</strong> their link doesn't expire and gives read-only access to
+                everything except your vault. If you haven't logged in within{' '}
+                <strong>{inactivityMonths} month{inactivityMonths === 1 ? '' : 's'}</strong>, your Legacy
+                Contact is notified. You can change this period any time in{' '}
                 <Link to="/profile/settings#inactivity-timer">your profile</Link>.
               </li>
-            </ul>
+              <li>Your passwords (digital credentials) are never shared and are encrypted, accessible only by you.</li>
+            </ol>
           </div>
         </>
       )}
