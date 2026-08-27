@@ -1677,7 +1677,7 @@ async function init() {
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_pets_user_id ON pets(user_id)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_insurance_items_user_id ON insurance_items(user_id)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_unfinished_business_user_id ON unfinished_business(user_id)`);
-  await pool.query(`CREATE INDEX IF NOT EXISTS idx_last_moments_user_id ON last_moments(user_id)`);
+  await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_last_moments_user_id ON last_moments(user_id)`);
 
   // Composite indexes for the two most expensive query shapes the REV-08
   // review identified: user_audit_logs is queried per-user filtered by
