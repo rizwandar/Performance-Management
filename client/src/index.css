@@ -225,6 +225,23 @@ h1, h2, h3, h4, h5, h6 {
    existing theme. Only the Heirloom theme overrides them, scoped to this
    hero section only, not the whole app. */
 .landing-hero {
+  /* Full-bleed: break out of the shared page Container (max-width + side
+     padding) so the hero band spans the full viewport width regardless of
+     screen size. The left:50%/margin-left:-50vw pairing (rather than a bare
+     width:100vw) avoids the classic vertical-scrollbar-causes-horizontal-
+     overflow pitfall. margin-top cancels the two gaps stacked above it on
+     this page only (NavBar's own mb-4 + the Container's py-4 top padding,
+     1.5rem + 1.5rem in Bootstrap 5's default spacing scale - verified no
+     custom --bs-spacer override exists), so the band touches the nav
+     directly. Scoped to .landing-hero only; does not touch NavBar or
+     Container spacing on any other page. */
+  position: relative;
+  left: 50%;
+  right: 50%;
+  margin-left: -50vw;
+  margin-right: -50vw;
+  margin-top: -3rem;
+  width: 100vw;
   padding: 80px 20px 60px;
   text-align: center;
   background: var(--hero-bg, transparent);
@@ -246,6 +263,25 @@ h1, h2, h3, h4, h5, h6 {
 
 .landing-hero .text-muted {
   color: var(--hero-lead-color, var(--text-muted)) !important;
+}
+
+/* MKT-03 fix: the "Learn more about our security" link inside the hero's
+   trust paragraph was inheriting the global `a { color: var(--green-800) }`
+   rule (a direct rule on the anchor itself beats the parent's inherited
+   .text-muted color, !important or not - inheritance only wins when nothing
+   more specific targets the child directly). On the default theme
+   (--hero-bg: transparent, cream page background) that's readable, but the
+   Heirloom admin theme sets --hero-bg to a dark green close enough to
+   --green-800 that the link became nearly invisible - reported live by the
+   user. Reuse the same --hero-lead-color the surrounding text already uses
+   (chosen per-theme to contrast with --hero-bg), plus an underline so it
+   still reads as a link even where lead color and body color are close. */
+.landing-hero .text-muted a {
+  color: var(--hero-lead-color, var(--text-muted));
+  text-decoration: underline;
+}
+.landing-hero .text-muted a:hover {
+  color: var(--hero-heading-color, var(--green-900));
 }
 
 .landing-hero .btn-outline-primary {
