@@ -1680,11 +1680,14 @@ async function init() {
 
   // REV-27: Before creating the UNIQUE constraint, clean up any duplicate
   // last_moments rows that may have been created by the race condition this PR
-  // fixes (concurrent PUT + POST both checking and inserting). Find any user_id
-  // with >1 row, keep the most recently updated one (respects user's most recent
-  // action on the feature), delete the rest. Wrapped in transaction for
-  // atomicity and guarded by app_settings marker for idempotency - same pattern
-  // as REV-22's destroy_after_attempts backfill.
+  // fixes (concurrent PUT + POST both checking and inserting). The realistic
+  // duplicate shape is one row with message/notes (from PUT) and another with
+  // audio fields (from POST), so keep the most recently updated row and
+  // COALESCE non-null fields from all duplicates into it before deleting -
+  // this preserves both the typed message/notes and the recorded audio without
+  // data loss. Wrapped in transaction for atomicity and guarded by app_settings
+  // marker for idempotency - same pattern as REV-22's destroy_after_attempts
+  // backfill.
   const lastMomentsDedup = await pool.query(
     `SELECT value FROM app_settings WHERE key = 'rev27_last_moments_deduped'`
   );
@@ -1696,18 +1699,114 @@ async function init() {
       `);
 
       if (duplicates.rows.length > 0) {
-        // For each user with duplicates, keep only the most recently updated row.
+        const usersWithCoalesced = [];
+        // For each user with duplicates, keep the most recently updated row
+        // and coalesce non-null fields from all others into it.
         for (const dup of duplicates.rows) {
           const keep = await client.query(`
-            SELECT id FROM last_moments WHERE user_id = $1 ORDER BY updated_at DESC, id DESC LIMIT 1
+            SELECT id, message, notes, audio_r2_key, audio_mime_type, audio_size_bytes, audio_duration_seconds
+            FROM last_moments WHERE user_id = $1 ORDER BY updated_at DESC, id DESC LIMIT 1
           `, [dup.user_id]);
           const keepId = keep.rows[0].id;
+          const keepRow = keep.rows[0];
 
-          await client.query(`
-            DELETE FROM last_moments WHERE user_id = $1 AND id != $2
+          // Get all other rows for this user
+          const others = await client.query(`
+            SELECT id, message, notes, audio_r2_key, audio_mime_type, audio_size_bytes, audio_duration_seconds
+            FROM last_moments WHERE user_id = $1 AND id != $2 ORDER BY id
           `, [dup.user_id, keepId]);
 
-          console.log(`[db] REV-27: deduplicated last_moments for user ${dup.user_id}, kept row ${keepId}, removed ${dup.cnt - 1} duplicate(s)`);
+          let hasCoalesced = false;
+          // For each duplicate row, coalesce its non-null fields into the keep row,
+          // then delete it
+          for (const other of others.rows) {
+            // Coalesce all fields: only update if the keep row's field is NULL
+            // and the other row's field is NOT NULL
+            const updates = [];
+            const params = [];
+            let paramIdx = 1;
+
+            if (!keepRow.message && other.message) {
+              updates.push(`message = $${paramIdx}`);
+              params.push(other.message);
+              paramIdx++;
+              hasCoalesced = true;
+            } else {
+              paramIdx++;
+            }
+
+            if (!keepRow.notes && other.notes) {
+              updates.push(`notes = $${paramIdx}`);
+              params.push(other.notes);
+              paramIdx++;
+              hasCoalesced = true;
+            } else {
+              paramIdx++;
+            }
+
+            if (!keepRow.audio_r2_key && other.audio_r2_key) {
+              updates.push(`audio_r2_key = $${paramIdx}`);
+              params.push(other.audio_r2_key);
+              paramIdx++;
+              hasCoalesced = true;
+            } else {
+              paramIdx++;
+            }
+
+            if (!keepRow.audio_mime_type && other.audio_mime_type) {
+              updates.push(`audio_mime_type = $${paramIdx}`);
+              params.push(other.audio_mime_type);
+              paramIdx++;
+              hasCoalesced = true;
+            } else {
+              paramIdx++;
+            }
+
+            if (!keepRow.audio_size_bytes && other.audio_size_bytes) {
+              updates.push(`audio_size_bytes = $${paramIdx}`);
+              params.push(other.audio_size_bytes);
+              paramIdx++;
+              hasCoalesced = true;
+            } else {
+              paramIdx++;
+            }
+
+            if (!keepRow.audio_duration_seconds && other.audio_duration_seconds) {
+              updates.push(`audio_duration_seconds = $${paramIdx}`);
+              params.push(other.audio_duration_seconds);
+              paramIdx++;
+              hasCoalesced = true;
+            } else {
+              paramIdx++;
+            }
+
+            // Apply coalesced fields if any
+            if (updates.length > 0) {
+              params.push(keepId);
+              await client.query(`
+                UPDATE last_moments SET ${updates.join(', ')}, updated_at = NOW() WHERE id = $${paramIdx}
+              `, params);
+              // Update the in-memory keepRow so subsequent others see the coalesced values
+              if (!keepRow.message && other.message) keepRow.message = other.message;
+              if (!keepRow.notes && other.notes) keepRow.notes = other.notes;
+              if (!keepRow.audio_r2_key && other.audio_r2_key) keepRow.audio_r2_key = other.audio_r2_key;
+              if (!keepRow.audio_mime_type && other.audio_mime_type) keepRow.audio_mime_type = other.audio_mime_type;
+              if (!keepRow.audio_size_bytes && other.audio_size_bytes) keepRow.audio_size_bytes = other.audio_size_bytes;
+              if (!keepRow.audio_duration_seconds && other.audio_duration_seconds) keepRow.audio_duration_seconds = other.audio_duration_seconds;
+            }
+
+            // Delete the other row
+            await client.query(`DELETE FROM last_moments WHERE id = $1`, [other.id]);
+          }
+
+          if (hasCoalesced) {
+            usersWithCoalesced.push(dup.user_id);
+          }
+          console.log(`[db] REV-27: deduplicated last_moments for user ${dup.user_id}, kept row ${keepId}, removed ${dup.cnt - 1} duplicate(s)${hasCoalesced ? ' (fields coalesced)' : ''}`);
+        }
+
+        if (usersWithCoalesced.length > 0) {
+          console.log(`[db] REV-27: field coalescing occurred for users: ${usersWithCoalesced.join(', ')}`);
         }
       }
 
