@@ -57,47 +57,64 @@ router.get('/users', auth, adminOnly, async (req, res) => {
   const limit  = Math.min(Number(req.query.limit)  || 20, 200);
   const offset = Number(req.query.offset) || 0;
 
-  let fromWhere = `
+  const baseFrom = `
     FROM users u
     LEFT JOIN subscriptions s      ON s.user_id = u.id
     LEFT JOIN users granter        ON granter.id = s.granted_by_admin_id
-    WHERE u.is_admin = 0
   `;
+  let where = `WHERE u.is_admin = 0`;
   const args = [];
   if (q) {
     args.push(`%${q}%`);
-    fromWhere += ` AND (u.name ILIKE $1 OR u.email ILIKE $1)`;
+    where += ` AND (u.name ILIKE $1 OR u.email ILIKE $1)`;
   }
+  const totalSql = `SELECT COUNT(*)::int as c ${baseFrom} ${where}`;
+
+  // REV-25: this used to be 16 correlated subqueries per row (15 section
+  // counts + a login MAX), up to 200 rows per page = ~3,200 subqueries per
+  // load. Rewritten as LEFT JOIN (SELECT user_id, COUNT(*) ... GROUP BY
+  // user_id) aggregates instead, the same shape server/lib/
+  // unfinishedSectionsNudge.js already uses. Same 15 tables, same field
+  // names, same response shape as before. Only rowsSql needs these joins;
+  // totalSql just counts matching users and doesn't need per-section data.
+  const aggJoins = `
+    LEFT JOIN (SELECT user_id, MAX(created_at) as last_login FROM user_audit_logs WHERE action = 'login_success' GROUP BY user_id) ll  ON ll.user_id  = u.id
+    LEFT JOIN (SELECT user_id, COUNT(*) c FROM legal_documents      GROUP BY user_id) ld  ON ld.user_id  = u.id
+    LEFT JOIN (SELECT user_id, COUNT(*) c FROM financial_items      GROUP BY user_id) fi  ON fi.user_id  = u.id
+    LEFT JOIN (SELECT user_id, COUNT(*) c FROM digital_credentials  GROUP BY user_id) dc  ON dc.user_id  = u.id
+    LEFT JOIN (SELECT user_id, COUNT(*) c FROM funeral_wishes       GROUP BY user_id) fw  ON fw.user_id  = u.id
+    LEFT JOIN (SELECT user_id, COUNT(*) c FROM doctors              GROUP BY user_id) doc ON doc.user_id = u.id
+    LEFT JOIN (SELECT user_id, COUNT(*) c FROM medical_records      GROUP BY user_id) mr  ON mr.user_id  = u.id
+    LEFT JOIN (SELECT user_id, COUNT(*) c FROM donation_bank        GROUP BY user_id) db  ON db.user_id  = u.id
+    LEFT JOIN (SELECT user_id, COUNT(*) c FROM people_to_notify     GROUP BY user_id) ptn ON ptn.user_id = u.id
+    LEFT JOIN (SELECT user_id, COUNT(*) c FROM property_items       GROUP BY user_id) pi  ON pi.user_id  = u.id
+    LEFT JOIN (SELECT user_id, COUNT(*) c FROM personal_messages    GROUP BY user_id) pm  ON pm.user_id  = u.id
+    LEFT JOIN (SELECT user_id, COUNT(*) c FROM songs_that_define_me GROUP BY user_id) stm ON stm.user_id = u.id
+    LEFT JOIN (SELECT user_id, COUNT(*) c FROM life_wishes          GROUP BY user_id) lw  ON lw.user_id  = u.id
+    LEFT JOIN (SELECT user_id, COUNT(*) c FROM insurance_items      GROUP BY user_id) ins ON ins.user_id = u.id
+    LEFT JOIN (SELECT user_id, COUNT(*) c FROM unfinished_business  GROUP BY user_id) ub  ON ub.user_id  = u.id
+    LEFT JOIN (SELECT user_id, COUNT(*) c FROM last_moments         GROUP BY user_id) lm  ON lm.user_id  = u.id
+  `;
 
   const rowsSql = `
     SELECT u.id, u.name, u.email, u.date_of_birth, u.created_at, u.last_active_at,
            u.inactivity_period_months, u.is_deceased, u.deceased_at, u.email_verified,
-           (SELECT MAX(created_at) FROM user_audit_logs WHERE user_id = u.id AND action = 'login_success') as last_login,
+           ll.last_login,
            (
-             (SELECT COUNT(*) FROM legal_documents     WHERE user_id = u.id) +
-             (SELECT COUNT(*) FROM financial_items     WHERE user_id = u.id) +
-             (SELECT COUNT(*) FROM digital_credentials WHERE user_id = u.id) +
-             (SELECT COUNT(*) FROM funeral_wishes      WHERE user_id = u.id) +
-             (SELECT COUNT(*) FROM doctors             WHERE user_id = u.id) +
-             (SELECT COUNT(*) FROM medical_records     WHERE user_id = u.id) +
-             (SELECT COUNT(*) FROM donation_bank       WHERE user_id = u.id) +
-             (SELECT COUNT(*) FROM people_to_notify    WHERE user_id = u.id) +
-             (SELECT COUNT(*) FROM property_items      WHERE user_id = u.id) +
-             (SELECT COUNT(*) FROM personal_messages   WHERE user_id = u.id) +
-             (SELECT COUNT(*) FROM songs_that_define_me WHERE user_id = u.id) +
-             (SELECT COUNT(*) FROM life_wishes         WHERE user_id = u.id) +
-             (SELECT COUNT(*) FROM insurance_items     WHERE user_id = u.id) +
-             (SELECT COUNT(*) FROM unfinished_business WHERE user_id = u.id) +
-             (SELECT COUNT(*) FROM last_moments        WHERE user_id = u.id)
+             COALESCE(ld.c, 0) + COALESCE(fi.c, 0) + COALESCE(dc.c, 0) + COALESCE(fw.c, 0) +
+             COALESCE(doc.c, 0) + COALESCE(mr.c, 0) + COALESCE(db.c, 0) + COALESCE(ptn.c, 0) +
+             COALESCE(pi.c, 0)  + COALESCE(pm.c, 0) + COALESCE(stm.c, 0) + COALESCE(lw.c, 0) +
+             COALESCE(ins.c, 0) + COALESCE(ub.c, 0) + COALESCE(lm.c, 0)
            )::int as total_entries,
            COALESCE(s.plan, 'free') as plan,
            (s.provider = 'admin_grant') as is_honorary,
            granter.name as granted_by_admin_name
-    ${fromWhere}
+    ${baseFrom}
+    ${aggJoins}
+    ${where}
     ORDER BY u.created_at DESC
     LIMIT $${args.length + 1} OFFSET $${args.length + 2}
   `;
-  const totalSql = `SELECT COUNT(*)::int as c ${fromWhere}`;
 
   const [users, totalRow] = await Promise.all([
     queryAll(rowsSql, [...args, limit, offset]),
