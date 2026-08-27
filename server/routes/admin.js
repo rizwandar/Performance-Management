@@ -291,6 +291,21 @@ router.get('/marketing/campaigns', auth, adminOnly, async (req, res) => {
 // tab in any environment the server is pointed at, and re-readable by a
 // future Claude Code session without the original conversation - see
 // "Security findings log" in CLAUDE.md.
+// TEMPORARY diagnostic (2026-08-27) - added to root-cause a live production bug:
+// PUT /api/sections/last-moments failing 500 with "there is no unique or
+// exclusion constraint matching the ON CONFLICT specification", meaning
+// idx_last_moments_user_id appears missing despite REV-27's migration
+// (database.js) reporting a clean run on every deploy including today's.
+// Strictly read-only (SELECT only, no writes), admin-gated. To be removed in
+// a follow-up commit immediately after use, not a permanent endpoint.
+router.get('/debug/last-moments-index', auth, adminOnly, async (req, res) => {
+  const indexes = await queryAll(`SELECT indexname, indexdef FROM pg_indexes WHERE tablename = 'last_moments'`);
+  const duplicates = await queryAll(`SELECT user_id, COUNT(*)::int as cnt FROM last_moments GROUP BY user_id HAVING COUNT(*) > 1`);
+  const dedupFlag = await queryAll(`SELECT value FROM app_settings WHERE key = 'rev27_last_moments_deduped'`);
+  const rowCount = await queryOne(`SELECT COUNT(*)::int as c FROM last_moments`);
+  res.json({ indexes, duplicates, dedupFlag, rowCount: rowCount.c });
+});
+
 router.get('/security-findings', auth, adminOnly, async (req, res) => {
   const rows = await queryAll(
     'SELECT * FROM security_findings ORDER BY discovered_at DESC'
