@@ -9,17 +9,10 @@ const { generateAccessLink } = require('../lib/inactivityTimer');
 
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
 
-// REV-19 (2026-08-26 review): a deceased user's plan is locked from edits
-// (middleware/planLock.js), but this file never checked it, so a locked plan's
-// trusted contacts could still be added, renamed, re-permissioned, deleted, or
-// re-designated as executor. That is the single worst place to still allow
-// edits: whoever holds the session could hand themselves the executor role, or
-// grant a contact of their choosing access to sections the owner never shared,
-// exactly when the owner can no longer notice. The lock skips GET, so listing
-// contacts stays available. POST /:id/access-link is covered too: it mints and
-// emails an access token, and after the owner has died the automatic
-// inactivity/report-death paths are the ones meant to be sending those.
-router.use(checkPlanLock);
+// OPS-33 (2026-08-27): moved deceased-plan lock from router-wide to per-route
+// to allow read-shaped POST /:id/access-link (which mints and emails an access
+// token) even when a plan is deceased. Mutation routes still carry the lock
+// to prevent unauthorized edits to trusted contacts of a locked plan.
 
 // SEC-20 (ported directly to main): legal_documents, financial_items, and
 // property_items are vault-protected and must never be grantable as a
@@ -59,7 +52,7 @@ router.get('/', requireAuth, async (req, res) => {
   res.json(result);
 });
 
-router.post('/', requireAuth, async (req, res) => {
+router.post('/', requireAuth, checkPlanLock, async (req, res) => {
   const { sequence, name, relationship, email, phone, invite_message, visible_sections = [] } = req.body;
 
   if (!name)     return res.status(400).json({ error: 'Name is required.' });
@@ -99,7 +92,7 @@ router.post('/', requireAuth, async (req, res) => {
   res.status(201).json({ ...contact, visible_sections });
 });
 
-router.put('/:id', requireAuth, async (req, res) => {
+router.put('/:id', requireAuth, checkPlanLock, async (req, res) => {
   const contact = await queryOne(
     'SELECT * FROM trusted_contacts WHERE id = $1 AND user_id = $2',
     [req.params.id, req.user.id]
@@ -127,7 +120,7 @@ router.put('/:id', requireAuth, async (req, res) => {
   res.json({ ...updated, visible_sections: permissions });
 });
 
-router.put('/:id/permissions', requireAuth, async (req, res) => {
+router.put('/:id/permissions', requireAuth, checkPlanLock, async (req, res) => {
   const contact = await queryOne(
     'SELECT * FROM trusted_contacts WHERE id = $1 AND user_id = $2',
     [req.params.id, req.user.id]
@@ -157,7 +150,7 @@ router.put('/:id/permissions', requireAuth, async (req, res) => {
 // other contact first (the DB also enforces at most one executor per user via
 // a partial unique index, but clearing-then-setting here lets the owner freely
 // move the flag between their contacts without hitting that constraint).
-router.put('/:id/executor', requireAuth, async (req, res) => {
+router.put('/:id/executor', requireAuth, checkPlanLock, async (req, res) => {
   const contact = await queryOne(
     'SELECT * FROM trusted_contacts WHERE id = $1 AND user_id = $2',
     [req.params.id, req.user.id]
@@ -209,7 +202,7 @@ router.put('/:id/executor', requireAuth, async (req, res) => {
   res.json({ id: updated.id, is_executor: !!updated.is_executor });
 });
 
-router.delete('/:id', requireAuth, async (req, res) => {
+router.delete('/:id', requireAuth, checkPlanLock, async (req, res) => {
   const contact = await queryOne(
     'SELECT * FROM trusted_contacts WHERE id = $1 AND user_id = $2',
     [req.params.id, req.user.id]

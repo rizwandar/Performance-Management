@@ -37,11 +37,6 @@ const checkPlanLock = require('../middleware/planLock');
 // exact comment describes) share this same implementation instead of each
 // keeping their own copy that can drift out of sync again.
 //
-// REV-19 (2026-08-26 review): the deceased-plan lock that used to be defined
-// inline here now lives in middleware/planLock.js, since documents.js,
-// trustedContacts.js and users.js need the exact same check and had none.
-router.use(checkPlanLock);
-
 // The vault is never visible in view-as mode, without exception (org portal
 // spec, section 11). This is a single central check rather than trusting it to
 // be remembered in every individual vault route handler below.
@@ -161,7 +156,7 @@ router.post('/legal-documents/list', requireAuth, async (req, res) => {
   res.json(items);
 });
 
-router.post('/legal-documents', requireAuth, requirePremium, async (req, res) => {
+router.post('/legal-documents', requireAuth, requirePremium, checkPlanLock, async (req, res) => {
   const { vault_password, document_type, title, held_by, location, notes } = req.body;
   // REV-07: reuse the key checkVault() already derived, instead of deriving it again.
   // Vault-password verification (and its attempt/lockout tracking) still runs
@@ -183,7 +178,7 @@ router.post('/legal-documents', requireAuth, requirePremium, async (req, res) =>
   res.status(201).json({ id: result.rows[0].id });
 });
 
-router.put('/legal-documents/:id', requireAuth, requirePremium, async (req, res) => {
+router.put('/legal-documents/:id', requireAuth, requirePremium, checkPlanLock, async (req, res) => {
   const row = await queryOne('SELECT * FROM legal_documents WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!row) return res.status(404).json({ error: 'Item not found.' });
   const { vault_password, document_type, title, held_by, location, notes } = req.body;
@@ -200,7 +195,7 @@ router.put('/legal-documents/:id', requireAuth, requirePremium, async (req, res)
   res.json({ success: true });
 });
 
-router.delete('/legal-documents/:id', requireAuth, requirePremium, async (req, res) => {
+router.delete('/legal-documents/:id', requireAuth, requirePremium, checkPlanLock, async (req, res) => {
   const item = await queryOne('SELECT * FROM legal_documents WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
   if (!await checkVault(req.body?.vault_password, req.user.id, res, req)) return;
@@ -226,7 +221,7 @@ router.post('/financial-affairs/list', requireAuth, async (req, res) => {
   res.json(items);
 });
 
-router.post('/financial-affairs', requireAuth, requirePremium, async (req, res) => {
+router.post('/financial-affairs', requireAuth, requirePremium, checkPlanLock, async (req, res) => {
   const { vault_password, category, institution, account_type, account_reference, contact_name, contact_phone, notes } = req.body;
   const key = await checkVault(vault_password, req.user.id, res, req);
   if (!key) return;
@@ -247,7 +242,7 @@ router.post('/financial-affairs', requireAuth, requirePremium, async (req, res) 
   res.status(201).json({ id: result.rows[0].id });
 });
 
-router.put('/financial-affairs/:id', requireAuth, requirePremium, async (req, res) => {
+router.put('/financial-affairs/:id', requireAuth, requirePremium, checkPlanLock, async (req, res) => {
   const row = await queryOne('SELECT * FROM financial_items WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!row) return res.status(404).json({ error: 'Item not found.' });
   const { vault_password, category, institution, account_type, account_reference, contact_name, contact_phone, notes } = req.body;
@@ -266,7 +261,7 @@ router.put('/financial-affairs/:id', requireAuth, requirePremium, async (req, re
   res.json({ success: true });
 });
 
-router.delete('/financial-affairs/:id', requireAuth, requirePremium, async (req, res) => {
+router.delete('/financial-affairs/:id', requireAuth, requirePremium, checkPlanLock, async (req, res) => {
   const item = await queryOne('SELECT * FROM financial_items WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
   if (!await checkVault(req.body?.vault_password, req.user.id, res, req)) return;
@@ -282,7 +277,7 @@ router.get('/funeral-wishes', requireAuth, async (req, res) => {
   res.json(await queryOne('SELECT * FROM funeral_wishes WHERE user_id = $1', [req.user.id]) || {});
 });
 
-router.put('/funeral-wishes', requireAuth, async (req, res) => {
+router.put('/funeral-wishes', requireAuth, checkPlanLock, async (req, res) => {
   const { burial_preference, ceremony_type, ceremony_location, funeral_home, pre_paid_plan,
           pre_paid_details, readings, flowers_preference,
           donation_charity, special_requests, notes } = req.body;
@@ -318,7 +313,7 @@ router.get('/doctors', requireAuth, async (req, res) => {
   res.json(await queryOne('SELECT * FROM doctors WHERE user_id = $1', [req.user.id]) || {});
 });
 
-router.put('/doctors', requireAuth, async (req, res) => {
+router.put('/doctors', requireAuth, checkPlanLock, async (req, res) => {
   const { gp_name, gp_phone, hospital_preference } = req.body;
   const existing = await queryOne('SELECT id FROM doctors WHERE user_id = $1', [req.user.id]);
   if (existing) {
@@ -343,7 +338,7 @@ router.get('/medical-records', requireAuth, async (req, res) => {
   res.json(await queryOne('SELECT * FROM medical_records WHERE user_id = $1', [req.user.id]) || {});
 });
 
-router.put('/medical-records', requireAuth, async (req, res) => {
+router.put('/medical-records', requireAuth, checkPlanLock, async (req, res) => {
   const { advance_care_directive, directive_location, dnr_preference,
           current_medications, medical_conditions, notes } = req.body;
   const existing = await queryOne('SELECT id FROM medical_records WHERE user_id = $1', [req.user.id]);
@@ -385,7 +380,7 @@ router.post('/donation-bank/view', requireAuth, async (req, res) => {
   res.json(decrypted);
 });
 
-router.put('/donation-bank', requireAuth, requirePremium, async (req, res) => {
+router.put('/donation-bank', requireAuth, requirePremium, checkPlanLock, async (req, res) => {
   const { vault_password, organ_donation, organ_donation_details } = req.body;
   const key = await checkVault(vault_password, req.user.id, res, req);
   if (!key) return;
@@ -412,7 +407,7 @@ router.get('/people-to-notify', requireAuth, async (req, res) => {
   res.json(await queryAll('SELECT * FROM people_to_notify WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]));
 });
 
-router.post('/people-to-notify', requireAuth, async (req, res) => {
+router.post('/people-to-notify', requireAuth, checkPlanLock, async (req, res) => {
   const { name, relationship, email, phone, notified_by, notes } = req.body;
   if (!name) return res.status(400).json({ error: 'A name is required.' });
   const result = await query(`
@@ -422,7 +417,7 @@ router.post('/people-to-notify', requireAuth, async (req, res) => {
   res.status(201).json({ id: result.rows[0].id });
 });
 
-router.put('/people-to-notify/:id', requireAuth, async (req, res) => {
+router.put('/people-to-notify/:id', requireAuth, checkPlanLock, async (req, res) => {
   const item = await queryOne('SELECT * FROM people_to_notify WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
   const { name, relationship, email, phone, notified_by, notes } = req.body;
@@ -433,7 +428,7 @@ router.put('/people-to-notify/:id', requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
-router.delete('/people-to-notify/:id', requireAuth, async (req, res) => {
+router.delete('/people-to-notify/:id', requireAuth, checkPlanLock, async (req, res) => {
   const item = await queryOne('SELECT * FROM people_to_notify WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
   await query('DELETE FROM people_to_notify WHERE id = $1', [item.id]);
@@ -457,7 +452,7 @@ router.post('/property-possessions/list', requireAuth, async (req, res) => {
   res.json(items);
 });
 
-router.post('/property-possessions', requireAuth, requirePremium, async (req, res) => {
+router.post('/property-possessions', requireAuth, requirePremium, checkPlanLock, async (req, res) => {
   const { vault_password, category, title, description, location, intended_recipient, notes } = req.body;
   const key = await checkVault(vault_password, req.user.id, res, req);
   if (!key) return;
@@ -477,7 +472,7 @@ router.post('/property-possessions', requireAuth, requirePremium, async (req, re
   res.status(201).json({ id: result.rows[0].id });
 });
 
-router.put('/property-possessions/:id', requireAuth, requirePremium, async (req, res) => {
+router.put('/property-possessions/:id', requireAuth, requirePremium, checkPlanLock, async (req, res) => {
   const row = await queryOne('SELECT * FROM property_items WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!row) return res.status(404).json({ error: 'Item not found.' });
   const { vault_password, category, title, description, location, intended_recipient, notes } = req.body;
@@ -495,7 +490,7 @@ router.put('/property-possessions/:id', requireAuth, requirePremium, async (req,
   res.json({ success: true });
 });
 
-router.delete('/property-possessions/:id', requireAuth, requirePremium, async (req, res) => {
+router.delete('/property-possessions/:id', requireAuth, requirePremium, checkPlanLock, async (req, res) => {
   const item = await queryOne('SELECT * FROM property_items WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
   if (!await checkVault(req.body?.vault_password, req.user.id, res, req)) return;
@@ -531,7 +526,7 @@ router.get('/messages', requireAuth, async (req, res) => {
   })));
 });
 
-router.post('/messages', requireAuth, async (req, res) => {
+router.post('/messages', requireAuth, checkPlanLock, async (req, res) => {
   const { recipient_name, relationship, message, notes } = req.body;
   if (!recipient_name) return res.status(400).json({ error: 'A recipient name is required.' });
   const result = await query(`
@@ -541,7 +536,7 @@ router.post('/messages', requireAuth, async (req, res) => {
   res.status(201).json({ id: result.rows[0].id });
 });
 
-router.put('/messages/:id', requireAuth, async (req, res) => {
+router.put('/messages/:id', requireAuth, checkPlanLock, async (req, res) => {
   const item = await queryOne('SELECT * FROM personal_messages WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Message not found.' });
   const { recipient_name, relationship, message, notes } = req.body;
@@ -552,7 +547,7 @@ router.put('/messages/:id', requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
-router.delete('/messages/:id', requireAuth, async (req, res) => {
+router.delete('/messages/:id', requireAuth, checkPlanLock, async (req, res) => {
   const item = await queryOne('SELECT * FROM personal_messages WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Message not found.' });
   const clips = await queryAll('SELECT r2_key FROM personal_message_audio_clips WHERE message_id = $1', [item.id]);
@@ -611,7 +606,7 @@ async function withAudioUrl(row) {
   return { ...rest, audio_url: await getDownloadUrl(audio_r2_key) };
 }
 
-router.post('/messages/:id/audio', requireAuth, (req, res, next) => {
+router.post('/messages/:id/audio', requireAuth, checkPlanLock, (req, res, next) => {
   audioUpload.single('audio')(req, res, (err) => {
     if (err) return res.status(400).json({ error: err.message });
     next();
@@ -681,7 +676,7 @@ router.post('/messages/:id/audio', requireAuth, (req, res, next) => {
   }
 });
 
-router.delete('/messages/:id/audio/:clipId', requireAuth, async (req, res) => {
+router.delete('/messages/:id/audio/:clipId', requireAuth, checkPlanLock, async (req, res) => {
   const item = await queryOne('SELECT id FROM personal_messages WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Message not found.' });
   const clip = await queryOne(
@@ -701,7 +696,7 @@ router.get('/songs-that-define-me', requireAuth, async (req, res) => {
   res.json(await queryAll('SELECT * FROM songs_that_define_me WHERE user_id = $1 ORDER BY added_at DESC', [req.user.id]));
 });
 
-router.post('/songs-that-define-me', requireAuth, async (req, res) => {
+router.post('/songs-that-define-me', requireAuth, checkPlanLock, async (req, res) => {
   const { deezer_id, title, artist, album, why_meaningful } = req.body;
   if (!title || !artist) return res.status(400).json({ error: 'Title and artist are required.' });
   const count = await queryOne('SELECT COUNT(*)::int as c FROM songs_that_define_me WHERE user_id = $1', [req.user.id]);
@@ -713,7 +708,7 @@ router.post('/songs-that-define-me', requireAuth, async (req, res) => {
   res.status(201).json({ id: result.rows[0].id });
 });
 
-router.put('/songs-that-define-me/:id', requireAuth, async (req, res) => {
+router.put('/songs-that-define-me/:id', requireAuth, checkPlanLock, async (req, res) => {
   const item = await queryOne('SELECT * FROM songs_that_define_me WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Song not found.' });
   const { why_meaningful } = req.body;
@@ -721,7 +716,7 @@ router.put('/songs-that-define-me/:id', requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
-router.delete('/songs-that-define-me/:id', requireAuth, async (req, res) => {
+router.delete('/songs-that-define-me/:id', requireAuth, checkPlanLock, async (req, res) => {
   const item = await queryOne('SELECT * FROM songs_that_define_me WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Song not found.' });
   await query('DELETE FROM songs_that_define_me WHERE id = $1', [item.id]);
@@ -735,7 +730,7 @@ router.get('/lifes-wishes', requireAuth, async (req, res) => {
   res.json(await queryAll('SELECT * FROM life_wishes WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]));
 });
 
-router.post('/lifes-wishes', requireAuth, async (req, res) => {
+router.post('/lifes-wishes', requireAuth, checkPlanLock, async (req, res) => {
   const { title, description, category, status, notes } = req.body;
   if (!title) return res.status(400).json({ error: 'A title is required.' });
   const result = await query(`
@@ -745,7 +740,7 @@ router.post('/lifes-wishes', requireAuth, async (req, res) => {
   res.status(201).json({ id: result.rows[0].id });
 });
 
-router.put('/lifes-wishes/:id', requireAuth, async (req, res) => {
+router.put('/lifes-wishes/:id', requireAuth, checkPlanLock, async (req, res) => {
   const item = await queryOne('SELECT * FROM life_wishes WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Wish not found.' });
   const { title, description, category, status, notes } = req.body;
@@ -756,7 +751,7 @@ router.put('/lifes-wishes/:id', requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
-router.delete('/lifes-wishes/:id', requireAuth, async (req, res) => {
+router.delete('/lifes-wishes/:id', requireAuth, checkPlanLock, async (req, res) => {
   const item = await queryOne('SELECT * FROM life_wishes WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Wish not found.' });
   await query('DELETE FROM life_wishes WHERE id = $1', [item.id]);
@@ -784,7 +779,7 @@ router.post('/household-info/list', requireAuth, async (req, res) => {
   res.json(items);
 });
 
-router.post('/household-info', requireAuth, requirePremium, async (req, res) => {
+router.post('/household-info', requireAuth, requirePremium, checkPlanLock, async (req, res) => {
   const { vault_password, category, title, provider, account_reference, contact, notes } = req.body;
   const key = await checkVault(vault_password, req.user.id, res, req);
   if (!key) return;
@@ -804,7 +799,7 @@ router.post('/household-info', requireAuth, requirePremium, async (req, res) => 
   res.status(201).json({ id: result.rows[0].id });
 });
 
-router.put('/household-info/:id', requireAuth, requirePremium, async (req, res) => {
+router.put('/household-info/:id', requireAuth, requirePremium, checkPlanLock, async (req, res) => {
   const row = await queryOne('SELECT * FROM household_info WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!row) return res.status(404).json({ error: 'Item not found.' });
   const { vault_password, category, title, provider, account_reference, contact, notes } = req.body;
@@ -822,7 +817,7 @@ router.put('/household-info/:id', requireAuth, requirePremium, async (req, res) 
   res.json({ success: true });
 });
 
-router.delete('/household-info/:id', requireAuth, requirePremium, async (req, res) => {
+router.delete('/household-info/:id', requireAuth, requirePremium, checkPlanLock, async (req, res) => {
   const item = await queryOne('SELECT id FROM household_info WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
   if (!await checkVault(req.body?.vault_password, req.user.id, res, req)) return;
@@ -838,7 +833,7 @@ router.get('/children-dependants', requireAuth, async (req, res) => {
   res.json(await queryAll('SELECT * FROM children_dependants WHERE user_id = $1 ORDER BY type, name', [req.user.id]));
 });
 
-router.post('/children-dependants', requireAuth, async (req, res) => {
+router.post('/children-dependants', requireAuth, checkPlanLock, async (req, res) => {
   const { name, type, date_of_birth, special_needs, preferred_guardian, guardian_contact, alternate_guardian, alternate_contact, notes } = req.body;
   if (!name) return res.status(400).json({ error: 'A name is required.' });
   const result = await query(`
@@ -851,7 +846,7 @@ router.post('/children-dependants', requireAuth, async (req, res) => {
   res.status(201).json({ id: result.rows[0].id });
 });
 
-router.put('/children-dependants/:id', requireAuth, async (req, res) => {
+router.put('/children-dependants/:id', requireAuth, checkPlanLock, async (req, res) => {
   const item = await queryOne('SELECT * FROM children_dependants WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
   const { name, type, date_of_birth, special_needs, preferred_guardian, guardian_contact, alternate_guardian, alternate_contact, notes } = req.body;
@@ -867,7 +862,7 @@ router.put('/children-dependants/:id', requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
-router.delete('/children-dependants/:id', requireAuth, async (req, res) => {
+router.delete('/children-dependants/:id', requireAuth, checkPlanLock, async (req, res) => {
   const item = await queryOne('SELECT id FROM children_dependants WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
   await query('DELETE FROM children_dependants WHERE id = $1', [item.id]);
@@ -881,7 +876,7 @@ router.get('/pets', requireAuth, async (req, res) => {
   res.json(await queryAll('SELECT * FROM pets WHERE user_id = $1 ORDER BY name', [req.user.id]));
 });
 
-router.post('/pets', requireAuth, async (req, res) => {
+router.post('/pets', requireAuth, checkPlanLock, async (req, res) => {
   const { name, age, special_needs, preferred_caretaker, caretaker_contact, alternate_caretaker, alternate_contact, notes } = req.body;
   if (!name) return res.status(400).json({ error: 'A name is required.' });
   const result = await query(`
@@ -894,7 +889,7 @@ router.post('/pets', requireAuth, async (req, res) => {
   res.status(201).json({ id: result.rows[0].id });
 });
 
-router.put('/pets/:id', requireAuth, async (req, res) => {
+router.put('/pets/:id', requireAuth, checkPlanLock, async (req, res) => {
   const item = await queryOne('SELECT * FROM pets WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
   const { name, age, special_needs, preferred_caretaker, caretaker_contact, alternate_caretaker, alternate_contact, notes } = req.body;
@@ -910,7 +905,7 @@ router.put('/pets/:id', requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
-router.delete('/pets/:id', requireAuth, async (req, res) => {
+router.delete('/pets/:id', requireAuth, checkPlanLock, async (req, res) => {
   const item = await queryOne('SELECT id FROM pets WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
   await query('DELETE FROM pets WHERE id = $1', [item.id]);
@@ -940,7 +935,7 @@ router.get('/digital-life/vault', requireAuth, async (req, res) => {
   });
 });
 
-router.post('/digital-life/vault', requireAuth, requirePremium, async (req, res) => {
+router.post('/digital-life/vault', requireAuth, requirePremium, checkPlanLock, async (req, res) => {
   const { vault_password, password_hint } = req.body;
   if (!vault_password || vault_password.length < 8) {
     return res.status(400).json({ error: 'Vault password must be at least 8 characters.' });
@@ -959,7 +954,7 @@ router.post('/digital-life/vault', requireAuth, requirePremium, async (req, res)
   res.status(201).json({ success: true });
 });
 
-router.put('/digital-life/vault', requireAuth, async (req, res) => {
+router.put('/digital-life/vault', requireAuth, checkPlanLock, async (req, res) => {
   const { old_password, new_password, password_hint } = req.body;
   if (!old_password) return res.status(400).json({ error: 'old_password is required.' });
   if (!new_password || new_password.length < 8) return res.status(400).json({ error: 'New password must be at least 8 characters.' });
@@ -1045,7 +1040,7 @@ router.put('/digital-life/vault', requireAuth, async (req, res) => {
   res.json({ success: true, recovery_disabled: !!vault.recovery_enabled });
 });
 
-router.delete('/digital-life/vault', requireAuth, async (req, res) => {
+router.delete('/digital-life/vault', requireAuth, checkPlanLock, async (req, res) => {
   const { account_password } = req.body;
   if (!account_password) return res.status(400).json({ error: 'account_password is required to confirm vault reset.' });
 
@@ -1087,7 +1082,7 @@ router.post('/digital-life/list', requireAuth, async (req, res) => {
   })));
 });
 
-router.post('/digital-life', requireAuth, requirePremium, async (req, res) => {
+router.post('/digital-life', requireAuth, requirePremium, checkPlanLock, async (req, res) => {
   const { vault_password, service, service_url, username, password, notes } = req.body;
   if (!service)        return res.status(400).json({ error: 'Service name is required.' });
   if (!username && !password) return res.status(400).json({ error: 'At least a username or password is required.' });
@@ -1107,7 +1102,7 @@ router.post('/digital-life', requireAuth, requirePremium, async (req, res) => {
   res.status(201).json({ id: result.rows[0].id });
 });
 
-router.put('/digital-life/:id', requireAuth, requirePremium, async (req, res) => {
+router.put('/digital-life/:id', requireAuth, requirePremium, checkPlanLock, async (req, res) => {
   const { vault_password, service, service_url, username, password, notes } = req.body;
 
   const item = await queryOne('SELECT * FROM digital_credentials WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
@@ -1134,7 +1129,7 @@ router.put('/digital-life/:id', requireAuth, requirePremium, async (req, res) =>
   res.json({ success: true });
 });
 
-router.delete('/digital-life/:id', requireAuth, requirePremium, async (req, res) => {
+router.delete('/digital-life/:id', requireAuth, requirePremium, checkPlanLock, async (req, res) => {
   if (!await checkVault(req.body.vault_password, req.user.id, res, req)) return;
   const item = await queryOne('SELECT id FROM digital_credentials WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Credential not found.' });
@@ -1153,7 +1148,7 @@ router.get('/insurance', requireAuth, async (req, res) => {
   res.json(await queryAll('SELECT * FROM insurance_items WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]));
 });
 
-router.post('/insurance', requireAuth, async (req, res) => {
+router.post('/insurance', requireAuth, checkPlanLock, async (req, res) => {
   const { policy_type, provider, policy_number, contact, beneficiary, notes } = req.body;
   if (!policy_type && !provider) {
     return res.status(400).json({ error: 'Please provide at least a policy type or provider.' });
@@ -1166,7 +1161,7 @@ router.post('/insurance', requireAuth, async (req, res) => {
   res.status(201).json({ id: result.rows[0].id });
 });
 
-router.put('/insurance/:id', requireAuth, async (req, res) => {
+router.put('/insurance/:id', requireAuth, checkPlanLock, async (req, res) => {
   const item = await queryOne('SELECT * FROM insurance_items WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
   const { policy_type, provider, policy_number, contact, beneficiary, notes } = req.body;
@@ -1179,7 +1174,7 @@ router.put('/insurance/:id', requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
-router.delete('/insurance/:id', requireAuth, async (req, res) => {
+router.delete('/insurance/:id', requireAuth, checkPlanLock, async (req, res) => {
   const item = await queryOne('SELECT id FROM insurance_items WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
   await query('DELETE FROM insurance_items WHERE id = $1', [item.id]);
@@ -1198,7 +1193,7 @@ router.get('/unfinished-business', requireAuth, async (req, res) => {
   res.json(await queryAll('SELECT * FROM unfinished_business WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]));
 });
 
-router.post('/unfinished-business', requireAuth, async (req, res) => {
+router.post('/unfinished-business', requireAuth, checkPlanLock, async (req, res) => {
   const { name, description, notes } = req.body;
   if (!name) return res.status(400).json({ error: 'A name is required.' });
   const result = await query(`
@@ -1208,7 +1203,7 @@ router.post('/unfinished-business', requireAuth, async (req, res) => {
   res.status(201).json({ id: result.rows[0].id });
 });
 
-router.put('/unfinished-business/:id', requireAuth, async (req, res) => {
+router.put('/unfinished-business/:id', requireAuth, checkPlanLock, async (req, res) => {
   const item = await queryOne('SELECT * FROM unfinished_business WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
   const { name, description, notes } = req.body;
@@ -1220,7 +1215,7 @@ router.put('/unfinished-business/:id', requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
-router.delete('/unfinished-business/:id', requireAuth, async (req, res) => {
+router.delete('/unfinished-business/:id', requireAuth, checkPlanLock, async (req, res) => {
   const item = await queryOne('SELECT id FROM unfinished_business WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
   await query('DELETE FROM unfinished_business WHERE id = $1', [item.id]);
@@ -1247,7 +1242,7 @@ router.get('/last-moments', requireAuth, async (req, res) => {
   res.json(await withAudioUrl(row || {}));
 });
 
-router.put('/last-moments', requireAuth, requirePremium, async (req, res) => {
+router.put('/last-moments', requireAuth, requirePremium, checkPlanLock, async (req, res) => {
   const { message, notes } = req.body;
   // REV-27: use UPSERT (INSERT ... ON CONFLICT) instead of check-then-insert
   // to prevent race conditions. The UNIQUE constraint on user_id now enforces
@@ -1260,7 +1255,7 @@ router.put('/last-moments', requireAuth, requirePremium, async (req, res) => {
   res.json({ success: true });
 });
 
-router.post('/last-moments/audio', requireAuth, requirePremium, (req, res, next) => {
+router.post('/last-moments/audio', requireAuth, requirePremium, checkPlanLock, (req, res, next) => {
   audioUpload.single('audio')(req, res, (err) => {
     if (err) return res.status(400).json({ error: err.message });
     next();
@@ -1309,7 +1304,7 @@ router.post('/last-moments/audio', requireAuth, requirePremium, (req, res, next)
   }
 });
 
-router.delete('/last-moments/audio', requireAuth, requirePremium, async (req, res) => {
+router.delete('/last-moments/audio', requireAuth, requirePremium, checkPlanLock, async (req, res) => {
   const item = await queryOne('SELECT * FROM last_moments WHERE user_id = $1', [req.user.id]);
   if (!item || !item.audio_r2_key) return res.json({ success: true });
   await deleteFile(item.audio_r2_key).catch(() => {});
