@@ -110,6 +110,7 @@ const ELIGIBLE_USERS_SQL = `
     LEFT JOIN (SELECT user_id, COUNT(*) c FROM trusted_contacts    GROUP BY user_id) tc  ON tc.user_id  = u.id
     WHERE u.email_verified = 1
       AND u.is_admin = 0
+      AND u.is_deceased = false
       AND u.nudge_sent_at IS NULL
       AND u.created_at <= NOW() - INTERVAL '7 days'
   )

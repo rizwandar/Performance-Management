@@ -29,6 +29,7 @@ async function sendSignupTrialReminders() {
       FROM users u
       WHERE u.signup_trial_started_at IS NOT NULL
         AND u.${column} IS NULL
+        AND u.is_deceased = false
         AND u.signup_trial_started_at <= NOW() - INTERVAL '${atDay} days'
         AND u.signup_trial_started_at > NOW() - INTERVAL '${SIGNUP_TRIAL_DAYS} days'
         AND NOT EXISTS (
