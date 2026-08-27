@@ -179,8 +179,11 @@ export default function RegisterPage() {
 
   return (
     <div className="d-flex flex-column align-items-center pt-4">
-      <p className="text-muted text-center mb-3" style={{ maxWidth: 380, fontSize: '0.92rem' }}>
+      <p className="text-muted text-center mb-1" style={{ maxWidth: 380, fontSize: '0.92rem' }}>
         Everything in good hands.
+      </p>
+      <p className="text-muted text-center mb-3" style={{ maxWidth: 380, fontSize: '0.85rem' }}>
+        🔒 Your life's most important information, saved securely.
       </p>
       <Card style={{ width: '100%', maxWidth: 540 }}>
         <Card.Header><h5 className="mb-0">Begin your journey</h5></Card.Header>
@@ -323,6 +326,12 @@ export default function RegisterPage() {
               {saving ? 'Creating your account…' : 'Create my account'}
             </Button>
           </Form>
+
+          <p className="text-muted text-center mt-3 mb-0" style={{ fontSize: '0.78rem' }}>
+            Protected with AES-256-GCM encryption, the same standard the U.S. government uses
+            for classified data and healthcare providers are legally required to use for
+            medical records. <Link to="/security">Learn more</Link>.
+          </p>
 
           <div className="text-center mt-3">
             <small className="text-muted">
