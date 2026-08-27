@@ -1,6 +1,6 @@
 const express = require('express');
 const router  = express.Router();
-const { queryOne, queryAll } = require('../db/database');
+const { queryOne, queryAll, query } = require('../db/database');
 const auth    = require('../middleware/auth');
 const { getAccessInfo, isActivePremiumSubscription } = require('../lib/subscription');
 const { stripe, PRICE_IDS } = require('../lib/stripe');
@@ -36,13 +36,66 @@ router.get('/access', auth, async (req, res) => {
   // hit a limit" - see subscription.js's getAccessInfo for how signup_trial_*
   // composes with a real Stripe subscription (which always wins).
   const { plan, signupTrialActive, signupTrialExpired, signupTrialEndsAt } = await getAccessInfo(req.user.id);
+  // Post-BIL-08: the no-card trial is now opt-in, so a user can still be
+  // eligible to start it even after declining the login interstitial - the
+  // Upgrade page's self-serve option needs to know that independently of
+  // signupTrialActive/Expired above (both false for a never-started account).
+  // Not part of getAccessInfo's own precedence logic: this is a simple
+  // "has it ever been started" check, not a plan-composition decision, so a
+  // small direct query here keeps that existing logic undisturbed.
+  const trialRow = await queryOne('SELECT signup_trial_started_at FROM users WHERE id = $1', [req.user.id]);
   res.json({
     plan,
     is_premium: plan === 'premium',
     signup_trial_active: signupTrialActive,
     signup_trial_expired: signupTrialExpired,
     signup_trial_ends_at: signupTrialEndsAt,
+    signup_trial_available: !trialRow?.signup_trial_started_at,
   });
+});
+
+// Post-BIL-08: explicit opt-in for the 30-day no-card vault trial, called
+// either from the post-login WelcomeTrialPage interstitial or self-serve
+// from the Upgrade page. Guards only on signup_trial_started_at, not on
+// signup_trial_offer_responded_at - deliberately different from the decline
+// route's guard below. A user who declined at login has responded_at set
+// but started_at still NULL, and per the product decision that a decline
+// doesn't forfeit the trial (it stays available self-serve from the Upgrade
+// page), that exact case must still be allowed to start it here. Guarding on
+// responded_at too would silently re-break that path. Not idempotent against
+// an actually-started trial though - if a client-side bug fires this twice
+// after the trial is already running, it should surface as a 400, not
+// silently succeed twice.
+router.post('/start-signup-trial', auth, async (req, res) => {
+  const user = await queryOne('SELECT signup_trial_started_at FROM users WHERE id = $1', [req.user.id]);
+  if (user?.signup_trial_started_at) {
+    return res.status(400).json({ error: 'This trial has already been offered to your account.' });
+  }
+  await query(
+    'UPDATE users SET signup_trial_started_at = NOW(), signup_trial_offer_responded_at = NOW() WHERE id = $1',
+    [req.user.id]
+  );
+  res.json({ success: true });
+});
+
+// Post-BIL-08: records that the user was offered the trial and declined -
+// signup_trial_started_at is deliberately left NULL (no trial started), but
+// signup_trial_offer_responded_at is set so the login interstitial doesn't
+// ask again. The trial itself stays available self-serve from the Upgrade
+// page (see /access's signup_trial_available above).
+router.post('/decline-signup-trial', auth, async (req, res) => {
+  const user = await queryOne(
+    'SELECT signup_trial_started_at, signup_trial_offer_responded_at FROM users WHERE id = $1',
+    [req.user.id]
+  );
+  if (user?.signup_trial_started_at || user?.signup_trial_offer_responded_at) {
+    return res.status(400).json({ error: 'This trial has already been offered to your account.' });
+  }
+  await query(
+    'UPDATE users SET signup_trial_offer_responded_at = NOW() WHERE id = $1',
+    [req.user.id]
+  );
+  res.json({ success: true });
 });
 
 router.get('/plans', (req, res) => {
