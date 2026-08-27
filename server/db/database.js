@@ -1721,70 +1721,53 @@ async function init() {
           // then delete it
           for (const other of others.rows) {
             // Coalesce all fields: only update if the keep row's field is NULL
-            // and the other row's field is NOT NULL
+            // and the other row's field is NOT NULL. Placeholder number must match
+            // the actual number of params pushed (only increment on actual push).
             const updates = [];
             const params = [];
-            let paramIdx = 1;
 
             if (!keepRow.message && other.message) {
-              updates.push(`message = $${paramIdx}`);
+              updates.push(`message = $${params.length + 1}`);
               params.push(other.message);
-              paramIdx++;
               hasCoalesced = true;
-            } else {
-              paramIdx++;
             }
 
             if (!keepRow.notes && other.notes) {
-              updates.push(`notes = $${paramIdx}`);
+              updates.push(`notes = $${params.length + 1}`);
               params.push(other.notes);
-              paramIdx++;
               hasCoalesced = true;
-            } else {
-              paramIdx++;
             }
 
             if (!keepRow.audio_r2_key && other.audio_r2_key) {
-              updates.push(`audio_r2_key = $${paramIdx}`);
+              updates.push(`audio_r2_key = $${params.length + 1}`);
               params.push(other.audio_r2_key);
-              paramIdx++;
               hasCoalesced = true;
-            } else {
-              paramIdx++;
             }
 
             if (!keepRow.audio_mime_type && other.audio_mime_type) {
-              updates.push(`audio_mime_type = $${paramIdx}`);
+              updates.push(`audio_mime_type = $${params.length + 1}`);
               params.push(other.audio_mime_type);
-              paramIdx++;
               hasCoalesced = true;
-            } else {
-              paramIdx++;
             }
 
             if (!keepRow.audio_size_bytes && other.audio_size_bytes) {
-              updates.push(`audio_size_bytes = $${paramIdx}`);
+              updates.push(`audio_size_bytes = $${params.length + 1}`);
               params.push(other.audio_size_bytes);
-              paramIdx++;
               hasCoalesced = true;
-            } else {
-              paramIdx++;
             }
 
             if (!keepRow.audio_duration_seconds && other.audio_duration_seconds) {
-              updates.push(`audio_duration_seconds = $${paramIdx}`);
+              updates.push(`audio_duration_seconds = $${params.length + 1}`);
               params.push(other.audio_duration_seconds);
-              paramIdx++;
               hasCoalesced = true;
-            } else {
-              paramIdx++;
             }
 
             // Apply coalesced fields if any
             if (updates.length > 0) {
               params.push(keepId);
+              const keepIdPlaceholder = params.length;
               await client.query(`
-                UPDATE last_moments SET ${updates.join(', ')}, updated_at = NOW() WHERE id = $${paramIdx}
+                UPDATE last_moments SET ${updates.join(', ')}, updated_at = NOW() WHERE id = $${keepIdPlaceholder}
               `, params);
               // Update the in-memory keepRow so subsequent others see the coalesced values
               if (!keepRow.message && other.message) keepRow.message = other.message;
