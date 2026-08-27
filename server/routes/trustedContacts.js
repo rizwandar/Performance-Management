@@ -2,11 +2,24 @@ const express = require('express');
 const router  = express.Router();
 const { queryOne, queryAll, query, transaction } = require('../db/database');
 const requireAuth = require('../middleware/auth');
+const checkPlanLock = require('../middleware/planLock');
 const { sendEmail } = require('../lib/sendEmail');
 const { contactAccessEmail, executorDesignatedEmail } = require('../lib/emailTemplates');
 const { generateAccessLink } = require('../lib/inactivityTimer');
 
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
+
+// REV-19 (2026-08-26 review): a deceased user's plan is locked from edits
+// (middleware/planLock.js), but this file never checked it, so a locked plan's
+// trusted contacts could still be added, renamed, re-permissioned, deleted, or
+// re-designated as executor. That is the single worst place to still allow
+// edits: whoever holds the session could hand themselves the executor role, or
+// grant a contact of their choosing access to sections the owner never shared,
+// exactly when the owner can no longer notice. The lock skips GET, so listing
+// contacts stays available. POST /:id/access-link is covered too: it mints and
+// emails an access token, and after the owner has died the automatic
+// inactivity/report-death paths are the ones meant to be sending those.
+router.use(checkPlanLock);
 
 // SEC-20 (ported directly to main): legal_documents, financial_items, and
 // property_items are vault-protected and must never be grantable as a

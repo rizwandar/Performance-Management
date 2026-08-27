@@ -1,6 +1,5 @@
 const express = require('express');
 const router  = express.Router();
-const jwt     = require('jsonwebtoken');
 const multer  = require('multer');
 const { v4: uuidv4 } = require('uuid');
 const { queryOne, queryAll, query, transaction } = require('../db/database');
@@ -12,9 +11,8 @@ const { TABLE_FIELDS, decryptRow, migrateRow } = require('../lib/vaultFields');
 const { destroyVaultData } = require('../lib/vaultDestroy');
 const { uploadFile, deleteFile, getDownloadUrl } = require('../lib/r2');
 const { matchesExtension } = require('../lib/fileSignature');
-const { extractToken, blockViewAs } = require('../lib/viewAsGuard');
-
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
+const { blockViewAs } = require('../lib/viewAsGuard');
+const checkPlanLock = require('../middleware/planLock');
 
 // Both checks below decode the session token directly (rather than relying on
 // req.user/req.isViewAs) since requireAuth is applied per-route, not globally,
@@ -38,26 +36,10 @@ const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
 // so users.js and export.js (which had regressed to the header-only bug this
 // exact comment describes) share this same implementation instead of each
 // keeping their own copy that can drift out of sync again.
-
-// Once a user is marked deceased (by their executor, org staff, or the timer's
-// direct-notify fallback path - see lib/deceased.js), their plan is locked from
-// all edits, whether they're accessed directly or via org-portal view-as.
-// users.is_deceased is the single source of truth (kept in sync with
-// organization_customers.lifecycle_status for org-managed customers).
-async function checkPlanLock(req, res, next) {
-  if (req.method === 'GET') return next();
-  const token = extractToken(req);
-  if (!token) return next();
-  let decoded;
-  try { decoded = jwt.verify(token, JWT_SECRET); } catch { return next(); }
-  const effectiveId = decoded.viewAs ? decoded.viewAs.customerId : decoded.id;
-  const locked = await queryOne(
-    `SELECT id FROM users WHERE id = $1 AND is_deceased = true`,
-    [effectiveId]
-  );
-  if (locked) return res.status(403).json({ error: 'This plan has been locked and can no longer be edited.' });
-  next();
-}
+//
+// REV-19 (2026-08-26 review): the deceased-plan lock that used to be defined
+// inline here now lives in middleware/planLock.js, since documents.js,
+// trustedContacts.js and users.js need the exact same check and had none.
 router.use(checkPlanLock);
 
 // The vault is never visible in view-as mode, without exception (org portal
@@ -130,6 +112,34 @@ router.get('/completion', requireAuth, async (req, res) => {
   });
 });
 
+// REV-17 (2026-08-26 review): the four list sections below that accept file
+// attachments (legal_documents, financial_items, property_items,
+// household_info - see FileAttachments.jsx's sectionId values) used to leave
+// those attachments behind when the item itself was deleted. Legal Documents
+// removed the uploaded_documents rows but never the R2 objects they pointed
+// at, which permanently orphaned the underlying files (wills, PoA scans):
+// once the row holding the r2_key is gone, nothing can find that object again,
+// not even full account deletion, which enumerates the same table. The other
+// three never touched uploaded_documents at all, leaving orphan rows too.
+//
+// R2 deletion is best effort, the same way destroyVaultData() and the voice
+// clip deletes below treat it: a storage hiccup must not fail the user's
+// delete. The rows go regardless, so the worst case is the pre-existing
+// orphaned-object behavior rather than an item the user cannot remove.
+async function deleteItemAttachments(userId, sectionId, itemId) {
+  const docs = await queryAll(
+    'SELECT r2_key FROM uploaded_documents WHERE user_id = $1 AND section_id = $2 AND item_id = $3',
+    [userId, sectionId, itemId]
+  );
+  for (const doc of docs) {
+    await deleteFile(doc.r2_key).catch(() => {});
+  }
+  await query(
+    'DELETE FROM uploaded_documents WHERE user_id = $1 AND section_id = $2 AND item_id = $3',
+    [userId, sectionId, itemId]
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Section 1 — Legal Documents (vault-protected)
 // ---------------------------------------------------------------------------
@@ -194,8 +204,7 @@ router.delete('/legal-documents/:id', requireAuth, requirePremium, async (req, r
   const item = await queryOne('SELECT * FROM legal_documents WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
   if (!await checkVault(req.body?.vault_password, req.user.id, res, req)) return;
-  await query('DELETE FROM uploaded_documents WHERE user_id = $1 AND section_id = $2 AND item_id = $3',
-    [req.user.id, 'legal_documents', item.id]);
+  await deleteItemAttachments(req.user.id, 'legal_documents', item.id);
   await query('DELETE FROM legal_documents WHERE id = $1', [item.id]);
   res.json({ success: true });
 });
@@ -261,6 +270,7 @@ router.delete('/financial-affairs/:id', requireAuth, requirePremium, async (req,
   const item = await queryOne('SELECT * FROM financial_items WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
   if (!await checkVault(req.body?.vault_password, req.user.id, res, req)) return;
+  await deleteItemAttachments(req.user.id, 'financial_items', item.id);
   await query('DELETE FROM financial_items WHERE id = $1', [item.id]);
   res.json({ success: true });
 });
@@ -489,6 +499,7 @@ router.delete('/property-possessions/:id', requireAuth, requirePremium, async (r
   const item = await queryOne('SELECT * FROM property_items WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
   if (!await checkVault(req.body?.vault_password, req.user.id, res, req)) return;
+  await deleteItemAttachments(req.user.id, 'property_items', item.id);
   await query('DELETE FROM property_items WHERE id = $1', [item.id]);
   res.json({ success: true });
 });
@@ -815,6 +826,7 @@ router.delete('/household-info/:id', requireAuth, requirePremium, async (req, re
   const item = await queryOne('SELECT id FROM household_info WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
   if (!await checkVault(req.body?.vault_password, req.user.id, res, req)) return;
+  await deleteItemAttachments(req.user.id, 'household_info', item.id);
   await query('DELETE FROM household_info WHERE id = $1', [item.id]);
   res.json({ success: true });
 });
