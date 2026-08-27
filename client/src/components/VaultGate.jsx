@@ -5,7 +5,7 @@
  */
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, Form, Alert, Spinner } from 'react-bootstrap'
+import { Button, Form, Row, Col, Alert, Spinner } from 'react-bootstrap'
 import axios from 'axios'
 import PasswordInput from './PasswordInput'
 import { useAuth } from '../context/AuthContext'
@@ -68,9 +68,12 @@ export function VaultSetupScreen({ onSetup }) {
 
   if (step === 'choice') {
     return (
-      <div style={{ maxWidth: 520, margin: '0 auto' }}>
+      <div style={{ maxWidth: 720, margin: '0 auto' }}>
         <div style={{ background: 'var(--parchment)', borderRadius: 12, padding: '32px 36px', border: '1px solid var(--border)' }}>
           <div style={{ fontSize: '2.5rem', textAlign: 'center', marginBottom: 12 }}>🔑</div>
+          <p className="text-muted small text-center mb-1">
+            You have 2 options for what happens if you ever forget your vault password:
+          </p>
           <h5 style={{ color: 'var(--green-900)', textAlign: 'center', marginBottom: 8 }}>
             If you ever forget this password, what should happen?
           </h5>
@@ -78,28 +81,34 @@ export function VaultSetupScreen({ onSetup }) {
             It's up to you. You can change this choice later in Profile &gt; Vault Settings.
           </p>
 
-          <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 10, padding: 16, marginBottom: 12 }}>
-            <p style={{ fontWeight: 600, marginBottom: 4 }}>Let me recover it with security questions</p>
-            <p className="text-muted small mb-3">
-              Set up 3-5 questions now. If you forget your password, answering at least 3 of them gets
-              you back in and nothing is deleted. This does mean your vault is only as safe as those
-              answers, not "even we cannot read it."
-            </p>
-            <Button variant="primary" size="sm" onClick={() => setStep('questions')}>
-              Set up recovery questions
-            </Button>
-          </div>
+          <Row className="g-3">
+            <Col md={6}>
+              <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 10, padding: 16, height: '100%' }}>
+                <p style={{ fontWeight: 600, marginBottom: 4 }}>Let me recover it with security questions</p>
+                <p className="text-muted small mb-3">
+                  Set up 3-5 questions now. If you forget your password, answering at least 3 of them gets
+                  you back in and nothing is deleted. This does mean your vault is only as safe as those
+                  answers, not "even we cannot read it."
+                </p>
+                <Button variant="primary" size="sm" onClick={() => setStep('questions')}>
+                  Set up recovery questions
+                </Button>
+              </div>
+            </Col>
 
-          <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 10, padding: 16 }}>
-            <p style={{ fontWeight: 600, marginBottom: 4 }}>Require a full reset if forgotten (default)</p>
-            <p className="text-muted small mb-3">
-              No recovery questions, nothing stored beyond your password itself. If you forget it, your
-              vault-protected data is permanently deleted and you start over. Strongest privacy guarantee.
-            </p>
-            <Button variant="outline-secondary" size="sm" onClick={finishWithoutRecovery}>
-              I'll use this, no recovery questions
-            </Button>
-          </div>
+            <Col md={6}>
+              <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 10, padding: 16, height: '100%' }}>
+                <p style={{ fontWeight: 600, marginBottom: 4 }}>Require a full reset if forgotten (default)</p>
+                <p className="text-muted small mb-3">
+                  No recovery questions, nothing stored beyond your password itself. If you forget it, your
+                  vault-protected data is permanently deleted and you start over. Strongest privacy guarantee.
+                </p>
+                <Button variant="outline-secondary" size="sm" onClick={finishWithoutRecovery}>
+                  I'll use this, no recovery questions
+                </Button>
+              </div>
+            </Col>
+          </Row>
         </div>
       </div>
     )
