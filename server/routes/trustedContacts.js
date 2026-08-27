@@ -65,6 +65,11 @@ router.post('/', requireAuth, async (req, res) => {
   if (!name)     return res.status(400).json({ error: 'Name is required.' });
   if (!sequence) return res.status(400).json({ error: 'Sequence (1, 2, or 3) is required.' });
 
+  const invalid = visible_sections.filter(s => !VALID_SECTIONS.has(s));
+  if (invalid.length > 0) {
+    return res.status(400).json({ error: `Invalid section(s): ${invalid.join(', ')}` });
+  }
+
   const count = await queryOne('SELECT COUNT(*)::int as c FROM trusted_contacts WHERE user_id = $1', [req.user.id]);
   if (count.c >= 3) return res.status(400).json({ error: 'You can add up to 3 trusted contacts.' });
 
