@@ -191,8 +191,13 @@ router.post('/', auth, requirePremium, async (req, res) => {
       });
     }
 
-    const { attempts, shouldLogout, vaultLocked, lockedUntil: newLockedUntil } = await recordVaultAttempt(uid);
-    const remaining = Math.max(0, 5 - attempts);
+    // REV-22: these used to be hardcoded 5s, which silently drifted from the
+    // per-vault logout_after_attempts setting. Use what recordVaultAttempt
+    // actually applied instead of restating a constant here.
+    const {
+      attempts, shouldLogout, vaultLocked, lockedUntil: newLockedUntil, logoutAfter,
+    } = await recordVaultAttempt(uid, req);
+    const remaining = Math.max(0, logoutAfter - attempts);
     if (vaultLocked) {
       return res.status(423).json({
         error: `Too many incorrect attempts. Your vault has been temporarily locked until ${newLockedUntil.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}. Nothing has been deleted - enter the correct password any time to unlock it immediately.`,
@@ -201,7 +206,7 @@ router.post('/', auth, requirePremium, async (req, res) => {
       });
     } else if (shouldLogout) {
       return res.status(403).json({
-        error: `Incorrect vault password. For your security, you have been signed out. Please sign in again. (${attempts} of 5 attempts used.)`,
+        error: `Incorrect vault password. For your security, you have been signed out. Please sign in again. (${attempts} of ${logoutAfter} attempts used.)`,
         force_logout: true, attempts,
       });
     } else {

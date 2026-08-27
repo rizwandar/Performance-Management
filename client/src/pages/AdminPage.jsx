@@ -503,7 +503,8 @@ VAULT ENCRYPTION:
 - Each encrypted field stored as JSON: {ciphertext, iv, tag} all hex-encoded. Fresh random IV per field.
 - Legal Documents, Digital Life, Financial Affairs, Property & Possessions, Practical Household Information, and Donation Bank (IDEA-32) share ONE vault and ONE password, and every text field in all six is field-level encrypted (not just Digital Life).
 - Vault reset: user-initiated, requires account password. Permanently deletes all vault data. Irreversible (there is no other way to recover data once the vault password is lost).
-- Failed unlock attempts: after 3, force logout with a warning email. After 5, a 15-minute timed lockout (not deletion) with a notification email; it auto-reopens on its own, and the correct password unlocks immediately even mid-lockout. Nothing is ever deleted for a wrong attempt.
+- Failed unlock attempts: after 5 (logout_after_attempts), force logout with a warning email. Every 5 (lockout_after_attempts), a 3-minute timed lockout (not deletion) with a notification email; it auto-reopens on its own, and the correct password unlocks immediately even mid-lockout. Nothing is deleted for a wrong attempt unless the user opted in.
+- Opt-in auto-destroy (REV-22, 2026-08-26): digital_vault.destroy_after_attempts is NULL (disabled) for every vault unless the user explicitly turns on "maximum security" in Profile > Vault Settings, behind a confirmation dialog. Set to an integer 3-1000, cumulative wrong attempts reaching it permanently destroy all vault data. It used to be NOT NULL DEFAULT 100, i.e. silently armed on every account; the migration in database.js cleared every row still sitting on that untouched 100, once, guarded by the app_settings key rev22_destroy_default_cleared. lib/vaultAttempts.js must never resolve this column with a logical-OR fallback (NULL is falsy, so an OR fallback re-arms every disabled vault); it uses an explicit positive-integer check instead.
 - Destructive vault operations (deleting a vault-protected record, resetting the vault, changing the vault password) all re-verify the vault password server-side immediately before acting, the same check used for list/create/update on the same routes.
 
 ---
@@ -571,7 +572,7 @@ EMAIL TEMPLATES (all in server/lib/emailTemplates.js, sent via Resend):
 - inactivityReminderEmail: days remaining warning
 - inactivityContactNotificationEmail: sent to trusted contacts when timer expires
 - contactAccessEmail: sent to trusted contact when user manually sends access link
-- vaultAttemptEmail: sent to user on 3rd failed vault attempt (force logout) and 5th (15-minute lockout, not deletion)
+- vaultAttemptEmail: sent to user on every failed vault attempt; the extra security notice appears from the 5th (force logout, and a 3-minute lockout, not deletion)
 - Footer contact/feedback form: POST /api/contact sends admin notification
 
 ---
@@ -813,7 +814,8 @@ Please confirm the stack choices above (or tell me which to change), and then we
                 ['Setup', 'User chooses a vault password (min 8 characters). A verification marker is encrypted and stored. The password itself is not stored anywhere.'],
                 ['Unlocking', 'User enters their vault password. The server attempts to decrypt the verification marker. If it succeeds, the vault is considered unlocked for the session.'],
                 ['Session', 'The vault password is held in React state (memory only). It is never written to localStorage or cookies. Locking the vault clears it from memory.'],
-                ['Failed attempts', '3 failed attempts: force logout, email notification to user. 5 failed attempts: vault temporarily locked for 15 minutes, email notification sent. Nothing is ever deleted for incorrect attempts - the correct password unlocks immediately even mid-lockout.'],
+                ['Failed attempts', '5 failed attempts: force logout, email notification to user. Every 5 failed attempts: vault temporarily locked for 3 minutes, email notification sent. Nothing is deleted for incorrect attempts by default - the correct password unlocks immediately even mid-lockout.'],
+                ['Opt-in auto-destroy', 'Off for every vault unless the user turns on "maximum security" in Profile > Vault Settings, behind a confirmation dialog, a tick box, and their vault password. When on, cumulative wrong attempts reaching the chosen threshold (3-1000) permanently delete all vault data. Was silently on at 100 for every account before REV-22 (2026-08-26); that legacy default was cleared by a one-time migration.'],
                 ['Reset vault', 'User-initiated only, requires confirming their account (login) password. Permanently deletes all vault-protected data. This is distinct from the failed-attempt lockout above: it is the only path that still deletes data, since there is no other way to recover it once the vault password itself is lost.'],
                 ['Change password', 'User can change the vault password from My Profile. The server decrypts all fields with the old password and re-encrypts with the new one in a single transaction.'],
                 ['Destructive-op re-verification', 'Deleting a vault-protected record, resetting the vault, and changing the vault password all require the vault password to be re-sent and re-verified server-side on that specific request, not just relying on an earlier "unlocked" client state. Applies consistently across Legal Documents, Financial Affairs, Property & Possessions, Digital Life, and Household Info.'],
@@ -885,7 +887,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
                 ['Inactivity reminder', 'Sent to the user as their timer approaches expiry. Days remaining shown clearly. Includes a "reset my timer" CTA (just log in again).'],
                 ['Inactivity notification', 'Sent to trusted contacts when the user\'s timer expires. Warm, gentle tone. Advises contacting the person directly first if possible. Includes the access link (72-hour for non-Legacy-Contacts, non-expiring for the Legacy Contact).'],
                 ['Contact access link', 'Sent to a trusted contact when the user manually clicks "Send access link". Tells them the owner has shared something important.'],
-                ['Vault attempt warning', 'Sent to the user on 3rd failed vault attempt (force logout warning) and on 5th failed attempt (15-minute lockout notice, not a deletion, and it auto-reopens on its own).'],
+                ['Vault attempt warning', 'Sent to the user on every failed vault attempt, with an added security notice from the 5th (force logout, plus a 3-minute lockout notice, not a deletion, and it auto-reopens on its own).'],
                 ['Feedback/contact form', 'When a user submits the footer feedback form, an email is sent to the admin address.'],
               ]} />
             </BpSection>
@@ -983,7 +985,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
     lib/
       vault.js               # AES-256-GCM encryption helpers (deriveKey, encryptField, decryptField)
       vaultAuth.js           # checkVault() - shared per-request vault password re-verification
-      vaultAttempts.js       # Failed-attempt tracking: force-logout at 3, 15-min lockout at 5
+      vaultAttempts.js       # Failed-attempt tracking: force-logout at 5, 3-min lockout every 5, auto-destroy opt-in only
       stripe.js               # Stripe client + PRICE_IDS from env
       r2.js                  # Cloudflare R2 client (upload/download/delete/buffer/listKeys)
       backup.js              # Nightly cron: dumps all tables to gzipped JSON in R2, prunes old backups
@@ -1383,7 +1385,7 @@ CONTACT       POST /api/contact (footer feedback form)`}
             ['contactAccessEmail', 'Sent to a non-Legacy-Contact trusted contact when user clicks "Send access link". 72-hour link.'],
             ['inactivityContactNotificationEmail', 'Sent to trusted contacts when the inactivity timer expires. Warm tone, advises reaching person directly first, includes the access link (72-hour for non-Legacy-Contacts, non-expiring for the Legacy Contact).'],
             ['executorInviteEmail / executorReportedInviteEmail', 'Sent to the designated Legacy Contact when the inactivity timer expires, or when someone uses Report a Passing. Non-expiring access link.'],
-            ['vaultAttemptEmail', 'Sent to user on 3rd vault failure (force-logout warning) and 5th failure (15-minute lockout notice, not deletion).'],
+            ['vaultAttemptEmail', 'Sent to user on every vault failure, with an added notice from the 5th (force-logout warning, and a 3-minute lockout notice, not deletion).'],
             ['Footer contact form', `POST /api/contact sends admin notification email. Subject: "${appName}: {type}"`],
           ]} />
         </BpSection>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Button, Form, Row, Col, Alert, Spinner, Dropdown } from 'react-bootstrap'
+import { Button, Form, Row, Col, Alert, Spinner, Dropdown, Modal } from 'react-bootstrap'
 import axios from 'axios'
 import { useAuth } from '../context/AuthContext'
 import { useSubscription } from '../context/SubscriptionContext'
@@ -12,6 +12,13 @@ import VaultRecoveryQuestionsForm, {
 import VaultRecoverForm from '../components/VaultRecoverForm'
 
 const API = import.meta.env.VITE_API_URL
+
+// REV-22: the number pre-filled when a user turns the optional "maximum
+// security" auto-delete on. It is only a suggestion, not a default that
+// applies to anyone who leaves the setting alone: with the setting off, no
+// number of wrong attempts deletes anything. Mirrors OPT_IN_DESTROY_AFTER in
+// server/lib/vaultAttempts.js.
+const DEFAULT_DESTROY_SUGGESTION = 100
 
 const CUSTOM_QUESTION = 'Other (write my own)'
 const SECURITY_QUESTION_PRESETS = [
@@ -130,7 +137,10 @@ export default function ProfilePage() {
 
   // Vault recovery settings (security questions + auto-destroy threshold)
   const [recoveryEnabled, setRecoveryEnabled]       = useState(false)
-  const [destroyAfter, setDestroyAfter]             = useState(100)
+  // REV-22: null means auto-destruction is OFF, which is now the default for
+  // every vault. A number is the opted-in threshold. Never initialize this to
+  // a number, or the toggle renders as already-on before the vault loads.
+  const [destroyAfter, setDestroyAfter]             = useState(null)
   const [showRecoverySetup, setShowRecoverySetup]   = useState(false)
   const [recoverySetupPw, setRecoverySetupPw]       = useState('')
   const [recoveryQuestions, setRecoveryQuestions]   = useState(defaultRecoveryQuestions())
@@ -141,17 +151,22 @@ export default function ProfilePage() {
   const [recoveryDisablePw, setRecoveryDisablePw]     = useState('')
   const [recoveryDisabling, setRecoveryDisabling]     = useState(false)
   const [recoveryDisableError, setRecoveryDisableError] = useState('')
-  const [destroyThresholdInput, setDestroyThresholdInput] = useState(100)
+  const [destroyThresholdInput, setDestroyThresholdInput] = useState(DEFAULT_DESTROY_SUGGESTION)
   const [destroyThresholdPw, setDestroyThresholdPw]       = useState('')
   const [savingThreshold, setSavingThreshold]             = useState(false)
   const [thresholdError, setThresholdError]               = useState('')
   const [thresholdSuccess, setThresholdSuccess]           = useState('')
+  // The two confirmation dialogs for the opt-in switch. Turning it ON has to
+  // pass through a real warning, so the switch itself never writes anything.
+  const [showDestroyEnable, setShowDestroyEnable]   = useState(false)
+  const [showDestroyDisable, setShowDestroyDisable] = useState(false)
+  const [destroyAcknowledged, setDestroyAcknowledged] = useState(false)
 
   // Also configurable, matching the destroy threshold above (SEC-13 scope
   // expansion): logout_after_attempts forces a sign-out, lockout_after_attempts
   // is the repeating-throttle interval. Independent settings, independent forms.
-  const [logoutAfter, setLogoutAfter]                     = useState(3)
-  const [logoutThresholdInput, setLogoutThresholdInput]   = useState(3)
+  const [logoutAfter, setLogoutAfter]                     = useState(5)
+  const [logoutThresholdInput, setLogoutThresholdInput]   = useState(5)
   const [logoutThresholdPw, setLogoutThresholdPw]         = useState('')
   const [savingLogoutThreshold, setSavingLogoutThreshold] = useState(false)
   const [logoutThresholdError, setLogoutThresholdError]   = useState('')
@@ -221,10 +236,13 @@ export default function ProfilePage() {
         setVaultExists(r.data.exists)
         if (r.data.hint) setVaultPwForm(f => ({ ...f, hint: r.data.hint }))
         setRecoveryEnabled(r.data.recovery_enabled)
-        if (r.data.destroy_after_attempts) {
-          setDestroyAfter(r.data.destroy_after_attempts)
-          setDestroyThresholdInput(r.data.destroy_after_attempts)
-        }
+        // REV-22: destroy_after_attempts is null whenever auto-destruction is
+        // off, so this is set unconditionally rather than only when truthy.
+        // A truthiness guard here would leave the toggle stuck on whatever the
+        // previous render had, which for this setting is the wrong direction
+        // to be wrong in.
+        setDestroyAfter(r.data.destroy_after_attempts ?? null)
+        setDestroyThresholdInput(r.data.destroy_after_attempts ?? DEFAULT_DESTROY_SUGGESTION)
         if (r.data.logout_after_attempts) {
           setLogoutAfter(r.data.logout_after_attempts)
           setLogoutThresholdInput(r.data.logout_after_attempts)
@@ -446,8 +464,12 @@ export default function ProfilePage() {
     setRecoveryDisabling(false)
   }
 
-  const handleSaveThreshold = async () => {
+  // Turns the optional auto-delete ON (or changes its threshold once on).
+  // Only ever reached from the confirmation dialog below, never straight from
+  // the switch: this is the one setting on this page that can destroy data.
+  const handleEnableDestroy = async () => {
     setThresholdError('')
+    if (!destroyAcknowledged) return setThresholdError('Please tick the box to confirm you understand what this does.')
     if (!destroyThresholdPw) return setThresholdError('Please enter your current vault password to confirm.')
     const n = parseInt(destroyThresholdInput, 10)
     if (!Number.isInteger(n) || n < 3 || n > 1000) return setThresholdError('Please choose a value between 3 and 1000.')
@@ -459,12 +481,50 @@ export default function ProfilePage() {
       })
       setDestroyAfter(n)
       setDestroyThresholdPw('')
-      setThresholdSuccess('Saved.')
-      setTimeout(() => setThresholdSuccess(''), 4000)
+      setDestroyAcknowledged(false)
+      setShowDestroyEnable(false)
+      setThresholdSuccess(`Maximum security is on. Your vault data will be permanently deleted after ${n} wrong password attempts in a row.`)
+      setTimeout(() => setThresholdSuccess(''), 8000)
     } catch (err) {
       setThresholdError(err.response?.data?.error || 'Could not save this setting. Please try again.')
     }
     setSavingThreshold(false)
+  }
+
+  // Turns it back off. Sends an explicit null rather than omitting the field,
+  // which the server rejects on purpose (see routes/vaultRecovery.js).
+  const handleDisableDestroy = async () => {
+    setThresholdError('')
+    if (!destroyThresholdPw) return setThresholdError('Please enter your current vault password to confirm.')
+    setSavingThreshold(true)
+    try {
+      await axios.put(`${API}/sections/digital-life/recovery/destroy-threshold`, {
+        vault_password: destroyThresholdPw,
+        destroy_after_attempts: null,
+      })
+      setDestroyAfter(null)
+      setDestroyThresholdInput(DEFAULT_DESTROY_SUGGESTION)
+      setDestroyThresholdPw('')
+      setShowDestroyDisable(false)
+      setThresholdSuccess('Maximum security is off. Wrong password attempts will never delete your vault data.')
+      setTimeout(() => setThresholdSuccess(''), 8000)
+    } catch (err) {
+      setThresholdError(err.response?.data?.error || 'Could not save this setting. Please try again.')
+    }
+    setSavingThreshold(false)
+  }
+
+  const openDestroyDialog = (turningOn) => {
+    setThresholdError('')
+    setThresholdSuccess('')
+    setDestroyThresholdPw('')
+    setDestroyAcknowledged(false)
+    if (turningOn) {
+      setDestroyThresholdInput(destroyAfter ?? DEFAULT_DESTROY_SUGGESTION)
+      setShowDestroyEnable(true)
+    } else {
+      setShowDestroyDisable(true)
+    }
   }
 
   const handleSaveLogoutThreshold = async () => {
@@ -1134,8 +1194,9 @@ export default function ProfilePage() {
         <div style={{ background: 'var(--parchment)', borderRadius: 12, padding: '24px', marginBottom: 24, border: '1px solid var(--border)' }}>
           <h6 style={{ color: 'var(--green-900)', marginBottom: 4 }}>Vault Settings</h6>
           <p className="text-muted small mb-4">
-            Choose what happens if you ever forget your vault password, and how many wrong tries
-            your vault can survive before it's automatically deleted for safety.
+            Choose what happens if you ever forget your vault password, and how your vault responds
+            to wrong password attempts. Nothing here deletes your data unless you deliberately
+            switch that on.
           </p>
 
           {recoverySuccess && <Alert variant="success">{recoverySuccess}</Alert>}
@@ -1212,36 +1273,130 @@ export default function ProfilePage() {
             )}
           </div>
 
+          {/* REV-22: auto-delete is off unless the user deliberately turns it
+              on. The switch itself never saves; both directions go through a
+              confirmation dialog, and turning it on also needs a tick box and
+              the vault password. */}
           <div style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 8, padding: '14px 16px' }}>
-            <p className="mb-2" style={{ fontWeight: 600, color: '#92400E' }}>
-              Auto-destroy after failed attempts (currently: {destroyAfter})
+            <Form.Check
+              type="switch"
+              id="destroy-after-attempts-switch"
+              checked={destroyAfter !== null}
+              onChange={e => openDestroyDialog(e.target.checked)}
+              label={
+                <span style={{ fontWeight: 600, color: '#92400E' }}>
+                  Maximum security: delete my vault data after repeated wrong passwords
+                </span>
+              }
+            />
+            <p className="text-muted small mb-0 mt-2">
+              {destroyAfter === null ? (
+                <>
+                  <strong>Currently off.</strong> Getting your vault password wrong will never delete
+                  anything. You will be signed out and your vault will pause for a few minutes, and
+                  that is all. This is the right setting for almost everyone.
+                </>
+              ) : (
+                <>
+                  <strong>Currently on.</strong> If your vault password is entered wrongly{' '}
+                  {destroyAfter} times in a row, everything in your vault is permanently deleted and
+                  cannot be brought back. Turn this off any time.
+                </>
+              )}
             </p>
-            <p className="text-muted small mb-3">
-              If your vault password is entered incorrectly this many times in a row, your vault data
-              is automatically and permanently deleted, to protect it from someone repeatedly guessing.
-              This applies no matter which recovery option you chose above. Minimum 3, default 100.
-            </p>
-            {thresholdError && <Alert variant="danger">{thresholdError}</Alert>}
-            {thresholdSuccess && <Alert variant="success">{thresholdSuccess}</Alert>}
-            <Row className="g-2 align-items-end">
-              <Col xs={4} md={3}>
-                <Form.Label className="small">Attempts</Form.Label>
+            {thresholdError && !showDestroyEnable && !showDestroyDisable && (
+              <Alert variant="danger" className="mt-3 mb-0">{thresholdError}</Alert>
+            )}
+            {thresholdSuccess && <Alert variant="success" className="mt-3 mb-0">{thresholdSuccess}</Alert>}
+            {destroyAfter !== null && (
+              <Button variant="link" size="sm" className="p-0 mt-2" onClick={() => openDestroyDialog(true)}>
+                Change the number of attempts
+              </Button>
+            )}
+          </div>
+
+          <Modal show={showDestroyEnable} onHide={() => setShowDestroyEnable(false)} centered>
+            <Modal.Header closeButton>
+              <Modal.Title style={{ fontSize: '1.1rem', color: '#991B1B' }}>
+                Please read this before turning it on
+              </Modal.Title>
+            </Modal.Header>
+            <Modal.Body>
+              <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '14px 16px', marginBottom: 16 }}>
+                <p className="mb-2" style={{ color: '#991B1B', fontWeight: 600 }}>
+                  This setting can delete your information forever.
+                </p>
+                <p className="mb-2 small" style={{ color: '#7F1D1D' }}>
+                  If you turn this on, then anyone who types the wrong vault password too many times
+                  in a row will cause all of your vault-protected information to be deleted
+                  permanently. That includes your legal documents, digital account details, financial
+                  affairs, property and possessions, and household information.
+                </p>
+                <p className="mb-0 small" style={{ color: '#7F1D1D' }}>
+                  We cannot undo it, and neither can you. There is no backup and no way to get it
+                  back. That includes the case where it is you who has simply forgotten your own
+                  password. Only turn this on if you would genuinely rather lose this information
+                  than risk someone else eventually guessing their way into it.
+                </p>
+              </div>
+              {thresholdError && <Alert variant="danger">{thresholdError}</Alert>}
+              <Form.Group className="mb-3">
+                <Form.Label className="small" style={{ fontWeight: 600 }}>
+                  Delete after this many wrong attempts in a row
+                </Form.Label>
                 <Form.Control type="number" min={3} max={1000} value={destroyThresholdInput}
                   onChange={e => setDestroyThresholdInput(e.target.value)} />
-              </Col>
-              <Col xs={8} md={6}>
-                <Form.Label className="small">Current vault password</Form.Label>
+                <Form.Text className="text-muted">Between 3 and 1000. We suggest {DEFAULT_DESTROY_SUGGESTION}.</Form.Text>
+              </Form.Group>
+              <Form.Group className="mb-3">
+                <Form.Label className="small" style={{ fontWeight: 600 }}>Current vault password</Form.Label>
                 <PasswordInput value={destroyThresholdPw}
                   onChange={e => setDestroyThresholdPw(e.target.value)}
                   placeholder="Required to confirm" />
-              </Col>
-              <Col xs={12} md={3}>
-                <Button variant="outline-primary" size="sm" className="w-100" onClick={handleSaveThreshold} disabled={savingThreshold}>
-                  {savingThreshold ? 'Saving...' : 'Save'}
-                </Button>
-              </Col>
-            </Row>
-          </div>
+              </Form.Group>
+              <Form.Check
+                type="checkbox"
+                id="destroy-acknowledge"
+                checked={destroyAcknowledged}
+                onChange={e => setDestroyAcknowledged(e.target.checked)}
+                label="I understand my vault data will be permanently deleted and cannot be recovered."
+              />
+            </Modal.Body>
+            <Modal.Footer>
+              <Button variant="outline-secondary" onClick={() => setShowDestroyEnable(false)}>
+                Cancel, leave it off
+              </Button>
+              <Button variant="danger" onClick={handleEnableDestroy} disabled={savingThreshold || !destroyAcknowledged}>
+                {savingThreshold ? 'Saving...' : 'Turn on permanent deletion'}
+              </Button>
+            </Modal.Footer>
+          </Modal>
+
+          <Modal show={showDestroyDisable} onHide={() => setShowDestroyDisable(false)} centered>
+            <Modal.Header closeButton>
+              <Modal.Title style={{ fontSize: '1.1rem' }}>Turn off maximum security</Modal.Title>
+            </Modal.Header>
+            <Modal.Body>
+              <p className="small text-muted">
+                Wrong vault password attempts will no longer delete anything. You will still be
+                signed out after {logoutAfter} wrong attempts, and your vault will still pause
+                briefly every {lockoutAfter}, which are the normal protections.
+              </p>
+              {thresholdError && <Alert variant="danger">{thresholdError}</Alert>}
+              <Form.Group>
+                <Form.Label className="small" style={{ fontWeight: 600 }}>Current vault password</Form.Label>
+                <PasswordInput value={destroyThresholdPw}
+                  onChange={e => setDestroyThresholdPw(e.target.value)}
+                  placeholder="Required to confirm" />
+              </Form.Group>
+            </Modal.Body>
+            <Modal.Footer>
+              <Button variant="outline-secondary" onClick={() => setShowDestroyDisable(false)}>Cancel</Button>
+              <Button variant="primary" onClick={handleDisableDestroy} disabled={savingThreshold}>
+                {savingThreshold ? 'Saving...' : 'Turn it off'}
+              </Button>
+            </Modal.Footer>
+          </Modal>
 
           <div style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 8, padding: '14px 16px', marginTop: 16 }}>
             <p className="mb-2" style={{ fontWeight: 600, color: '#92400E' }}>
@@ -1249,7 +1404,8 @@ export default function ProfilePage() {
             </p>
             <p className="text-muted small mb-3">
               After this many wrong vault-password attempts in a row, you'll be signed out of your
-              account entirely, not just locked out of the vault. Minimum 1, default 3.
+              account entirely, not just locked out of the vault. Nothing is deleted. Minimum 1,
+              default 5.
             </p>
             {logoutThresholdError && <Alert variant="danger">{logoutThresholdError}</Alert>}
             {logoutThresholdSuccess && <Alert variant="success">{logoutThresholdSuccess}</Alert>}
@@ -1279,7 +1435,8 @@ export default function ProfilePage() {
             </p>
             <p className="text-muted small mb-3">
               Every time your wrong-attempt count reaches a multiple of this number (e.g. every {lockoutAfter}{' '}
-              attempts), the vault is temporarily locked for 15 minutes as a throttle. Minimum 1, default 5.
+              attempts), the vault is temporarily locked for 3 minutes as a throttle. The correct
+              password unlocks it straight away, even during a lock. Minimum 1, default 5.
             </p>
             {lockoutThresholdError && <Alert variant="danger">{lockoutThresholdError}</Alert>}
             {lockoutThresholdSuccess && <Alert variant="success">{lockoutThresholdSuccess}</Alert>}

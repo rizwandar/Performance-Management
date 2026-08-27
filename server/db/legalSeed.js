@@ -5,6 +5,17 @@
 // became semantic HTML + CSS classes (see client/src/index.css, .legal-doc).
 // Only used once, at first migration, to seed version 1 so existing users
 // aren't asked to "re-consent" to content they already agreed to.
+//
+// REV-22 (2026-08-26) is the first edit to this file that is NOT a verbatim
+// carry-over: the vault-attempt paragraphs claimed "no data is ever deleted
+// for incorrect attempts", which stopped being true once auto-destruction
+// shipped, and the lockout duration moved from 15 minutes to 3. The text here
+// now describes the shipped behavior (destruction off unless explicitly opted
+// in). Editing this file does NOT change what any existing install serves:
+// database.js only inserts this content when the module has no version rows at
+// all, so live databases keep serving their published version until an admin
+// publishes a new one from the admin panel. That republish is deliberately a
+// human decision, since it triggers re-consent for every user.
 
 const TOS_V1_HTML = `
 <div class="legal-header">
@@ -43,7 +54,8 @@ const TOS_V1_HTML = `
   <p>Certain sections of the Service (Digital Life, Personal and Legal Documents, Financial Affairs, Property and Possessions, and Practical Household Information) are protected by a vault password that you set. Your vault password is never stored on our servers. It is derived client-side and used to encrypt the text you enter directly (credentials, document details, financial and property details, and notes) before storage.</p>
   <p>Files you upload as attachments within these sections (for example, a scanned document or photo) are stored securely and access-controlled, but are not encrypted using your vault password. See our Security page for the full technical detail on how uploaded files are protected.</p>
   <p>This means that if you lose or forget your vault password, we cannot recover your vault-protected data on your behalf. You will need to reset your vault, which will permanently delete the vault-protected content. Your other plans and information will remain safe.</p>
-  <p>After 5 consecutive failed vault password attempts, your vault will be temporarily locked for 15 minutes as a security measure. No vault data is deleted for incorrect attempts. You will be notified by email at each failed attempt.</p>
+  <p>After 5 consecutive failed vault password attempts, you are signed out of your account and your vault is temporarily locked for 3 minutes as a security measure. The lock clears on its own, and entering the correct password unlocks the vault immediately. You will be notified by email at each failed attempt.</p>
+  <p>By default, no vault data is ever deleted because of incorrect attempts. There is an optional "maximum security" setting, switched off unless you turn it on yourself in Profile, Vault Settings, which permanently deletes all of your vault-protected data once a chosen number of consecutive incorrect attempts is reached. If you choose to turn that setting on, we show you a warning first, and the deletion it causes is permanent and cannot be undone by you or by us. You can switch it off again at any time.</p>
 </section>
 
 <section>
@@ -228,7 +240,7 @@ const PRIVACY_V1_HTML = `
     <li>Passwords are hashed using bcrypt with a cost factor of 10.</li>
     <li>Vault-protected text (digital credentials, legal document details, financial affairs, property and possessions, practical household information, and notes) is encrypted at rest with AES-256-GCM using a key derived from your vault password via scrypt. Your vault password is never sent to or stored on our servers.</li>
     <li>Uploaded files (such as document scans or photos) are stored in Cloudflare R2, encrypted at rest by the storage provider, and only ever accessible through short-lived signed URLs tied to your authenticated account, never a public link. Files are not additionally encrypted with your vault password.</li>
-    <li>Failed vault password attempts are monitored and trigger automatic security emails. After 5 failed attempts, your vault is temporarily locked for 15 minutes as a security measure. No data is ever deleted for incorrect attempts.</li>
+    <li>Failed vault password attempts are monitored and trigger automatic security emails. After 5 failed attempts, you are signed out and your vault is temporarily locked for 3 minutes as a security measure. No data is deleted for incorrect attempts unless you have turned on the optional "maximum security" auto-delete setting yourself, which is switched off by default for every account.</li>
     <li>JWT authentication tokens expire after 8 hours.</li>
     <li>Rate limiting is applied to all authentication endpoints.</li>
   </ul>

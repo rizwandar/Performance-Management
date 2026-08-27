@@ -1,6 +1,6 @@
 const { queryOne } = require('../db/database');
 const { deriveKey, verifyVaultPassword } = require('./vault');
-const { recordVaultAttempt, getVaultLockStatus, resetVaultAttempts } = require('./vaultAttempts');
+const { recordVaultAttempt, getVaultLockStatus, resetVaultAttempts, LOCKOUT_MINUTES } = require('./vaultAttempts');
 
 // Shared vault-password check used by every route that touches vault-protected
 // data (sections.js, documents.js). Centralized so the lockout/attempt-counter
@@ -67,7 +67,11 @@ async function _sendVaultFailResponse(userId, res, req) {
     return;
   }
 
-  const remaining = Math.max(0, destroyAfter - attempts);
+  // destroyAfter is null unless this user explicitly opted in to permanent
+  // destruction (REV-22). When it is null there is no countdown to mention,
+  // and telling someone their data is about to be deleted when it isn't would
+  // be both wrong and, for this app's users, needlessly frightening.
+  const remaining = destroyAfter === null ? null : Math.max(0, destroyAfter - attempts);
   if (vaultLocked) {
     res.status(423).json({
       error: `Too many incorrect attempts. Your vault has been temporarily locked until ${lockedUntil.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}. Nothing has been deleted - enter the correct password any time to unlock it immediately.`,
@@ -76,12 +80,17 @@ async function _sendVaultFailResponse(userId, res, req) {
     });
   } else if (shouldLogout) {
     res.status(403).json({
-      error: `Incorrect vault password. For your security, you have been signed out. Please sign in again. (${attempts} of ${destroyAfter} attempts used.)`,
+      error: destroyAfter === null
+        ? `Incorrect vault password. For your security, you have been signed out. Please sign in again. Nothing has been deleted.`
+        : `Incorrect vault password. For your security, you have been signed out. Please sign in again. (${attempts} of ${destroyAfter} attempts used.)`,
       force_logout: true, attempts,
     });
   } else {
+    const throttleNote = `After ${logoutAfter} incorrect attempt${logoutAfter !== 1 ? 's' : ''} you will be signed out; every ${lockoutInterval}, your vault is temporarily locked for ${LOCKOUT_MINUTES} minutes.`;
     res.status(401).json({
-      error: `Incorrect vault password. ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining before your vault is permanently deleted. After ${logoutAfter} incorrect attempt${logoutAfter !== 1 ? 's' : ''} you will be signed out; every ${lockoutInterval}, your vault is temporarily locked for 15 minutes.`,
+      error: destroyAfter === null
+        ? `Incorrect vault password. Nothing has been deleted. ${throttleNote}`
+        : `Incorrect vault password. ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining before your vault is permanently deleted. ${throttleNote}`,
       attempts, remaining,
     });
   }
