@@ -19,6 +19,15 @@ const API = import.meta.env.VITE_API_URL
 const MAX_RECORDING_SECONDS = 300 // 5 minutes, same guardrail as Messages to Loved Ones
 const RECORDER_MIME_CANDIDATES = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg']
 
+// This page deliberately invites a long, "weightier" letter, but the save
+// request is still a single JSON PUT - without a client-side ceiling, a long
+// dictated or typed letter could exceed the server's request body limit
+// (server/index.js) with no warning until Save fails. These limits are set
+// with generous headroom under that server limit (256kb), comfortably more
+// room than anyone would realistically write in a single letter or note.
+const MAX_MESSAGE_CHARS = 20000 // roughly 3,000-4,000 words
+const MAX_NOTES_CHARS = 2000
+
 const recordingSupported = typeof window !== 'undefined' && !!navigator.mediaDevices?.getUserMedia && typeof window.MediaRecorder !== 'undefined'
 
 function pickRecorderMimeType() {
@@ -49,13 +58,16 @@ export default function LastMomentsPage() {
   const [success, setSuccess] = useState('')
   const [hasData, setHasData] = useState(false)
 
+  // Clamped here (not just via the textareas' maxLength below) because
+  // dictation writes the field's value directly via setValue, bypassing the
+  // native maxLength enforcement a browser only applies to typed/pasted input.
   const dictation = useDictation({
     getValue: () => form.message,
-    setValue: v => setForm(f => ({ ...f, message: v })),
+    setValue: v => setForm(f => ({ ...f, message: v.slice(0, MAX_MESSAGE_CHARS) })),
   })
   const notesDictation = useDictation({
     getValue: () => form.notes,
-    setValue: v => setForm(f => ({ ...f, notes: v })),
+    setValue: v => setForm(f => ({ ...f, notes: v.slice(0, MAX_NOTES_CHARS) })),
   })
 
   // Voice recording state - same shape as MessagesPage.jsx
@@ -175,7 +187,12 @@ export default function LastMomentsPage() {
       setAudioRemoved(false)
       setTimeout(() => setSuccess(''), 3000)
     } catch (err) {
-      setError(err.response?.data?.error || "We couldn't save this. Please try again.")
+      const data = err.response?.data
+      // requirePremium sends a stable `error: 'upgrade_required'` sentinel
+      // (so callers like ExportPage can branch on it) plus a separate,
+      // human-readable `message` - this page was showing the raw sentinel
+      // string instead of that message for a non-Premium account.
+      setError((data?.error === 'upgrade_required' ? data.message : data?.error) || "We couldn't save this. Please try again.")
     }
     setSaving(false)
   }
@@ -229,11 +246,17 @@ export default function LastMomentsPage() {
           <Form.Control
             as="textarea"
             rows={10}
+            maxLength={MAX_MESSAGE_CHARS}
             value={form.message}
-            onChange={e => setForm({ ...form, message: e.target.value })}
+            onChange={e => setForm({ ...form, message: e.target.value.slice(0, MAX_MESSAGE_CHARS) })}
             placeholder="Whatever you'd want them to hear, one last time."
             style={{ lineHeight: 1.7, fontSize: '0.95rem' }}
           />
+          <div className="text-end">
+            <span className="text-muted" style={{ fontSize: '0.78rem' }}>
+              {form.message.length.toLocaleString()} / {MAX_MESSAGE_CHARS.toLocaleString()}
+            </span>
+          </div>
           {dictation.supported && <DictationDisclosure />}
         </Form.Group>
 
@@ -282,10 +305,16 @@ export default function LastMomentsPage() {
           <Form.Control
             as="textarea"
             rows={3}
+            maxLength={MAX_NOTES_CHARS}
             value={form.notes}
-            onChange={e => setForm({ ...form, notes: e.target.value })}
+            onChange={e => setForm({ ...form, notes: e.target.value.slice(0, MAX_NOTES_CHARS) })}
             placeholder="Anything else you'd like noted alongside this (optional)"
           />
+          <div className="text-end">
+            <span className="text-muted" style={{ fontSize: '0.78rem' }}>
+              {form.notes.length.toLocaleString()} / {MAX_NOTES_CHARS.toLocaleString()}
+            </span>
+          </div>
           {notesDictation.supported && <DictationDisclosure />}
         </Form.Group>
 
