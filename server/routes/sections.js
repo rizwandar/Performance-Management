@@ -1077,16 +1077,15 @@ router.post('/digital-life/list', requireAuth, async (req, res) => {
 
 router.post('/digital-life', requireAuth, requirePremium, async (req, res) => {
   const { vault_password, service, service_url, username, password, notes } = req.body;
-  if (!vault_password) return res.status(400).json({ error: 'vault_password is required.' });
   if (!service)        return res.status(400).json({ error: 'Service name is required.' });
   if (!username && !password) return res.status(400).json({ error: 'At least a username or password is required.' });
 
-  const vault = await queryOne('SELECT check_enc FROM digital_vault WHERE user_id = $1', [req.user.id]);
-  if (!vault) return res.status(404).json({ error: 'No vault found.' });
-
-  const key   = deriveKey(vault_password, req.user.id);
-  const valid = verifyVaultPassword(vault.check_enc, key);
-  if (!valid) return res.status(401).json({ error: 'Incorrect vault password.' });
+  // REV-09: was verifying the vault password inline with deriveKey()/
+  // verifyVaultPassword() directly instead of going through checkVault(),
+  // so wrong guesses here never fed the shared attempt-counter/lockout
+  // tracking. Now matches every other vault-protected route in this file.
+  const key = await checkVault(vault_password, req.user.id, res, req);
+  if (!key) return;
 
   const result = await query(`
     INSERT INTO digital_credentials (user_id, service, service_url, username_enc, password_enc, notes_enc)
@@ -1098,15 +1097,15 @@ router.post('/digital-life', requireAuth, requirePremium, async (req, res) => {
 
 router.put('/digital-life/:id', requireAuth, requirePremium, async (req, res) => {
   const { vault_password, service, service_url, username, password, notes } = req.body;
-  if (!vault_password) return res.status(400).json({ error: 'vault_password is required.' });
 
   const item = await queryOne('SELECT * FROM digital_credentials WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Credential not found.' });
 
-  const vault = await queryOne('SELECT check_enc FROM digital_vault WHERE user_id = $1', [req.user.id]);
-  const key   = deriveKey(vault_password, req.user.id);
-  const valid = verifyVaultPassword(vault.check_enc, key);
-  if (!valid) return res.status(401).json({ error: 'Incorrect vault password.' });
+  // REV-09: was verifying the vault password inline instead of going through
+  // checkVault(), which also meant `vault.check_enc` was dereferenced with no
+  // null check if the user somehow had no vault row. checkVault() covers both.
+  const key = await checkVault(vault_password, req.user.id, res, req);
+  if (!key) return;
 
   await query(`
     UPDATE digital_credentials
