@@ -15,9 +15,14 @@ const { cardExpiringReminderEmail } = require('./emailTemplates');
 // default payment method. Fine at current scale; would need batching/caching
 // if the subscriber count grows large enough to make that N Stripe calls/day
 // meaningfully slow or costly.
+//
+// Ordered tightest-first (7 days before 14) so the per-subscription loop
+// below always picks the single most urgent unsent tier for the current
+// daysLeft, rather than sending every tier whose threshold happens to be
+// met (a card at daysLeft <= 7 also satisfies the 14-day threshold).
 const REMINDER_WINDOWS = [
-  { days: 14, column: 'card_expiry_14d_reminder_sent_at' },
   { days: 7,  column: 'card_expiry_7d_reminder_sent_at' },
+  { days: 14, column: 'card_expiry_14d_reminder_sent_at' },
 ];
 
 function lastDayOfExpiryMonth(expMonth, expYear) {
@@ -34,9 +39,9 @@ function daysUntil(date) {
 
 async function sendCardExpiryReminders() {
   const subs = await queryAll(`
-    SELECT id, user_id, provider_subscription_id,
-           card_expiry_14d_reminder_sent_at, card_expiry_7d_reminder_sent_at,
-           card_expiry_reminder_exp_month, card_expiry_reminder_exp_year,
+    SELECT s.id, s.user_id, s.provider_subscription_id,
+           s.card_expiry_14d_reminder_sent_at, s.card_expiry_7d_reminder_sent_at,
+           s.card_expiry_reminder_exp_month, s.card_expiry_reminder_exp_year,
            u.name, u.email
     FROM subscriptions s
     JOIN users u ON u.id = s.user_id
@@ -72,6 +77,11 @@ async function sendCardExpiryReminders() {
 
       const daysLeft = daysUntil(lastDayOfExpiryMonth(card.exp_month, card.exp_year));
 
+      // REMINDER_WINDOWS is ordered tightest-first, so the first (smallest
+      // days) unsent tier whose threshold is met is the single one that
+      // fires this run - stop after it rather than also checking looser
+      // tiers, or a card first seen at e.g. daysLeft = 5 would get both the
+      // 14-day and 7-day emails in the same run.
       for (const { days, column } of REMINDER_WINDOWS) {
         if (daysLeft <= days && daysLeft >= 0 && !sub[column]) {
           await sendEmail({
@@ -86,6 +96,7 @@ async function sendCardExpiryReminders() {
           });
           await query(`UPDATE subscriptions SET ${column} = NOW() WHERE id = $1`, [sub.id]);
           console.log(`[billing] Card-expiry (${days}d) reminder sent to ${sub.email}`);
+          break;
         }
       }
     } catch (err) {
