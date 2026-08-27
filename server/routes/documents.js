@@ -4,6 +4,7 @@ const { v4: uuidv4 } = require('uuid');
 const router  = express.Router();
 const { queryOne, queryAll, query } = require('../db/database');
 const requireAuth = require('../middleware/auth');
+const checkPlanLock = require('../middleware/planLock');
 const { uploadFile, getDownloadUrl, deleteFile } = require('../lib/r2');
 const { checkVault } = require('../lib/vaultAuth');
 const { isVaultProtectedSection } = require('../lib/vaultSections');
@@ -22,6 +23,15 @@ const ALLOWED_MIME_TYPES = new Set([
 const ALLOWED_EXTENSIONS = new Set(['pdf', 'jpg', 'jpeg', 'png', 'heic', 'webp', 'doc', 'docx']);
 const PHOTO_MIME_TYPES   = new Set(['image/jpeg', 'image/png', 'image/heic', 'image/webp']);
 const PHOTO_EXTENSIONS   = new Set(['jpg', 'jpeg', 'png', 'heic', 'webp']);
+
+// REV-19 (2026-08-26 review): a deceased user's plan is locked from edits
+// (middleware/planLock.js), but this file never checked it, so attachments
+// could still be uploaded to and deleted from a locked plan. Applied per-route
+// rather than with a router.use() as sections.js/trustedContacts.js/users.js
+// do, because the lock skips only GET and three of the read routes here are
+// deliberately POSTs (a vault_password has to travel in a body, never a query
+// string). A locked plan must stay fully readable - that is the entire point
+// of locking it - so only the three genuinely mutating routes below carry it.
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -47,7 +57,7 @@ const photoUpload = multer({
   },
 });
 
-router.post('/upload', requireAuth, (req, res, next) => {
+router.post('/upload', requireAuth, checkPlanLock, (req, res, next) => {
   upload.single('file')(req, res, (err) => {
     if (err) return res.status(400).json({ error: err.message });
     next();
@@ -136,7 +146,7 @@ router.post('/download/:id', requireAuth, async (req, res) => {
   }
 });
 
-router.delete('/:id', requireAuth, async (req, res) => {
+router.delete('/:id', requireAuth, checkPlanLock, async (req, res) => {
   try {
     const doc = await queryOne(
       'SELECT * FROM uploaded_documents WHERE id = $1 AND user_id = $2',
@@ -157,7 +167,7 @@ router.delete('/:id', requireAuth, async (req, res) => {
   }
 });
 
-router.post('/photos/upload', requireAuth, (req, res, next) => {
+router.post('/photos/upload', requireAuth, checkPlanLock, (req, res, next) => {
   photoUpload.single('photo')(req, res, (err) => {
     if (err) return res.status(400).json({ error: err.message });
     next();

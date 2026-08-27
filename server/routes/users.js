@@ -10,6 +10,7 @@ const { accountDeletionConfirmEmail, executorDesignatedEmail } = require('../lib
 const { generateAccessLink } = require('../lib/inactivityTimer');
 const { stripe } = require('../lib/stripe');
 const { blockViewAs } = require('../lib/viewAsGuard');
+const checkPlanLock = require('../middleware/planLock');
 
 const CLIENT_URL  = process.env.CLIENT_URL  || 'http://localhost:5173';
 
@@ -24,6 +25,33 @@ router.use((req, res, next) => {
   if (req.method === 'GET') return next();
   return blockViewAs('Account changes are not available in view-as mode.')(req, res, next);
 });
+
+// REV-19 (2026-08-26 review): a deceased user's plan is locked from edits
+// (middleware/planLock.js), but this file never checked it. Applied
+// router-wide, which locks every mutating route here and leaves every GET
+// (/me, /me/timer, /me/org-consent, /me/org-branding) readable:
+//
+//   PUT  /me                        profile and Emergency Contact fields, all
+//                                   plan data an executor is meant to read
+//                                   exactly as the owner left it
+//   POST /me/change-password        account credentials
+//   PUT/DELETE /me/security-question  an account-recovery signal, the classic
+//                                   thing to quietly plant for a later takeover
+//   PUT  /me/org-consent/revoke-*   org access state, and the only party who
+//                                   could still call it is not the owner
+//   PUT  /me/timer                  inactivity settings, moot once deceased
+//   POST/DELETE /me/songs, /me/bucket-list   plan content
+//   POST /me/device-token           writes users.expo_push_token
+//   DELETE /me                      see below
+//
+// DELETE /me is the deliberate judgment call. Locking it is the whole point of
+// the lock rather than an overreach: it is the most destructive edit possible,
+// it would wipe the exact estate data the trusted contacts and executor are
+// being kept alive to read, and after death nobody legitimately holds the
+// owner's credentials. A wrongly-flagged living user is not stranded - an
+// admin can revert the flag (POST /api/admin/users/:id/revert-deceased), and
+// that same user is already blocked from editing every section today.
+router.use(checkPlanLock);
 
 router.get('/me', auth, async (req, res) => {
   const user = await queryOne(`
@@ -452,9 +480,33 @@ router.delete('/me', auth, async (req, res) => {
     }
   }
 
-  const uploads = await queryAll('SELECT r2_key FROM uploaded_documents WHERE user_id = $1', [user.id]);
-  for (const upload of uploads) {
-    try { await deleteFile(upload.r2_key); } catch { /* continue */ }
+  // Every R2 object this account owns has to be collected and deleted before
+  // the users row goes: the rows holding these keys all cascade away with it,
+  // and once they are gone nothing can ever find the objects again. Best
+  // effort per object, same as destroyVaultData(), so a storage hiccup never
+  // leaves someone with an account they cannot delete.
+  //
+  // REV-21 (2026-08-26 review): only uploaded_documents was collected here.
+  // The voice recordings in personal_message_audio_clips (IDEA-01/IDEA-34) and
+  // last_moments.audio_r2_key (IDEA-30) cascade-delete their rows on account
+  // deletion, but their R2 objects were never touched, orphaning them
+  // permanently and contradicting the Privacy Policy's promise that all data
+  // including uploaded files is deleted. personal_messages.audio_r2_key is the
+  // pre-IDEA-34 single-clip column, normally NULL after the migration in
+  // database.js but collected here as well, the same legacy safety net the
+  // message delete in sections.js keeps.
+  const r2Rows = [
+    ...await queryAll('SELECT r2_key FROM uploaded_documents WHERE user_id = $1', [user.id]),
+    ...await queryAll(`
+      SELECT c.r2_key FROM personal_message_audio_clips c
+      JOIN personal_messages m ON m.id = c.message_id
+      WHERE m.user_id = $1
+    `, [user.id]),
+    ...await queryAll('SELECT audio_r2_key AS r2_key FROM personal_messages WHERE user_id = $1 AND audio_r2_key IS NOT NULL', [user.id]),
+    ...await queryAll('SELECT audio_r2_key AS r2_key FROM last_moments WHERE user_id = $1 AND audio_r2_key IS NOT NULL', [user.id]),
+  ];
+  for (const row of r2Rows) {
+    try { await deleteFile(row.r2_key); } catch { /* continue */ }
   }
 
   // A deleted account should never keep being billed. Cancel immediately
