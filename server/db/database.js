@@ -857,6 +857,18 @@ async function init() {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_25d_reminder_sent_at TIMESTAMPTZ`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_28d_reminder_sent_at TIMESTAMPTZ`);
 
+  // Opt-in signup trial (post-BIL-08): the 30-day no-card trial above used to
+  // start automatically and silently at registration. It's now offered as an
+  // explicit interstitial after the user's first post-registration login (see
+  // auth.js's /login and billing.js's /start-signup-trial, /decline-signup-trial).
+  // signup_trial_offer_responded_at is set the moment the account has been
+  // asked and answered, either way (accepted or declined), so /login knows
+  // not to show the interstitial again on future logins. NULL = never asked
+  // yet. Left untouched (and therefore NULL) for every pre-existing account
+  // that already has signup_trial_started_at set from the old auto-start
+  // behavior - those accounts are unaffected by this change.
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS signup_trial_offer_responded_at TIMESTAMPTZ`);
+
   // Legal content versioning (FEAT-04/05): Privacy Policy and Terms of Service
   // are now admin-published, versioned records instead of hardcoded page
   // content, so there is a permanent record of exactly what was in effect at
@@ -1802,25 +1814,6 @@ async function init() {
     });
   }
 
-  // Self-heal: an earlier version of this line created idx_last_moments_user_id
-  // as a plain (non-unique) index, before REV-27 changed it to CREATE UNIQUE
-  // INDEX for the ON CONFLICT upsert in sections.js's PUT /last-moments to
-  // work against. CREATE UNIQUE INDEX IF NOT EXISTS only checks the index
-  // NAME, not its definition - since an index with this exact name already
-  // existed, it silently no-op'd on every single deploy since REV-27 shipped,
-  // permanently leaving the index non-unique and every last-moments save
-  // failing with "no unique or exclusion constraint matching the ON CONFLICT
-  // specification". Confirmed live in production 2026-08-27 (0 rows, 0
-  // duplicates ever successfully saved) via a temporary read-only diagnostic
-  // route - safe to drop and recreate unconditionally, no data risk. Cheap
-  // SELECT on every boot; the DROP+CREATE branch only ever fires once per
-  // environment, then never again.
-  const lastMomentsIndex = await pool.query(
-    `SELECT indexdef FROM pg_indexes WHERE indexname = 'idx_last_moments_user_id'`
-  );
-  if (lastMomentsIndex.rows.length > 0 && !lastMomentsIndex.rows[0].indexdef.toUpperCase().includes('UNIQUE')) {
-    await pool.query(`DROP INDEX idx_last_moments_user_id`);
-  }
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_last_moments_user_id ON last_moments(user_id)`);
 
   // doctors, medical_records, and donation_bank were missed by the REV-08

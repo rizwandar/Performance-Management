@@ -166,15 +166,19 @@ router.post('/register', registerRules, validate, async (req, res) => {
       queryOne("SELECT version FROM policy_versions WHERE module = 'tos' ORDER BY version DESC LIMIT 1"),
     ]);
 
-    // BIL-08: every new signup automatically gets a 30-day no-card vault
-    // trial starting now, independent of Stripe entirely - see
-    // lib/subscription.js for how this composes with a real subscription.
+    // Post-BIL-08: registration no longer auto-starts the 30-day no-card
+    // vault trial. It's now an explicit opt-in, offered as an interstitial
+    // after the user's first successful login (see /login below and
+    // billing.js's /start-signup-trial, /decline-signup-trial) - nothing
+    // here sets signup_trial_started_at anymore, it stays NULL until the
+    // user actually accepts the offer (or self-serves it later from the
+    // Upgrade page).
     const result = await query(`
       INSERT INTO users (name, email, password_hash, date_of_birth, country_code, privacy_consent,
                          privacy_consent_at, privacy_version_consented, tos_version_consented,
                          email_verified, email_verification_token, email_verification_expires_at,
-                         acquisition_source, signup_trial_started_at)
-      VALUES ($1, $2, $3, $4, $5, 1, NOW(), $6, $7, 0, $8, $9, $10, NOW())
+                         acquisition_source)
+      VALUES ($1, $2, $3, $4, $5, 1, NOW(), $6, $7, 0, $8, $9, $10)
       RETURNING id
     `, [name, email, hash, date_of_birth || null, country_code || null,
         privacyVersion?.version ?? null, tosVersion?.version ?? null, verifyToken, verifyExpiry,
@@ -278,6 +282,18 @@ router.post('/login', loginRules, validate, async (req, res) => {
 
   auditLog(user.id, 'login_success', req);
 
+  // Post-BIL-08: offer the opt-in 30-day no-card trial interstitial once,
+  // right after this login, to a plain consumer account that has never been
+  // asked (or already started a trial some other way, e.g. an old account
+  // that predates this change and still has the auto-started
+  // signup_trial_started_at from before). Never shown to an org-portal
+  // account or an admin - both are outside the consumer freemium model this
+  // trial exists for.
+  const needsTrialOffer = !user.signup_trial_started_at
+    && !user.signup_trial_offer_responded_at
+    && !user.org_role
+    && !user.is_admin;
+
   const token = jwt.sign(
     {
       id: user.id, email: user.email, is_admin: user.is_admin,
@@ -295,6 +311,10 @@ router.post('/login', loginRules, validate, async (req, res) => {
   res.json({
     token,
     csrf_token: csrfToken,
+    // Transient, one-time signal for the login flow to act on - deliberately
+    // a top-level response field, not part of `user` below, since `user` is
+    // what AuthContext caches to localStorage and this shouldn't persist.
+    needs_trial_offer: needsTrialOffer,
     user: {
       id:                  user.id,
       name:                user.name,
