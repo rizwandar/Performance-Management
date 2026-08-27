@@ -73,13 +73,32 @@ async function generateAccessLink(contact, { purpose } = {}) {
   return `${CLIENT_URL}/access/${token}`;
 }
 
-async function notifyTrustedContacts(user) {
+// REV-04/REV-05 fix: previously this stamped inactivity_contacts_notified_at
+// unconditionally, even if every send below failed - which suppressed the next
+// day's cron retry for RENOTIFY_DAYS despite nobody actually being notified.
+// Now it tracks sentCount and only stamps the timestamp when at least one send
+// actually succeeded, so an all-failed run leaves it unset and gets retried.
+//
+// { deceasedContext } is used by markUserDeceased (lib/deceased.js, REV-05):
+// it filters out contacts already deceased-notified and marks per-contact
+// completion on trusted_contacts.deceased_notified_at instead of touching the
+// per-user inactivity_contacts_notified_at column, which has its own unrelated
+// periodic-renotify semantics for the plain inactivity flow. Because a
+// deceased-context retry only ever re-fetches contacts still missing that
+// per-contact stamp, and generateAccessLink is only ever called immediately
+// before a real send attempt, a retry can't uselessly re-rotate the token for
+// a contact who was already successfully notified.
+async function notifyTrustedContacts(user, { deceasedContext = false } = {}) {
   const contacts = await queryAll(
     `SELECT tc.* FROM trusted_contacts tc
-     WHERE tc.user_id = $1 AND tc.email IS NOT NULL AND tc.email != ''`,
+     WHERE tc.user_id = $1 AND tc.email IS NOT NULL AND tc.email != ''
+     ${deceasedContext ? 'AND tc.deceased_notified_at IS NULL' : ''}`,
     [user.id]
   );
-  if (contacts.length === 0) return;
+  if (contacts.length === 0) return { sentCount: 0, attempted: 0, failedCount: 0 };
+
+  let sentCount = 0;
+  let attempted = 0;
 
   for (const contact of contacts) {
     // Sections don't apply to an executor (they get EXECUTOR_SECTIONS
@@ -93,6 +112,7 @@ async function notifyTrustedContacts(user) {
       if (permissions.length === 0) continue;
     }
 
+    attempted++;
     const accessLink = await generateAccessLink(contact);
     try {
       await sendEmail({
@@ -105,16 +125,27 @@ async function notifyTrustedContacts(user) {
           expiresHours:  contact.is_executor ? null : EXPIRES_HOURS,
         }),
       });
+      sentCount++;
+      if (deceasedContext) {
+        await query(
+          'UPDATE trusted_contacts SET deceased_notified_at = $1 WHERE id = $2',
+          [new Date().toISOString(), contact.id]
+        );
+      }
       console.log(`[inactivity] Notified trusted contact ${contact.email} for user ${user.id}`);
     } catch (err) {
       console.error(`[inactivity] Failed to notify contact ${contact.email}:`, err.message);
     }
   }
 
-  await query(
-    'UPDATE users SET inactivity_contacts_notified_at = $1 WHERE id = $2',
-    [new Date().toISOString(), user.id]
-  );
+  if (sentCount > 0 && !deceasedContext) {
+    await query(
+      'UPDATE users SET inactivity_contacts_notified_at = $1 WHERE id = $2',
+      [new Date().toISOString(), user.id]
+    );
+  }
+
+  return { sentCount, attempted, failedCount: attempted - sentCount };
 }
 
 // When a user has designated an executor (one of their up-to-3 trusted contacts,
@@ -124,8 +155,15 @@ async function notifyTrustedContacts(user) {
 // owner has passed away, which is what actually triggers notifyTrustedContacts
 // and notifyPeopleToNotify (see lib/deceased.js). Users without an executor fall
 // back to the original behavior in checkInactivity below.
+// REV-04 fix: same sentCount gating as notifyTrustedContacts above - only stamp
+// inactivity_contacts_notified_at when the send actually succeeded, so a failed
+// send leaves it unset and the next day's cron run retries (including a fresh
+// generateAccessLink call, which is fine here: since the timestamp only gets
+// stamped on success, a retry only ever runs after a confirmed prior failure,
+// meaning no working link was ever delivered for the token being replaced).
 async function notifyExecutor(user, contact) {
   const accessLink = await generateAccessLink(contact);
+  let sent = false;
   try {
     await sendEmail({
       to:      contact.email,
@@ -136,15 +174,20 @@ async function notifyExecutor(user, contact) {
         accessLink,
       }),
     });
+    sent = true;
     console.log(`[inactivity] Notified executor ${contact.email} for user ${user.id}`);
   } catch (err) {
     console.error(`[inactivity] Failed to notify executor ${contact.email}:`, err.message);
   }
 
-  await query(
-    'UPDATE users SET inactivity_contacts_notified_at = $1 WHERE id = $2',
-    [new Date().toISOString(), user.id]
-  );
+  if (sent) {
+    await query(
+      'UPDATE users SET inactivity_contacts_notified_at = $1 WHERE id = $2',
+      [new Date().toISOString(), user.id]
+    );
+  }
+
+  return sent;
 }
 
 async function checkInactivity() {
@@ -234,4 +277,4 @@ async function cleanupExpiredTokens() {
   }
 }
 
-module.exports = { checkInactivity, cleanupExpiredTokens, notifyTrustedContacts, generateAccessLink, EXPIRES_HOURS };
+module.exports = { checkInactivity, cleanupExpiredTokens, notifyTrustedContacts, notifyExecutor, generateAccessLink, EXPIRES_HOURS };

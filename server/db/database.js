@@ -635,6 +635,30 @@ async function init() {
   // inactivity_period_months, expressed in minutes. Never exposed via PUT /me/timer.
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS inactivity_test_override_minutes INTEGER`);
 
+  // REV-05 fix: is_deceased is set the instant markUserDeceased runs, before the
+  // notification fan-out (trusted contacts, people to notify, executor notice)
+  // even starts, so a crash or all-sends-failed partial run left no way to tell
+  // "deceased and fully notified" apart from "deceased but nobody was told" - a
+  // retry would silently no-op on the is_deceased idempotency check instead of
+  // finishing the fan-out. These track completion separately from the flag itself.
+  // deceased_notified_at (users): set only once every step of the fan-out below
+  // (all trusted contacts, all people to notify, the executor notice) has
+  // succeeded with nothing left pending - see markUserDeceased in lib/deceased.js.
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS deceased_notified_at TIMESTAMPTZ`);
+  // deceased_executor_notified_at (users): tracks the single "someone else marked
+  // your owner deceased" notice to the executor, separately from deceased_notified_at
+  // so a retry doesn't re-send it once it has already gone out.
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS deceased_executor_notified_at TIMESTAMPTZ`);
+  // trusted_contacts.deceased_notified_at: per-contact completion tracking for the
+  // deceased-flow notification specifically (deliberately separate from the
+  // per-user inactivity_contacts_notified_at above, which governs the unrelated
+  // periodic inactivity renotify window and must keep its own semantics) so a
+  // retry after a partial failure only re-sends to contacts who weren't reached.
+  await pool.query(`ALTER TABLE trusted_contacts ADD COLUMN IF NOT EXISTS deceased_notified_at TIMESTAMPTZ`);
+  // people_to_notify.notified_at: same per-row completion tracking, for the one
+  // notification this table ever receives (notifyPeopleToNotify in lib/deceased.js).
+  await pool.query(`ALTER TABLE people_to_notify ADD COLUMN IF NOT EXISTS notified_at TIMESTAMPTZ`);
+
   // Version log: tracks the client app, admin panel, and org/funeral-home portal
   // as three independently-versioned areas (semver), even though all three ship
   // in the same deploy. A row is added whenever a change to that area is pushed.
