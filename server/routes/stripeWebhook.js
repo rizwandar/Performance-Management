@@ -297,10 +297,22 @@ module.exports.handler = async (req, res) => {
       }
       case 'customer.subscription.updated':
       case 'customer.subscription.deleted': {
-        const subscription = event.data.object;
-        if (subscription.metadata?.organization_id) {
-          await upsertOrgFromSubscription(subscription, subscription.metadata.organization_id);
+        const eventSubscription = event.data.object;
+        if (eventSubscription.metadata?.organization_id) {
+          await upsertOrgFromSubscription(eventSubscription, eventSubscription.metadata.organization_id);
         } else {
+          // REV-29: Stripe delivers webhook events at-least-once with no
+          // ordering guarantee, so event.data.object can be stale - a
+          // retried older "updated" event (status active) arriving after a
+          // later "deleted" event could otherwise flip the row back to
+          // active here. Re-retrieving the subscription from Stripe right
+          // before writing it mirrors the checkout.session.completed
+          // handler above: whichever event triggers this block, the write
+          // always reflects Stripe's current live state, not whatever this
+          // particular event's payload happened to say. Canceled
+          // subscriptions stay retrievable on Stripe's side, so this works
+          // the same for customer.subscription.deleted too.
+          const subscription = await stripe.subscriptions.retrieve(eventSubscription.id);
           await upsertFromSubscription(subscription, subscription.metadata?.user_id);
 
           // BIL-07: confirm the cancellation right away, the moment
