@@ -4,8 +4,8 @@ const { queryOne, queryAll } = require('../db/database');
 const auth    = require('../middleware/auth');
 const requirePremium = require('../middleware/requiresPremium');
 const { generatePdf } = require('../lib/generatePdf');
-const { deriveKey, decryptField, verifyVaultPassword } = require('../lib/vault');
-const { recordVaultAttempt, getVaultLockStatus, resetVaultAttempts } = require('../lib/vaultAttempts');
+const { decryptField } = require('../lib/vault');
+const { checkVault } = require('../lib/vaultAuth');
 const { decryptRow } = require('../lib/vaultFields');
 const { blockViewAs } = require('../lib/viewAsGuard');
 
@@ -165,52 +165,18 @@ router.post('/', auth, requirePremium, async (req, res) => {
   const uid = req.user.id;
   const { vault_password } = req.body;
 
-  if (!vault_password) {
-    return res.status(400).json({ error: 'vault_password is required.' });
-  }
-
-  const vault = await queryOne('SELECT check_enc FROM digital_vault WHERE user_id = $1', [uid]);
-  if (!vault) {
-    return res.status(403).json({ error: 'No vault found. Set up your vault in the Digital Life or Legal Documents section first.' });
-  }
-
-  const key = deriveKey(vault_password, uid);
-  const isCorrect = verifyVaultPassword(vault.check_enc, key);
-
-  // A correct password always unlocks immediately, even mid-lockout - see
-  // the matching comment in routes/sections.js checkVault().
-  if (isCorrect) {
-    await resetVaultAttempts(uid);
-  } else {
-    const lockedUntil = await getVaultLockStatus(uid);
-    if (lockedUntil) {
-      return res.status(423).json({
-        error: `Too many incorrect attempts. Your vault is temporarily locked until ${lockedUntil.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}. Nothing has been deleted.`,
-        vault_locked: true,
-        locked_until: lockedUntil.toISOString(),
-      });
-    }
-
-    const { attempts, shouldLogout, vaultLocked, lockedUntil: newLockedUntil } = await recordVaultAttempt(uid);
-    const remaining = Math.max(0, 5 - attempts);
-    if (vaultLocked) {
-      return res.status(423).json({
-        error: `Too many incorrect attempts. Your vault has been temporarily locked until ${newLockedUntil.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}. Nothing has been deleted - enter the correct password any time to unlock it immediately.`,
-        vault_locked: true,
-        locked_until: newLockedUntil.toISOString(),
-      });
-    } else if (shouldLogout) {
-      return res.status(403).json({
-        error: `Incorrect vault password. For your security, you have been signed out. Please sign in again. (${attempts} of 5 attempts used.)`,
-        force_logout: true, attempts,
-      });
-    } else {
-      return res.status(401).json({
-        error: `Incorrect vault password. ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining before you are signed out.`,
-        attempts, remaining,
-      });
-    }
-  }
+  // REV-18/REV-33 (2026-08-26 review): this used to verify the vault password
+  // inline with a direct deriveKey()/verifyVaultPassword() call instead of the
+  // shared checkVault() helper every other vault-protected route uses. That
+  // drifted copy hardcoded "5 attempts" instead of reading the vault's actual
+  // configured logout_after_attempts/destroy_after_attempts thresholds, called
+  // recordVaultAttempt() without req so failed-attempt audit rows here logged
+  // null IP/user-agent, and never handled a vaultDestroyed result at all.
+  // checkVault() covers all of that and matches the pattern used by every
+  // other vault-protected route (sections.js, documents.js), so the client
+  // doesn't need to special-case this route's responses.
+  const key = await checkVault(vault_password, uid, res, req);
+  if (!key) return;
 
   const [data, vaultData] = await Promise.all([
     buildBaseData(uid),
