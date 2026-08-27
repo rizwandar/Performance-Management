@@ -232,11 +232,55 @@ export default function UpgradePage() {
       </div>
 
       {trialEligible && (
-        <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem', maxWidth: 560, margin: '-24px auto 0', lineHeight: 1.6 }}>
+        <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem', maxWidth: 560, margin: '-24px auto 32px', lineHeight: 1.6 }}>
           Try everything free for 14 days. We'll email you 2 days before your trial ends, and your card
           won't be charged until then. Cancel anytime before that in one click, no charge at all.
         </p>
       )}
+
+      <div style={{
+        maxWidth: 720, margin: '0 auto', background: 'var(--parchment)',
+        border: '1px solid var(--border)', borderRadius: 'var(--card-radius, 16px)',
+        padding: '32px 36px',
+      }}>
+        <h3 style={{ fontFamily: 'Georgia, serif', color: 'var(--green-900)', fontSize: '1.15rem', fontWeight: 700, marginBottom: 16, textAlign: 'center' }}>
+          Some things deserve more than a password.
+        </h3>
+        <p style={{ color: 'var(--text)', fontSize: '0.92rem', lineHeight: 1.7, marginBottom: 14 }}>
+          In Good Hands holds the details your family will need most. Where your important documents and wishes
+          are saved, and accessible to your loved ones exactly as you choose.
+        </p>
+        <p style={{ color: 'var(--text)', fontSize: '0.92rem', lineHeight: 1.7, marginBottom: 14 }}>
+          That's why your most sensitive information sits behind a second, separate vault password, protected by{' '}
+          <a href="https://www.progress.com/blogs/use-aes-256-encryption-secure-data" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--green-700)', fontWeight: 600 }}>
+            AES-256-GCM encryption
+          </a>
+          {' '}- the same encryption strength the U.S. government uses for classified information, and the same
+          standard healthcare providers are legally required to use to protect medical records.
+        </p>
+        <p style={{ color: 'var(--text)', fontSize: '0.92rem', lineHeight: 1.7, marginBottom: 14 }}>
+          Here's the part that matters most: we never store your vault password. Not encrypted, not hashed, not
+          anywhere. It exists only for the moment you use it to unlock your vault. Even we can't read what's
+          inside. Only you can.
+        </p>
+        <p style={{ color: 'var(--text)', fontSize: '0.92rem', lineHeight: 1.7, marginBottom: 20 }}>
+          Forgetting a password is human, so you can set up recovery in advance, meaning a forgotten password
+          doesn't have to mean losing everything.
+        </p>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', lineHeight: 1.6, marginBottom: 0 }}>
+          Want to see exactly how this works, not just take our word for it? Read our full{' '}
+          <Link to="/security" style={{ color: 'var(--green-700)', fontWeight: 600 }}>Security page</Link>, or check
+          the standards yourself:{' '}
+          <a href="https://csrc.nist.gov/News/2026/gcm-and-gmac-block-cipher-modes-of-operation" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--green-700)' }}>
+            NIST's own encryption standard
+          </a>{' '}
+          and{' '}
+          <a href="https://www.hipaajournal.com/hipaa-encryption-requirements/" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--green-700)' }}>
+            why healthcare providers are required to use it too
+          </a>
+          .
+        </p>
+      </div>
     </div>
   )
 }
