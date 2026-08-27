@@ -5,6 +5,7 @@ import axios from 'axios'
 import { useAuth } from '../../context/AuthContext'
 import { formatPhone } from '@in-good-hands/shared/format'
 import SectionHero from '../../components/SectionHero'
+import SectionFooterNav from '../../components/SectionFooterNav'
 import DictateButton from '../../components/DictateButton'
 import DictationDisclosure from '../../components/DictationDisclosure'
 import { useDictation } from '../../hooks/useDictation'
@@ -551,13 +552,7 @@ export default function TrustedContactsPage() {
         </Modal.Footer>
       </Modal>
 
-      <div className="mt-4 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
-        <button className="btn btn-link p-0"
-          style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '0.9rem' }}
-          onClick={() => navigate('/profile')}>
-          ← Back to my plans
-        </button>
-      </div>
+      <SectionFooterNav sectionId="trusted_contacts" />
     </div>
   )
 }

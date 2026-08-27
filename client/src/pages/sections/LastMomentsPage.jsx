@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Button, Form, Alert, Spinner } from 'react-bootstrap'
 import axios from 'axios'
 import SectionHero from '../../components/SectionHero'
+import SectionFooterNav from '../../components/SectionFooterNav'
 import ShareSectionTrigger from '../../components/ShareSectionTrigger'
 import ShareSectionHistory from '../../components/ShareSectionHistory'
 import DictateButton from '../../components/DictateButton'
@@ -322,17 +323,14 @@ export default function LastMomentsPage() {
           <Button variant="primary" onClick={handleSave} disabled={saving || recording}>
             {saving ? 'Saving...' : hasData ? 'Update' : 'Save'}
           </Button>
-          <button className="btn btn-link p-0"
-            style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '0.9rem' }}
-            onClick={() => navigate('/profile')}>
-            ← Back to my plans
-          </button>
         </div>
         {success && <Alert variant="success" className="mb-4">{success}</Alert>}
         {error   && <Alert variant="danger"  className="mb-4">{error}</Alert>}
       </Form>
 
       <ShareSectionHistory section="last_moments" />
+
+      <SectionFooterNav sectionId="last_moments" />
     </div>
   )
 }

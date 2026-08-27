@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Button, Form, Row, Col, Alert, Spinner } from 'react-bootstrap'
 import axios from 'axios'
 import SectionHero from '../../components/SectionHero'
+import SectionFooterNav from '../../components/SectionFooterNav'
 import ShareSectionTrigger from '../../components/ShareSectionTrigger'
 import ShareSectionHistory from '../../components/ShareSectionHistory'
 
@@ -122,17 +123,14 @@ export default function DoctorsPage() {
           <Button variant="primary" onClick={handleSave} disabled={saving}>
             {saving ? 'Saving...' : hasData ? 'Update my doctors' : 'Save my doctors'}
           </Button>
-          <button className="btn btn-link p-0"
-            style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '0.9rem' }}
-            onClick={() => navigate('/profile')}>
-            ← Back to my plans
-          </button>
         </div>
         {success && <Alert variant="success" className="mt-3">{success}</Alert>}
         {error   && <Alert variant="danger"  className="mt-3">{error}</Alert>}
       </Form>
 
       <ShareSectionHistory section="doctors" />
+
+      <SectionFooterNav sectionId="doctors" />
     </div>
   )
 }

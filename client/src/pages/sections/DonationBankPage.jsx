@@ -4,6 +4,7 @@ import { Button, Form, Alert, Spinner } from 'react-bootstrap'
 import axios from 'axios'
 import { VaultSetupScreen, VaultLockScreen } from '../../components/VaultGate'
 import SectionHero from '../../components/SectionHero'
+import SectionFooterNav from '../../components/SectionFooterNav'
 import ShareSectionTrigger from '../../components/ShareSectionTrigger'
 import ShareSectionHistory from '../../components/ShareSectionHistory'
 import { useVaultSession } from '../../context/VaultSessionContext'
@@ -216,11 +217,6 @@ export default function DonationBankPage() {
             <Button variant="primary" onClick={handleSave} disabled={saving}>
               {saving ? 'Saving...' : hasData ? 'Update my preferences' : 'Save my preferences'}
             </Button>
-            <button className="btn btn-link p-0"
-              style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '0.9rem' }}
-              onClick={() => navigate('/profile')}>
-              ← Back to my plans
-            </button>
           </div>
           {success && <Alert variant="success" className="mt-3">{success}</Alert>}
           {error   && <Alert variant="danger"  className="mt-3">{error}</Alert>}
@@ -228,6 +224,8 @@ export default function DonationBankPage() {
       )}
 
       <ShareSectionHistory section="donation_bank" />
+
+      <SectionFooterNav sectionId="donation_bank" />
     </div>
   )
 }

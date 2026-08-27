@@ -3,6 +3,7 @@ import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { Button, Form, Row, Col, Alert, Spinner, Dropdown } from 'react-bootstrap'
 import axios from 'axios'
 import SectionHero from '../../components/SectionHero'
+import SectionFooterNav from '../../components/SectionFooterNav'
 import ShareSectionTrigger from '../../components/ShareSectionTrigger'
 import ShareSectionHistory from '../../components/ShareSectionHistory'
 import DictateButton from '../../components/DictateButton'
@@ -402,11 +403,6 @@ export default function FuneralWishesPage() {
           <Button variant="primary" onClick={handleSave} disabled={saving}>
             {saving ? 'Saving...' : hasData ? 'Update my wishes' : 'Save my wishes'}
           </Button>
-          <button className="btn btn-link p-0"
-            style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '0.9rem' }}
-            onClick={() => navigate('/profile')}>
-            ← Back to my plans
-          </button>
         </div>
         )}
         {activeSection !== 'photographs' && success && <Alert variant="success" className="mb-4">{success}</Alert>}
@@ -538,6 +534,8 @@ export default function FuneralWishesPage() {
       )}
 
       <ShareSectionHistory section="funeral_wishes" />
+
+      <SectionFooterNav sectionId="funeral_wishes" />
     </div>
   )
 }

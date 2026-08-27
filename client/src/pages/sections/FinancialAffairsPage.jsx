@@ -4,6 +4,7 @@ import { Button, Form, Row, Col, Alert, Modal, Spinner } from 'react-bootstrap'
 import axios from 'axios'
 import { VaultSetupScreen, VaultLockScreen } from '../../components/VaultGate'
 import SectionHero from '../../components/SectionHero'
+import SectionFooterNav from '../../components/SectionFooterNav'
 import ShareSectionTrigger from '../../components/ShareSectionTrigger'
 import ShareSectionHistory from '../../components/ShareSectionHistory'
 import FileAttachments from '../../components/FileAttachments'
@@ -372,13 +373,7 @@ export default function FinancialAffairsPage() {
 
       <ShareSectionHistory section="financial_items" />
 
-      <div className="mt-4 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
-        <button className="btn btn-link p-0"
-          style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '0.9rem' }}
-          onClick={() => navigate('/profile')}>
-          ← Back to my plans
-        </button>
-      </div>
+      <SectionFooterNav sectionId="financial_items" />
     </div>
   )
 }
