@@ -14,6 +14,17 @@ function isWithinSignupTrial(signupTrialStartedAt, now = new Date()) {
   return now.getTime() < startedAt + SIGNUP_TRIAL_MS;
 }
 
+// Shared precedence check: true when a subscriptions row (or the
+// subscriptions columns of a joined row) represents a real paid premium
+// subscription that's currently active or trialing. getAccessInfo uses this
+// to make a real subscription always win over the no-card signup trial;
+// billing.js's create-checkout-session route (REV-12) reuses the same
+// definition to block starting a second Checkout session while one is
+// already in effect, rather than re-implementing the check.
+function isActivePremiumSubscription(sub) {
+  return !!sub && (sub.status === 'active' || sub.status === 'trialing') && sub.plan === 'premium';
+}
+
 // A real Stripe subscription always takes precedence and is checked first,
 // independently of the signup trial: a paying (or Stripe-trialing) customer
 // is never affected by their no-card signup trial window separately
@@ -39,7 +50,7 @@ async function getAccessInfo(userId) {
   // has to take priority over the signup trial is a *paid* subscription:
   // status active/trialing AND plan 'premium' (Stripe, org grant, or the
   // one-time grandfather cutover - all write plan='premium' here).
-  const hasActivePremiumSub = (row.status === 'active' || row.status === 'trialing') && row.plan === 'premium';
+  const hasActivePremiumSub = isActivePremiumSubscription(row);
   const signupTrialEndsAt = row.signup_trial_started_at
     ? new Date(new Date(row.signup_trial_started_at).getTime() + SIGNUP_TRIAL_MS)
     : null;
@@ -63,4 +74,4 @@ async function isPremium(userId) {
   return (await getUserPlan(userId)) === 'premium';
 }
 
-module.exports = { getUserPlan, isPremium, getAccessInfo, isWithinSignupTrial, SIGNUP_TRIAL_DAYS };
+module.exports = { getUserPlan, isPremium, getAccessInfo, isWithinSignupTrial, isActivePremiumSubscription, SIGNUP_TRIAL_DAYS };

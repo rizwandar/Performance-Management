@@ -2,7 +2,7 @@ const express = require('express');
 const router  = express.Router();
 const { queryOne, queryAll } = require('../db/database');
 const auth    = require('../middleware/auth');
-const { getAccessInfo } = require('../lib/subscription');
+const { getAccessInfo, isActivePremiumSubscription } = require('../lib/subscription');
 const { stripe, PRICE_IDS } = require('../lib/stripe');
 const { upsertFromSubscription } = require('./stripeWebhook');
 
@@ -131,6 +131,21 @@ router.post('/create-checkout-session', auth, async (req, res) => {
     if (!user) return res.status(404).json({ error: 'User not found.' });
 
     const existingSub = await queryOne('SELECT * FROM subscriptions WHERE user_id = $1', [req.user.id]);
+
+    // REV-12: block starting a second Checkout session while a premium
+    // subscription is already active/trialing. Without this, a stale second
+    // tab on /upgrade, the back button, or a direct API call could complete
+    // a second Checkout: Stripe would create a second subscription on the
+    // same customer, and the webhook's ON CONFLICT (user_id) upsert would
+    // overwrite the tracked subscriptions row, leaving the original
+    // subscription still billing in Stripe but invisible (and uncancellable
+    // through the app) afterward. Reuses the same active/trialing + premium
+    // precedence check getAccessInfo uses, rather than re-implementing it,
+    // so a cancelled/expired subscription still allows a fresh Checkout.
+    if (isActivePremiumSubscription(existingSub)) {
+      return res.status(400).json({ error: 'You already have an active premium subscription.' });
+    }
+
     let customerId = existingSub?.provider === 'stripe' ? existingSub.provider_customer_id : null;
 
     if (!customerId) {
