@@ -1274,15 +1274,23 @@ async function init() {
   // One-time backfill of existing type='pet' rows out of children_dependants.
   // Guarded on pets being empty rather than a separate flag column, since
   // this only ever needs to run once and pets starts out with nothing in it.
+  // Wrapped in a single transaction (REV-16) so the INSERT and the DELETE
+  // commit together - a crash or connection loss between the two used to be
+  // able to leave pets non-empty (guard permanently satisfied) while the
+  // source rows were never deleted from children_dependants, so the backfill
+  // would silently never retry. Now either both statements land or neither
+  // does, and the guard above stays unsatisfied until they do.
   const petsAlreadyMigrated = await queryOne('SELECT id FROM pets LIMIT 1');
   if (!petsAlreadyMigrated) {
-    await pool.query(`
-      INSERT INTO pets
-        (user_id, name, age, special_needs, preferred_caretaker, caretaker_contact, alternate_caretaker, alternate_contact, notes, created_at)
-      SELECT user_id, name, date_of_birth, special_needs, preferred_guardian, guardian_contact, alternate_guardian, alternate_contact, notes, created_at
-      FROM children_dependants WHERE type = 'pet'
-    `);
-    await pool.query(`DELETE FROM children_dependants WHERE type = 'pet'`);
+    await transaction(async (client) => {
+      await client.query(`
+        INSERT INTO pets
+          (user_id, name, age, special_needs, preferred_caretaker, caretaker_contact, alternate_caretaker, alternate_contact, notes, created_at)
+        SELECT user_id, name, date_of_birth, special_needs, preferred_guardian, guardian_contact, alternate_guardian, alternate_contact, notes, created_at
+        FROM children_dependants WHERE type = 'pet'
+      `);
+      await client.query(`DELETE FROM children_dependants WHERE type = 'pet'`);
+    });
   }
 
   // OPS-20: the executor-designation email now includes an immediate,
@@ -1530,29 +1538,42 @@ async function init() {
   // pattern as the IDEA-18 pets migration - this only ever needs to run once.
   // medical_wishes itself is deliberately left in the schema (not dropped),
   // consistent with this project's non-destructive migration convention.
+  //
+  // Wrapped in a single transaction (REV-16) so all 3 INSERT-SELECTs and the
+  // final DELETE commit together. Unwrapped, a crash or connection loss
+  // between statements could leave doctors non-empty (the guard above
+  // permanently satisfied on the next boot) while medical_records/
+  // donation_bank were only partially populated and medical_wishes was never
+  // cleared - stranding a user's advance-care directive, DNR preference,
+  // medications, conditions, and organ-donation data in the retired table
+  // with no retry and no signal anything went wrong. Now either the whole
+  // backfill lands or none of it does, and the guard stays unsatisfied so it
+  // retries cleanly on the next boot.
   const medicalAlreadyMigrated = await queryOne('SELECT id FROM doctors LIMIT 1');
   if (!medicalAlreadyMigrated) {
-    await pool.query(`
-      INSERT INTO doctors (user_id, gp_name, gp_phone, hospital_preference, updated_at)
-      SELECT user_id, gp_name, gp_phone, hospital_preference, updated_at
-      FROM medical_wishes
-    `);
-    await pool.query(`
-      INSERT INTO medical_records
-        (user_id, advance_care_directive, directive_location, dnr_preference, current_medications, medical_conditions, notes, updated_at)
-      SELECT user_id, advance_care_directive, directive_location, dnr_preference, current_medications, medical_conditions, notes, updated_at
-      FROM medical_wishes
-    `);
-    // organ_donation/organ_donation_details land in donation_bank's plaintext
-    // columns for now (see the long comment above) - encrypted into
-    // organ_donation_enc/organ_donation_details_enc the next time each user's
-    // row is read or written through the vault-checked routes.
-    await pool.query(`
-      INSERT INTO donation_bank (user_id, organ_donation, organ_donation_details, updated_at)
-      SELECT user_id, organ_donation, organ_donation_details, updated_at
-      FROM medical_wishes
-    `);
-    await pool.query(`DELETE FROM medical_wishes`);
+    await transaction(async (client) => {
+      await client.query(`
+        INSERT INTO doctors (user_id, gp_name, gp_phone, hospital_preference, updated_at)
+        SELECT user_id, gp_name, gp_phone, hospital_preference, updated_at
+        FROM medical_wishes
+      `);
+      await client.query(`
+        INSERT INTO medical_records
+          (user_id, advance_care_directive, directive_location, dnr_preference, current_medications, medical_conditions, notes, updated_at)
+        SELECT user_id, advance_care_directive, directive_location, dnr_preference, current_medications, medical_conditions, notes, updated_at
+        FROM medical_wishes
+      `);
+      // organ_donation/organ_donation_details land in donation_bank's plaintext
+      // columns for now (see the long comment above) - encrypted into
+      // organ_donation_enc/organ_donation_details_enc the next time each user's
+      // row is read or written through the vault-checked routes.
+      await client.query(`
+        INSERT INTO donation_bank (user_id, organ_donation, organ_donation_details, updated_at)
+        SELECT user_id, organ_donation, organ_donation_details, updated_at
+        FROM medical_wishes
+      `);
+      await client.query(`DELETE FROM medical_wishes`);
+    });
   }
 
   // IDEA-27: Emergency Contact split out of Key Contacts into its own

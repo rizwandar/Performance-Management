@@ -87,7 +87,15 @@ export default function ExportPage() {
           message = parsedJson.error || message
         } catch { /* response body wasn't JSON, use the default message */ }
       }
-      if (parsedJson?.vault_locked) {
+      if (parsedJson?.vault_destroyed) {
+        // REV-33: a failed attempt on this route can now cross the vault's
+        // configured destroy threshold, same as any other vault-protected
+        // route - checkVault() also sets force_logout on this response, so
+        // this branch must run first or it would fall into the generic
+        // vaultLockout redirect below instead. Matches VaultGate.jsx.
+        logout()
+        navigate('/login', { state: { vaultDestroyed: true } })
+      } else if (parsedJson?.vault_locked) {
         // Temporary lockout from too many incorrect attempts (this or
         // another vault-protected call) - the cached password is unusable
         // until the lockout clears, so drop the shared session rather than
