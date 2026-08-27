@@ -16,6 +16,27 @@
 // all, so live databases keep serving their published version until an admin
 // publishes a new one from the admin panel. That republish is deliberately a
 // human decision, since it triggers re-consent for every user.
+//
+// REV-35/REV-36 (2026-08-27), same "does not affect any live install" rule as
+// REV-22 above: corrected four stale/inaccurate claims. (1) The deletion-rights
+// text claimed data is "immediately and permanently" deleted with no mention of
+// the 14-day encrypted database backups kept by server/lib/backup.js - added a
+// plain disclosure that a residual copy can persist in a backup for up to 14
+// days after account deletion. (2) The Cookies and Tracking section claimed the
+// session token lives in browser localStorage, stale since SEC-09 moved it to
+// an httpOnly cookie, and claimed no PII is sent to ipapi.co, when the browser
+// in fact calls ipapi.co directly and discloses the visitor's IP address -
+// both corrected to describe actual behavior. (3) The sensitive-data and
+// vault-protected-sections lists still referenced the old combined "Medical
+// Wishes" section (split into Doctors/Medical Records/Donation Bank, IDEA-32)
+// and omitted Donation Bank from the vault-protected list even though it holds
+// sensitive organ-donation health data and is vault-protected in
+// lib/vaultSections.js - both lists corrected against the live SECTIONS array
+// in client/src/pages/DashboardPage.jsx. (4) The access-link expiry claim
+// ("expire after 72 hours") no longer held for the Legacy Contact/executor
+// link (always non-expiring) or, since REV-14, for other trusted contacts'
+// links once a death is confirmed - wording corrected to describe all three
+// cases (see lib/inactivityTimer.js).
 
 const TOS_V1_HTML = `
 <div class="legal-header">
@@ -51,7 +72,7 @@ const TOS_V1_HTML = `
 
 <section>
   <h4>5. The Vault and Encryption</h4>
-  <p>Certain sections of the Service (Digital Life, Personal and Legal Documents, Financial Affairs, Property and Possessions, and Practical Household Information) are protected by a vault password that you set. Your vault password is never stored on our servers. It is derived client-side and used to encrypt the text you enter directly (credentials, document details, financial and property details, and notes) before storage.</p>
+  <p>Certain sections of the Service (Digital Life, Personal and Legal Documents, Financial Affairs, Property and Possessions, Practical Household Information, and Donation Bank) are protected by a vault password that you set. Your vault password is never stored on our servers. It is derived client-side and used to encrypt the text you enter directly (credentials, document details, financial and property details, donation preferences, and notes) before storage.</p>
   <p>Files you upload as attachments within these sections (for example, a scanned document or photo) are stored securely and access-controlled, but are not encrypted using your vault password. See our Security page for the full technical detail on how uploaded files are protected.</p>
   <p>This means that if you lose or forget your vault password, we cannot recover your vault-protected data on your behalf. You will need to reset your vault, which will permanently delete the vault-protected content. Your other plans and information will remain safe.</p>
   <p>After 5 consecutive failed vault password attempts, you are signed out of your account and your vault is temporarily locked for 3 minutes as a security measure. The lock clears on its own, and entering the correct password unlocks the vault immediately. You will be notified by email at each failed attempt.</p>
@@ -60,7 +81,7 @@ const TOS_V1_HTML = `
 
 <section>
   <h4>6. Trusted Contacts and Access Links</h4>
-  <p>You may designate trusted contacts and grant them read-only access to selected sections of your plans. When you send an access link, a time-limited secure link is emailed to your contact. Links expire after 72 hours.</p>
+  <p>You may designate trusted contacts and grant them read-only access to selected sections of your plans. When you send an access link, a secure link is emailed to your contact. For most trusted contacts, this link expires after 72 hours if unused. Your designated Legacy Contact's access link does not expire, since they may need it after you are no longer able to resend one. Once your death has been confirmed in the Service, access links sent to your other trusted contacts also stop expiring, for the same reason.</p>
   <p>You are responsible for choosing who you share access with. We are not responsible for how your trusted contacts use the information you share with them.</p>
   <p>If your inactivity period expires, the Service may automatically notify your trusted contacts in accordance with the settings you have configured.</p>
 </section>
@@ -136,7 +157,7 @@ const PRIVACY_V1_HTML = `
     <li>Usage and security logs: login events, failed login attempts, and vault access attempts. Used to protect your account.</li>
     <li>Communications: messages you send via the contact form.</li>
   </ul>
-  <p>Some of what you choose to record falls under "sensitive personal information" as defined by California law, specifically medical/health information (Medical Wishes) and financial account information (Financial Affairs). We collect this only because you choose to record it as part of your own planning, and we use it solely to provide the service, never to analyze or infer anything about you, and never for advertising.</p>
+  <p>Some of what you choose to record falls under "sensitive personal information" as defined by California law, specifically medical/health information (Medical Records and Donation Bank) and financial account information (Financial Affairs). We collect this only because you choose to record it as part of your own planning, and we use it solely to provide the service, never to analyze or infer anything about you, and never for advertising.</p>
   <p>We do not collect payment card data (Stripe, our payment processor, handles that directly). We do not sell or share your personal information with third parties for marketing purposes.</p>
 </section>
 
@@ -176,8 +197,8 @@ const PRIVACY_V1_HTML = `
     <p>
       <strong>Right to know:</strong> You may request details of what personal information we collect, the sources it comes from, and how we use and disclose it.<br/>
       <strong>Right to correct:</strong> Update inaccurate information via your Profile page, or contact us for data we hold that isn't self-editable.<br/>
-      <strong>Right to delete:</strong> Use "Delete My Account" in Profile Settings to immediately and permanently delete all your data.<br/>
-      <strong>Right to limit use of sensitive personal information:</strong> Some of what you record here (medical wishes, financial account details) qualifies as "sensitive personal information" under California law. We only use it to provide the service you asked for, never to infer characteristics about you or for advertising. Because we don't use it for anything beyond that, there is nothing further to limit, but you may still contact us with questions.<br/>
+      <strong>Right to delete:</strong> Use "Delete My Account" in Profile Settings to delete all your data from our live systems immediately. See Section 6 (Data Retention) below for how long a residual copy may briefly remain in encrypted backups.<br/>
+      <strong>Right to limit use of sensitive personal information:</strong> Some of what you record here (medical/health information, financial account details) qualifies as "sensitive personal information" under California law. We only use it to provide the service you asked for, never to infer characteristics about you or for advertising. Because we don't use it for anything beyond that, there is nothing further to limit, but you may still contact us with questions.<br/>
       <strong>Right to opt out of sale or sharing:</strong> We do not sell personal information, and we do not share it for cross-context behavioral advertising (the kind of "sharing" CPRA also covers). If this ever changes, for example if ad campaigns begin using retargeting pixels, we will update this policy first and provide a "Do Not Sell or Share My Personal Information" option before doing so.<br/>
       <strong>Right to non-discrimination:</strong> Exercising any of these rights will not result in denial of service, a different price, or a different quality of service.<br/>
       <strong>Authorized agents:</strong> You may designate an authorized agent to make a request on your behalf; we will verify the agent's authority before responding.<br/>
@@ -228,7 +249,8 @@ const PRIVACY_V1_HTML = `
 
 <section>
   <h4>6. Data Retention</h4>
-  <p>We retain your data for as long as your account is active. When you delete your account, all personal data is permanently deleted from our systems, including uploaded files from cloud storage. Anonymised aggregated statistics (e.g. total user count) are not deleted.</p>
+  <p>We retain your data for as long as your account is active. When you delete your account, your personal data is deleted from our live systems immediately. Anonymised aggregated statistics (e.g. total user count) are not deleted.</p>
+  <p>We also keep encrypted daily backups of our database for disaster-recovery purposes, retained on a rolling basis for up to 14 days. Because a deleted account may already be captured in a backup taken before you deleted it, a residual copy of your data can remain in these backups for up to 14 days after deletion, until the backup containing it is rotated out and purged. We do not restore individual accounts from backups after deletion; backups exist solely to recover from a system-wide failure or data loss event.</p>
   <p>Security and audit logs are retained for 12 months and then automatically deleted.</p>
 </section>
 
@@ -238,7 +260,7 @@ const PRIVACY_V1_HTML = `
   <ul>
     <li>All data in transit is encrypted with TLS (HTTPS).</li>
     <li>Passwords are hashed using bcrypt with a cost factor of 10.</li>
-    <li>Vault-protected text (digital credentials, legal document details, financial affairs, property and possessions, practical household information, and notes) is encrypted at rest with AES-256-GCM using a key derived from your vault password via scrypt. Your vault password is never sent to or stored on our servers.</li>
+    <li>Vault-protected text (digital credentials, legal document details, financial affairs, property and possessions, practical household information, donation and organ-donation preferences, and notes) is encrypted at rest with AES-256-GCM using a key derived from your vault password via scrypt. Your vault password is never sent to or stored on our servers.</li>
     <li>Uploaded files (such as document scans or photos) are stored in Cloudflare R2, encrypted at rest by the storage provider, and only ever accessible through short-lived signed URLs tied to your authenticated account, never a public link. Files are not additionally encrypted with your vault password.</li>
     <li>Failed vault password attempts are monitored and trigger automatic security emails. After 5 failed attempts, you are signed out and your vault is temporarily locked for 3 minutes as a security measure. No data is deleted for incorrect attempts unless you have turned on the optional "maximum security" auto-delete setting yourself, which is switched off by default for every account.</li>
     <li>JWT authentication tokens expire after 8 hours.</li>
@@ -248,8 +270,8 @@ const PRIVACY_V1_HTML = `
 
 <section>
   <h4>8. Cookies and Tracking</h4>
-  <p>In Good Hands uses no advertising cookies, tracking pixels, or third-party analytics. We store a JWT authentication token in your browser's localStorage to keep you signed in. This token contains only your user ID, email, and admin status. It is not used for tracking.</p>
-  <p>We use ipapi.co to detect your country when you register, to pre-fill the country selector. No personally identifiable data is sent to ipapi.co.</p>
+  <p>In Good Hands uses no advertising cookies, tracking pixels, or third-party analytics. We keep you signed in using an httpOnly authentication cookie set by our server: this cookie cannot be read by JavaScript running in your browser, and our own client-side code never reads or stores your session token directly. It contains only your user ID, email, and admin status, and is used solely to keep you signed in, not for tracking. We also set a separate, non-sensitive cookie that our client-side code reads and echoes back as a security header on requests that change your data, a standard technique to help confirm requests are genuinely coming from you. That cookie is likewise not used for tracking.</p>
+  <p>When you register, your browser contacts ipapi.co directly to detect your country and pre-fill the country selector. This discloses your IP address to ipapi.co, a third-party geolocation service, for that purpose only. We do not send ipapi.co your name, email address, or anything else you have entered into In Good Hands.</p>
 </section>
 
 <section>
@@ -266,7 +288,7 @@ const PRIVACY_V1_HTML = `
   <h4>11. Contact and Data Deletion Requests</h4>
   <p>To exercise your privacy rights, request a copy of your data, or request deletion of your account:</p>
   <ul>
-    <li>Self-service: Use the "Delete My Account" option in Profile Settings to immediately and permanently delete all your data.</li>
+    <li>Self-service: Use the "Delete My Account" option in Profile Settings to delete all your data from our live systems immediately. See Section 6 (Data Retention) above for how long a residual copy may briefly remain in encrypted backups.</li>
     <li>Email: Use the contact form at the bottom of any page, or email us directly.</li>
     <li>Telephone: If you would prefer to speak with an administrator before deletion, you can request this via the contact form. An administrator will call you to confirm the deletion.</li>
   </ul>
