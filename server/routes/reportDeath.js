@@ -43,7 +43,10 @@ router.post('/', async (req, res) => {
       );
 
       if (executor?.email) {
-        const accessLink = await generateAccessLink(executor);
+        // REV-13: tagged 'report_death' so a normal login by the (still very
+        // much alive) owner afterward revokes this token too - see the login
+        // handler in routes/auth.js.
+        const accessLink = await generateAccessLink(executor, { source: 'report_death' });
         try {
           await sendEmail({
             to:      executor.email,
