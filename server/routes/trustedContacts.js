@@ -10,9 +10,9 @@ const { generateAccessLink } = require('../lib/inactivityTimer');
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
 
 // OPS-33 (2026-08-27): moved deceased-plan lock from router-wide to per-route
-// to allow read-shaped POST /:id/access-link (which mints and emails an access
-// token) even when a plan is deceased. Mutation routes still carry the lock
-// to prevent unauthorized edits to trusted contacts of a locked plan.
+// to prevent blocking legitimate read-shaped POST routes (e.g., viewing vault
+// contents, verifying passwords) while still locking all true mutations. Both
+// GET and mutating routes here remain locked/protected as appropriate.
 
 // SEC-20 (ported directly to main): legal_documents, financial_items, and
 // property_items are vault-protected and must never be grantable as a
@@ -212,7 +212,7 @@ router.delete('/:id', requireAuth, checkPlanLock, async (req, res) => {
   res.json({ success: true });
 });
 
-router.post('/:id/access-link', requireAuth, async (req, res) => {
+router.post('/:id/access-link', requireAuth, checkPlanLock, async (req, res) => {
   const contact = await queryOne(
     'SELECT * FROM trusted_contacts WHERE id = $1 AND user_id = $2',
     [req.params.id, req.user.id]
