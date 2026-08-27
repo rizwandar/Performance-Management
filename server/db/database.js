@@ -1521,6 +1521,26 @@ async function init() {
     )
   `);
 
+  // REV-11 (2026-08-26 security review): Stripe delivers webhook events at
+  // least once, so any event can be redelivered (network retry, Stripe-side
+  // retry after a slow response, a manual resend from the Dashboard).
+  // server/routes/stripeWebhook.js had no idempotency check at all, so a
+  // redelivered invoice.payment_succeeded / charge.refunded / subscription
+  // cancel-or-reinstate would re-send the customer's confirmation email and
+  // insert a duplicate subscription_events row (shown twice in the
+  // user-facing billing history). event_id is UNIQUE so the webhook handler
+  // can insert it first and treat a conflict as "already processed, skip".
+  // event_type is stored only for debugging/inspection, not relied upon for
+  // the dedupe itself.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS processed_stripe_events (
+      id           SERIAL PRIMARY KEY,
+      event_id     TEXT UNIQUE NOT NULL,
+      event_type   TEXT,
+      processed_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
   // REV-08 (2026-08-26 security review): user_id foreign-key columns across
   // the app's per-user tables had no index - Postgres does not auto-index FK
   // columns (only the referenced side, users.id, is indexed via its PRIMARY
