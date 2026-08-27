@@ -59,7 +59,22 @@ const authLimiter = rateLimit({
   // this isn't removing a check, it's removing a redundant one that was
   // causing collateral lockouts. req.path is relative to this middleware's
   // '/api/auth/' mount point (e.g. '/login', '/forgot-password').
-  skip: (req) => req.path.startsWith('/forgot-password') || req.path === '/reset-password',
+  //
+  // 2026-08-27: same collateral-lockout pattern found for /csrf-token and
+  // /logout. Neither is a credential-guessing attack surface (both require an
+  // already-valid session - see auth middleware on those routes in auth.js),
+  // but both were sharing this bucket with /login. AuthContext.jsx
+  // re-fetches a fresh CSRF token on every hard page reload while a cached
+  // session exists, so an ordinary busy admin session (several page loads,
+  // some logout/login cycling) can exhaust the 20-request budget on
+  // legitimate traffic alone, then have the next real login attempt get
+  // blocked - reported live: one conscious login attempt got a 429 after an
+  // otherwise normal admin session of browsing, deleting a few accounts, and
+  // logging out. Excluding these two removes collateral lockouts the same
+  // way SEC-14 did, without weakening the limiter's actual purpose (slowing
+  // down repeated /login and /register attempts).
+  skip: (req) => req.path.startsWith('/forgot-password') || req.path === '/reset-password'
+    || req.path === '/csrf-token' || req.path === '/logout',
 });
 
 const apiLimiter = rateLimit({
