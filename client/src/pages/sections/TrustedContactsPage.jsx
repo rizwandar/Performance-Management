@@ -341,6 +341,7 @@ export default function TrustedContactsPage() {
             <p className="text-muted small mb-0">
               Your <strong>Legacy Contact</strong> is the person notified first if you stop logging in. They
               can see everything you've recorded, except your vault.
+              {' '}<Link to="/faq#legacy-contact-vs-trusted-contact">Learn more</Link>.
             </p>
           </div>
 
