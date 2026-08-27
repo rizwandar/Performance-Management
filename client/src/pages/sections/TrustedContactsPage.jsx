@@ -219,16 +219,12 @@ export default function TrustedContactsPage() {
         eyebrow="Your People"
         headline="The people you trust"
         highlight="trust"
-        subtext="The trusted contacts who will be given access to your plans when the time comes, and the one person you trust to confirm it and set everything in motion."
+        subtext="Trusted contacts are the people who'll be given access to the plans you choose to share with them, when the time comes. You can add up to 3, and choose one of them to be your Legacy Contact: the one person who confirms what's happened and sets everything in motion."
         cta={contacts.length < 3 ? { label: '+ Add a trusted contact', onClick: openAdd } : undefined}
       />
 
       <div style={{ background: 'var(--parchment)', borderRadius: 'var(--card-radius-sm, 12px)', padding: '24px 24px 16px', marginBottom: 16, border: '1px solid var(--border)' }}>
         <h6 style={{ color: 'var(--green-900)', margin: '0 0 8px' }}>Trusted Contacts</h6>
-        <p className="text-muted small mb-1">
-          These are the people you trust enough to share your thoughts and plans with. Add up to
-          3 trusted contacts and choose exactly which sections each one can see.
-        </p>
         <p className="text-muted small mb-0" style={{ fontStyle: 'italic' }}>
           Unlike your emergency contact, each trusted contact receives a secure link to actually
           read the sections you've chosen to share with them.
