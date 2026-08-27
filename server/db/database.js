@@ -1677,6 +1677,49 @@ async function init() {
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_pets_user_id ON pets(user_id)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_insurance_items_user_id ON insurance_items(user_id)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_unfinished_business_user_id ON unfinished_business(user_id)`);
+
+  // REV-27: Before creating the UNIQUE constraint, clean up any duplicate
+  // last_moments rows that may have been created by the race condition this PR
+  // fixes (concurrent PUT + POST both checking and inserting). Find any user_id
+  // with >1 row, keep the most recently updated one (respects user's most recent
+  // action on the feature), delete the rest. Wrapped in transaction for
+  // atomicity and guarded by app_settings marker for idempotency - same pattern
+  // as REV-22's destroy_after_attempts backfill.
+  const lastMomentsDedup = await pool.query(
+    `SELECT value FROM app_settings WHERE key = 'rev27_last_moments_deduped'`
+  );
+  if (lastMomentsDedup.rows.length === 0) {
+    await transaction(async (client) => {
+      // Find all user_ids with multiple last_moments rows.
+      const duplicates = await client.query(`
+        SELECT user_id, COUNT(*)::int as cnt FROM last_moments GROUP BY user_id HAVING COUNT(*) > 1
+      `);
+
+      if (duplicates.rows.length > 0) {
+        // For each user with duplicates, keep only the most recently updated row.
+        for (const dup of duplicates.rows) {
+          const keep = await client.query(`
+            SELECT id FROM last_moments WHERE user_id = $1 ORDER BY updated_at DESC, id DESC LIMIT 1
+          `, [dup.user_id]);
+          const keepId = keep.rows[0].id;
+
+          await client.query(`
+            DELETE FROM last_moments WHERE user_id = $1 AND id != $2
+          `, [dup.user_id, keepId]);
+
+          console.log(`[db] REV-27: deduplicated last_moments for user ${dup.user_id}, kept row ${keepId}, removed ${dup.cnt - 1} duplicate(s)`);
+        }
+      }
+
+      // Record that this dedup has run, so it never runs again.
+      await client.query(
+        `INSERT INTO app_settings (key, value) VALUES ('rev27_last_moments_deduped', $1)
+         ON CONFLICT (key) DO NOTHING`,
+        [new Date().toISOString()]
+      );
+    });
+  }
+
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_last_moments_user_id ON last_moments(user_id)`);
 
   // Composite indexes for the two most expensive query shapes the REV-08
