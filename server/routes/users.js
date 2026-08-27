@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
-const jwt    = require('jsonwebtoken');
 const { queryOne, queryAll, query, transaction } = require('../db/database');
 const auth = require('../middleware/auth');
 const { deriveKey, verifyVaultPassword } = require('../lib/vault');
@@ -10,22 +9,20 @@ const { sendEmail } = require('../lib/sendEmail');
 const { accountDeletionConfirmEmail, executorDesignatedEmail } = require('../lib/emailTemplates');
 const { generateAccessLink } = require('../lib/inactivityTimer');
 const { stripe } = require('../lib/stripe');
+const { blockViewAs } = require('../lib/viewAsGuard');
 
-const JWT_SECRET  = process.env.JWT_SECRET  || 'dev-secret-change-in-production';
 const CLIENT_URL  = process.env.CLIENT_URL  || 'http://localhost:5173';
 
 // Account-level changes (password, profile fields, account deletion) are out of
 // scope for view-as, which only grants access to the plan's sections. GET /me is
 // still allowed since it's used for read-only profile display.
+//
+// REV-01 (2026-08-26 review): this used to decode the token from
+// req.headers.authorization only, which never applied to a web view-as
+// session - see lib/viewAsGuard.js for the full explanation.
 router.use((req, res, next) => {
   if (req.method === 'GET') return next();
-  const token = req.headers.authorization?.split(' ')[1];
-  if (!token) return next();
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    if (decoded.viewAs) return res.status(403).json({ error: 'Account changes are not available in view-as mode.' });
-  } catch { /* an invalid token is left for the route's own requireAuth to reject */ }
-  next();
+  return blockViewAs('Account changes are not available in view-as mode.')(req, res, next);
 });
 
 router.get('/me', auth, async (req, res) => {
@@ -121,7 +118,48 @@ router.put('/me', auth, async (req, res) => {
           emergency_contact_relationship, emergency_contact_notes,
           marital_status, spouse_name, spouse_phone, spouse_email, spouse_is_executor } = req.body;
   try {
-    const existing = await queryOne('SELECT name, email FROM users WHERE id = $1', [req.user.id]);
+    // REV-02 (2026-08-26 review): this used to write every field as
+    // `req.body.field || null`, which silently blanked out every field the
+    // caller's page doesn't own. ProfilePage.jsx, EmergencyContactPage.jsx,
+    // HowToBeRememberedPage.jsx (and mobile) each PUT disjoint subsets of these
+    // fields, so saving one page destroyed the others. Fixed to patch-style:
+    // fetch the current row first, then merge each field as
+    // `req.body.field ?? existing.field` - only an explicit `null`/omitted
+    // field falls back to what's already there, same merge convention already
+    // used by every list-section PUT route in sections.js (e.g.
+    // /people-to-notify/:id, /lifes-wishes/:id).
+    const existing = await queryOne(`
+      SELECT name, email, date_of_birth, about_me, legacy_message, life_story, remembered_for,
+             emergency_contact_name, emergency_contact_phone, emergency_contact_email,
+             emergency_contact_relationship, emergency_contact_notes,
+             marital_status, spouse_name, spouse_phone, spouse_email, spouse_is_executor
+      FROM users WHERE id = $1
+    `, [req.user.id]);
+    if (!existing) return res.status(404).json({ error: 'User not found.' });
+
+    const merged = {
+      name:                           name ?? existing.name,
+      email:                          email ?? existing.email,
+      date_of_birth:                  date_of_birth ?? existing.date_of_birth,
+      about_me:                       about_me ?? existing.about_me,
+      legacy_message:                 legacy_message ?? existing.legacy_message,
+      life_story:                     life_story ?? existing.life_story,
+      remembered_for:                 remembered_for ?? existing.remembered_for,
+      emergency_contact_name:         emergency_contact_name ?? existing.emergency_contact_name,
+      emergency_contact_phone:        emergency_contact_phone ?? existing.emergency_contact_phone,
+      emergency_contact_email:        emergency_contact_email ?? existing.emergency_contact_email,
+      emergency_contact_relationship: emergency_contact_relationship ?? existing.emergency_contact_relationship,
+      emergency_contact_notes:        emergency_contact_notes ?? existing.emergency_contact_notes,
+      marital_status:                 marital_status ?? existing.marital_status,
+      spouse_name:                    spouse_name ?? existing.spouse_name,
+      spouse_phone:                   spouse_phone ?? existing.spouse_phone,
+      spouse_email:                   spouse_email ?? existing.spouse_email,
+      // An absent spouse_is_executor (a page that doesn't send it at all,
+      // e.g. EmergencyContactPage.jsx) must never clear an existing executor
+      // designation - only an explicitly-present value in the request acts.
+      spouse_is_executor: spouse_is_executor !== undefined ? !!spouse_is_executor : existing.spouse_is_executor,
+    };
+
     await query(`
       UPDATE users SET name=$1, email=$2, date_of_birth=$3, about_me=$4, legacy_message=$5,
         life_story=$6, remembered_for=$7,
@@ -130,20 +168,25 @@ router.put('/me', auth, async (req, res) => {
         spouse_is_executor=$15, emergency_contact_relationship=$16, emergency_contact_notes=$17
       WHERE id=$18
     `, [
-      name  ?? existing.name,
-      email ?? existing.email,
-      date_of_birth || null, about_me || null, legacy_message || null,
-      life_story || null, remembered_for || null,
-      emergency_contact_name || null, emergency_contact_phone || null,
-      emergency_contact_email || null,
-      marital_status || null, spouse_name || null, spouse_phone || null, spouse_email || null,
-      !!spouse_is_executor,
-      emergency_contact_relationship || null, emergency_contact_notes || null,
+      merged.name, merged.email, merged.date_of_birth, merged.about_me, merged.legacy_message,
+      merged.life_story, merged.remembered_for,
+      merged.emergency_contact_name, merged.emergency_contact_phone, merged.emergency_contact_email,
+      merged.marital_status, merged.spouse_name, merged.spouse_phone, merged.spouse_email,
+      merged.spouse_is_executor, merged.emergency_contact_relationship, merged.emergency_contact_notes,
       req.user.id,
     ]);
 
+    // Pass the merged (effective, post-save) values, not the raw request
+    // body, so a partial save that omits the spouse fields entirely evaluates
+    // eligibility against what's actually now in the users row - not against
+    // undefined, which would otherwise read as "not eligible" and wrongly
+    // clear an existing executor designation (REV-02).
     const syncResult = await syncSpouseExecutor(req.user.id, {
-      marital_status, spouse_name, spouse_email, spouse_phone, spouse_is_executor,
+      marital_status:     merged.marital_status,
+      spouse_name:        merged.spouse_name,
+      spouse_email:       merged.spouse_email,
+      spouse_phone:       merged.spouse_phone,
+      spouse_is_executor: merged.spouse_is_executor,
     });
 
     const responseExtra = {};

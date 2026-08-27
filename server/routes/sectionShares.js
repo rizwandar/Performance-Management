@@ -4,7 +4,7 @@ const crypto  = require('crypto');
 const { query, queryOne, queryAll } = require('../db/database');
 const requireAuth = require('../middleware/auth');
 const { checkVault } = require('../lib/vaultAuth');
-const { deriveKey, encryptField, decryptField } = require('../lib/vault');
+const { encryptField, decryptField } = require('../lib/vault');
 const { sendEmail } = require('../lib/sendEmail');
 const { sectionSharedEmail } = require('../lib/emailTemplates');
 const {
@@ -59,8 +59,11 @@ router.post('/', requireAuth, async (req, res) => {
     // when redeeming the link (see GET/POST .../access/:token below). A DB
     // breach alone, without also having intercepted the link itself, yields
     // only undecryptable ciphertext.
-    if (!await checkVault(vault_password, req.user.id, res, req)) return;
-    const vaultKey = deriveKey(vault_password, req.user.id);
+    // REV-07 (2026-08-26 review): reuse the key checkVault() already derived
+    // internally, instead of calling deriveKey() again with the same
+    // password/userId (same fix applied throughout sections.js/export.js).
+    const vaultKey = await checkVault(vault_password, req.user.id, res, req);
+    if (!vaultKey) return;
     const raw = await fetchRawSectionData(section, req.user.id, vaultKey);
     view = buildSectionView(section, raw);
 

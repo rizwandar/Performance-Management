@@ -12,6 +12,7 @@ const { TABLE_FIELDS, decryptRow, migrateRow } = require('../lib/vaultFields');
 const { destroyVaultData } = require('../lib/vaultDestroy');
 const { uploadFile, deleteFile, getDownloadUrl } = require('../lib/r2');
 const { matchesExtension } = require('../lib/fileSignature');
+const { extractToken, blockViewAs } = require('../lib/viewAsGuard');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
 
@@ -32,11 +33,11 @@ const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
 // memory). Fixed to use the same cookie-first precedence middleware/auth.js's
 // requireAuth already uses: cookie first, Bearer header as the mobile-only
 // fallback.
-function extractToken(req) {
-  const header = req.headers.authorization;
-  const headerToken = header?.startsWith('Bearer ') ? header.slice(7) : null;
-  return req.cookies?.token || headerToken;
-}
+//
+// REV-01 (2026-08-26 review): extractToken() now lives in lib/viewAsGuard.js
+// so users.js and export.js (which had regressed to the header-only bug this
+// exact comment describes) share this same implementation instead of each
+// keeping their own copy that can drift out of sync again.
 
 // Once a user is marked deceased (by their executor, org staff, or the timer's
 // direct-notify fallback path - see lib/deceased.js), their plan is locked from
@@ -62,15 +63,7 @@ router.use(checkPlanLock);
 // The vault is never visible in view-as mode, without exception (org portal
 // spec, section 11). This is a single central check rather than trusting it to
 // be remembered in every individual vault route handler below.
-router.use('/digital-life/vault', (req, res, next) => {
-  const token = extractToken(req);
-  if (!token) return next();
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    if (decoded.viewAs) return res.status(403).json({ error: 'The vault is not accessible in view-as mode.' });
-  } catch { /* an invalid token is left for the route's own requireAuth to reject */ }
-  next();
-});
+router.use('/digital-life/vault', blockViewAs('The vault is not accessible in view-as mode.'));
 
 // ---------------------------------------------------------------------------
 // Completion counts for all sections
@@ -142,8 +135,12 @@ router.get('/completion', requireAuth, async (req, res) => {
 // ---------------------------------------------------------------------------
 router.post('/legal-documents/list', requireAuth, async (req, res) => {
   const { vault_password } = req.body;
-  if (!await checkVault(vault_password, req.user.id, res, req)) return;
-  const key  = deriveKey(vault_password, req.user.id);
+  // REV-07 (2026-08-26 review): checkVault() now returns the vault key it
+  // already derived internally on success, instead of a plain `true` - reuse
+  // it here rather than calling deriveKey() a second time with the same
+  // password/userId, which paid scryptSync's deliberate ~50-100ms cost twice.
+  const key = await checkVault(vault_password, req.user.id, res, req);
+  if (!key) return;
   const rows = await queryAll('SELECT * FROM legal_documents WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]);
   const items = [];
   for (const row of rows) {
@@ -156,9 +153,12 @@ router.post('/legal-documents/list', requireAuth, async (req, res) => {
 
 router.post('/legal-documents', requireAuth, requirePremium, async (req, res) => {
   const { vault_password, document_type, title, held_by, location, notes } = req.body;
-  if (!await checkVault(vault_password, req.user.id, res, req)) return;
+  // REV-07: reuse the key checkVault() already derived, instead of deriving it again.
+  // Vault-password verification (and its attempt/lockout tracking) still runs
+  // before the title validation below, same order as before this fix.
+  const key = await checkVault(vault_password, req.user.id, res, req);
+  if (!key) return;
   if (!title) return res.status(400).json({ error: 'A title or description is required.' });
-  const key = deriveKey(vault_password, req.user.id);
   const result = await query(`
     INSERT INTO legal_documents (user_id, document_type_enc, title_enc, held_by_enc, location_enc, notes_enc)
     VALUES ($1, $2, $3, $4, $5, $6) RETURNING id
@@ -177,8 +177,8 @@ router.put('/legal-documents/:id', requireAuth, requirePremium, async (req, res)
   const row = await queryOne('SELECT * FROM legal_documents WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!row) return res.status(404).json({ error: 'Item not found.' });
   const { vault_password, document_type, title, held_by, location, notes } = req.body;
-  if (!await checkVault(vault_password, req.user.id, res, req)) return;
-  const key = deriveKey(vault_password, req.user.id);
+  const key = await checkVault(vault_password, req.user.id, res, req);
+  if (!key) return;
   const { decrypted } = decryptRow('legal_documents', row, key);
   await migrateRow(query, 'legal_documents', row.id, {
     document_type: document_type ?? decrypted.document_type,
@@ -205,8 +205,8 @@ router.delete('/legal-documents/:id', requireAuth, requirePremium, async (req, r
 // ---------------------------------------------------------------------------
 router.post('/financial-affairs/list', requireAuth, async (req, res) => {
   const { vault_password } = req.body;
-  if (!await checkVault(vault_password, req.user.id, res, req)) return;
-  const key  = deriveKey(vault_password, req.user.id);
+  const key = await checkVault(vault_password, req.user.id, res, req);
+  if (!key) return;
   const rows = await queryAll('SELECT * FROM financial_items WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]);
   const items = [];
   for (const row of rows) {
@@ -219,9 +219,9 @@ router.post('/financial-affairs/list', requireAuth, async (req, res) => {
 
 router.post('/financial-affairs', requireAuth, requirePremium, async (req, res) => {
   const { vault_password, category, institution, account_type, account_reference, contact_name, contact_phone, notes } = req.body;
-  if (!await checkVault(vault_password, req.user.id, res, req)) return;
+  const key = await checkVault(vault_password, req.user.id, res, req);
+  if (!key) return;
   if (!institution && !category) return res.status(400).json({ error: 'Please provide at least an institution or category.' });
-  const key = deriveKey(vault_password, req.user.id);
   const result = await query(`
     INSERT INTO financial_items (user_id, category_enc, institution_enc, account_type_enc, account_reference_enc, contact_name_enc, contact_phone_enc, notes_enc)
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id
@@ -242,8 +242,8 @@ router.put('/financial-affairs/:id', requireAuth, requirePremium, async (req, re
   const row = await queryOne('SELECT * FROM financial_items WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!row) return res.status(404).json({ error: 'Item not found.' });
   const { vault_password, category, institution, account_type, account_reference, contact_name, contact_phone, notes } = req.body;
-  if (!await checkVault(vault_password, req.user.id, res, req)) return;
-  const key = deriveKey(vault_password, req.user.id);
+  const key = await checkVault(vault_password, req.user.id, res, req);
+  if (!key) return;
   const { decrypted } = decryptRow('financial_items', row, key);
   await migrateRow(query, 'financial_items', row.id, {
     category:          category ?? decrypted.category,
@@ -366,8 +366,8 @@ router.put('/medical-records', requireAuth, async (req, res) => {
 // ---------------------------------------------------------------------------
 router.post('/donation-bank/view', requireAuth, async (req, res) => {
   const { vault_password } = req.body;
-  if (!await checkVault(vault_password, req.user.id, res, req)) return;
-  const key = deriveKey(vault_password, req.user.id);
+  const key = await checkVault(vault_password, req.user.id, res, req);
+  if (!key) return;
   const row = await queryOne('SELECT * FROM donation_bank WHERE user_id = $1', [req.user.id]);
   if (!row) return res.json({});
   const { decrypted, legacyPlaintext } = decryptRow('donation_bank', row, key);
@@ -377,8 +377,8 @@ router.post('/donation-bank/view', requireAuth, async (req, res) => {
 
 router.put('/donation-bank', requireAuth, requirePremium, async (req, res) => {
   const { vault_password, organ_donation, organ_donation_details } = req.body;
-  if (!await checkVault(vault_password, req.user.id, res, req)) return;
-  const key = deriveKey(vault_password, req.user.id);
+  const key = await checkVault(vault_password, req.user.id, res, req);
+  if (!key) return;
   const existing = await queryOne('SELECT * FROM donation_bank WHERE user_id = $1', [req.user.id]);
   if (existing) {
     const { decrypted } = decryptRow('donation_bank', existing, key);
@@ -435,8 +435,8 @@ router.delete('/people-to-notify/:id', requireAuth, async (req, res) => {
 // ---------------------------------------------------------------------------
 router.post('/property-possessions/list', requireAuth, async (req, res) => {
   const { vault_password } = req.body;
-  if (!await checkVault(vault_password, req.user.id, res, req)) return;
-  const key  = deriveKey(vault_password, req.user.id);
+  const key = await checkVault(vault_password, req.user.id, res, req);
+  if (!key) return;
   const rows = await queryAll('SELECT * FROM property_items WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]);
   const items = [];
   for (const row of rows) {
@@ -449,9 +449,9 @@ router.post('/property-possessions/list', requireAuth, async (req, res) => {
 
 router.post('/property-possessions', requireAuth, requirePremium, async (req, res) => {
   const { vault_password, category, title, description, location, intended_recipient, notes } = req.body;
-  if (!await checkVault(vault_password, req.user.id, res, req)) return;
+  const key = await checkVault(vault_password, req.user.id, res, req);
+  if (!key) return;
   if (!title) return res.status(400).json({ error: 'A title is required.' });
-  const key = deriveKey(vault_password, req.user.id);
   const result = await query(`
     INSERT INTO property_items (user_id, category_enc, title_enc, description_enc, location_enc, intended_recipient_enc, notes_enc)
     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id
@@ -471,8 +471,8 @@ router.put('/property-possessions/:id', requireAuth, requirePremium, async (req,
   const row = await queryOne('SELECT * FROM property_items WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!row) return res.status(404).json({ error: 'Item not found.' });
   const { vault_password, category, title, description, location, intended_recipient, notes } = req.body;
-  if (!await checkVault(vault_password, req.user.id, res, req)) return;
-  const key = deriveKey(vault_password, req.user.id);
+  const key = await checkVault(vault_password, req.user.id, res, req);
+  if (!key) return;
   const { decrypted } = decryptRow('property_items', row, key);
   await migrateRow(query, 'property_items', row.id, {
     category:            category ?? decrypted.category,
@@ -757,8 +757,8 @@ router.delete('/lifes-wishes/:id', requireAuth, async (req, res) => {
 // ---------------------------------------------------------------------------
 router.post('/household-info/list', requireAuth, async (req, res) => {
   const { vault_password } = req.body;
-  if (!await checkVault(vault_password, req.user.id, res, req)) return;
-  const key  = deriveKey(vault_password, req.user.id);
+  const key = await checkVault(vault_password, req.user.id, res, req);
+  if (!key) return;
   // No longer sorted by category/title at the DB level - now that those
   // fields are ciphertext, that would sort by encrypted bytes instead of the
   // real values. Sort after decrypting instead.
@@ -775,9 +775,9 @@ router.post('/household-info/list', requireAuth, async (req, res) => {
 
 router.post('/household-info', requireAuth, requirePremium, async (req, res) => {
   const { vault_password, category, title, provider, account_reference, contact, notes } = req.body;
-  if (!await checkVault(vault_password, req.user.id, res, req)) return;
+  const key = await checkVault(vault_password, req.user.id, res, req);
+  if (!key) return;
   if (!title) return res.status(400).json({ error: 'A title is required.' });
-  const key = deriveKey(vault_password, req.user.id);
   const result = await query(`
     INSERT INTO household_info (user_id, category_enc, title_enc, provider_enc, account_reference_enc, contact_enc, notes_enc)
     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id
@@ -797,8 +797,8 @@ router.put('/household-info/:id', requireAuth, requirePremium, async (req, res) 
   const row = await queryOne('SELECT * FROM household_info WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!row) return res.status(404).json({ error: 'Item not found.' });
   const { vault_password, category, title, provider, account_reference, contact, notes } = req.body;
-  if (!await checkVault(vault_password, req.user.id, res, req)) return;
-  const key = deriveKey(vault_password, req.user.id);
+  const key = await checkVault(vault_password, req.user.id, res, req);
+  if (!key) return;
   const { decrypted } = decryptRow('household_info', row, key);
   await migrateRow(query, 'household_info', row.id, {
     category:          category ?? decrypted.category,
@@ -1056,8 +1056,8 @@ router.post('/digital-life/vault/verify', requireAuth, async (req, res) => {
 
 router.post('/digital-life/list', requireAuth, async (req, res) => {
   const { vault_password } = req.body;
-  if (!await checkVault(vault_password, req.user.id, res, req)) return;
-  const key = deriveKey(vault_password, req.user.id);
+  const key = await checkVault(vault_password, req.user.id, res, req);
+  if (!key) return;
 
   const rows = await queryAll(
     'SELECT id, service, service_url, username_enc, password_enc, notes_enc, created_at FROM digital_credentials WHERE user_id = $1 ORDER BY service',

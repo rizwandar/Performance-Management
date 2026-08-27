@@ -1,6 +1,5 @@
 const express = require('express');
 const router  = express.Router();
-const jwt     = require('jsonwebtoken');
 const { queryOne, queryAll } = require('../db/database');
 const auth    = require('../middleware/auth');
 const requirePremium = require('../middleware/requiresPremium');
@@ -8,22 +7,17 @@ const { generatePdf } = require('../lib/generatePdf');
 const { deriveKey, decryptField, verifyVaultPassword } = require('../lib/vault');
 const { recordVaultAttempt, getVaultLockStatus, resetVaultAttempts } = require('../lib/vaultAttempts');
 const { decryptRow } = require('../lib/vaultFields');
-
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
+const { blockViewAs } = require('../lib/viewAsGuard');
 
 // Bulk PDF export is a much wider data-egress action than the section-by-section
 // browsing view-as mode is meant to grant, so it's blocked entirely during a
-// view-as session (same self-contained decode pattern used for the vault block
-// in sections.js, since requireAuth's view-as handling only runs per-route).
-router.use((req, res, next) => {
-  const token = req.headers.authorization?.split(' ')[1];
-  if (!token) return next();
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    if (decoded.viewAs) return res.status(403).json({ error: 'Export is not available in view-as mode.' });
-  } catch { /* an invalid token is left for the route's own requireAuth to reject */ }
-  next();
-});
+// view-as session.
+//
+// REV-01 (2026-08-26 review): this used to decode the token from
+// req.headers.authorization only, which never applied to a web view-as
+// session (delivered exclusively via an httpOnly cookie since SEC-09) - see
+// lib/viewAsGuard.js for the full explanation.
+router.use(blockViewAs('Export is not available in view-as mode.'));
 
 // Non-vault-protected data only - safe to load and render regardless of
 // whether the vault password has been verified. Vault-protected sections
@@ -92,7 +86,7 @@ async function buildBaseData(uid) {
 // Vault-protected data only. Caller must have already verified the vault
 // password before calling this - it does not check anything itself.
 async function loadVaultData(uid, key) {
-  const [legalDocs, financialItems, propertyItems, householdInfo, credRows, donationBankRow] = await Promise.all([
+  const [legalDocRows, financialItemRows, propertyItemRows, householdInfoRows, credRows, donationBankRow] = await Promise.all([
     queryAll('SELECT * FROM legal_documents WHERE user_id = $1 ORDER BY created_at', [uid]),
     queryAll('SELECT * FROM financial_items WHERE user_id = $1 ORDER BY created_at', [uid]),
     queryAll('SELECT * FROM property_items  WHERE user_id = $1 ORDER BY created_at', [uid]),
@@ -107,6 +101,18 @@ async function loadVaultData(uid, key) {
     // .map() since there's at most one row.
     queryOne('SELECT * FROM donation_bank WHERE user_id = $1', [uid]),
   ]);
+
+  // REV-06 (2026-08-26 review): these four lists used to be returned as raw
+  // SELECT * rows - still ciphertext per SEC-03, since a migrated row's plain
+  // columns stay NULL - instead of being run through decryptRow() the way
+  // credentials/donationBank already are below. A complete vault export's PDF
+  // silently rendered no usable content for legal documents, financial
+  // affairs, property, or household info. Same decryptRow() call already used
+  // for donationBank, just applied to every row in these four lists too.
+  const legalDocs      = legalDocRows.map(row => decryptRow('legal_documents', row, key).decrypted);
+  const financialItems = financialItemRows.map(row => decryptRow('financial_items', row, key).decrypted);
+  const propertyItems  = propertyItemRows.map(row => decryptRow('property_items', row, key).decrypted);
+  const householdInfo  = householdInfoRows.map(row => decryptRow('household_info', row, key).decrypted);
 
   const credentials = credRows.map(row => ({
     service:     row.service,

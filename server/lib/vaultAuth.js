@@ -6,6 +6,17 @@ const { recordVaultAttempt, getVaultLockStatus, resetVaultAttempts } = require('
 // data (sections.js, documents.js). Centralized so the lockout/attempt-counter
 // behavior can't drift between routes the way it did before the four
 // unprotected GET routes were found in 2026-07-27.
+//
+// REV-07 (2026-08-26 review): returns the already-derived vault key (a
+// Buffer, always truthy) on success instead of a plain `true`, and `false` on
+// failure - the return value is unchanged from a caller's point of view for
+// any site that only checks truthiness (`if (!await checkVault(...)) return;`),
+// but a caller that used to also call deriveKey(vault_password, userId) again
+// right afterwards to get the key for decryption/encryption can now reuse this
+// return value directly instead. crypto.scryptSync is deliberately slow
+// (~50-100ms, see lib/vault.js) to resist brute-force, so every one of the
+// ~20 call sites that used to derive it twice per request was paying that
+// cost twice for identical inputs, for no benefit.
 async function checkVault(vault_password, userId, res, req) {
   if (!vault_password) {
     res.status(400).json({ error: 'vault_password is required.' });
@@ -24,7 +35,7 @@ async function checkVault(vault_password, userId, res, req) {
   // once they've already gotten it right.
   if (isCorrect) {
     await resetVaultAttempts(userId);
-    return true;
+    return key;
   }
 
   const lockedUntil = await getVaultLockStatus(userId);
