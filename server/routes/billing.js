@@ -43,14 +43,24 @@ router.get('/access', auth, async (req, res) => {
   // Not part of getAccessInfo's own precedence logic: this is a simple
   // "has it ever been started" check, not a plan-composition decision, so a
   // small direct query here keeps that existing logic undisturbed.
-  const trialRow = await queryOne('SELECT signup_trial_started_at FROM users WHERE id = $1', [req.user.id]);
+  //
+  // Also requires premium_used_at to be unset: a user who has ever actually
+  // been Premium (via the 14-day Stripe trial, skip-trial-pay-now, or an
+  // admin grant) isn't eligible for the no-card signup trial even if they
+  // never started it and are currently back on Free - they've already had
+  // full access once, so the trial isn't the same "try before you buy" offer
+  // for them. See the schema comment on users.premium_used_at in database.js.
+  const trialRow = await queryOne(
+    'SELECT signup_trial_started_at, premium_used_at FROM users WHERE id = $1',
+    [req.user.id]
+  );
   res.json({
     plan,
     is_premium: plan === 'premium',
     signup_trial_active: signupTrialActive,
     signup_trial_expired: signupTrialExpired,
     signup_trial_ends_at: signupTrialEndsAt,
-    signup_trial_available: !trialRow?.signup_trial_started_at,
+    signup_trial_available: !trialRow?.signup_trial_started_at && !trialRow?.premium_used_at,
   });
 });
 

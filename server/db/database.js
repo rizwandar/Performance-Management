@@ -925,6 +925,15 @@ async function init() {
   // trial_skipped(_at) records the "pay now, skip the trial" choice for the
   // current subscription, for audit/traceability per the agreed spec.
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_used_at TIMESTAMPTZ`);
+  // Durable "this account has ever actually been Premium" flag, same pattern
+  // as trial_used_at directly above: lives on users (not subscriptions)
+  // because the subscriptions row is upserted on every webhook event and
+  // would otherwise lose the "was Premium at some point" fact across a
+  // downgrade/cancel cycle; set once and never cleared. Covers every path to
+  // Premium (the 14-day Stripe trial, skip-trial-pay-now, and an admin grant
+  // alike) - see stripeWebhook.js's upsertFromSubscription and admin.js's
+  // grant-premium route for where this gets set.
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS premium_used_at TIMESTAMPTZ`);
   await pool.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS trial_skipped BOOLEAN DEFAULT false`);
   await pool.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS trial_skipped_at TIMESTAMPTZ`);
   // Tracks whether the "your trial ends in 2 days" reminder has already gone

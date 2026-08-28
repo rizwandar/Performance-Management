@@ -462,6 +462,15 @@ router.post('/users/:id/grant-premium', auth, adminOnly, async (req, res) => {
     [user.id, JSON.stringify({ granted_by_admin_id: req.user.id })]
   );
 
+  // Durable "this account has ever actually been Premium" flag - an
+  // admin-granted honorary Premium account counts too, since what matters
+  // here is that they got full access, not how they got it. See the schema
+  // comment in database.js.
+  await query(
+    'UPDATE users SET premium_used_at = NOW() WHERE id = $1 AND premium_used_at IS NULL',
+    [user.id]
+  );
+
   res.json({ success: true });
 });
 

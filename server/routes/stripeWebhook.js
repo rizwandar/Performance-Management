@@ -136,6 +136,17 @@ async function upsertFromSubscription(subscription, userId) {
       [resolvedUserId]
     );
   }
+
+  // Durable "this account has ever actually been Premium" flag, set once and
+  // never cleared - see the schema comment in database.js. Covers both the
+  // 14-day-trial and the skip-trial-pay-now paths, since both eventually
+  // land here with plan resolved to 'premium'.
+  if (plan === 'premium') {
+    await query(
+      'UPDATE users SET premium_used_at = NOW() WHERE id = $1 AND premium_used_at IS NULL',
+      [resolvedUserId]
+    );
+  }
 }
 
 // One-trial-per-person enforcement, card side (BIL-04). Checkout Sessions
