@@ -3,39 +3,9 @@ import { Link, useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import { useSubscription } from '../context/SubscriptionContext'
 import { useAuth } from '../context/AuthContext'
+import { FREE_FEATURES, PREMIUM_FEATURES } from '../constants/planFeatures'
 
 const API = import.meta.env.VITE_API_URL || '/api'
-
-const FREE_FEATURES = [
-  'How I\'d Like to Be Remembered',
-  'Messages to Loved Ones',
-  'Unfinished Business',
-  'Songs That Define Me',
-  'My Bucket List',
-  'Funeral and End-of-Life Wishes',
-  'Doctors',
-  'Medical Records',
-  'Emergency Contact',
-  'People to Notify',
-  'Your Loved Ones',
-  'Pet Care',
-  'Insurance',
-  'Trusted contact access permissions',
-]
-
-const PREMIUM_FEATURES = [
-  'All free sections',
-  'Your Last Moments (a dedicated final recording or letter)',
-  'Personal and Legal Documents',
-  'Property and Possessions',
-  'Financial Affairs',
-  'Digital Life (vault-encrypted)',
-  'Practical Household Information',
-  'Donation Bank (vault-encrypted)',
-  'Document and photo uploads',
-  'Full PDF export (including vault)',
-  'Inactivity timer and notifications',
-]
 
 function FeatureList({ items, color }) {
   return (
@@ -116,7 +86,7 @@ function CheckoutButton({ label, planId, trialEligible }) {
       {trialEligible && (
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 10, fontSize: '0.8rem', color: 'var(--text-muted)', cursor: 'pointer' }}>
           <input type="checkbox" checked={skipTrial} onChange={e => setSkipTrial(e.target.checked)} disabled={loading} />
-          Skip the free trial and pay now instead
+          Skip the free trial and upgrade now
         </label>
       )}
       {error && <p style={{ color: '#b3261e', fontSize: '0.82rem', marginTop: 8, marginBottom: 0 }}>{error}</p>}
@@ -154,6 +124,9 @@ function SignupTrialCallout() {
       border: '1px solid var(--green-100)', borderRadius: 'var(--card-radius, 16px)',
       padding: '20px 28px', textAlign: 'center',
     }}>
+      <h3 style={{ fontFamily: 'Georgia, serif', color: 'var(--heading-color, var(--green-900))', fontSize: '1.15rem', fontWeight: 700, marginBottom: 8 }}>
+        Start Your Free 30-Day Trial
+      </h3>
       <p style={{ color: 'var(--green-900)', fontWeight: 700, fontSize: '0.95rem', marginBottom: 6 }}>
         Not ready to subscribe? Try it free for 30 days first.
       </p>
