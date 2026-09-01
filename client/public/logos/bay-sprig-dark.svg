@@ -1,0 +1,6 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <line x1="100" y1="176" x2="100" y2="34" stroke="#1A3D28" stroke-width="4" stroke-linecap="round"/>
+  <ellipse rx="20" ry="34" transform="translate(66,110) rotate(-14)" fill="#2D5A3D"/>
+  <ellipse rx="20" ry="34" transform="translate(134,110) rotate(14) scale(-1,1)" fill="#3D7A53"/>
+  <ellipse rx="12" ry="20" transform="translate(100,54)" fill="#2D5A3D"/>
+</svg>
