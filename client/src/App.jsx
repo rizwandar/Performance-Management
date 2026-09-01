@@ -792,6 +792,21 @@ function LegalReconsentBanner() {
   )
 }
 
+// React Router doesn't scroll to top on navigation the way a traditional
+// multi-page site does - every route change keeps whatever scroll position
+// the previous page was at. Reported live: clicking "See Premium plans" from
+// a locked vault section landed on /upgrade already scrolled down, so the
+// three plan cards weren't visible without the user scrolling up themselves.
+// Mounted once inside the Router below, resets to the top on every pathname
+// change app-wide, not just this one navigation.
+function ScrollToTop() {
+  const { pathname } = useLocation()
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [pathname])
+  return null
+}
+
 function AppContent() {
   const { setBranding } = useBranding()
   const [maintenance, setMaintenance] = useState(false)
@@ -848,6 +863,7 @@ function AppContent() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      <ScrollToTop />
       {/* Skip to main content — visible on keyboard focus for screen reader / keyboard users */}
       <a
         href="#main-content"
