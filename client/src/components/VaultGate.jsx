@@ -68,7 +68,7 @@ export function VaultSetupScreen({ onSetup }) {
 
   if (step === 'choice') {
     return (
-      <div style={{ maxWidth: 720, margin: '0 auto' }}>
+      <div style={{ maxWidth: 800, margin: '0 auto' }}>
         <div style={{ background: 'var(--parchment)', borderRadius: 12, padding: '32px 36px', border: '1px solid var(--border)' }}>
           <div style={{ fontSize: '2.5rem', textAlign: 'center', marginBottom: 12 }}>🔑</div>
           <p className="text-muted small text-center mb-1">
@@ -143,7 +143,7 @@ export function VaultSetupScreen({ onSetup }) {
   }
 
   return (
-    <div style={{ maxWidth: 720, margin: '0 auto' }}>
+    <div style={{ maxWidth: 800, margin: '0 auto' }}>
       <div style={{
         background: 'var(--parchment)', borderRadius: 12,
         padding: '32px 36px', border: '1px solid var(--border)',

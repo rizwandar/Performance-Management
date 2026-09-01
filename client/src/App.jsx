@@ -333,8 +333,12 @@ export function applyFont(fontId) {
 function FooterBrand() {
   const { siteName, logoUrl } = useBranding()
   return (
-    <div className="d-flex align-items-center gap-2 mb-3">
-      <img src={logoUrl} alt={siteName} width="24" height="24" />
+    <div className="d-flex align-items-center mb-3">
+      {/* Several preset SVGs (the leaf shapes especially) have their own
+          drawn artwork inset well within the image's viewBox, so the visual
+          gap to the wordmark reads larger than the CSS gap alone - a small
+          negative margin on the image pulls the two closer to compensate. */}
+      <img src={logoUrl} alt={siteName} width="24" height="24" style={{ marginRight: -4 }} />
       <span style={{ fontWeight: 700, color: 'var(--green-900)', fontSize: '1rem' }}>{siteName}</span>
     </div>
   )
@@ -532,8 +536,13 @@ function NavBar() {
     <Navbar expand="md" className="mb-4">
       <Container>
         <Navbar.Brand as={Link} to="/">
+          {/* Several preset SVGs (the leaf shapes especially) have their own
+              drawn artwork inset well within the image's viewBox, so the
+              visual gap to "In Good Hands" reads larger than the CSS margin
+              alone - a small negative margin pulls the two closer to
+              compensate. */}
           <img src={logoUrl} alt={siteName} width="40" height="40"
-            style={{ marginRight: 8, verticalAlign: 'middle' }} />
+            style={{ marginRight: -4, verticalAlign: 'middle' }} />
           {siteName}
         </Navbar.Brand>
         <Navbar.Toggle aria-label="Toggle navigation menu" />
