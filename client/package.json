@@ -16,13 +16,13 @@
     "libphonenumber-js": "^1.13.9",
     "react": "^19.2.8",
     "react-bootstrap": "^2.10.10",
-    "react-dom": "^19.2.4",
+    "react-dom": "^19.2.8",
     "react-router-dom": "^7.18.2"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/react": "^19.2.18",
-    "@types/react-dom": "^19.2.3",
+    "@types/react-dom": "^19.2.5",
     "@vitejs/plugin-react": "^6.0.1",
     "eslint": "^10.8.1",
     "eslint-plugin-react-hooks": "^7.1.1",
