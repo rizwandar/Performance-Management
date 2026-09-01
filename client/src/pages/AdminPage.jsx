@@ -109,6 +109,7 @@ const ACTION_LABELS = {
 const PRESET_LOGOS = [
   { id: 'hands-heart',   name: 'Hands and Heart',  desc: 'Cupped hands holding a heart (default)' },
   { id: 'leaf-heart',    name: 'Leaf and Heart',    desc: 'A heart with a new leaf sprouting upward' },
+  { id: 'leaf',          name: 'Leaf',              desc: 'A single leaf, simple and plain' },
   { id: 'shield-heart',  name: 'Shield and Heart',  desc: 'A protective shield carrying a heart' },
   { id: 'infinity-heart',name: 'Infinity Heart',    desc: 'An infinity loop with a heart at its center' },
   { id: 'tree',          name: 'Tree of Life',      desc: 'A tree with roots and a heart in the canopy' },
