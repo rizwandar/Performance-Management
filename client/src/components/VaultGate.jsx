@@ -143,7 +143,7 @@ export function VaultSetupScreen({ onSetup }) {
   }
 
   return (
-    <div style={{ maxWidth: 520, margin: '0 auto' }}>
+    <div style={{ maxWidth: 720, margin: '0 auto' }}>
       <div style={{
         background: 'var(--parchment)', borderRadius: 12,
         padding: '32px 36px', border: '1px solid var(--border)',
@@ -171,23 +171,29 @@ export function VaultSetupScreen({ onSetup }) {
           Keep your vault password somewhere safe either way.
         </div>
 
-        <Form.Group className="mb-3">
-          <Form.Label style={{ fontWeight: 600 }}>Vault password</Form.Label>
-          <PasswordInput
-            value={pw}
-            onChange={e => setPw(e.target.value)}
-            placeholder="At least 8 characters"
-          />
-        </Form.Group>
+        <Row className="g-3 mb-3">
+          <Col md={6}>
+            <Form.Group>
+              <Form.Label style={{ fontWeight: 600 }}>Vault password</Form.Label>
+              <PasswordInput
+                value={pw}
+                onChange={e => setPw(e.target.value)}
+                placeholder="At least 8 characters"
+              />
+            </Form.Group>
+          </Col>
 
-        <Form.Group className="mb-3">
-          <Form.Label style={{ fontWeight: 600 }}>Confirm vault password</Form.Label>
-          <PasswordInput
-            value={confirm}
-            onChange={e => setConfirm(e.target.value)}
-            placeholder="Type it again"
-          />
-        </Form.Group>
+          <Col md={6}>
+            <Form.Group>
+              <Form.Label style={{ fontWeight: 600 }}>Confirm vault password</Form.Label>
+              <PasswordInput
+                value={confirm}
+                onChange={e => setConfirm(e.target.value)}
+                placeholder="Type it again"
+              />
+            </Form.Group>
+          </Col>
+        </Row>
 
         <Form.Group className="mb-4">
           <Form.Label style={{ fontWeight: 600 }}>Password hint <span className="text-muted" style={{ fontWeight: 400 }}>(optional)</span></Form.Label>
