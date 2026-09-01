@@ -50,17 +50,28 @@ router.get('/access', auth, async (req, res) => {
   // never started it and are currently back on Free - they've already had
   // full access once, so the trial isn't the same "try before you buy" offer
   // for them. See the schema comment on users.premium_used_at in database.js.
+  //
+  // SEC finding (2026-08-28 review, before promoting to main): this is a
+  // consumer-only offer - org-portal accounts and admins are outside the
+  // freemium model it exists for (see /auth/login's needs_trial_offer
+  // comment for the same intent). That was previously enforced only as a
+  // client-side redirect gate in /login, with no matching check in the
+  // actual grant endpoints below - an org/admin account could call
+  // start-signup-trial directly and self-escalate to Premium. Checked here
+  // too so the client-visible eligibility signal and the real grant share
+  // one authoritative check instead of two independently-maintained ones.
   const trialRow = await queryOne(
-    'SELECT signup_trial_started_at, premium_used_at FROM users WHERE id = $1',
+    'SELECT signup_trial_started_at, premium_used_at, org_role, is_admin FROM users WHERE id = $1',
     [req.user.id]
   );
+  const isConsumerAccount = !trialRow?.org_role && !trialRow?.is_admin;
   res.json({
     plan,
     is_premium: plan === 'premium',
     signup_trial_active: signupTrialActive,
     signup_trial_expired: signupTrialExpired,
     signup_trial_ends_at: signupTrialEndsAt,
-    signup_trial_available: !trialRow?.signup_trial_started_at && !trialRow?.premium_used_at,
+    signup_trial_available: isConsumerAccount && !trialRow?.signup_trial_started_at && !trialRow?.premium_used_at,
   });
 });
 
@@ -76,8 +87,16 @@ router.get('/access', auth, async (req, res) => {
 // an actually-started trial though - if a client-side bug fires this twice
 // after the trial is already running, it should surface as a 400, not
 // silently succeed twice.
+//
+// SEC finding (2026-08-28 review): consumer-only offer, same as /access
+// above - org/admin accounts must be rejected here directly, not just kept
+// off the /welcome-trial redirect, or they could call this endpoint
+// directly and self-grant Premium.
 router.post('/start-signup-trial', auth, async (req, res) => {
-  const user = await queryOne('SELECT signup_trial_started_at FROM users WHERE id = $1', [req.user.id]);
+  const user = await queryOne('SELECT signup_trial_started_at, org_role, is_admin FROM users WHERE id = $1', [req.user.id]);
+  if (user?.org_role || user?.is_admin) {
+    return res.status(403).json({ error: 'This trial is only available on consumer accounts.' });
+  }
   if (user?.signup_trial_started_at) {
     return res.status(400).json({ error: 'This trial has already been offered to your account.' });
   }
@@ -93,11 +112,17 @@ router.post('/start-signup-trial', auth, async (req, res) => {
 // signup_trial_offer_responded_at is set so the login interstitial doesn't
 // ask again. The trial itself stays available self-serve from the Upgrade
 // page (see /access's signup_trial_available above).
+//
+// SEC finding (2026-08-28 review): same consumer-only check as
+// start-signup-trial above.
 router.post('/decline-signup-trial', auth, async (req, res) => {
   const user = await queryOne(
-    'SELECT signup_trial_started_at, signup_trial_offer_responded_at FROM users WHERE id = $1',
+    'SELECT signup_trial_started_at, signup_trial_offer_responded_at, org_role, is_admin FROM users WHERE id = $1',
     [req.user.id]
   );
+  if (user?.org_role || user?.is_admin) {
+    return res.status(403).json({ error: 'This trial is only available on consumer accounts.' });
+  }
   if (user?.signup_trial_started_at || user?.signup_trial_offer_responded_at) {
     return res.status(400).json({ error: 'This trial has already been offered to your account.' });
   }
