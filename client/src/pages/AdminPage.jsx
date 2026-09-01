@@ -118,6 +118,9 @@ const PRESET_LOGOS = [
   { id: 'candle',        name: 'Candle Flame',      desc: 'A candle whose flame is heart-shaped' },
   { id: 'feather',       name: 'Feather',           desc: 'A graceful quill feather with a gold heart' },
   { id: 'circle-hearts', name: 'Circle of Hearts',  desc: 'Three hearts joined in a circle' },
+  { id: 'trefoil',       name: 'Trefoil',           desc: 'Three rounded leaves meeting at the center' },
+  { id: 'maple',         name: 'Maple Leaf',        desc: 'A simple three-lobed leaf' },
+  { id: 'palm-frond',    name: 'Palm Frond',        desc: 'A fan of three blades from one base' },
 ]
 
 const PRESET_NAMES = [
@@ -295,7 +298,7 @@ function BrandingPanel({ showAlert }) {
       <div style={card}>
         <h6 style={{ color: 'var(--green-900)', marginBottom: 4 }}>Site Logo</h6>
         <p className="text-muted small mb-4">
-          Choose one of the 10 designed logos or upload your own. The logo appears in the navigation bar, landing page, and exported PDFs.
+          Choose one of the 13 designed logos or upload your own. The logo appears in the navigation bar, landing page, and exported PDFs.
         </p>
 
         {/* Preset grid */}
@@ -318,6 +321,13 @@ function BrandingPanel({ showAlert }) {
               )}
             </div>
           ))}
+        </div>
+
+        <div style={{ marginBottom: 24 }}>
+          <a href="/design/leaf-options.html" target="_blank" rel="noopener noreferrer"
+            style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--green-800)', textDecoration: 'none' }}>
+            View all leaf design options →
+          </a>
         </div>
 
         {/* Custom upload */}
@@ -752,7 +762,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
                 ['Inactivity timer', 'Users set a period of inactivity (2 to 24 months). If they have not logged in by then, their trusted contacts are automatically notified with access links.'],
                 ['PDF export', 'Users can download a complete PDF summary of all their plans. A full export option includes vault contents if the vault password is provided at download time.'],
                 ['File attachments', 'Upload photos and documents (PDF, images, Word docs) to Legal Documents, Financial Affairs, Property & Possessions, and Practical Household Information. Stored securely in Cloudflare R2, access-controlled with short-lived signed URLs.'],
-                ['Premium billing', 'Free plan covers 14 of the 21 sections. Premium ($10/month or $100/year via Stripe Checkout) unlocks the 6 vault-protected sections plus Your Last Moments, document uploads, full (vault-inclusive) PDF export, and the inactivity timer. Users manage or cancel/reinstate their subscription from My Profile; admins can also grant or revoke an honorary premium plan without a real Stripe subscription.'],
+                ['Premium billing', 'Essentials plan covers 14 of the 21 sections. Premium ($10/month or $100/year via Stripe Checkout) unlocks the 6 vault-protected sections plus Your Last Moments, document uploads, full (vault-inclusive) PDF export, and the inactivity timer. Users manage or cancel/reinstate their subscription from My Profile; admins can also grant or revoke an honorary premium plan without a real Stripe subscription.'],
                 ['Admin panel', 'Operators can customize colors, fonts, site name, and logo. View all users, audit logs, and manage accounts.'],
                 ['White-label ready', 'The site name and logo can be changed by the admin. All emails and the PDF use the configured name.'],
               ]} />
@@ -2329,7 +2339,7 @@ export default function AdminPage() {
                   }}>
                     {selectedUser.plan === 'premium'
                       ? (selectedUser.is_honorary ? 'Honorary Premium' : 'Premium')
-                      : 'Free'}
+                      : 'Essentials'}
                   </span>
                   {selectedUser.plan === 'premium' && selectedUser.is_honorary && selectedUser.granted_by_admin_name && (
                     <span className="text-muted small">

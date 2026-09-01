@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leaf Logo Design Options</title>
+<style>
+  :root {
+    --leaf-a: #2D5A3D;
+    --leaf-b: #3D7A53;
+    --leaf-c: #1A3D28;
+    --bg: #f6f8f6;
+    --card-bg: #ffffff;
+    --border: #dde5e0;
+    --text: #1f2a22;
+    --text-muted: #5b6960;
+    --accent: #2D5A3D;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 32px 24px 64px;
+  }
+  header {
+    max-width: 1100px;
+    margin: 0 auto 28px;
+  }
+  h1 {
+    margin: 0 0 8px;
+    font-size: 1.6rem;
+    color: var(--accent);
+  }
+  p.lead {
+    margin: 0 0 20px;
+    color: var(--text-muted);
+    max-width: 720px;
+    line-height: 1.5;
+  }
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  #paletteToggle {
+    appearance: none;
+    border: 1px solid var(--accent);
+    background: var(--accent);
+    color: #fff;
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  #paletteToggle:hover {
+    opacity: 0.9;
+  }
+  .palette-label {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+  }
+  .grid {
+    max-width: 1100px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: 18px;
+  }
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    text-align: center;
+    position: relative;
+  }
+  .card .letter {
+    position: absolute;
+    top: 10px;
+    left: 12px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    letter-spacing: 0.04em;
+  }
+  .card svg {
+    width: 96px;
+    height: 96px;
+    display: block;
+    margin: 8px auto 10px;
+  }
+  .card .name {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .shipped {
+    display: inline-block;
+    margin-top: 6px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: #1F6B36;
+    background: #e4f5e8;
+    border: 1px solid #bfe3c8;
+    border-radius: 999px;
+    padding: 2px 8px;
+  }
+  footer {
+    max-width: 1100px;
+    margin: 32px auto 0;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Leaf Logo Design Options</h1>
+  <p class="lead">
+    Twenty leaf shape concepts explored for the site's logo, each shown in the current app green palette.
+    Use the toggle below to preview every shape in the brighter green palette that was picked for the newest presets.
+    Shapes marked "Shipped" are already live as selectable presets in the admin branding panel.
+  </p>
+  <div class="toggle-row">
+    <button id="paletteToggle" type="button">Switch to bright green</button>
+    <span class="palette-label" id="paletteLabel">Currently showing: current app green</span>
+  </div>
+</header>
+
+<div class="grid" id="grid"></div>
+
+<footer>
+  A (Single Leaf), G (Trefoil), R (Palm Frond), and I (Maple Leaf) are shipped as presets: <code>leaf.svg</code>, <code>trefoil.svg</code>, <code>palm-frond.svg</code>, and <code>maple.svg</code> in <code>client/public/logos/</code>.
+</footer>
+
+<script>
+  var PALETTES = {
+    current: { a: '#2D5A3D', b: '#3D7A53', c: '#1A3D28' },
+    bright:  { a: '#3E9B52', b: '#6BCB85', c: '#1F6B36' }
+  };
+
+  var SHAPES = [
+    { letter: 'A', name: 'Single Leaf', shipped: true, inner: '<line x1="100" y1="184" x2="100" y2="156" stroke="var(--leaf-a)" stroke-width="5" stroke-linecap="round"/><path d="M100 156 C60 156 34 118 34 78 C34 78 70 62 100 30 Z" fill="var(--leaf-a)"/><path d="M100 156 C140 156 166 118 166 78 C166 78 130 62 100 30 Z" fill="var(--leaf-b)"/><path d="M100 148 C100 148 100 90 100 34" stroke="var(--leaf-c)" stroke-width="3" stroke-linecap="round" fill="none" opacity="0.8"/><line x1="96" y1="110" x2="66" y2="92" stroke="var(--leaf-c)" stroke-width="2" stroke-linecap="round" opacity="0.5"/><line x1="104" y1="110" x2="134" y2="92" stroke="var(--leaf-c)" stroke-width="2" stroke-linecap="round" opacity="0.4"/>' },
+    { letter: 'B', name: 'Herb Sprig', inner: '<line x1="100" y1="182" x2="100" y2="36" stroke="var(--leaf-a)" stroke-width="5" stroke-linecap="round"/><g fill="var(--leaf-b)"><ellipse rx="30" ry="14" transform="translate(64,150) rotate(-38)"/><ellipse rx="26" ry="12" transform="translate(136,150) rotate(38) scale(-1,1)"/></g><g fill="var(--leaf-a)"><ellipse rx="26" ry="12" transform="translate(70,104) rotate(-34)"/><ellipse rx="23" ry="11" transform="translate(130,104) rotate(34) scale(-1,1)"/></g><g fill="var(--leaf-b)"><ellipse rx="19" ry="9" transform="translate(80,64) rotate(-30)"/><ellipse rx="17" ry="8" transform="translate(120,64) rotate(30) scale(-1,1)"/></g><circle cx="100" cy="34" r="6" fill="var(--leaf-a)"/>' },
+    { letter: 'C', name: 'Rounded Leaf', inner: '<line x1="100" y1="180" x2="100" y2="158" stroke="var(--leaf-a)" stroke-width="5" stroke-linecap="round"/><path d="M100 158 C50 158 40 100 60 56 C75 24 125 24 140 56 C160 100 150 158 100 158 Z" fill="var(--leaf-b)"/><path d="M100 150 C100 150 100 90 100 44" stroke="var(--leaf-c)" stroke-width="2.5" stroke-linecap="round" fill="none" opacity="0.55"/>' },
+    { letter: 'D', name: 'Line Leaf', inner: '<line x1="100" y1="180" x2="100" y2="158" stroke="var(--leaf-a)" stroke-width="4" stroke-linecap="round"/><path d="M100 158 C58 158 34 116 34 76 C34 76 68 60 100 30 C132 60 166 76 166 76 C166 116 142 158 100 158 Z" fill="none" stroke="var(--leaf-a)" stroke-width="4" stroke-linejoin="round"/><path d="M100 150 C100 150 100 88 100 36" stroke="var(--leaf-a)" stroke-width="2.5" stroke-linecap="round" fill="none"/>' },
+    { letter: 'E', name: 'Two-Leaf Sprig', inner: '<path d="M100 182 C100 182 100 100 100 40" stroke="var(--leaf-a)" stroke-width="5" stroke-linecap="round" fill="none"/><path d="M100 130 C100 130 50 122 40 90 C58 78 100 90 100 130 Z" fill="var(--leaf-a)"/><path d="M100 90 C100 90 150 82 160 50 C142 38 100 50 100 90 Z" fill="var(--leaf-b)"/><circle cx="100" cy="36" r="6" fill="var(--leaf-b)"/>' },
+    { letter: 'F', name: 'Heart Leaf', inner: '<line x1="100" y1="182" x2="100" y2="160" stroke="var(--leaf-a)" stroke-width="5" stroke-linecap="round"/><path d="M100 160 C60 160 40 130 44 98 C47 74 70 60 100 90 C130 60 153 74 156 98 C160 130 140 160 100 160 Z" fill="var(--leaf-b)"/><path d="M100 150 C100 150 100 110 100 90" stroke="var(--leaf-c)" stroke-width="2.5" stroke-linecap="round" fill="none" opacity="0.5"/>' },
+    { letter: 'G', name: 'Trefoil', shipped: true, inner: '<circle cx="100" cy="100" r="5" fill="var(--leaf-c)"/><path d="M100 100 C100 100 60 88 56 48 C88 40 108 68 100 100 Z" fill="var(--leaf-a)"/><path d="M100 100 C100 100 140 88 144 48 C112 40 92 68 100 100 Z" fill="var(--leaf-b)"/><path d="M100 100 C100 100 96 148 130 168 C152 140 132 108 100 100 Z" fill="var(--leaf-a)" opacity="0.9"/>' },
+    { letter: 'H', name: 'Willow Blade', inner: '<path d="M40 100 C40 100 70 40 100 30 C130 40 160 100 160 100 C160 100 130 160 100 170 C70 160 40 100 40 100 Z" fill="var(--leaf-a)"/><path d="M100 30 C100 30 100 100 100 170" stroke="var(--leaf-c)" stroke-width="2.5" fill="none" opacity="0.5"/>' },
+    { letter: 'I', name: 'Maple Leaf', shipped: true, inner: '<line x1="100" y1="180" x2="100" y2="158" stroke="var(--leaf-a)" stroke-width="5" stroke-linecap="round"/><path d="M100 158 C80 130 40 128 34 92 C60 78 90 96 100 130 C110 96 140 78 166 92 C160 128 120 130 100 158 Z" fill="var(--leaf-b)"/><path d="M60 100 C60 100 90 90 100 130 C110 90 140 100 140 100" stroke="var(--leaf-c)" stroke-width="2" fill="none" opacity="0.45"/>' },
+    { letter: 'J', name: 'Fern Frond', inner: '<line x1="100" y1="180" x2="100" y2="34" stroke="var(--leaf-a)" stroke-width="4" stroke-linecap="round"/><g fill="var(--leaf-b)"><ellipse rx="17" ry="7" transform="translate(76,160) rotate(-30)"/><ellipse rx="15" ry="6" transform="translate(124,160) rotate(30) scale(-1,1)"/><ellipse rx="16" ry="6.5" transform="translate(74,132) rotate(-28)"/><ellipse rx="14" ry="5.5" transform="translate(126,132) rotate(28) scale(-1,1)"/></g><g fill="var(--leaf-a)"><ellipse rx="15" ry="6" transform="translate(76,104) rotate(-26)"/><ellipse rx="13" ry="5" transform="translate(124,104) rotate(26) scale(-1,1)"/><ellipse rx="13" ry="5" transform="translate(78,78) rotate(-24)"/><ellipse rx="11" ry="4.5" transform="translate(122,78) rotate(24) scale(-1,1)"/></g><g fill="var(--leaf-b)"><ellipse rx="10" ry="4" transform="translate(82,54) rotate(-22)"/><ellipse rx="9" ry="3.5" transform="translate(118,54) rotate(22) scale(-1,1)"/></g>' },
+    { letter: 'K', name: 'Bay Sprig', inner: '<line x1="100" y1="176" x2="100" y2="34" stroke="var(--leaf-c)" stroke-width="4" stroke-linecap="round"/><ellipse rx="20" ry="34" transform="translate(66,110) rotate(-14)" fill="var(--leaf-a)"/><ellipse rx="20" ry="34" transform="translate(134,110) rotate(14) scale(-1,1)" fill="var(--leaf-b)"/><ellipse rx="12" ry="20" transform="translate(100,54)" fill="var(--leaf-a)"/>' },
+    { letter: 'L', name: 'Dew-Drop Leaf', inner: '<line x1="100" y1="184" x2="100" y2="156" stroke="var(--leaf-a)" stroke-width="5" stroke-linecap="round"/><path d="M100 156 C60 156 34 118 34 78 C34 78 70 62 100 30 Z" fill="var(--leaf-a)"/><path d="M100 156 C140 156 166 118 166 78 C166 78 130 62 100 30 Z" fill="var(--leaf-b)"/><path d="M100 148 C100 148 100 90 100 34" stroke="var(--leaf-c)" stroke-width="3" stroke-linecap="round" fill="none" opacity="0.8"/><circle cx="112" cy="52" r="7" fill="#fff" opacity="0.85"/><circle cx="112" cy="52" r="7" fill="none" stroke="var(--leaf-c)" stroke-width="1" opacity="0.3"/>' },
+    { letter: 'M', name: 'Curled Leaf', inner: '<line x1="100" y1="182" x2="104" y2="150" stroke="var(--leaf-a)" stroke-width="5" stroke-linecap="round"/><path d="M104 150 C60 158 30 120 42 76 C54 34 108 24 138 54 C124 80 150 96 140 122 C130 148 104 150 104 150 Z" fill="var(--leaf-b)"/><path d="M104 144 C104 144 90 100 138 54" stroke="var(--leaf-c)" stroke-width="2.5" fill="none" opacity="0.5"/>' },
+    { letter: 'N', name: 'Ivy Leaf', inner: '<circle cx="100" cy="106" r="6" fill="var(--leaf-c)"/><path d="M100 106 C100 106 62 96 56 58 C86 50 106 76 100 106 Z" fill="var(--leaf-a)"/><path d="M100 106 C100 106 138 96 144 58 C114 50 94 76 100 106 Z" fill="var(--leaf-b)"/><path d="M100 106 C100 106 66 128 66 160 C96 166 108 138 100 106 Z" fill="var(--leaf-b)"/><path d="M100 106 C100 106 134 128 134 160 C104 166 92 138 100 106 Z" fill="var(--leaf-a)"/>' },
+    { letter: 'O', name: 'Eucalyptus Blade', inner: '<path d="M46 66 C46 66 90 46 158 74 C150 92 150 112 158 130 C90 158 46 138 46 138 C60 118 60 86 46 66 Z" fill="var(--leaf-b)"/><path d="M46 102 C46 102 100 96 158 102" stroke="var(--leaf-c)" stroke-width="2.5" fill="none" opacity="0.5"/>' },
+    { letter: 'P', name: 'Split Leaf', inner: '<line x1="100" y1="180" x2="100" y2="158" stroke="var(--leaf-a)" stroke-width="5" stroke-linecap="round"/><path d="M100 158 C60 158 34 118 34 78 C34 78 70 62 100 30 Z" fill="none" stroke="var(--leaf-a)" stroke-width="3.5" stroke-linejoin="round"/><path d="M100 158 C140 158 166 118 166 78 C166 78 130 62 100 30 Z" fill="var(--leaf-b)"/><path d="M100 150 C100 150 100 90 100 34" stroke="var(--leaf-c)" stroke-width="2.5" stroke-linecap="round" fill="none" opacity="0.6"/>' },
+    { letter: 'Q', name: 'Serrated Leaf', inner: '<line x1="100" y1="180" x2="100" y2="160" stroke="var(--leaf-a)" stroke-width="5" stroke-linecap="round"/><path d="M100 160 L88 150 L92 136 L78 128 L84 112 L68 102 L76 86 L62 74 L100 30 L138 74 L124 86 L132 102 L116 112 L122 128 L108 136 L112 150 Z" fill="var(--leaf-b)"/><path d="M100 150 C100 150 100 90 100 34" stroke="var(--leaf-c)" stroke-width="2" fill="none" opacity="0.4"/>' },
+    { letter: 'R', name: 'Palm Frond', shipped: true, inner: '<circle cx="100" cy="150" r="6" fill="var(--leaf-c)"/><path d="M100 150 C100 150 70 60 40 40 C34 78 60 130 100 150 Z" fill="var(--leaf-a)"/><path d="M100 150 C100 150 90 54 100 24 C118 54 118 110 100 150 Z" fill="var(--leaf-b)"/><path d="M100 150 C100 150 130 60 160 40 C166 78 140 130 100 150 Z" fill="var(--leaf-a)" opacity="0.85"/>' },
+    { letter: 'S', name: 'Faceted Leaf', inner: '<polygon points="100,30 138,66 152,110 122,158 100,178 78,158 48,110 62,66" fill="var(--leaf-b)"/><polyline points="100,30 100,178" stroke="var(--leaf-c)" stroke-width="2.5" opacity="0.5"/><polyline points="100,66 62,66" stroke="var(--leaf-c)" stroke-width="1.5" opacity="0.3"/><polyline points="100,66 138,66" stroke="var(--leaf-c)" stroke-width="1.5" opacity="0.3"/>' },
+    { letter: 'T', name: 'Mirror Leaf', inner: '<path d="M100 100 C100 100 62 90 56 52 C86 44 106 70 100 100 Z" fill="var(--leaf-a)"/><path d="M100 100 C100 100 138 110 144 148 C114 156 94 130 100 100 Z" fill="var(--leaf-b)"/><line x1="56" y1="52" x2="144" y2="148" stroke="var(--leaf-c)" stroke-width="1.5" opacity="0.25"/>' }
+  ];
+
+  var grid = document.getElementById('grid');
+  SHAPES.forEach(function (shape) {
+    var card = document.createElement('div');
+    card.className = 'card';
+    var shippedBadge = shape.shipped ? '<div class="shipped">Shipped</div>' : '';
+    card.innerHTML =
+      '<div class="letter">' + shape.letter + '</div>' +
+      '<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">' + shape.inner + '</svg>' +
+      '<div class="name">' + shape.name + '</div>' +
+      shippedBadge;
+    grid.appendChild(card);
+  });
+
+  var toggleBtn = document.getElementById('paletteToggle');
+  var label = document.getElementById('paletteLabel');
+  var root = document.documentElement;
+  var isBright = false;
+
+  function applyPalette(name) {
+    var p = PALETTES[name];
+    root.style.setProperty('--leaf-a', p.a);
+    root.style.setProperty('--leaf-b', p.b);
+    root.style.setProperty('--leaf-c', p.c);
+  }
+
+  toggleBtn.addEventListener('click', function () {
+    isBright = !isBright;
+    applyPalette(isBright ? 'bright' : 'current');
+    toggleBtn.textContent = isBright ? 'Switch to current app green' : 'Switch to bright green';
+    label.textContent = 'Currently showing: ' + (isBright ? 'brighter green' : 'current app green');
+  });
+
+  applyPalette('current');
+</script>
+</body>
+</html>

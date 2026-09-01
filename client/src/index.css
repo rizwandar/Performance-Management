@@ -265,6 +265,31 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--hero-lead-color, var(--text-muted)) !important;
 }
 
+/* ── Welcome trial page ────────────────────────────────────────────────── */
+/* WelcomeTrialPage.jsx renders inside the same NavBar + Container structure
+   as LandingPage.jsx (see App.jsx: both sit directly in
+   <Container id="main-content" className="py-4">, below the same <NavBar
+   className="mb-4">), so the identical full-bleed technique and margin-top
+   cancellation used by .landing-hero applies unchanged here. Kept as a
+   separate class (not a shared selector) since its padding differs from
+   .landing-hero's - this page's content is a compact opt-in panel, not a
+   large marketing hero. Children are NOT wrapped in an extra max-width
+   container; like .landing-hero's own children, each sets its own
+   max-width inline so the text column stays readable inside the full-width
+   band. */
+.trial-hero {
+  position: relative;
+  left: 50%;
+  right: 50%;
+  margin-left: -50vw;
+  margin-right: -50vw;
+  margin-top: -3rem;
+  width: 100vw;
+  padding: 40px 20px 48px;
+  text-align: center;
+  background: var(--hero-bg, transparent);
+}
+
 /* MKT-03 fix: the "Learn more about our security" link inside the hero's
    trust paragraph was inheriting the global `a { color: var(--green-800) }`
    rule (a direct rule on the anchor itself beats the parent's inherited

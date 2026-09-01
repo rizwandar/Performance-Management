@@ -556,7 +556,7 @@ function NavBar() {
                     {!isViewAs && <Nav.Link as={Link} to="/profile/settings">My Profile</Nav.Link>}
                     {!isViewAs && !isPremium && (
                       <span
-                        title="You're on the free plan, upgrade for full access to every section"
+                        title="You're on the Essentials plan, upgrade for full access to every section"
                         style={{
                           display: 'inline-flex', alignItems: 'center', gap: 5,
                           fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.03em',
@@ -564,7 +564,7 @@ function NavBar() {
                           borderRadius: 12, padding: '4px 11px', marginRight: 4,
                         }}
                       >
-                        FREE PLAN
+                        ESSENTIALS PLAN
                       </span>
                     )}
                     {!isViewAs && !isPremium && (
