@@ -1,6 +1,6 @@
 const express = require('express');
 const router  = express.Router();
-const { queryOne, queryAll } = require('../db/database');
+const { queryOne, queryAll, query } = require('../db/database');
 const auth    = require('../middleware/auth');
 const { getAccessInfo, isActivePremiumSubscription } = require('../lib/subscription');
 const { stripe, PRICE_IDS } = require('../lib/stripe');
@@ -36,13 +36,101 @@ router.get('/access', auth, async (req, res) => {
   // hit a limit" - see subscription.js's getAccessInfo for how signup_trial_*
   // composes with a real Stripe subscription (which always wins).
   const { plan, signupTrialActive, signupTrialExpired, signupTrialEndsAt } = await getAccessInfo(req.user.id);
+  // Post-BIL-08: the no-card trial is now opt-in, so a user can still be
+  // eligible to start it even after declining the login interstitial - the
+  // Upgrade page's self-serve option needs to know that independently of
+  // signupTrialActive/Expired above (both false for a never-started account).
+  // Not part of getAccessInfo's own precedence logic: this is a simple
+  // "has it ever been started" check, not a plan-composition decision, so a
+  // small direct query here keeps that existing logic undisturbed.
+  //
+  // Also requires premium_used_at to be unset: a user who has ever actually
+  // been Premium (via the 14-day Stripe trial, skip-trial-pay-now, or an
+  // admin grant) isn't eligible for the no-card signup trial even if they
+  // never started it and are currently back on Free - they've already had
+  // full access once, so the trial isn't the same "try before you buy" offer
+  // for them. See the schema comment on users.premium_used_at in database.js.
+  //
+  // SEC finding (2026-08-28 review, before promoting to main): this is a
+  // consumer-only offer - org-portal accounts and admins are outside the
+  // freemium model it exists for (see /auth/login's needs_trial_offer
+  // comment for the same intent). That was previously enforced only as a
+  // client-side redirect gate in /login, with no matching check in the
+  // actual grant endpoints below - an org/admin account could call
+  // start-signup-trial directly and self-escalate to Premium. Checked here
+  // too so the client-visible eligibility signal and the real grant share
+  // one authoritative check instead of two independently-maintained ones.
+  const trialRow = await queryOne(
+    'SELECT signup_trial_started_at, premium_used_at, org_role, is_admin FROM users WHERE id = $1',
+    [req.user.id]
+  );
+  const isConsumerAccount = !trialRow?.org_role && !trialRow?.is_admin;
   res.json({
     plan,
     is_premium: plan === 'premium',
     signup_trial_active: signupTrialActive,
     signup_trial_expired: signupTrialExpired,
     signup_trial_ends_at: signupTrialEndsAt,
+    signup_trial_available: isConsumerAccount && !trialRow?.signup_trial_started_at && !trialRow?.premium_used_at,
   });
+});
+
+// Post-BIL-08: explicit opt-in for the 30-day no-card vault trial, called
+// either from the post-login WelcomeTrialPage interstitial or self-serve
+// from the Upgrade page. Guards only on signup_trial_started_at, not on
+// signup_trial_offer_responded_at - deliberately different from the decline
+// route's guard below. A user who declined at login has responded_at set
+// but started_at still NULL, and per the product decision that a decline
+// doesn't forfeit the trial (it stays available self-serve from the Upgrade
+// page), that exact case must still be allowed to start it here. Guarding on
+// responded_at too would silently re-break that path. Not idempotent against
+// an actually-started trial though - if a client-side bug fires this twice
+// after the trial is already running, it should surface as a 400, not
+// silently succeed twice.
+//
+// SEC finding (2026-08-28 review): consumer-only offer, same as /access
+// above - org/admin accounts must be rejected here directly, not just kept
+// off the /welcome-trial redirect, or they could call this endpoint
+// directly and self-grant Premium.
+router.post('/start-signup-trial', auth, async (req, res) => {
+  const user = await queryOne('SELECT signup_trial_started_at, org_role, is_admin FROM users WHERE id = $1', [req.user.id]);
+  if (user?.org_role || user?.is_admin) {
+    return res.status(403).json({ error: 'This trial is only available on consumer accounts.' });
+  }
+  if (user?.signup_trial_started_at) {
+    return res.status(400).json({ error: 'This trial has already been offered to your account.' });
+  }
+  await query(
+    'UPDATE users SET signup_trial_started_at = NOW(), signup_trial_offer_responded_at = NOW() WHERE id = $1',
+    [req.user.id]
+  );
+  res.json({ success: true });
+});
+
+// Post-BIL-08: records that the user was offered the trial and declined -
+// signup_trial_started_at is deliberately left NULL (no trial started), but
+// signup_trial_offer_responded_at is set so the login interstitial doesn't
+// ask again. The trial itself stays available self-serve from the Upgrade
+// page (see /access's signup_trial_available above).
+//
+// SEC finding (2026-08-28 review): same consumer-only check as
+// start-signup-trial above.
+router.post('/decline-signup-trial', auth, async (req, res) => {
+  const user = await queryOne(
+    'SELECT signup_trial_started_at, signup_trial_offer_responded_at, org_role, is_admin FROM users WHERE id = $1',
+    [req.user.id]
+  );
+  if (user?.org_role || user?.is_admin) {
+    return res.status(403).json({ error: 'This trial is only available on consumer accounts.' });
+  }
+  if (user?.signup_trial_started_at || user?.signup_trial_offer_responded_at) {
+    return res.status(400).json({ error: 'This trial has already been offered to your account.' });
+  }
+  await query(
+    'UPDATE users SET signup_trial_offer_responded_at = NOW() WHERE id = $1',
+    [req.user.id]
+  );
+  res.json({ success: true });
 });
 
 router.get('/plans', (req, res) => {

@@ -60,6 +60,7 @@ import HowToBeRememberedPage      from './pages/sections/HowToBeRememberedPage'
 import EmergencyContactPage       from './pages/sections/EmergencyContactPage'
 import TrustedContactsPage        from './pages/sections/TrustedContactsPage'
 import UpgradePage                from './pages/UpgradePage'
+import WelcomeTrialPage           from './pages/WelcomeTrialPage'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -926,6 +927,7 @@ function AppContent() {
 
           {/* Upgrade */}
           <Route path="/upgrade" element={<ProtectedRoute><UpgradePage /></ProtectedRoute>} />
+          <Route path="/welcome-trial" element={<ProtectedRoute><WelcomeTrialPage /></ProtectedRoute>} />
 
           {/* Admin */}
           <Route path="/admin" element={<ProtectedRoute adminOnly><AdminPage /></ProtectedRoute>} />

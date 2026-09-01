@@ -12,7 +12,7 @@ const FREE_SECTION_ROUTES = new Set([
 ])
 
 const SubscriptionContext = createContext({
-  isPremium: true, plan: 'premium', loading: false, signupTrialExpired: false, refresh: () => {},
+  isPremium: true, plan: 'premium', loading: false, signupTrialExpired: false, signupTrialAvailable: false, refresh: () => {},
 })
 
 export function SubscriptionProvider({ children }) {
@@ -22,15 +22,21 @@ export function SubscriptionProvider({ children }) {
   // account (and no real subscription has replaced it) - lets locked-section
   // UI say "your trial has ended" instead of the generic Premium-section copy.
   const [signupTrialExpired, setSignupTrialExpired] = useState(false)
+  // Post-BIL-08: whether this account is still eligible to start the no-card
+  // signup trial (i.e. it's never been started) - true even after the user
+  // declined the login interstitial, since declining only skips the prompt,
+  // not the offer itself. Lets the Upgrade page show a self-serve option.
+  const [signupTrialAvailable, setSignupTrialAvailable] = useState(false)
   const [loading, setLoading] = useState(false)
 
   const refresh = useCallback(async () => {
-    if (!user) { setPlan('free'); setSignupTrialExpired(false); return }
+    if (!user) { setPlan('free'); setSignupTrialExpired(false); setSignupTrialAvailable(false); return }
     setLoading(true)
     try {
       const r = await axios.get(`${API}/billing/access`)
       setPlan(r.data.plan)
       setSignupTrialExpired(!!r.data.signup_trial_expired)
+      setSignupTrialAvailable(!!r.data.signup_trial_available)
     } catch {
       setPlan('premium') // fail open so existing users are not locked out
     }
@@ -40,7 +46,7 @@ export function SubscriptionProvider({ children }) {
   useEffect(() => { refresh() }, [refresh])
 
   return (
-    <SubscriptionContext.Provider value={{ isPremium: plan === 'premium', plan, loading, signupTrialExpired, refresh }}>
+    <SubscriptionContext.Provider value={{ isPremium: plan === 'premium', plan, loading, signupTrialExpired, signupTrialAvailable, refresh }}>
       {children}
     </SubscriptionContext.Provider>
   )

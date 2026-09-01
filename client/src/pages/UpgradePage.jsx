@@ -1,41 +1,11 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import { useSubscription } from '../context/SubscriptionContext'
 import { useAuth } from '../context/AuthContext'
+import { FREE_FEATURES, PREMIUM_FEATURES } from '../constants/planFeatures'
 
 const API = import.meta.env.VITE_API_URL || '/api'
-
-const FREE_FEATURES = [
-  'How I\'d Like to Be Remembered',
-  'Messages to Loved Ones',
-  'Unfinished Business',
-  'Songs That Define Me',
-  'My Bucket List',
-  'Funeral and End-of-Life Wishes',
-  'Doctors',
-  'Medical Records',
-  'Emergency Contact',
-  'People to Notify',
-  'Your Loved Ones',
-  'Pet Care',
-  'Insurance',
-  'Trusted contact access permissions',
-]
-
-const PREMIUM_FEATURES = [
-  'All free sections',
-  'Your Last Moments (a dedicated final recording or letter)',
-  'Personal and Legal Documents',
-  'Property and Possessions',
-  'Financial Affairs',
-  'Digital Life (vault-encrypted)',
-  'Practical Household Information',
-  'Donation Bank (vault-encrypted)',
-  'Document and photo uploads',
-  'Full PDF export (including vault)',
-  'Inactivity timer and notifications',
-]
 
 function FeatureList({ items, color }) {
   return (
@@ -116,7 +86,7 @@ function CheckoutButton({ label, planId, trialEligible }) {
       {trialEligible && (
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 10, fontSize: '0.8rem', color: 'var(--text-muted)', cursor: 'pointer' }}>
           <input type="checkbox" checked={skipTrial} onChange={e => setSkipTrial(e.target.checked)} disabled={loading} />
-          Skip the free trial and pay now instead
+          Skip the free trial and upgrade now
         </label>
       )}
       {error && <p style={{ color: '#b3261e', fontSize: '0.82rem', marginTop: 8, marginBottom: 0 }}>{error}</p>}
@@ -124,8 +94,64 @@ function CheckoutButton({ label, planId, trialEligible }) {
   )
 }
 
+// Post-BIL-08: modest self-serve entry point for the 30-day no-card trial,
+// for someone who saw (and possibly declined) the login interstitial but
+// changes their mind later, or who never saw it because their account
+// predates the trial-offer flow entirely (signup_trial_available is true
+// either way, as long as the trial itself was never started).
+function SignupTrialCallout() {
+  const navigate = useNavigate()
+  const { refresh } = useSubscription()
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const startTrial = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      await axios.post(`${API}/billing/start-signup-trial`)
+      await refresh()
+      navigate('/profile')
+    } catch (err) {
+      setError(err.response?.data?.error || 'Could not start your trial. Please try again.')
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div style={{
+      maxWidth: 720, margin: '0 auto 32px', background: 'var(--green-50)',
+      border: '1px solid var(--green-100)', borderRadius: 'var(--card-radius, 16px)',
+      padding: '20px 28px', textAlign: 'center',
+    }}>
+      <h3 style={{ fontFamily: 'Georgia, serif', color: 'var(--heading-color, var(--green-900))', fontSize: '1.15rem', fontWeight: 700, marginBottom: 8 }}>
+        Start Your Free 30-Day Trial
+      </h3>
+      <p style={{ color: 'var(--green-900)', fontWeight: 700, fontSize: '0.95rem', marginBottom: 6 }}>
+        Not ready to subscribe? Try it free for 30 days first.
+      </p>
+      <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', lineHeight: 1.6, maxWidth: 480, margin: '0 auto 14px' }}>
+        Full access to every section, including the Premium vault sections, for 30 days. No credit card
+        required, and nothing you record is ever lost when the trial ends.
+      </p>
+      {error && <p style={{ color: '#b3261e', fontSize: '0.82rem', marginBottom: 10 }}>{error}</p>}
+      <button
+        onClick={startTrial}
+        disabled={loading}
+        style={{
+          padding: '10px 22px', borderRadius: 'var(--btn-radius, 10px)', border: '1px solid var(--green-700)',
+          background: 'transparent', color: 'var(--green-800)', fontWeight: 600, fontSize: '0.88rem',
+          cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.7 : 1,
+        }}
+      >
+        {loading ? 'Starting your trial...' : 'Start my free 30-day trial'}
+      </button>
+    </div>
+  )
+}
+
 export default function UpgradePage() {
-  const { isPremium, plan } = useSubscription()
+  const { isPremium, plan, signupTrialAvailable } = useSubscription()
   const { user } = useAuth()
   const [subscription, setSubscription] = useState(null)
   // Only 'cancelled' ever lands here now - a successful checkout redirects to
@@ -189,6 +215,8 @@ export default function UpgradePage() {
           </div>
         )}
       </div>
+
+      {signupTrialAvailable && !isPremium && <SignupTrialCallout />}
 
       <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 48 }}>
         <PlanCard
