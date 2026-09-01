@@ -220,7 +220,7 @@ export default function UpgradePage() {
 
       <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 48 }}>
         <PlanCard
-          title="Free"
+          title="Essentials"
           price="$0"
           period="forever"
           features={FREE_FEATURES}

@@ -1,0 +1,19 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <line x1="100" y1="180" x2="100" y2="34" stroke="#7CB342" stroke-width="4" stroke-linecap="round"/>
+  <g fill="#AED581">
+  <ellipse rx="17" ry="7" transform="translate(76,160) rotate(-30)"/>
+  <ellipse rx="15" ry="6" transform="translate(124,160) rotate(30) scale(-1,1)"/>
+  <ellipse rx="16" ry="6.5" transform="translate(74,132) rotate(-28)"/>
+  <ellipse rx="14" ry="5.5" transform="translate(126,132) rotate(28) scale(-1,1)"/>
+  </g>
+  <g fill="#7CB342">
+  <ellipse rx="15" ry="6" transform="translate(76,104) rotate(-26)"/>
+  <ellipse rx="13" ry="5" transform="translate(124,104) rotate(26) scale(-1,1)"/>
+  <ellipse rx="13" ry="5" transform="translate(78,78) rotate(-24)"/>
+  <ellipse rx="11" ry="4.5" transform="translate(122,78) rotate(24) scale(-1,1)"/>
+  </g>
+  <g fill="#AED581">
+  <ellipse rx="10" ry="4" transform="translate(82,54) rotate(-22)"/>
+  <ellipse rx="9" ry="3.5" transform="translate(118,54) rotate(22) scale(-1,1)"/>
+  </g>
+</svg>

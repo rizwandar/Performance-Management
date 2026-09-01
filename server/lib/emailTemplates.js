@@ -326,7 +326,7 @@ function subscriptionCancelledEmail({ name, accessUntilDate, stripeRef }) {
     </p>
     <p>
       You'll keep full Premium access through <strong>${accessUntilDate}</strong>, the end
-      of your current billing period. After that, your account will move to the free plan.
+      of your current billing period. After that, your account will move to the Essentials plan.
     </p>
     <p style="background:#F0F9FF; border:1px solid #BAE6FD; border-radius:8px; padding:14px 16px; color:#0C4A6E; font-size:14px;">
       Changed your mind? You can reactivate any time before ${accessUntilDate} from your

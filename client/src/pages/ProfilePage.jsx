@@ -646,7 +646,7 @@ export default function ProfilePage() {
   const handleCancelSubscription = async () => {
     if (!window.confirm(
       "Cancel your premium membership?\n\nYou'll keep full access until the end of your current billing period. " +
-      "After that, your account reverts to the free plan, nothing is deleted, and everything you've recorded in " +
+      "After that, your account reverts to the Essentials plan, nothing is deleted, and everything you've recorded in " +
       'the premium sections stays safely stored and becomes visible again the moment you resubscribe.'
     )) return
     setCancelling(true)
@@ -1525,7 +1525,7 @@ export default function ProfilePage() {
 
         {!subscription || subscription.plan === 'free' ? (
           <>
-            <p className="text-muted small mb-3">You're on the free plan. Upgrade to unlock every section.</p>
+            <p className="text-muted small mb-3">You're on the Essentials plan. Upgrade to unlock every section.</p>
             <Button variant="outline-primary" onClick={() => navigate('/upgrade')}>See Premium plans</Button>
           </>
         ) : subscription.cancelled_at ? (

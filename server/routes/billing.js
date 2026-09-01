@@ -138,7 +138,7 @@ router.get('/plans', (req, res) => {
     plans: [
       {
         id:            'free',
-        name:          'Free',
+        name:          'Essentials',
         description:   'Start your end-of-life planning at no cost',
         price_monthly: 0,
         price_annual:  0,

@@ -109,7 +109,6 @@ const ACTION_LABELS = {
 const PRESET_LOGOS = [
   { id: 'hands-heart',   name: 'Hands and Heart',  desc: 'Cupped hands holding a heart (default)' },
   { id: 'leaf-heart',    name: 'Leaf and Heart',    desc: 'A heart with a new leaf sprouting upward' },
-  { id: 'leaf',          name: 'Leaf',              desc: 'A single leaf, simple and plain' },
   { id: 'shield-heart',  name: 'Shield and Heart',  desc: 'A protective shield carrying a heart' },
   { id: 'infinity-heart',name: 'Infinity Heart',    desc: 'An infinity loop with a heart at its center' },
   { id: 'tree',          name: 'Tree of Life',      desc: 'A tree with roots and a heart in the canopy' },
@@ -118,6 +117,90 @@ const PRESET_LOGOS = [
   { id: 'candle',        name: 'Candle Flame',      desc: 'A candle whose flame is heart-shaped' },
   { id: 'feather',       name: 'Feather',           desc: 'A graceful quill feather with a gold heart' },
   { id: 'circle-hearts', name: 'Circle of Hearts',  desc: 'Three hearts joined in a circle' },
+]
+
+// Leaf shape presets, grouped by palette (20 shapes x 3 palettes = 60 entries).
+const LEAF_PRESETS_DARK = [
+  { id: 'single-leaf-dark', name: 'Single Leaf (Forest Green)', desc: 'A graceful single leaf with a stem' },
+  { id: 'herb-sprig-dark', name: 'Herb Sprig (Forest Green)', desc: 'A slender sprig with paired herb leaves' },
+  { id: 'rounded-leaf-dark', name: 'Rounded Leaf (Forest Green)', desc: 'A soft, rounded leaf shape' },
+  { id: 'line-leaf-dark', name: 'Line Leaf (Forest Green)', desc: 'A single leaf drawn in outline' },
+  { id: 'two-leaf-sprig-dark', name: 'Two-Leaf Sprig (Forest Green)', desc: 'Two leaves branching from one stem' },
+  { id: 'heart-leaf-dark', name: 'Heart Leaf (Forest Green)', desc: 'A leaf shaped like a gentle heart' },
+  { id: 'trefoil-dark', name: 'Trefoil (Forest Green)', desc: 'Three rounded leaves meeting at the center' },
+  { id: 'willow-blade-dark', name: 'Willow Blade (Forest Green)', desc: 'A slender, willow-like leaf blade' },
+  { id: 'maple-leaf-dark', name: 'Maple Leaf (Forest Green)', desc: 'A simple three-lobed leaf' },
+  { id: 'fern-frond-dark', name: 'Fern Frond (Forest Green)', desc: 'A feathery fern frond with paired leaflets' },
+  { id: 'bay-sprig-dark', name: 'Bay Sprig (Forest Green)', desc: 'Three bay leaves clustered on a stem' },
+  { id: 'dew-drop-leaf-dark', name: 'Dew-Drop Leaf (Forest Green)', desc: 'A single leaf with a dewdrop highlight' },
+  { id: 'curled-leaf-dark', name: 'Curled Leaf (Forest Green)', desc: 'A leaf with a gentle curling edge' },
+  { id: 'ivy-leaf-dark', name: 'Ivy Leaf (Forest Green)', desc: 'Four ivy leaves radiating from a center point' },
+  { id: 'eucalyptus-blade-dark', name: 'Eucalyptus Blade (Forest Green)', desc: 'A long, curved eucalyptus leaf' },
+  { id: 'split-leaf-dark', name: 'Split Leaf (Forest Green)', desc: 'A leaf with one half in outline' },
+  { id: 'serrated-leaf-dark', name: 'Serrated Leaf (Forest Green)', desc: 'A leaf with a serrated, toothed edge' },
+  { id: 'palm-frond-dark', name: 'Palm Frond (Forest Green)', desc: 'A fan of three blades from one base' },
+  { id: 'faceted-leaf-dark', name: 'Faceted Leaf (Forest Green)', desc: 'A leaf built from angular, faceted lines' },
+  { id: 'mirror-leaf-dark', name: 'Mirror Leaf (Forest Green)', desc: 'Two mirrored leaf halves joined by a vein' },
+]
+
+const LEAF_PRESETS_BRIGHT = [
+  { id: 'single-leaf-bright', name: 'Single Leaf (Bright Green)', desc: 'A graceful single leaf with a stem' },
+  { id: 'herb-sprig-bright', name: 'Herb Sprig (Bright Green)', desc: 'A slender sprig with paired herb leaves' },
+  { id: 'rounded-leaf-bright', name: 'Rounded Leaf (Bright Green)', desc: 'A soft, rounded leaf shape' },
+  { id: 'line-leaf-bright', name: 'Line Leaf (Bright Green)', desc: 'A single leaf drawn in outline' },
+  { id: 'two-leaf-sprig-bright', name: 'Two-Leaf Sprig (Bright Green)', desc: 'Two leaves branching from one stem' },
+  { id: 'heart-leaf-bright', name: 'Heart Leaf (Bright Green)', desc: 'A leaf shaped like a gentle heart' },
+  { id: 'trefoil-bright', name: 'Trefoil (Bright Green)', desc: 'Three rounded leaves meeting at the center' },
+  { id: 'willow-blade-bright', name: 'Willow Blade (Bright Green)', desc: 'A slender, willow-like leaf blade' },
+  { id: 'maple-leaf-bright', name: 'Maple Leaf (Bright Green)', desc: 'A simple three-lobed leaf' },
+  { id: 'fern-frond-bright', name: 'Fern Frond (Bright Green)', desc: 'A feathery fern frond with paired leaflets' },
+  { id: 'bay-sprig-bright', name: 'Bay Sprig (Bright Green)', desc: 'Three bay leaves clustered on a stem' },
+  { id: 'dew-drop-leaf-bright', name: 'Dew-Drop Leaf (Bright Green)', desc: 'A single leaf with a dewdrop highlight' },
+  { id: 'curled-leaf-bright', name: 'Curled Leaf (Bright Green)', desc: 'A leaf with a gentle curling edge' },
+  { id: 'ivy-leaf-bright', name: 'Ivy Leaf (Bright Green)', desc: 'Four ivy leaves radiating from a center point' },
+  { id: 'eucalyptus-blade-bright', name: 'Eucalyptus Blade (Bright Green)', desc: 'A long, curved eucalyptus leaf' },
+  { id: 'split-leaf-bright', name: 'Split Leaf (Bright Green)', desc: 'A leaf with one half in outline' },
+  { id: 'serrated-leaf-bright', name: 'Serrated Leaf (Bright Green)', desc: 'A leaf with a serrated, toothed edge' },
+  { id: 'palm-frond-bright', name: 'Palm Frond (Bright Green)', desc: 'A fan of three blades from one base' },
+  { id: 'faceted-leaf-bright', name: 'Faceted Leaf (Bright Green)', desc: 'A leaf built from angular, faceted lines' },
+  { id: 'mirror-leaf-bright', name: 'Mirror Leaf (Bright Green)', desc: 'Two mirrored leaf halves joined by a vein' },
+]
+
+const LEAF_PRESETS_LIME = [
+  { id: 'single-leaf-lime', name: 'Single Leaf (Lime Green)', desc: 'A graceful single leaf with a stem' },
+  { id: 'herb-sprig-lime', name: 'Herb Sprig (Lime Green)', desc: 'A slender sprig with paired herb leaves' },
+  { id: 'rounded-leaf-lime', name: 'Rounded Leaf (Lime Green)', desc: 'A soft, rounded leaf shape' },
+  { id: 'line-leaf-lime', name: 'Line Leaf (Lime Green)', desc: 'A single leaf drawn in outline' },
+  { id: 'two-leaf-sprig-lime', name: 'Two-Leaf Sprig (Lime Green)', desc: 'Two leaves branching from one stem' },
+  { id: 'heart-leaf-lime', name: 'Heart Leaf (Lime Green)', desc: 'A leaf shaped like a gentle heart' },
+  { id: 'trefoil-lime', name: 'Trefoil (Lime Green)', desc: 'Three rounded leaves meeting at the center' },
+  { id: 'willow-blade-lime', name: 'Willow Blade (Lime Green)', desc: 'A slender, willow-like leaf blade' },
+  { id: 'maple-leaf-lime', name: 'Maple Leaf (Lime Green)', desc: 'A simple three-lobed leaf' },
+  { id: 'fern-frond-lime', name: 'Fern Frond (Lime Green)', desc: 'A feathery fern frond with paired leaflets' },
+  { id: 'bay-sprig-lime', name: 'Bay Sprig (Lime Green)', desc: 'Three bay leaves clustered on a stem' },
+  { id: 'dew-drop-leaf-lime', name: 'Dew-Drop Leaf (Lime Green)', desc: 'A single leaf with a dewdrop highlight' },
+  { id: 'curled-leaf-lime', name: 'Curled Leaf (Lime Green)', desc: 'A leaf with a gentle curling edge' },
+  { id: 'ivy-leaf-lime', name: 'Ivy Leaf (Lime Green)', desc: 'Four ivy leaves radiating from a center point' },
+  { id: 'eucalyptus-blade-lime', name: 'Eucalyptus Blade (Lime Green)', desc: 'A long, curved eucalyptus leaf' },
+  { id: 'split-leaf-lime', name: 'Split Leaf (Lime Green)', desc: 'A leaf with one half in outline' },
+  { id: 'serrated-leaf-lime', name: 'Serrated Leaf (Lime Green)', desc: 'A leaf with a serrated, toothed edge' },
+  { id: 'palm-frond-lime', name: 'Palm Frond (Lime Green)', desc: 'A fan of three blades from one base' },
+  { id: 'faceted-leaf-lime', name: 'Faceted Leaf (Lime Green)', desc: 'A leaf built from angular, faceted lines' },
+  { id: 'mirror-leaf-lime', name: 'Mirror Leaf (Lime Green)', desc: 'Two mirrored leaf halves joined by a vein' },
+]
+
+const LEAF_PRESET_GROUPS = [
+  { label: 'Forest Green', presets: LEAF_PRESETS_DARK },
+  { label: 'Bright Green', presets: LEAF_PRESETS_BRIGHT },
+  { label: 'Lime Green',   presets: LEAF_PRESETS_LIME },
+]
+
+// All presets flattened, used for lookups (e.g. resolving the currently saved preset id).
+const ALL_PRESET_LOGOS = [
+  ...PRESET_LOGOS,
+  ...LEAF_PRESETS_DARK,
+  ...LEAF_PRESETS_BRIGHT,
+  ...LEAF_PRESETS_LIME,
 ]
 
 const PRESET_NAMES = [
@@ -132,6 +215,31 @@ const PRESET_NAMES = [
   "Life's Chapter",
   'Peaceful Plans',
 ]
+
+function PresetLogoGrid({ presets, selectedLogo, logoType, onSelect }) {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 12 }}>
+      {presets.map(logo => (
+        <div key={logo.id}
+          title={logo.desc}
+          onClick={() => onSelect(logo.id)}
+          style={{
+            border: logoType === 'preset' && selectedLogo === logo.id ? '2px solid var(--green-800)' : '2px solid var(--border)',
+            borderRadius: 10, padding: '12px 8px', cursor: 'pointer', textAlign: 'center',
+            background: logoType === 'preset' && selectedLogo === logo.id ? 'var(--green-50)' : '#fff',
+            transition: 'border-color 0.15s, background 0.15s',
+          }}>
+          <img src={`/logos/${logo.id}.svg`} alt={logo.name} width="56" height="56"
+            style={{ display: 'block', margin: '0 auto 8px' }} />
+          <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--green-900)', lineHeight: 1.3 }}>{logo.name}</div>
+          {logoType === 'preset' && selectedLogo === logo.id && (
+            <div style={{ fontSize: '0.7rem', color: 'var(--green-800)', marginTop: 4, fontWeight: 700 }}>Selected</div>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
 
 function BrandingPanel({ showAlert }) {
   const { setBranding } = useBranding()
@@ -295,29 +403,37 @@ function BrandingPanel({ showAlert }) {
       <div style={card}>
         <h6 style={{ color: 'var(--green-900)', marginBottom: 4 }}>Site Logo</h6>
         <p className="text-muted small mb-4">
-          Choose one of the 10 designed logos or upload your own. The logo appears in the navigation bar, landing page, and exported PDFs.
+          Choose one of the {ALL_PRESET_LOGOS.length} designed logos or upload your own. The logo appears in the navigation bar, landing page, and exported PDFs.
         </p>
 
-        {/* Preset grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 12, marginBottom: 24 }}>
-          {PRESET_LOGOS.map(logo => (
-            <div key={logo.id}
-              title={logo.desc}
-              onClick={() => { setSelectedLogo(logo.id); setLogoType('preset') }}
-              style={{
-                border: logoType === 'preset' && selectedLogo === logo.id ? '2px solid var(--green-800)' : '2px solid var(--border)',
-                borderRadius: 10, padding: '12px 8px', cursor: 'pointer', textAlign: 'center',
-                background: logoType === 'preset' && selectedLogo === logo.id ? 'var(--green-50)' : '#fff',
-                transition: 'border-color 0.15s, background 0.15s',
-              }}>
-              <img src={`/logos/${logo.id}.svg`} alt={logo.name} width="56" height="56"
-                style={{ display: 'block', margin: '0 auto 8px' }} />
-              <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--green-900)', lineHeight: 1.3 }}>{logo.name}</div>
-              {logoType === 'preset' && selectedLogo === logo.id && (
-                <div style={{ fontSize: '0.7rem', color: 'var(--green-800)', marginTop: 4, fontWeight: 700 }}>Selected</div>
-              )}
-            </div>
-          ))}
+        {/* Preset grid: non-leaf presets */}
+        <div style={{ marginBottom: 24 }}>
+          <PresetLogoGrid
+            presets={PRESET_LOGOS}
+            selectedLogo={selectedLogo}
+            logoType={logoType}
+            onSelect={id => { setSelectedLogo(id); setLogoType('preset') }}
+          />
+        </div>
+
+        {/* Leaf presets, grouped by palette */}
+        {LEAF_PRESET_GROUPS.map(group => (
+          <div key={group.label} style={{ marginBottom: 24 }}>
+            <p className="small" style={{ fontWeight: 700, color: 'var(--green-900)', marginBottom: 10 }}>{group.label}</p>
+            <PresetLogoGrid
+              presets={group.presets}
+              selectedLogo={selectedLogo}
+              logoType={logoType}
+              onSelect={id => { setSelectedLogo(id); setLogoType('preset') }}
+            />
+          </div>
+        ))}
+
+        <div style={{ marginBottom: 24 }}>
+          <a href="/design/leaf-options.html" target="_blank" rel="noopener noreferrer"
+            style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--green-800)', textDecoration: 'none' }}>
+            View all leaf design options →
+          </a>
         </div>
 
         {/* Custom upload */}
@@ -752,7 +868,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
                 ['Inactivity timer', 'Users set a period of inactivity (2 to 24 months). If they have not logged in by then, their trusted contacts are automatically notified with access links.'],
                 ['PDF export', 'Users can download a complete PDF summary of all their plans. A full export option includes vault contents if the vault password is provided at download time.'],
                 ['File attachments', 'Upload photos and documents (PDF, images, Word docs) to Legal Documents, Financial Affairs, Property & Possessions, and Practical Household Information. Stored securely in Cloudflare R2, access-controlled with short-lived signed URLs.'],
-                ['Premium billing', 'Free plan covers 14 of the 21 sections. Premium ($10/month or $100/year via Stripe Checkout) unlocks the 6 vault-protected sections plus Your Last Moments, document uploads, full (vault-inclusive) PDF export, and the inactivity timer. Users manage or cancel/reinstate their subscription from My Profile; admins can also grant or revoke an honorary premium plan without a real Stripe subscription.'],
+                ['Premium billing', 'Essentials plan covers 14 of the 21 sections. Premium ($10/month or $100/year via Stripe Checkout) unlocks the 6 vault-protected sections plus Your Last Moments, document uploads, full (vault-inclusive) PDF export, and the inactivity timer. Users manage or cancel/reinstate their subscription from My Profile; admins can also grant or revoke an honorary premium plan without a real Stripe subscription.'],
                 ['Admin panel', 'Operators can customize colors, fonts, site name, and logo. View all users, audit logs, and manage accounts.'],
                 ['White-label ready', 'The site name and logo can be changed by the admin. All emails and the PDF use the configured name.'],
               ]} />
@@ -2329,7 +2445,7 @@ export default function AdminPage() {
                   }}>
                     {selectedUser.plan === 'premium'
                       ? (selectedUser.is_honorary ? 'Honorary Premium' : 'Premium')
-                      : 'Free'}
+                      : 'Essentials'}
                   </span>
                   {selectedUser.plan === 'premium' && selectedUser.is_honorary && selectedUser.granted_by_admin_name && (
                     <span className="text-muted small">

@@ -72,103 +72,87 @@ export default function WelcomeTrialPage() {
   }
 
   return (
-    <div style={{ maxWidth: 760, margin: '0 auto', padding: '4px 0 32px' }}>
-      {/* Same hero-token visual language as .landing-hero (index.css) - a dark
-          green band on themes that set one (e.g. Heirloom), transparent
-          (blending into the page background) on the rest - applied to this
-          page's own panel rather than reusing .landing-hero itself, since
-          that class's full-bleed negative-margin mechanics assume it's the
-          first element directly under the nav on an otherwise-empty page,
-          which doesn't hold here: this is a normal protected route rendered
-          inside the standard page Container, alongside NavBar chrome above
-          it. Verified against THEME_VARS in App.jsx for both the default
-          (forest: --hero-bg transparent) and Heirloom (--hero-bg #14301F)
-          themes before shipping this. */}
-      <div style={{
-        background: 'var(--hero-bg, transparent)',
-        border: '1px solid var(--border)',
-        borderRadius: 'var(--card-radius, 16px)',
-        padding: '28px 32px 24px',
-        textAlign: 'center',
+    // Full-bleed band via .trial-hero (index.css), the same full-bleed
+    // technique LandingPage.jsx uses for .landing-hero - this page renders
+    // inside the identical NavBar + Container structure (see App.jsx), so
+    // the same negative-margin math applies here too. --hero-bg is
+    // transparent on the default theme (blends into the page background)
+    // and a dark forest green on themes that set it (e.g. Heirloom).
+    // Children below are not wrapped in an extra max-width container; each
+    // sets its own max-width inline, matching how .landing-hero's own
+    // children stay narrower than the full-bleed band itself.
+    <div className="trial-hero">
+      <p style={{
+        color: 'var(--hero-heading-color, var(--green-900))', fontWeight: 700,
+        fontSize: '0.8rem', letterSpacing: '0.04em', margin: '0 0 8px',
       }}>
-        <p style={{
-          color: 'var(--hero-heading-color, var(--green-900))', fontWeight: 700,
-          fontSize: '0.8rem', letterSpacing: '0.04em', margin: '0 0 8px',
-        }}>
-          🌿 IN GOOD HANDS
-        </p>
-        <h1 style={{
-          fontFamily: 'var(--heading-font, Georgia, serif)', color: 'var(--hero-heading-color, var(--green-900))',
-          fontWeight: 700, fontSize: '1.3rem', lineHeight: 1.45, maxWidth: 520, margin: '0 auto 10px',
-        }}>
-          A gentle, private space to gather everything your loved ones will need, so that when the time comes, they are truly in good hands.
-        </h1>
-        <p style={{
-          color: 'var(--hero-lead-color, var(--text-muted))', fontSize: '0.82rem', lineHeight: 1.6,
-          maxWidth: 460, margin: '0 auto 18px', fontFamily: 'var(--body-font, inherit)',
-        }}>
-          Your account for gathering your legal, financial, medical, and personal wishes, safely in one place.
-        </p>
+        🌿 IN GOOD HANDS
+      </p>
+      <h1 style={{
+        fontFamily: 'var(--heading-font, Georgia, serif)', color: 'var(--hero-heading-color, var(--green-900))',
+        fontWeight: 700, fontSize: '1.3rem', lineHeight: 1.45, maxWidth: 520, margin: '0 auto 10px',
+      }}>
+        A gentle, private space to gather everything your loved ones will need, so that when the time comes, they are truly in good hands.
+      </h1>
 
-        <p style={{
-          color: 'var(--hero-lead-color, var(--text-muted))', fontSize: '0.85rem', lineHeight: 1.6,
-          maxWidth: 520, margin: '0 auto 22px', fontFamily: 'var(--body-font, inherit)',
-        }}>
-          For the next 30 days, you have full access to everything, including the sections that are
-          normally Premium-only. No credit card required, nothing to cancel.
-        </p>
+      <p style={{
+        color: 'var(--hero-lead-color, var(--text-muted))', fontSize: '0.85rem', lineHeight: 1.6,
+        maxWidth: 520, margin: '0 auto 22px', fontFamily: 'var(--body-font, inherit)',
+      }}>
+        For the next 30 days, you have full access to everything, including the sections that are
+        normally Premium-only. No credit card required, nothing to cancel.
+      </p>
 
+      <div style={{
+        background: '#fff', border: '1px solid var(--green-100)', borderRadius: 12,
+        padding: '20px 22px 22px', textAlign: 'left', maxWidth: 600, margin: '0 auto',
+      }}>
         <div style={{
-          background: '#fff', border: '1px solid var(--green-100)', borderRadius: 12,
-          padding: '20px 22px 22px', textAlign: 'left', maxWidth: 600, margin: '0 auto',
+          display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '18px 28px', marginBottom: 18,
         }}>
-          <div style={{
-            display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '18px 28px', marginBottom: 18,
-          }}>
-            <PlanColumn title="Free" items={FREE_FEATURES} checkColor="var(--text-muted)" />
-            <PlanColumn
-              title="Premium" badge="Included free for 30 days"
-              items={PREMIUM_FEATURES} checkColor="var(--green-700)" highlightFirst
-            />
-          </div>
-
-          {error && (
-            <p style={{ color: '#b3261e', fontSize: '0.85rem', margin: '0 0 12px' }}>{error}</p>
-          )}
-
-          <button
-            type="button"
-            onClick={() => respond('start')}
-            disabled={loading !== null}
-            style={{
-              width: '100%', background: 'var(--btn-cta-bg, var(--green-800))', color: 'var(--btn-cta-color, #fff)',
-              border: 'none', borderRadius: 'var(--btn-radius, 8px)', padding: '12px 20px',
-              fontSize: '0.95rem', fontWeight: 600, cursor: loading !== null ? 'default' : 'pointer',
-              opacity: loading !== null ? 0.75 : 1, fontFamily: 'var(--ui-font, inherit)',
-            }}
-          >
-            {loading === 'start' ? 'Starting your trial...' : 'Start my free 30-day trial'}
-          </button>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.76rem', lineHeight: 1.5, textAlign: 'center', margin: '10px 0 0' }}>
-            After 30 days, the Premium sections lock again, but nothing you recorded is ever lost, it's ready
-            the moment you decide to upgrade.
-          </p>
+          <PlanColumn title="Essentials" items={FREE_FEATURES} checkColor="var(--text-muted)" />
+          <PlanColumn
+            title="Premium" badge="Included free for 30 days"
+            items={PREMIUM_FEATURES} checkColor="var(--green-700)" highlightFirst
+          />
         </div>
+
+        {error && (
+          <p style={{ color: '#b3261e', fontSize: '0.85rem', margin: '0 0 12px' }}>{error}</p>
+        )}
 
         <button
           type="button"
-          onClick={() => respond('decline')}
+          onClick={() => respond('start')}
           disabled={loading !== null}
           style={{
-            background: 'none', border: 'none', padding: '4px 8px', marginTop: 14,
-            color: 'var(--hero-lead-color, var(--text-muted))', fontSize: '0.78rem', textDecoration: 'underline',
-            cursor: loading !== null ? 'default' : 'pointer', opacity: loading !== null ? 0.75 : 1,
-            fontFamily: 'var(--ui-font, inherit)',
+            width: '100%', background: 'var(--btn-cta-bg, var(--green-800))', color: 'var(--btn-cta-color, #fff)',
+            border: 'none', borderRadius: 'var(--btn-radius, 8px)', padding: '12px 20px',
+            fontSize: '0.95rem', fontWeight: 600, cursor: loading !== null ? 'default' : 'pointer',
+            opacity: loading !== null ? 0.75 : 1, fontFamily: 'var(--ui-font, inherit)',
           }}
         >
-          {loading === 'decline' ? 'Saving...' : "No thanks, I'll stay on the Free plan"}
+          {loading === 'start' ? 'Starting your trial...' : 'Start my free 30-day trial'}
         </button>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.76rem', lineHeight: 1.5, textAlign: 'center', margin: '10px 0 0' }}>
+          After 30 days, the Premium sections lock again, but nothing you recorded is ever lost, it's ready
+          the moment you decide to upgrade.
+        </p>
       </div>
+
+      <button
+        type="button"
+        onClick={() => respond('decline')}
+        disabled={loading !== null}
+        style={{
+          background: 'none', border: 'none', padding: '4px 8px', marginTop: 14,
+          color: 'var(--hero-lead-color, var(--text-muted))', fontSize: '0.78rem', textDecoration: 'underline',
+          cursor: loading !== null ? 'default' : 'pointer', opacity: loading !== null ? 0.75 : 1,
+          fontFamily: 'var(--ui-font, inherit)',
+        }}
+      >
+        {loading === 'decline' ? 'Saving...' : "No thanks, I'll stay on the Essentials plan"}
+      </button>
     </div>
   )
 }
