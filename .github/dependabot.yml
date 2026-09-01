@@ -8,6 +8,18 @@ updates:
       interval: "weekly"
     open-pull-requests-limit: 5
     labels: ["dependencies"]
+    # Mobile is dropped from active development (2026-08-26) - the /mobile
+    # workspace entry below was removed for the same reason, but npm
+    # workspaces hoist some of its dependencies into the root lockfile, so
+    # this root scan would otherwise keep surfacing them anyway. Ignored
+    # here rather than deleted from package-lock.json, since the /mobile
+    # workspace itself is untouched and still needs these to build if
+    # mobile work resumes - remove this ignore list at that point instead
+    # of re-adding a separate /mobile entry from scratch.
+    ignore:
+      - dependency-name: "react-native*"
+      - dependency-name: "expo*"
+      - dependency-name: "@expo/*"
 
   - package-ecosystem: "npm"
     directory: "/client"
@@ -18,13 +30,6 @@ updates:
 
   - package-ecosystem: "npm"
     directory: "/server"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
-    labels: ["dependencies"]
-
-  - package-ecosystem: "npm"
-    directory: "/mobile"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
