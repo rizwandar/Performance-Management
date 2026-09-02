@@ -610,7 +610,10 @@ export default function ProfilePage() {
     setSavingTimer(true)
     try {
       const r = await axios.put(`${API}/users/me/timer`, { inactivity_period_months: timerMonths })
-      setTimerData(td => ({ ...td, inactivity_period_months: r.data.inactivity_period_months }))
+      // The PUT response now returns the full recomputed timer state (days_left included),
+      // same shape as GET /me/timer, so this reflects the new period immediately
+      // instead of only updating after the next page load.
+      setTimerData(td => ({ ...td, ...r.data }))
       setSuccess('Inactivity period updated.')
       setTimeout(() => setSuccess(''), 3000)
     } catch (err) {
