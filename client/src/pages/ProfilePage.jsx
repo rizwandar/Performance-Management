@@ -746,9 +746,50 @@ export default function ProfilePage() {
 
   return (
     <div style={{ maxWidth: 720, margin: '0 auto' }}>
-      <div className="mb-4">
-        <h3 style={{ color: 'var(--green-900)', fontFamily: 'Georgia, serif' }}>My Profile</h3>
-        <p className="text-muted">Your account details and security settings.</p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }} className="mb-4">
+        <div>
+          <h3 style={{ color: 'var(--green-900)', fontFamily: 'Georgia, serif' }}>My Profile</h3>
+          <p className="text-muted">Your account details and security settings.</p>
+        </div>
+
+        {/* ── Section picker (IDEA-35) ─────────────────────────────────────── */}
+        <div className="d-flex gap-2 flex-wrap align-items-center">
+          <Dropdown onSelect={(key) => key && setSection(key)}>
+            <Dropdown.Toggle
+              id="profile-section-dropdown"
+              variant="outline-secondary"
+              style={{
+                padding: '6px 18px', borderRadius: 20, border: '1px solid',
+                fontSize: '0.9rem', fontFamily: 'inherit',
+                borderColor: section ? 'var(--green-800)' : 'var(--border)',
+                background: section ? 'var(--green-800)' : 'transparent',
+                color: section ? '#fff' : 'var(--text-muted)',
+              }}>
+              {section ? SECTION_LABELS[section] : 'More settings'}
+            </Dropdown.Toggle>
+            <Dropdown.Menu style={{ background: 'var(--parchment)', border: '1px solid var(--border)', boxShadow: '0 4px 16px rgba(0,0,0,0.12)' }}>
+              {SETTINGS_SECTIONS.map(s => (
+                <Dropdown.Item key={s.id} eventKey={s.id} active={section === s.id}
+                  style={{
+                    fontSize: '0.9rem', fontFamily: 'inherit',
+                    color: section === s.id ? '#fff' : 'var(--green-900)',
+                    background: section === s.id ? 'var(--green-800)' : 'transparent',
+                  }}>
+                  {s.label}
+                </Dropdown.Item>
+              ))}
+              <Dropdown.Divider />
+              <Dropdown.Item eventKey={DELETE_ACCOUNT_SECTION.id} active={section === DELETE_ACCOUNT_SECTION.id}
+                style={{
+                  fontSize: '0.9rem', fontFamily: 'inherit', fontWeight: 600,
+                  color: section === DELETE_ACCOUNT_SECTION.id ? '#fff' : '#DC3545',
+                  background: section === DELETE_ACCOUNT_SECTION.id ? '#DC3545' : 'transparent',
+                }}>
+                {DELETE_ACCOUNT_SECTION.label}
+              </Dropdown.Item>
+            </Dropdown.Menu>
+          </Dropdown>
+        </div>
       </div>
 
       {checkoutSuccess && (
@@ -881,45 +922,6 @@ export default function ProfilePage() {
             {pwSaving ? 'Changing...' : 'Change password'}
           </Button>
         </div>
-      </div>
-
-      {/* ── Section picker (IDEA-35) ─────────────────────────────────────── */}
-      <div className="d-flex gap-2 mb-4 flex-wrap align-items-center">
-        <Dropdown onSelect={(key) => key && setSection(key)}>
-          <Dropdown.Toggle
-            id="profile-section-dropdown"
-            variant="outline-secondary"
-            style={{
-              padding: '6px 18px', borderRadius: 20, border: '1px solid',
-              fontSize: '0.9rem', fontFamily: 'inherit',
-              borderColor: section ? 'var(--green-800)' : 'var(--border)',
-              background: section ? 'var(--green-800)' : 'transparent',
-              color: section ? '#fff' : 'var(--text-muted)',
-            }}>
-            {section ? SECTION_LABELS[section] : 'More settings'}
-          </Dropdown.Toggle>
-          <Dropdown.Menu style={{ background: 'var(--parchment)', border: '1px solid var(--border)', boxShadow: '0 4px 16px rgba(0,0,0,0.12)' }}>
-            {SETTINGS_SECTIONS.map(s => (
-              <Dropdown.Item key={s.id} eventKey={s.id} active={section === s.id}
-                style={{
-                  fontSize: '0.9rem', fontFamily: 'inherit',
-                  color: section === s.id ? '#fff' : 'var(--green-900)',
-                  background: section === s.id ? 'var(--green-800)' : 'transparent',
-                }}>
-                {s.label}
-              </Dropdown.Item>
-            ))}
-            <Dropdown.Divider />
-            <Dropdown.Item eventKey={DELETE_ACCOUNT_SECTION.id} active={section === DELETE_ACCOUNT_SECTION.id}
-              style={{
-                fontSize: '0.9rem', fontFamily: 'inherit', fontWeight: 600,
-                color: section === DELETE_ACCOUNT_SECTION.id ? '#fff' : '#DC3545',
-                background: section === DELETE_ACCOUNT_SECTION.id ? '#DC3545' : 'transparent',
-              }}>
-              {DELETE_ACCOUNT_SECTION.label}
-            </Dropdown.Item>
-          </Dropdown.Menu>
-        </Dropdown>
       </div>
 
       {/* ── Security Question ────────────────────────────────────────────── */}
