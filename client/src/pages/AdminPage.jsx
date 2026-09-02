@@ -429,10 +429,14 @@ function BrandingPanel({ showAlert }) {
           </div>
         ))}
 
-        <div style={{ marginBottom: 24 }}>
+        <div style={{ marginBottom: 24, display: 'flex', flexDirection: 'column', gap: 6 }}>
           <a href="/design/leaf-options.html" target="_blank" rel="noopener noreferrer"
             style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--green-800)', textDecoration: 'none' }}>
             View all leaf design options →
+          </a>
+          <a href="/design/leaf-reveal.html" target="_blank" rel="noopener noreferrer"
+            style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--green-800)', textDecoration: 'none' }}>
+            Preview hero video intro (leaf reveal) →
           </a>
         </div>
 
