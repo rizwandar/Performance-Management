@@ -385,6 +385,27 @@ router.get('/me/org-branding', auth, async (req, res) => {
   });
 });
 
+// Shared by GET and PUT /me/timer so both always return the same
+// up-to-date shape (days_left is derived, not stored, so it must be
+// recomputed from last_active_at + inactivity_period_months every time).
+function buildTimerPayload(user) {
+  const period     = user.inactivity_period_months || 12;
+  const rawActive  = user.last_active_at;
+  const lastActive = rawActive ? new Date(rawActive) : new Date();
+  const expiresAt  = new Date(lastActive);
+  expiresAt.setMonth(expiresAt.getMonth() + period);
+  const msLeft   = expiresAt.getTime() - Date.now();
+  const daysLeft = Number.isFinite(msLeft) ? Math.max(0, Math.floor(msLeft / (1000 * 60 * 60 * 24))) : 0;
+
+  return {
+    last_active_at:           rawActive || new Date().toISOString(),
+    inactivity_period_months: period,
+    expires_at:               expiresAt.toISOString(),
+    days_left:                daysLeft,
+    last_reminder_sent_at:    user.last_reminder_sent_at,
+  };
+}
+
 router.get('/me/timer', auth, async (req, res) => {
   const user = await queryOne(`
     SELECT last_active_at, inactivity_period_months, last_reminder_sent_at
@@ -392,21 +413,7 @@ router.get('/me/timer', auth, async (req, res) => {
   `, [req.user.id]);
   if (!user) return res.status(404).json({ error: 'User not found' });
 
-  const period    = user.inactivity_period_months || 12;
-  const rawActive = user.last_active_at;
-  const lastActive = rawActive ? new Date(rawActive) : new Date();
-  const expiresAt  = new Date(lastActive);
-  expiresAt.setMonth(expiresAt.getMonth() + period);
-  const msLeft   = expiresAt.getTime() - Date.now();
-  const daysLeft = Number.isFinite(msLeft) ? Math.max(0, Math.floor(msLeft / (1000 * 60 * 60 * 24))) : 0;
-
-  res.json({
-    last_active_at:           rawActive || new Date().toISOString(),
-    inactivity_period_months: period,
-    expires_at:               expiresAt.toISOString(),
-    days_left:                daysLeft,
-    last_reminder_sent_at:    user.last_reminder_sent_at,
-  });
+  res.json(buildTimerPayload(user));
 });
 
 router.put('/me/timer', auth, async (req, res) => {
@@ -416,7 +423,12 @@ router.put('/me/timer', auth, async (req, res) => {
     return res.status(400).json({ error: 'Invalid period. Choose from: 2, 3, 6, 12, 18, or 24 months.' });
   }
   await query('UPDATE users SET inactivity_period_months = $1 WHERE id = $2', [inactivity_period_months, req.user.id]);
-  res.json({ success: true, inactivity_period_months });
+
+  const user = await queryOne(`
+    SELECT last_active_at, inactivity_period_months, last_reminder_sent_at
+    FROM users WHERE id = $1
+  `, [req.user.id]);
+  res.json({ success: true, ...buildTimerPayload(user) });
 });
 
 router.post('/me/songs', auth, async (req, res) => {
