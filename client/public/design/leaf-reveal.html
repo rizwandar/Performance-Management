@@ -97,6 +97,13 @@
     border-radius:999px;
     padding:8px 16px;
     backdrop-filter:blur(4px);
+    opacity:0;
+    pointer-events:none;
+    transition:opacity 0.5s ease;
+  }
+  .picker.is-visible{
+    opacity:1;
+    pointer-events:auto;
   }
   .picker label{
     font-size:0.8rem;
@@ -324,6 +331,25 @@
 
   document.getElementById('leafPicker').addEventListener('change', (e) => {
     document.querySelector('.mark svg').innerHTML = MARKS[e.target.value]
+  })
+
+  // The picker stays hidden through the reveal so it doesn't distract from
+  // the leaf / wordmark / vision sequence (and doesn't show up on a screen
+  // recording of the intro). It appears on its own 20s after the vision
+  // statement finishes animating in, or immediately if the mouse moves down
+  // near the bottom of the page, whichever happens first. Once shown it
+  // stays shown, no re-hiding, so it doesn't vanish while being used.
+  const picker = document.querySelector('.picker')
+  let revealed = false
+  function revealPicker(){
+    if (revealed) return
+    revealed = true
+    picker.classList.add('is-visible')
+  }
+  const visionDelay = 9.4, visionDuration = 2.2, holdAfter = 20
+  setTimeout(revealPicker, (visionDelay + visionDuration + holdAfter) * 1000)
+  window.addEventListener('mousemove', (e) => {
+    if (window.innerHeight - e.clientY < 140) revealPicker()
   })
 </script>
 
