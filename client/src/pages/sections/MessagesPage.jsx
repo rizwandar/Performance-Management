@@ -23,7 +23,6 @@ const empty = { recipient_name: '', relationship: '', message: '' }
 // actual voice clips (MediaRecorder, uploaded to R2 via the server, one at a
 // time). Any mix - a message can be text-only, audio-only (1-3 clips), or both.
 const MAX_RECORDING_SECONDS = 300 // 5 minutes - keeps individual clips small; storage isn't premium-gated so this is the guardrail
-const MAX_AUDIO_CLIPS = 3
 const RECORDER_MIME_CANDIDATES = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg']
 
 const recordingSupported  = typeof window !== 'undefined' && !!navigator.mediaDevices?.getUserMedia && typeof window.MediaRecorder !== 'undefined'
@@ -216,6 +215,13 @@ export default function MessagesPage() {
   const addMessageDisabledTitle = atFreeMessageLimit
     ? `You've reached the Free plan limit of ${PLAN_LIMITS.personal_messages.free} messages. Upgrade to Premium to add more.`
     : undefined
+
+  // Plan-aware voice-clip cap (Free 1, Premium 3) - replaces the old flat
+  // MAX_AUDIO_CLIPS=3 constant so the recorder UI can't offer a clip the
+  // server (server/routes/sections.js) will reject.
+  const audioClipLimit = isPremium
+    ? (PLAN_LIMITS.message_audio_clips.premium ?? Infinity)
+    : PLAN_LIMITS.message_audio_clips.free
 
   const openAdd = () => {
     setEditing(null)
@@ -423,7 +429,7 @@ export default function MessagesPage() {
                   Voice messages <span className="text-muted fw-normal small">(optional, in addition to or instead of writing)</span>
                 </Form.Label>
                 {(existingClips.length > 0 || recordedBlob) && (
-                  <span className="text-muted small">{existingClips.length + (recordedBlob ? 1 : 0)} of {MAX_AUDIO_CLIPS}</span>
+                  <span className="text-muted small">{existingClips.length + (recordedBlob ? 1 : 0)} of {audioClipLimit}</span>
                 )}
               </div>
               <PlanLimitNotice limitKey="message_audio_clips" currentCount={existingClips.length} />
@@ -466,8 +472,12 @@ export default function MessagesPage() {
                     <p className="text-muted small mb-0 mt-1">This recording will be saved along with your message.</p>
                   )}
                 </div>
-              ) : existingClips.length >= MAX_AUDIO_CLIPS ? (
-                <p className="text-muted small mb-0">You've reached the maximum of {MAX_AUDIO_CLIPS} voice recordings for this message. Delete one above to record another.</p>
+              ) : existingClips.length >= audioClipLimit ? (
+                <p className="text-muted small mb-0">
+                  {isPremium
+                    ? `You've reached the maximum of ${audioClipLimit} voice recordings for this message. Delete one above to record another.`
+                    : `You've reached the Free plan limit of ${audioClipLimit} voice recording for this message. Upgrade to Premium to add more, or delete this one to record a different one.`}
+                </p>
               ) : (
                 <Button size="sm" variant="outline-secondary" onClick={startRecording}>
                   🎙️ {existingClips.length > 0 ? 'Record another' : 'Record a voice message'}

@@ -234,7 +234,7 @@ export default function TrustedContactsPage() {
         eyebrow="Your People"
         headline="The people you trust"
         highlight="trust"
-        subtext="Trusted contacts are the people who'll be given access to the plans you choose to share with them, when the time comes. You can add up to 3, and choose one of them to be your Legacy Contact: the one person who confirms what's happened and sets everything in motion."
+        subtext={`Trusted contacts are the people who'll be given access to the plans you choose to share with them, when the time comes. You can add up to ${isPremium ? 3 : 2}${isPremium ? '' : ' on the Free plan (3 on Premium)'}, and choose one of them to be your Legacy Contact: the one person who confirms what's happened and sets everything in motion.`}
         cta={contacts.length < 3 ? {
           label: '+ Add a trusted contact',
           onClick: openAdd,
