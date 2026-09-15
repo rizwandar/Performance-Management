@@ -5,6 +5,10 @@
 // `secondaryAction` is an optional node (e.g. a compact "Share this section" link)
 // rendered beside the primary CTA, deliberately lower-key so it doesn't compete
 // with the section's own primary action for attention.
+// `cta.disabled` (+ optional `cta.disabledTitle`, shown as a tooltip) renders a
+// real disabled button rather than hiding the CTA outright - used when a
+// plan limit has been reached but the control itself should stay visible
+// (see PlanLimitNotice.jsx).
 export default function SectionHero({ eyebrow, headline, highlight, subtext, cta, secondaryAction }) {
   const parts = highlight ? headline.split(highlight) : null
 
@@ -32,7 +36,9 @@ export default function SectionHero({ eyebrow, headline, highlight, subtext, cta
             <button
               type="button"
               className="btn btn-primary"
-              onClick={cta.onClick}
+              onClick={cta.disabled ? undefined : cta.onClick}
+              disabled={cta.disabled}
+              title={cta.disabledTitle}
               style={{ fontWeight: 600, padding: '9px 22px' }}
             >
               {cta.label}

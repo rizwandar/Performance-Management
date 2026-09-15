@@ -6,9 +6,12 @@ import SectionHero from '../../components/SectionHero'
 import SectionFooterNav from '../../components/SectionFooterNav'
 import ShareSectionTrigger from '../../components/ShareSectionTrigger'
 import ShareSectionHistory from '../../components/ShareSectionHistory'
+import PlanLimitNotice from '../../components/PlanLimitNotice'
 import DictateButton from '../../components/DictateButton'
 import DictationDisclosure from '../../components/DictationDisclosure'
 import { useDictation } from '../../hooks/useDictation'
+import { useSubscription } from '../../context/SubscriptionContext'
+import { PLAN_LIMITS } from '../../constants/planLimits'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -16,6 +19,7 @@ const empty = { name: '', description: '', notes: '' }
 
 export default function UnfinishedBusinessPage() {
   const navigate = useNavigate()
+  const { isPremium } = useSubscription()
   const [items, setItems]         = useState([])
   const [loading, setLoading]     = useState(true)
   const [saving, setSaving]       = useState(false)
@@ -46,6 +50,11 @@ export default function UnfinishedBusinessPage() {
   }
 
   useEffect(() => { load() }, [])
+
+  const atFreeLimit = !isPremium && items.length >= PLAN_LIMITS.unfinished_business.free
+  const addDisabledTitle = atFreeLimit
+    ? `You've reached the Free plan limit of ${PLAN_LIMITS.unfinished_business.free} entries. Upgrade to Premium to add more.`
+    : undefined
 
   const openAdd = () => { setEditing(null); setForm(empty); setError(''); setShowModal(true) }
   const openEdit = item => {
@@ -106,9 +115,11 @@ export default function UnfinishedBusinessPage() {
         headline="Reconciliation, apologies, and loose ends"
         highlight="loose ends"
         subtext="Record the relationships you'd like mended, the apologies you want made, and anything left unsaid or undone. This is kept separate from your Bucket List and your Messages to Loved Ones, so it stays about the things you'd still like to set right."
-        cta={{ label: '+ Add an entry', onClick: openAdd }}
+        cta={{ label: '+ Add an entry', onClick: openAdd, disabled: atFreeLimit, disabledTitle: addDisabledTitle }}
         secondaryAction={<ShareSectionTrigger section="unfinished_business" sectionLabel="Unfinished Business" />}
       />
+
+      <PlanLimitNotice limitKey="unfinished_business" currentCount={items.length} />
 
       {success && <Alert variant="success">{success}</Alert>}
       {error && !showModal && <Alert variant="danger">{error}</Alert>}

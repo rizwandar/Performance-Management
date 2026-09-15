@@ -3,12 +3,15 @@ import { useNavigate, Link } from 'react-router-dom'
 import { Button, Form, Row, Col, Alert, Modal, Spinner, Badge } from 'react-bootstrap'
 import axios from 'axios'
 import { useAuth } from '../../context/AuthContext'
+import { useSubscription } from '../../context/SubscriptionContext'
 import { formatPhone } from '@in-good-hands/shared/format'
 import SectionHero from '../../components/SectionHero'
 import SectionFooterNav from '../../components/SectionFooterNav'
+import PlanLimitNotice from '../../components/PlanLimitNotice'
 import DictateButton from '../../components/DictateButton'
 import DictationDisclosure from '../../components/DictationDisclosure'
 import { useDictation } from '../../hooks/useDictation'
+import { PLAN_LIMITS } from '../../constants/planLimits'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -43,6 +46,7 @@ const emptyContact = { sequence: '', name: '', relationship: '', email: '', phon
 export default function TrustedContactsPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { isPremium } = useSubscription()
 
   const [contacts, setContacts]   = useState([])
   const [tcLoading, setTcLoading] = useState(true)
@@ -98,6 +102,16 @@ export default function TrustedContactsPage() {
   }, [])
 
   const takenSequences = contacts.map(c => c.sequence)
+
+  // PLAN_LIMITS.trusted_contacts.free (2) is a soft plan cap the server now
+  // rejects past; POSITIONS above (1-3) is the separate structural cap that
+  // always existed. A free user can still have an empty position 3 slot, so
+  // that control needs its own disabled state distinct from the "no
+  // positions left" case already handled by the SectionHero cta below.
+  const atFreeContactLimit = !isPremium && contacts.length >= PLAN_LIMITS.trusted_contacts.free
+  const addContactDisabledTitle = atFreeContactLimit
+    ? `You've reached the Free plan limit of ${PLAN_LIMITS.trusted_contacts.free} trusted contacts. Upgrade to Premium to add more.`
+    : undefined
 
   const openAdd = () => {
     setEditingContact(null)
@@ -220,9 +234,16 @@ export default function TrustedContactsPage() {
         eyebrow="Your People"
         headline="The people you trust"
         highlight="trust"
-        subtext="Trusted contacts are the people who'll be given access to the plans you choose to share with them, when the time comes. You can add up to 3, and choose one of them to be your Legacy Contact: the one person who confirms what's happened and sets everything in motion."
-        cta={contacts.length < 3 ? { label: '+ Add a trusted contact', onClick: openAdd } : undefined}
+        subtext={`Trusted contacts are the people who'll be given access to the plans you choose to share with them, when the time comes. You can add up to ${isPremium ? 3 : 2}${isPremium ? '' : ' on the Free plan (3 on Premium)'}, and choose one of them to be your Legacy Contact: the one person who confirms what's happened and sets everything in motion.`}
+        cta={contacts.length < 3 ? {
+          label: '+ Add a trusted contact',
+          onClick: openAdd,
+          disabled: atFreeContactLimit,
+          disabledTitle: addContactDisabledTitle,
+        } : undefined}
       />
+
+      <PlanLimitNotice limitKey="trusted_contacts" currentCount={contacts.length} />
 
       <div style={{ background: 'var(--parchment)', borderRadius: 'var(--card-radius-sm, 12px)', padding: '24px 24px 16px', marginBottom: 16, border: '1px solid var(--border)' }}>
         <h6 style={{ color: 'var(--green-900)', margin: '0 0 8px' }}>Trusted Contacts</h6>
@@ -328,7 +349,8 @@ export default function TrustedContactsPage() {
                           justifyContent: 'center', fontSize: '0.8rem', fontWeight: 700, flexShrink: 0,
                         }}>{pos}</span>
                         <span className="text-muted" style={{ flex: 1 }}>Position {pos}: empty</span>
-                        <Button size="sm" variant="outline-primary" onClick={openAdd}>+ Add</Button>
+                        <Button size="sm" variant="outline-primary" onClick={openAdd}
+                          disabled={atFreeContactLimit} title={addContactDisabledTitle}>+ Add</Button>
                       </div>
                     )}
                   </div>

@@ -3,14 +3,17 @@ import { useNavigate } from 'react-router-dom'
 import { Button, Form, Row, Col, Alert, Modal, Spinner } from 'react-bootstrap'
 import axios from 'axios'
 import { useAuth } from '../../context/AuthContext'
+import { useSubscription } from '../../context/SubscriptionContext'
 import { formatPhone } from '@in-good-hands/shared/format'
 import SectionHero from '../../components/SectionHero'
 import SectionFooterNav from '../../components/SectionFooterNav'
 import ShareSectionTrigger from '../../components/ShareSectionTrigger'
 import ShareSectionHistory from '../../components/ShareSectionHistory'
+import PlanLimitNotice from '../../components/PlanLimitNotice'
 import DictateButton from '../../components/DictateButton'
 import DictationDisclosure from '../../components/DictationDisclosure'
 import { useDictation } from '../../hooks/useDictation'
+import { PLAN_LIMITS } from '../../constants/planLimits'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -19,6 +22,7 @@ const empty = { name: '', relationship: '', email: '', phone: '', notified_by: '
 export default function PeopleToNotifyPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { isPremium } = useSubscription()
   const [items, setItems]         = useState([])
   const [loading, setLoading]     = useState(true)
   const [saving, setSaving]       = useState(false)
@@ -43,6 +47,11 @@ export default function PeopleToNotifyPage() {
   }
 
   useEffect(() => { load() }, [])
+
+  const atFreeLimit = !isPremium && items.length >= PLAN_LIMITS.people_to_notify.free
+  const addDisabledTitle = atFreeLimit
+    ? `You've reached the Free plan limit of ${PLAN_LIMITS.people_to_notify.free} people. Upgrade to Premium to add more.`
+    : undefined
 
   const openAdd = () => { setEditing(null); setForm(empty); setError(''); setShowModal(true) }
   const openEdit = item => {
@@ -105,9 +114,11 @@ export default function PeopleToNotifyPage() {
         headline="Make sure no one is forgotten"
         highlight="forgotten"
         subtext="When the time comes, who needs to know? List the people you'd want notified, and, just as importantly, who will be responsible for reaching each of them."
-        cta={{ label: '+ Add a person', onClick: openAdd }}
+        cta={{ label: '+ Add a person', onClick: openAdd, disabled: atFreeLimit, disabledTitle: addDisabledTitle }}
         secondaryAction={<ShareSectionTrigger section="people_to_notify" sectionLabel="People to Notify" />}
       />
+
+      <PlanLimitNotice limitKey="people_to_notify" currentCount={items.length} />
 
       <p className="text-muted small mb-4" style={{ fontStyle: 'italic' }}>
         These people don't get access to your plans, only a short, caring notice once your

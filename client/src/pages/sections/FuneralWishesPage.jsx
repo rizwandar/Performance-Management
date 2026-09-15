@@ -6,9 +6,12 @@ import SectionHero from '../../components/SectionHero'
 import SectionFooterNav from '../../components/SectionFooterNav'
 import ShareSectionTrigger from '../../components/ShareSectionTrigger'
 import ShareSectionHistory from '../../components/ShareSectionHistory'
+import PlanLimitNotice from '../../components/PlanLimitNotice'
 import DictateButton from '../../components/DictateButton'
 import DictationDisclosure from '../../components/DictationDisclosure'
 import { useDictation } from '../../hooks/useDictation'
+import { useSubscription } from '../../context/SubscriptionContext'
+import { PLAN_LIMITS } from '../../constants/planLimits'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -63,6 +66,13 @@ function FieldRow({ label, hint, action, children }) {
 
 export default function FuneralWishesPage() {
   const navigate = useNavigate()
+  const { isPremium } = useSubscription()
+  // Plan-aware funeral-gallery photo cap (Free 5, Premium 20) - replaces the
+  // old flat 20 used below so the upload control can't offer a slot the
+  // server (server/routes/documents.js) will reject.
+  const galleryPhotoLimit = isPremium
+    ? (PLAN_LIMITS.funeral_gallery_photos.premium ?? Infinity)
+    : PLAN_LIMITS.funeral_gallery_photos.free
   const [searchParams, setSearchParams] = useSearchParams()
   const [activeSection, setActiveSectionRaw] = useState(() => {
     const fromUrl = searchParams.get('section')
@@ -161,8 +171,10 @@ export default function FuneralWishesPage() {
   const handleGalleryPhotoAdd = async (e) => {
     const files = Array.from(e.target.files || [])
     if (!files.length) return
-    if (galleryPhotos.length + files.length > 20) {
-      setPhotoError('You can add up to 20 gallery photos.')
+    if (galleryPhotos.length + files.length > galleryPhotoLimit) {
+      setPhotoError(isPremium
+        ? `You can add up to ${galleryPhotoLimit} gallery photos.`
+        : `You can add up to ${galleryPhotoLimit} gallery photos on the Free plan. Upgrade to Premium to add more.`)
       e.target.value = ''
       return
     }
@@ -510,7 +522,9 @@ export default function FuneralWishesPage() {
             </div>
           )}
 
-          {galleryPhotos.length < 20 && (
+          <PlanLimitNotice limitKey="funeral_gallery_photos" currentCount={galleryPhotos.length} />
+
+          {galleryPhotos.length < galleryPhotoLimit && (
             <button
               className="btn btn-outline-secondary btn-sm"
               onClick={() => galleryFileRef.current?.click()}
@@ -518,7 +532,7 @@ export default function FuneralWishesPage() {
               style={{ borderStyle: 'dashed' }}>
               {uploadingGallery
                 ? <><Spinner size="sm" animation="border" className="me-1" />Uploading…</>
-                : `+ Add photos (${galleryPhotos.length}/20)`}
+                : `+ Add photos (${galleryPhotos.length}/${galleryPhotoLimit})`}
             </button>
           )}
           <input
