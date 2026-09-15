@@ -40,13 +40,22 @@ const SECTIONS = [
   { id: 'insurance_items',      label: 'Insurance' },
 ]
 
-const POSITIONS = [1, 2, 3]
 const emptyContact = { sequence: '', name: '', relationship: '', email: '', phone: '', invite_message: '' }
 
 export default function TrustedContactsPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const { isPremium } = useSubscription()
+
+  // Numbered "position" slots shown on this page, independent of the actual
+  // server-enforced item limit (PLAN_LIMITS.trusted_contacts). Free keeps
+  // its original 3-slot display (2 usable, one visible-but-locked teaser
+  // slot - unchanged since before this became plan-aware); Premium's grid
+  // now scales to match its real limit instead of a hardcoded 3.
+  const POSITIONS = Array.from(
+    { length: isPremium ? PLAN_LIMITS.trusted_contacts.premium : 3 },
+    (_, i) => i + 1
+  )
 
   const [contacts, setContacts]   = useState([])
   const [tcLoading, setTcLoading] = useState(true)
@@ -103,9 +112,9 @@ export default function TrustedContactsPage() {
 
   const takenSequences = contacts.map(c => c.sequence)
 
-  // PLAN_LIMITS.trusted_contacts.free (2) is a soft plan cap the server now
-  // rejects past; POSITIONS above (1-3) is the separate structural cap that
-  // always existed. A free user can still have an empty position 3 slot, so
+  // PLAN_LIMITS.trusted_contacts.free (2) is the plan cap the server
+  // rejects past; POSITIONS (above) is the separate, larger structural grid
+  // size. A free user can still see an empty, disabled position 3 slot, so
   // that control needs its own disabled state distinct from the "no
   // positions left" case already handled by the SectionHero cta below.
   const atFreeContactLimit = !isPremium && contacts.length >= PLAN_LIMITS.trusted_contacts.free
@@ -139,7 +148,7 @@ export default function TrustedContactsPage() {
 
   const handleSave = async () => {
     if (!form.name.trim()) return setModalError('Name is required.')
-    if (!editingContact && !form.sequence) return setModalError('Please choose a position (1, 2 or 3).')
+    if (!editingContact && !form.sequence) return setModalError('Please choose a position.')
     setSaving(true)
     setModalError('')
     try {
@@ -234,8 +243,8 @@ export default function TrustedContactsPage() {
         eyebrow="Your People"
         headline="The people you trust"
         highlight="trust"
-        subtext={`Trusted contacts are the people who'll be given access to the plans you choose to share with them, when the time comes. You can add up to ${isPremium ? 3 : 2}${isPremium ? '' : ' on the Free plan (3 on Premium)'}, and choose one of them to be your Legacy Contact: the one person who confirms what's happened and sets everything in motion.`}
-        cta={contacts.length < 3 ? {
+        subtext={`Trusted contacts are the people who'll be given access to the plans you choose to share with them, when the time comes. You can add up to ${isPremium ? PLAN_LIMITS.trusted_contacts.premium : PLAN_LIMITS.trusted_contacts.free}${isPremium ? '' : ` on the Free plan (${PLAN_LIMITS.trusted_contacts.premium} on Premium)`}, and choose one of them to be your Legacy Contact: the one person who confirms what's happened and sets everything in motion.`}
+        cta={contacts.length < POSITIONS.length ? {
           label: '+ Add a trusted contact',
           onClick: openAdd,
           disabled: atFreeContactLimit,

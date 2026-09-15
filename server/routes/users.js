@@ -11,6 +11,8 @@ const { generateAccessLink } = require('../lib/inactivityTimer');
 const { stripe } = require('../lib/stripe');
 const { blockViewAs } = require('../lib/viewAsGuard');
 const checkPlanLock = require('../middleware/planLock');
+const { getLimit } = require('../lib/planLimits');
+const { getUserPlan } = require('../lib/subscription');
 
 const CLIENT_URL  = process.env.CLIENT_URL  || 'http://localhost:5173';
 
@@ -114,16 +116,23 @@ async function syncSpouseExecutor(userId, { marital_status, spouse_name, spouse_
     return wasExecutor ? null : { id: linked.id, name: spouse_name, email: spouse_email || null };
   }
 
-  // No linked contact yet. Trusted Contacts caps at 3 (sequence 1-3); if the
-  // owner already used all 3 slots on other people, don't silently fail the
-  // whole profile save, just skip the executor sync and tell the client why.
+  // No linked contact yet. Trusted Contacts caps at a plan-aware limit
+  // (server/lib/planLimits.js - was a flat 3 for everyone before IDEA-43);
+  // if the owner already used all their available slots on other people,
+  // don't silently fail the whole profile save, just skip the executor
+  // sync and tell the client why. This was still hardcoded to 3 when
+  // IDEA-43 first shipped the plan-aware limit to the Trusted Contacts
+  // page itself (trustedContacts.js) - this is a separate code path
+  // (profile-save-triggered spouse sync) that got missed in that pass.
+  const plan = await getUserPlan(userId);
+  const limit = getLimit('trusted_contacts', plan);
   const count = await queryOne('SELECT COUNT(*)::int as c FROM trusted_contacts WHERE user_id = $1', [userId]);
-  if (count.c >= 3) return { blocked: true };
+  if (count.c >= limit) return { blocked: true };
 
   const taken = new Set(
     (await queryAll('SELECT sequence FROM trusted_contacts WHERE user_id = $1', [userId])).map(r => r.sequence)
   );
-  const sequence = [1, 2, 3].find(s => !taken.has(s));
+  const sequence = Array.from({ length: limit }, (_, i) => i + 1).find(s => !taken.has(s));
 
   const newContactId = await transaction(async (client) => {
     await client.query('UPDATE trusted_contacts SET is_executor = 0 WHERE user_id = $1', [userId]);

@@ -490,7 +490,7 @@ export default function FuneralWishesPage() {
           <p style={{ fontWeight: 600, color: 'var(--green-900)', marginBottom: 4 }}>Photographs for the service</p>
           <p className="text-muted small mb-3">
             Add photographs you'd like displayed or shown at your funeral: moments, people, and places
-            that define who you were. Up to 20 photos.
+            that define who you were. Up to {galleryPhotoLimit} photos.
           </p>
 
           {galleryPhotos.length > 0 && (

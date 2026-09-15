@@ -58,7 +58,7 @@ router.post('/', requireAuth, checkPlanLock, async (req, res) => {
   const { sequence, name, relationship, email, phone, invite_message, visible_sections = [] } = req.body;
 
   if (!name)     return res.status(400).json({ error: 'Name is required.' });
-  if (!sequence) return res.status(400).json({ error: 'Sequence (1, 2, or 3) is required.' });
+  if (!sequence) return res.status(400).json({ error: 'A position is required.' });
 
   const invalid = visible_sections.filter(s => !VALID_SECTIONS.has(s));
   if (invalid.length > 0) {

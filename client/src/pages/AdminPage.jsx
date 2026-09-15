@@ -595,13 +595,13 @@ YOUR LEGACY:
 - My Bucket List: life_wishes table. Status field: dream, planning, or completed.
 
 YOUR WISHES:
-- Funeral and End-of-Life Wishes: single record per user. Covers burial preference, ceremony type/location, funeral home, pre-paid plan, music preferences, readings, flowers, donation charity, special requests. Also supports a portrait photo (funeral_main role) and up to 20 gallery photos (funeral_gallery role) via uploaded_documents table.
+- Funeral and End-of-Life Wishes: single record per user. Covers burial preference, ceremony type/location, funeral home, pre-paid plan, music preferences, readings, flowers, donation charity, special requests. Also supports a portrait photo (funeral_main role) and gallery photos (funeral_gallery role, plan-aware limit: 5 on Free, 50 on Premium - see IDEA-43) via uploaded_documents table.
 - Doctors (IDEA-32, split out of the old Medical & Care Wishes): single record per user. GP name, GP phone, hospital preference.
 - Medical Records (IDEA-32, split out of the old Medical & Care Wishes): single record per user. Advance care directive flag and location, DNR preference, current medications, medical conditions, notes.
 
 YOUR PEOPLE:
 - Emergency Contact: a single person to call right away in a crisis, stored on the users table (name, relationship, phone, email, notes). Does NOT receive plan access. (IDEA-27, split out of the old combined "Key Contacts" section.)
-- Trusted Contacts: up to 3 people in a separate trusted_contacts table (max 3 per user, with sequence 1/2/3), each with section-level view permissions. Trusted contacts get 72-hour access links to view permitted sections, except the designated Legacy Contact, whose link never expires. (IDEA-27, split out of the old combined "Key Contacts" section; the underlying trusted_contacts table and routes are unchanged.)
+- Trusted Contacts: stored in a separate trusted_contacts table (sequence-numbered position slots), plan-aware count limit since IDEA-43: 2 on Free, 10 on Premium (server/lib/planLimits.js), each with section-level view permissions. Trusted contacts get 72-hour access links to view permitted sections, except the designated Legacy Contact, whose link never expires. (IDEA-27, split out of the old combined "Key Contacts" section; the underlying trusted_contacts table and routes are unchanged.)
 - People to Notify: people_to_notify table. People who should be contacted when the user passes. Name, relationship, email, phone, notified_by, notes.
 - Your Loved Ones: children_dependants table. Name, type (child/elderly_parent/other), DOB, special needs, preferred guardian, alternate guardian, notes.
 - Pet Care: pets table (IDEA-18, split out of Your Loved Ones). Name, age, special needs/care instructions, preferred caretaker + contact, alternate caretaker + contact, notes.
@@ -631,7 +631,7 @@ VAULT ENCRYPTION:
 ---
 
 TRUSTED CONTACTS SYSTEM:
-- Up to 3 trusted contacts per user.
+- Trusted contacts per user: 2 on Free, 10 on Premium (IDEA-43, server/lib/planLimits.js).
 - Each contact has section-level permissions (which of the 21 sections they can view). Insurance and Pet Care are not yet wired into this list (a pre-existing gap - see the Insurance entry above); Unfinished Business (IDEA-19) and Your Last Moments (IDEA-30) ARE wired in, matching Messages to Loved Ones' access model exactly. Donation Bank (IDEA-32) is deliberately excluded, same as the other vault-protected sections.
 - Access via a signed link emailed to the contact. No separate login required. Valid 72 hours for the two non-Legacy-Contact slots; the Legacy Contact's link never expires (found and fixed 2026-08-06: the owner, who'd normally resend an expired link, is by definition unreachable once the plan is actually triggered).
 - Tokens stored in trusted_contact_tokens table (contact_id, token, expires_at). expires_at is NULL for a Legacy Contact's token, meaning it never expires.
@@ -673,7 +673,7 @@ FILE STORAGE (Cloudflare R2):
 - Key format: {userId}/{sectionId}/{uuid}.{ext} for documents.
 - Signed URLs: 1-hour expiry, generated fresh on each GET.
 - File types: PDF, JPEG, PNG, HEIC, WebP, DOC, DOCX (max 20MB for docs, 15MB for photos).
-- Photo roles: funeral_main (1 per user, old one deleted on upload), funeral_gallery (max 20).
+- Photo roles: funeral_main (1 per user, old one deleted on upload), funeral_gallery (plan-aware: 5 on Free, 50 on Premium - IDEA-43).
 - Logo upload for white-labelling: stored as app_settings key=site_logo.
 
 ---
@@ -868,7 +868,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
             <BpSection title="Key Capabilities">
               <BpTable rows={[
                 ['Secure vault', 'Six sections (Legal Documents, Digital Life, Financial Affairs, Property & Possessions, Practical Household Information, Donation Bank) share one vault password that is never stored on the server. Only the user can unlock their vault, and every text field in all six sections is individually encrypted with a key derived from that password.'],
-                ['Trusted contact access', 'Users choose up to 3 trusted contacts and control exactly which sections each one can view. Contacts receive a secure link (no login required); 72-hour validity for non-Legacy-Contact contacts, non-expiring for the designated Legacy Contact.'],
+                ['Trusted contact access', 'Users choose trusted contacts (2 on Free, 10 on Premium - IDEA-43) and control exactly which sections each one can view. Contacts receive a secure link (no login required); 72-hour validity for non-Legacy-Contact contacts, non-expiring for the designated Legacy Contact.'],
                 ['Inactivity timer', 'Users set a period of inactivity (2 to 24 months). If they have not logged in by then, their trusted contacts are automatically notified with access links.'],
                 ['PDF export', 'Users can download a complete PDF summary of all their plans. A full export option includes vault contents if the vault password is provided at download time.'],
                 ['File attachments', 'Upload photos and documents (PDF, images, Word docs) to Legal Documents, Financial Affairs, Property & Possessions, and Practical Household Information. Stored securely in Cloudflare R2, access-controlled with short-lived signed URLs.'],
@@ -920,7 +920,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
               </p>
               <BpTable rows={[
                 ['Emergency contact', 'A single person to call in an emergency. Stored on the users table (emergency_contact_name, emergency_contact_relationship, emergency_contact_phone, emergency_contact_email, emergency_contact_notes). Does NOT receive plan access. Route: /sections/emergency-contact.'],
-                ['Trusted contacts', 'Up to 3 people who can view the user\'s plans. Stored in trusted_contacts table with sequence 1, 2, or 3, unchanged by the IDEA-27 page split. Route: /sections/trusted-contacts.'],
+                ['Trusted contacts', 'People who can view the user\'s plans, plan-aware limit: 2 on Free, 10 on Premium (IDEA-43). Stored in trusted_contacts table with a sequence-numbered position, unchanged by the IDEA-27 page split. Route: /sections/trusted-contacts.'],
                 ['Section permissions', 'For each trusted contact, the user selects which sections that person can see. Stored in trusted_contact_permissions table. Insurance (IDEA-29) and Pet Care are not yet included in this list. Unfinished Business (IDEA-19) IS included, matching Messages to Loved Ones exactly.'],
                 ['Access links', 'A signed link is emailed to the contact, giving read-only access to permitted sections (or everything except the vault, for the Legacy Contact). No account or login needed. 72-hour validity for non-Legacy-Contact contacts, non-expiring for the Legacy Contact.'],
                 ['Token storage', 'Tokens stored in trusted_contact_tokens table (contact_id, token, expires_at). Old token replaced when a new link is sent.'],
@@ -1251,7 +1251,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
               { id: 'life_wishes', label: 'My Bucket List', route: '/sections/lifes-wishes', note: 'life_wishes table. Status: dream/planning/completed.' },
             ]},
             { group: 'Your Wishes', color: '#5A9A5A', sections: [
-              { id: 'funeral_wishes', label: 'Funeral & End-of-Life Wishes', route: '/sections/funeral-wishes', note: 'Single record per user. Also supports portrait photo (funeral_main) + up to 20 gallery photos (funeral_gallery) via uploaded_documents.' },
+              { id: 'funeral_wishes', label: 'Funeral & End-of-Life Wishes', route: '/sections/funeral-wishes', note: 'Single record per user. Also supports portrait photo (funeral_main) + gallery photos (funeral_gallery, plan-aware: 5 Free / 50 Premium - IDEA-43) via uploaded_documents.' },
               { id: 'doctors', label: 'Doctors', route: '/sections/doctors', note: 'Single record per user. GP name/phone, hospital preference. Not vault-protected (IDEA-32, split out of the old Medical & Care Wishes).' },
               { id: 'medical_records', label: 'Medical Records', route: '/sections/medical-records', note: 'Single record per user. Advance care directive, DNR preference, medications, conditions, notes. Not vault-protected (IDEA-32, split out of the old Medical & Care Wishes).' },
             ]},
@@ -1337,7 +1337,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
             ['Key format', '{userId}/{sectionId}/{uuid}.{ext} for documents. {userId}/{sectionId}/photos/{uuid}.{ext} for photos.'],
             ['Signed URLs', '1-hour expiry. Generated fresh on each GET request. Never stored.'],
             ['File types', 'Documents: PDF, JPEG, PNG, HEIC, WebP, DOC, DOCX (max 20MB). Photos: JPEG, PNG, HEIC, WebP (max 15MB).'],
-            ['Photo roles', 'funeral_main: 1 per user per section (old one deleted on upload). funeral_gallery: max 20 per section.'],
+            ['Photo roles', 'funeral_main: 1 per user per section (old one deleted on upload). funeral_gallery: plan-aware, 5 on Free / 50 on Premium per section (IDEA-43).'],
             ['Item attachments', '1-2 files per item_id, optional. Available in Legal Documents, Financial Affairs, Property & Possessions, and Household Info (section_id = legal_documents / financial_items / property_items / household_info). item_id stored in uploaded_documents.'],
             ['Logo', 'Admin can upload logo via /api/documents/upload with section_id="site_logo". R2 key stored in app_settings key=site_logo.'],
           ]} />
@@ -1366,7 +1366,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
       <div style={card}>
         <BpSection title="10. Trusted Contacts and Inactivity Timer">
           <BpTable rows={[
-            ['Trusted contacts', 'Up to 3 per user. Stored in trusted_contacts table with sequence 1/2/3.'],
+            ['Trusted contacts', 'Plan-aware limit: 2 on Free, 10 on Premium (IDEA-43). Stored in trusted_contacts table with a sequence-numbered position.'],
             ['Section permissions', 'Per-contact JSON array of section_id strings. Admin of which sections each contact can view.'],
             ['Access link', 'POST /api/trusted-contacts/:id/access-link sends a signed link via Resend email. token and expires_at stored in trusted_contact_tokens. 72-hour expiry for non-Legacy-Contact contacts; expires_at is NULL (never expires) for the Legacy Contact.'],
             ['Access page', 'GET /access/:token (public, no auth). Renders read-only view of permitted sections. Uses AccessPage.jsx.'],
