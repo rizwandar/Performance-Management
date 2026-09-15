@@ -9,6 +9,8 @@ const { uploadFile, getDownloadUrl, deleteFile } = require('../lib/r2');
 const { checkVault } = require('../lib/vaultAuth');
 const { isVaultProtectedSection } = require('../lib/vaultSections');
 const { matchesExtension } = require('../lib/fileSignature');
+const { getLimit } = require('../lib/planLimits');
+const { getUserPlan } = require('../lib/subscription');
 
 // Signed URLs for vault-protected documents get a much shorter lifetime than
 // the default 1 hour used for non-vault attachments (funeral photos, admin logo).
@@ -196,12 +198,17 @@ router.post('/photos/upload', requireAuth, checkPlanLock, (req, res, next) => {
     }
 
     if (photo_role === 'funeral_gallery') {
+      const plan = await getUserPlan(userId);
+      const limit = getLimit('funeral_gallery_photos', plan);
       const count = await queryOne(
         `SELECT COUNT(*)::int as c FROM uploaded_documents WHERE user_id = $1 AND section_id = $2 AND photo_role = 'funeral_gallery'`,
         [userId, section_id]
       );
-      if (count.c >= 20) {
-        return res.status(400).json({ error: 'You can add up to 20 gallery photos.' });
+      if (count.c >= limit) {
+        const errorMsg = plan !== 'premium'
+          ? `You can add up to ${limit} funeral gallery photos on the Free plan. Upgrade to Premium to add more.`
+          : `You can add up to ${limit} funeral gallery photos.`;
+        return res.status(400).json({ error: errorMsg });
       }
     }
 
