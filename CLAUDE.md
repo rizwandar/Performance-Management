@@ -60,6 +60,15 @@ For those: branch → PR into `staging` → verify the deployed behavior on stag
 
 **Everything else** (copy changes, UI/dashboard tweaks, small bug fixes, non-schema housekeeping) can go straight to a `main` PR as before — the adversarial review is the gate, not a staging hop. Don't add staging as ceremony for changes that don't need it; that's exactly the kind of unnecessary process cost that let staging drift out of sync last time.
 
+**Keep `staging` synced with `main` after every merge (reinforced 2026-09-15, after `staging` drifted 53 commits / 91 files behind `main` again in under three weeks — the same pattern that caused the 2026-08-27 reset):** the routing rule above is about *order* for risky changes (verify on staging before main); it is not a license to let `staging` sit behind `main` once something has merged. Regardless of which path a change took, immediately fast-forward `staging` to match `main`'s new tip right after the merge:
+
+1. `git fetch origin main staging`
+2. Confirm it's a clean fast-forward first: `git merge-base origin/staging origin/main` must equal `git rev-parse origin/staging` (staging has no commits of its own that aren't already on main). If it doesn't match, stop and flag the divergence to the user rather than force-syncing over unique work.
+3. `git push origin origin/main:staging`
+4. Verify the redeploy actually landed, not just that the git push succeeded — check for a fresh `last-modified` on the staging client response (or equivalent) before considering the sync done.
+
+Do this proactively as a standing habit after any merge to `main`, not just when asked or when reconciling a large drift after the fact.
+
 ## Architecture
 
 ### Monorepo Workspaces
