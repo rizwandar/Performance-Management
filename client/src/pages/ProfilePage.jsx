@@ -10,6 +10,7 @@ import VaultRecoveryQuestionsForm, {
   defaultRecoveryQuestions, validateRecoveryQuestions, toApiQuestions,
 } from '../components/VaultRecoveryQuestionsForm'
 import VaultRecoverForm from '../components/VaultRecoverForm'
+import { PLAN_LIMITS } from '../constants/planLimits'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -69,7 +70,7 @@ function PasswordRequirements({ password }) {
 
 export default function ProfilePage() {
   const { user: authUser, login, logout } = useAuth()
-  const { refresh: refreshSubscription } = useSubscription()
+  const { refresh: refreshSubscription, isPremium } = useSubscription()
   const navigate = useNavigate()
   const [loading, setLoading]   = useState(true)
   const [saving, setSaving]     = useState(false)
@@ -318,7 +319,7 @@ export default function ProfilePage() {
       if (res.data?.spouse_executor_blocked) {
         // Profile fields still saved, only the executor sync was skipped, so
         // this is a warning alongside the save, not a failure of the save.
-        setSuccess('Profile saved. Your spouse could not be added as Legacy Contact: you already have 3 trusted contacts. Remove one on the Trusted Contacts page first, then try again.')
+        setSuccess(`Profile saved. Your spouse could not be added as Legacy Contact: you already have ${isPremium ? PLAN_LIMITS.trusted_contacts.premium : PLAN_LIMITS.trusted_contacts.free} trusted contacts. Remove one on the Trusted Contacts page first, then try again.`)
       } else if (res.data?.spouse_executor_email_skipped) {
         setSuccess("Profile saved. Your spouse has been added as Legacy Contact, but they weren't notified by email since no email address is on file for them.")
       } else {
