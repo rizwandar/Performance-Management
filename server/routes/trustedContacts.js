@@ -6,6 +6,8 @@ const checkPlanLock = require('../middleware/planLock');
 const { sendEmail } = require('../lib/sendEmail');
 const { contactAccessEmail, executorDesignatedEmail } = require('../lib/emailTemplates');
 const { generateAccessLink } = require('../lib/inactivityTimer');
+const { getLimit } = require('../lib/planLimits');
+const { getUserPlan } = require('../lib/subscription');
 
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
 
@@ -63,8 +65,16 @@ router.post('/', requireAuth, checkPlanLock, async (req, res) => {
     return res.status(400).json({ error: `Invalid section(s): ${invalid.join(', ')}` });
   }
 
+  const plan = await getUserPlan(req.user.id);
+  const limit = getLimit('trusted_contacts', plan);
+
   const count = await queryOne('SELECT COUNT(*)::int as c FROM trusted_contacts WHERE user_id = $1', [req.user.id]);
-  if (count.c >= 3) return res.status(400).json({ error: 'You can add up to 3 trusted contacts.' });
+  if (count.c >= limit) {
+    const errorMsg = plan !== 'premium'
+      ? `You can add up to ${limit} trusted contacts on the Free plan. Upgrade to Premium to add more.`
+      : `You can add up to ${limit} trusted contacts.`;
+    return res.status(400).json({ error: errorMsg });
+  }
 
   const existing = await queryOne(
     'SELECT id FROM trusted_contacts WHERE user_id = $1 AND sequence = $2',
