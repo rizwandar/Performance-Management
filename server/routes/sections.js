@@ -13,6 +13,8 @@ const { uploadFile, deleteFile, getDownloadUrl } = require('../lib/r2');
 const { matchesExtension } = require('../lib/fileSignature');
 const { blockViewAs } = require('../lib/viewAsGuard');
 const checkPlanLock = require('../middleware/planLock');
+const { getLimit } = require('../lib/planLimits');
+const { getUserPlan } = require('../lib/subscription');
 
 // Both checks below decode the session token directly (rather than relying on
 // req.user/req.isViewAs) since requireAuth is applied per-route, not globally,
@@ -410,6 +412,16 @@ router.get('/people-to-notify', requireAuth, async (req, res) => {
 router.post('/people-to-notify', requireAuth, checkPlanLock, async (req, res) => {
   const { name, relationship, email, phone, notified_by, notes } = req.body;
   if (!name) return res.status(400).json({ error: 'A name is required.' });
+  const plan = await getUserPlan(req.user.id);
+  const limit = getLimit('people_to_notify', plan);
+  const existingCount = await queryOne('SELECT COUNT(*)::int AS c FROM people_to_notify WHERE user_id = $1', [req.user.id]);
+  if (existingCount.c >= limit) {
+    return res.status(400).json({
+      error: plan !== 'premium'
+        ? `You can add up to ${limit} people on the Free plan. Upgrade to Premium to add more.`
+        : `You can add up to ${limit} people.`,
+    });
+  }
   const result = await query(`
     INSERT INTO people_to_notify (user_id, name, relationship, email, phone, notified_by, notes)
     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id
@@ -529,6 +541,16 @@ router.get('/messages', requireAuth, async (req, res) => {
 router.post('/messages', requireAuth, checkPlanLock, async (req, res) => {
   const { recipient_name, relationship, message, notes } = req.body;
   if (!recipient_name) return res.status(400).json({ error: 'A recipient name is required.' });
+  const plan = await getUserPlan(req.user.id);
+  const limit = getLimit('personal_messages', plan);
+  const existingCount = await queryOne('SELECT COUNT(*)::int AS c FROM personal_messages WHERE user_id = $1', [req.user.id]);
+  if (existingCount.c >= limit) {
+    return res.status(400).json({
+      error: plan !== 'premium'
+        ? `You can add up to ${limit} messages on the Free plan. Upgrade to Premium to add more.`
+        : `You can add up to ${limit} messages.`,
+    });
+  }
   const result = await query(`
     INSERT INTO personal_messages (user_id, recipient_name, relationship, message, notes)
     VALUES ($1, $2, $3, $4, $5) RETURNING id
@@ -568,7 +590,6 @@ router.delete('/messages/:id', requireAuth, checkPlanLock, async (req, res) => {
 const AUDIO_MIME_TYPES = new Set(['audio/webm', 'audio/ogg', 'audio/mp4', 'audio/mpeg', 'audio/wav', 'audio/x-m4a']);
 const AUDIO_EXTENSIONS = new Set(['webm', 'ogg', 'mp4', 'm4a', 'mp3', 'wav']);
 const MAX_AUDIO_DURATION_SECONDS = 300; // 5 minutes - a soft guardrail on storage cost, not enforced against determined tampering
-const MAX_AUDIO_CLIPS_PER_MESSAGE = 3;
 
 // MediaRecorder in the browser reports mimeType with a codec parameter
 // (e.g. "audio/webm;codecs=opus"), which would never exact-match the plain
@@ -617,11 +638,17 @@ router.post('/messages/:id/audio', requireAuth, checkPlanLock, (req, res, next) 
     if (!item) return res.status(404).json({ error: 'Message not found.' });
     if (!req.file) return res.status(400).json({ error: 'No recording provided.' });
 
+    const plan = await getUserPlan(req.user.id);
+    const limit = getLimit('message_audio_clips', plan);
+    const maxClipsError = plan !== 'premium'
+      ? `This message already has the maximum of ${limit} voice recording${limit === 1 ? '' : 's'} on the Free plan. Upgrade to Premium to add more.`
+      : `This message already has the maximum of ${limit} voice recording${limit === 1 ? '' : 's'}. Delete one first to add another.`;
+
     const existingCount = await queryOne(
       'SELECT COUNT(*)::int AS c FROM personal_message_audio_clips WHERE message_id = $1', [item.id]
     );
-    if (existingCount.c >= MAX_AUDIO_CLIPS_PER_MESSAGE) {
-      return res.status(400).json({ error: 'This message already has the maximum of 3 voice recordings. Delete one first to add another.' });
+    if (existingCount.c >= limit) {
+      return res.status(400).json({ error: maxClipsError });
     }
 
     const mimeType = baseMimeType(req.file.mimetype) || 'audio/webm';
@@ -645,12 +672,12 @@ router.post('/messages/:id/audio', requireAuth, checkPlanLock, (req, res, next) 
         // parent message, to close the race between the early check above
         // and this insert - two concurrent uploads for the same message
         // could otherwise both pass the first check and both land, pushing
-        // the message past 3 clips.
+        // the message past the plan's clip limit.
         await client.query('SELECT id FROM personal_messages WHERE id = $1 FOR UPDATE', [item.id]);
         const recount = await client.query(
           'SELECT COUNT(*)::int AS c FROM personal_message_audio_clips WHERE message_id = $1', [item.id]
         );
-        if (recount.rows[0].c >= MAX_AUDIO_CLIPS_PER_MESSAGE) {
+        if (recount.rows[0].c >= limit) {
           throw Object.assign(new Error('MAX_CLIPS'), { code: 'MAX_CLIPS' });
         }
         const insertRes = await client.query(`
@@ -662,7 +689,7 @@ router.post('/messages/:id/audio', requireAuth, checkPlanLock, (req, res, next) 
     } catch (err) {
       if (err.code === 'MAX_CLIPS') {
         await deleteFile(key).catch(() => {});
-        return res.status(400).json({ error: 'This message already has the maximum of 3 voice recordings. Delete one first to add another.' });
+        return res.status(400).json({ error: maxClipsError });
       }
       throw err;
     }
@@ -1196,6 +1223,16 @@ router.get('/unfinished-business', requireAuth, async (req, res) => {
 router.post('/unfinished-business', requireAuth, checkPlanLock, async (req, res) => {
   const { name, description, notes } = req.body;
   if (!name) return res.status(400).json({ error: 'A name is required.' });
+  const plan = await getUserPlan(req.user.id);
+  const limit = getLimit('unfinished_business', plan);
+  const existingCount = await queryOne('SELECT COUNT(*)::int AS c FROM unfinished_business WHERE user_id = $1', [req.user.id]);
+  if (existingCount.c >= limit) {
+    return res.status(400).json({
+      error: plan !== 'premium'
+        ? `You can add up to ${limit} entries on the Free plan. Upgrade to Premium to add more.`
+        : `You can add up to ${limit} entries.`,
+    });
+  }
   const result = await query(`
     INSERT INTO unfinished_business (user_id, name, description, notes)
     VALUES ($1, $2, $3, $4) RETURNING id
