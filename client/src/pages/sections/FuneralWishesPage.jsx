@@ -6,6 +6,7 @@ import SectionHero from '../../components/SectionHero'
 import SectionFooterNav from '../../components/SectionFooterNav'
 import ShareSectionTrigger from '../../components/ShareSectionTrigger'
 import ShareSectionHistory from '../../components/ShareSectionHistory'
+import PlanLimitNotice from '../../components/PlanLimitNotice'
 import DictateButton from '../../components/DictateButton'
 import DictationDisclosure from '../../components/DictationDisclosure'
 import { useDictation } from '../../hooks/useDictation'
@@ -509,6 +510,8 @@ export default function FuneralWishesPage() {
               ))}
             </div>
           )}
+
+          <PlanLimitNotice limitKey="funeral_gallery_photos" currentCount={galleryPhotos.length} />
 
           {galleryPhotos.length < 20 && (
             <button

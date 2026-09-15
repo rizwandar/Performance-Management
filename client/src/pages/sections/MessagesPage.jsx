@@ -6,9 +6,12 @@ import SectionHero from '../../components/SectionHero'
 import SectionFooterNav from '../../components/SectionFooterNav'
 import ShareSectionTrigger from '../../components/ShareSectionTrigger'
 import ShareSectionHistory from '../../components/ShareSectionHistory'
+import PlanLimitNotice from '../../components/PlanLimitNotice'
 import DictateButton from '../../components/DictateButton'
 import DictationDisclosure from '../../components/DictationDisclosure'
 import { useDictation } from '../../hooks/useDictation'
+import { useSubscription } from '../../context/SubscriptionContext'
+import { PLAN_LIMITS } from '../../constants/planLimits'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -46,6 +49,7 @@ function formatSeconds(total) {
 
 export default function MessagesPage() {
   const navigate = useNavigate()
+  const { isPremium } = useSubscription()
   const [items, setItems]         = useState([])
   const [loading, setLoading]     = useState(true)
   const [saving, setSaving]       = useState(false)
@@ -208,6 +212,11 @@ export default function MessagesPage() {
     setShowModal(false)
   }
 
+  const atFreeMessageLimit = !isPremium && items.length >= PLAN_LIMITS.personal_messages.free
+  const addMessageDisabledTitle = atFreeMessageLimit
+    ? `You've reached the Free plan limit of ${PLAN_LIMITS.personal_messages.free} messages. Upgrade to Premium to add more.`
+    : undefined
+
   const openAdd = () => {
     setEditing(null)
     setForm(empty)
@@ -291,9 +300,11 @@ export default function MessagesPage() {
         headline="The words they'll hold onto"
         highlight="hold onto"
         subtext="Write, dictate, or record the words you want them to hear. These messages will be kept safely and passed on to the people who matter most to you."
-        cta={{ label: '+ Write a message', onClick: openAdd }}
+        cta={{ label: '+ Write a message', onClick: openAdd, disabled: atFreeMessageLimit, disabledTitle: addMessageDisabledTitle }}
         secondaryAction={<ShareSectionTrigger section="personal_messages" sectionLabel="Messages to Loved Ones" />}
       />
+
+      <PlanLimitNotice limitKey="personal_messages" currentCount={items.length} />
 
       {success && <Alert variant="success">{success}</Alert>}
       {error && !showModal && <Alert variant="danger">{error}</Alert>}
@@ -415,6 +426,7 @@ export default function MessagesPage() {
                   <span className="text-muted small">{existingClips.length + (recordedBlob ? 1 : 0)} of {MAX_AUDIO_CLIPS}</span>
                 )}
               </div>
+              <PlanLimitNotice limitKey="message_audio_clips" currentCount={existingClips.length} />
               {recordError && <Alert variant="warning" className="py-2 small mb-2">{recordError}</Alert>}
 
               {existingClips.length > 0 && (
