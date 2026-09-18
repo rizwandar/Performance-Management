@@ -16,7 +16,7 @@
 // centralizes that exact logic so it can't drift out of sync a third time.
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
+const { JWT_SECRET } = require('./jwtSecret');
 
 // Cookie first, Bearer header as the mobile-only fallback - same precedence
 // middleware/auth.js's requireAuth already uses (SEC-09). Mobile has no

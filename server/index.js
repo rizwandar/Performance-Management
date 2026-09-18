@@ -1,5 +1,8 @@
 require('dotenv').config();
 require('./instrument');
+// Required early: refuses to start if JWT_SECRET is missing on anything
+// that is not a local development machine. See lib/jwtSecret.js.
+const { JWT_SECRET } = require('./lib/jwtSecret');
 const Sentry = require('@sentry/node');
 const express = require('express');
 const helmet  = require('helmet');
@@ -115,7 +118,7 @@ app.use(async (req, res, next) => {
     const token = req.cookies?.token || req.headers.authorization?.split(' ')[1];
     if (token) {
       try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const decoded = jwt.verify(token, JWT_SECRET);
         if (decoded.is_admin) return next();
       } catch {}
     }
