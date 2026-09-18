@@ -1,4 +1,14 @@
 node_modules/
 package-lock.json
-.env
 *.db
+
+# Environment files. `.env*` covers every variant (.env.local, .env.production,
+# .env.test, ...) at any depth; a bare `.env` did not, so server/.env.local and
+# similar were previously committable.
+.env*
+# Checked-in exceptions: templates with placeholder values only, no secrets.
+!*.env.example
+!.env.example
+# client/.env.development is intentionally tracked. It holds only VITE_API_URL
+# (a local URL, not a credential) and is baked in at build time by Vite.
+!client/.env.development
