@@ -1001,9 +1001,9 @@ async function init() {
        'Render Free Postgres has no automated backups/HA and a hard expiry date. This is the staging DB specifically; production is documented as already on a paid plan.',
        'Recommendation: upgrade to the cheapest paid tier before the expiry date, mainly to stop the auto-delete clock and get Render-native daily backups as a second safety net alongside the app\'s own nightly cron backup.',
        'https://github.com/rizwandar/Performance-Management/issues/18'],
-      ['Hardcoded JWT fallback secret duplicated across 9 files', 'secrets', 'medium', 'open',
-       "process.env.JWT_SECRET || 'dev-secret-change-in-production' is copy-pasted across 9 route/middleware files. Only middleware/auth.js has a startup guard that throws if JWT_SECRET is unset and NODE_ENV is exactly 'production'.",
-       'Should be centralized to one shared constant/module so the safety net can\'t silently miss a new file, or an environment where NODE_ENV isn\'t the literal string "production".',
+      ['Hardcoded JWT fallback secret duplicated across 9 files', 'secrets', 'medium', 'resolved',
+       'process.env.JWT_SECRET plus a hardcoded fallback was copy-pasted across 9 route/middleware files. Only middleware/auth.js had a startup guard, and it threw only when NODE_ENV was exactly "production".',
+       'Fixed 2026-09-18: centralized in server/lib/jwtSecret.js, which every call site now imports. The guard was inverted to fail closed. The secret is required unless the process can affirmatively identify a local development machine (no RENDER, RENDER_SERVICE_NAME, RENDER_EXTERNAL_URL or CI signal, and NODE_ENV not production or staging). An unrecognized deployed environment is now required to set JWT_SECRET rather than exempted from the check.',
        null],
       ['Two hardcoded seed accounts ship to every environment', 'secrets', 'medium', 'open',
        "admin@igh.local/Admin1234 (documented) and demo.orgadmin@igh.local/DemoOrgAdmin1234 (undocumented until this review) are seeded on first boot, including production, with fixed passwords.",
@@ -1074,6 +1074,20 @@ async function init() {
       );
     }
   }
+
+  // The duplicated-JWT-fallback finding above is fixed by server/lib/jwtSecret.js.
+  // The bulk backfill only fires against a fully empty table, so editing that
+  // array alone would never reach staging or production. Guarded on status =
+  // 'open' so this is idempotent and will not stomp a later manual edit.
+  await pool.query(
+    `UPDATE security_findings
+        SET status      = 'resolved',
+            resolved_at = COALESCE(resolved_at, NOW()),
+            details     = $2
+      WHERE title = $1 AND status = 'open'`,
+    ['Hardcoded JWT fallback secret duplicated across 9 files',
+     'Fixed 2026-09-18: centralized in server/lib/jwtSecret.js, which every call site now imports, and the guard was inverted to fail closed. The secret is required unless the process can affirmatively identify a local development machine. Previously the only guard threw when NODE_ENV was exactly "production", which Render sets by default, so staging and production were in fact covered. The real gap was any other host, which would have booted and signed real sessions with a secret published in this repository.']
+  );
 
   // Seed default settings
   for (const [key, value] of [

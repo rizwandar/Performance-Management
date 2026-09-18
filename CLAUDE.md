@@ -94,9 +94,9 @@ The client and mobile apps import from `@in-good-hands/shared`. The Vite config 
 
 **Vault encryption:** `server/lib/vault.js` — AES-256-GCM encryption for digital credentials (Section 3). No server-held key: each encryption key is derived on the fly via scrypt from the user's own vault password (never stored) plus their userId. There is no `VAULT_KEY` env var.
 
-**File uploads:** `server/lib/r2.js` — Cloudflare R2 via AWS S3 SDK. Env vars: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`.
+**File uploads:** `server/lib/r2.js` — Cloudflare R2 via AWS S3 SDK. Env vars: `R2_ENDPOINT`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`. The endpoint var is `R2_ENDPOINT`; `R2_ACCOUNT_ID` is read by no server code.
 
-**Email:** Resend API via `server/lib/email.js`. Env var: `RESEND_API_KEY`.
+**Email:** Resend API via `server/lib/sendEmail.js`. Env vars: `RESEND_API_KEY`, `FROM_EMAIL`.
 
 **Admin seed:** On first run, an admin user is created: `admin@igh.local` / `Admin1234`.
 
@@ -126,22 +126,84 @@ A node-cron job runs daily at 8am. It checks `users.last_active` against each us
 
 ## Environment Variables (Server)
 
-Required in `server/.env`:
+`server/.env.example` is the authoritative list, kept next to the code that
+reads each var. Copy it to `server/.env` and fill in real values. The summary
+below must stay in sync with it.
+
+Required (the server is broken or unsafe without these):
 
 ```
-JWT_SECRET=
 DATABASE_URL=
+JWT_SECRET=
 CLIENT_URL=http://localhost:5173
-R2_ACCOUNT_ID=
+```
+
+Required for file uploads, all read in `server/lib/r2.js`:
+
+```
+R2_ENDPOINT=
 R2_ACCESS_KEY_ID=
 R2_SECRET_ACCESS_KEY=
 R2_BUCKET_NAME=
-RESEND_API_KEY=
 ```
+
+Note `R2_ENDPOINT`, not `R2_ACCOUNT_ID`. This file previously listed
+`R2_ACCOUNT_ID`, which no server code reads, while omitting `R2_ENDPOINT`,
+which `server/lib/r2.js` actually requires. `render.yaml` still sets
+`R2_ACCOUNT_ID` too; it is inert, not load-bearing.
+
+Optional, features degrade rather than fail:
+
+```
+RESEND_API_KEY=                 # lib/sendEmail.js; email skipped with a warning if unset
+FROM_EMAIL=                     # lib/sendEmail.js; falls back to onboarding@resend.dev
+ADMIN_EMAIL=                    # routes/contact.js; falls back to admin@igh.local
+SENTRY_DSN=                     # instrument.js; Sentry disabled if unset
+PORT=3001                       # index.js; defaults to 3001
+NODE_ENV=development
+```
+
+Optional, only needed to exercise billing:
+
+```
+STRIPE_SECRET_KEY=              # lib/stripe.js; throws when a billing path is hit
+STRIPE_WEBHOOK_SECRET=          # routes/stripeWebhook.js
+STRIPE_PRICE_MONTHLY=           # lib/stripe.js
+STRIPE_PRICE_ANNUAL=            # lib/stripe.js
+STRIPE_ORG_PRICE_PROFESSIONAL=  # lib/orgPlanLimits.js, org portal only
+STRIPE_ORG_PRICE_GROWTH=        # lib/orgPlanLimits.js, org portal only
+```
+
+`RENDER_SERVICE_NAME` is injected by Render and read in `instrument.js` and
+`lib/backup.js` to label the environment. Do not set it locally.
+
+`JWT_SECRET` is resolved once, in `server/lib/jwtSecret.js`, and imported from
+there by every route and middleware that signs or verifies a token. The server
+**refuses to start** without it on anything it cannot positively identify as a
+local development machine: it is exempt only when no platform signal is present
+(`RENDER`, `RENDER_SERVICE_NAME`, `RENDER_EXTERNAL_URL`, `CI`) and `NODE_ENV` is
+neither `production` nor `staging`. The check fails closed, so a new deployment
+target that nobody thought to add to that list is required to set the secret
+rather than quietly exempted from it. On a local machine it falls back to a
+shared development value and warns loudly.
+
+Note that `NODE_ENV` alone is not a reliable environment signal here: Render
+sets it to `production` on every web service, staging included, which is why
+`instrument.js` and `lib/backup.js` both use `RENDER_SERVICE_NAME` instead.
 
 `CLIENT_URL` is the only var controlling CORS (`server/index.js`) - if it's unset at runtime, the CORS middleware falls back to reflecting whatever `Origin` header the request sends with `Access-Control-Allow-Credentials: true`, which allows any site to make authenticated, cookie-carrying requests to the API. This file previously (incorrectly) documented this var as `CORS_ORIGIN`, which the code never reads - verify the actual deployed value is named `CLIENT_URL` wherever this service is hosted, not just in this list.
 
 Optional: `ORG_PORTAL_ENABLED=true` registers the org/funeral-home portal routes (`organizations.js`, `orgPortal.js`, `orgPublic.js`, `orgRegister.js`). Unset or any other value keeps them unregistered entirely, not merely rejected (SEC-12) - this is the default in production since the org portal isn't part of the initial end-user launch. Set to `true` on staging/local dev to keep testing it.
+
+### Client and mobile
+
+**Client:** `VITE_API_URL` (required; `client/.env.development` is committed
+and supplies the local value) and `VITE_SENTRY_DSN` (optional). Production
+values come from `render.yaml`, not a local file.
+
+**Mobile:** no `.env` file at all. The API base URL is hardcoded in
+`mobile/src/lib/api.js` and `mobile/src/lib/notifications.js`, and the EAS
+project ID lives in `mobile/app.json`.
 
 ### Secrets management (Infisical)
 
