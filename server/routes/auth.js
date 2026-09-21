@@ -16,10 +16,9 @@ const { JWT_SECRET } = require('../lib/jwtSecret');
 // Reset tokens are high-entropy random values, so a fast hash is enough (unlike
 // passwords, there's nothing to slow an attacker down against - the entropy is
 // the defense). The DB only ever stores this hash, never the raw token; the raw
-// value exists only in the emailed link.
-function hashResetToken(token) {
-  return crypto.createHash('sha256').update(token).digest('hex');
-}
+// value exists only in the emailed link. Shared with the first-boot admin seed
+// in db/database.js, so the two cannot drift apart.
+const { hashResetToken } = require('../lib/resetToken');
 
 // Cheap defense-in-depth against timing side-channels on the DOB comparison in
 // forgot-password. DOB is low-entropy to begin with, so this isn't the primary

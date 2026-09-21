@@ -2,6 +2,8 @@ const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const { sendEmail } = require('../lib/sendEmail');
+const { hashResetToken } = require('../lib/resetToken');
+const { passwordResetEmail } = require('../lib/emailTemplates');
 const { PRIVACY_V1_HTML, TOS_V1_HTML } = require('./legalSeed');
 
 const url = process.env.DATABASE_URL || '';
@@ -1120,37 +1122,51 @@ async function init() {
   // deployment that had never rotated them.
   const adminUser = await queryOne('SELECT id FROM users WHERE email = $1', ['admin@igh.local']);
   if (!adminUser) {
+    // The seeded password is random and is never disclosed to anyone, including
+    // the log. Access is bootstrapped through a single-use reset link instead,
+    // so nothing reusable ends up in an inbox or in the server output.
     const seedPassword = crypto.randomBytes(18).toString('base64url');
     const hash = bcrypt.hashSync(seedPassword, 10);
-    await pool.query(
+    const inserted = await pool.query(
       `INSERT INTO users (name, email, password_hash, is_admin, email_verified)
-       VALUES ($1, $2, $3, 1, 1)`,
+       VALUES ($1, $2, $3, 1, 1) RETURNING id`,
       ['Administrator', 'admin@igh.local', hash]
     );
 
-    // Always log it. Email can silently no-op when RESEND_API_KEY is unset, and
-    // being locked out of a fresh environment is worse than an extra log line.
-    console.warn('[seed] Created admin@igh.local with a generated password:');
-    console.warn('[seed]   ' + seedPassword);
-    console.warn('[seed] Shown once, not recoverable. Sign in and change it now.');
+    // Seven days, not the 30 minutes routes/auth.js uses for a user-initiated
+    // reset. Nobody is waiting by the inbox when a new environment is stood up,
+    // and if this link expires the account is unreachable: admin@igh.local is
+    // not a real mailbox, so it cannot use the forgot-password flow. Recovery
+    // in that case is to delete the admin@igh.local row and redeploy, which
+    // re-seeds and issues a fresh link.
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const expiry   = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    await pool.query(
+      'UPDATE users SET reset_token = $1, reset_token_expiry = $2 WHERE id = $3',
+      [hashResetToken(rawToken), expiry, inserted.rows[0].id]
+    );
 
-    // Also mail it, so standing up a new environment does not depend on
-    // catching that log line in time. ADMIN_SEED_NOTIFY_EMAIL overrides
-    // ADMIN_EMAIL for this one purpose. A failure here must never stop boot.
+    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+    const resetLink = `${clientUrl}/reset-password?token=${rawToken}`;
+
+    // Logged as well as emailed, because sendEmail silently no-ops when
+    // RESEND_API_KEY is unset and being locked out of a fresh environment is
+    // worse than a link in the log. The link is single-use and expires, unlike
+    // a password.
+    console.warn('[seed] Created admin@igh.local. Set its password here (valid 7 days, single use):');
+    console.warn('[seed]   ' + resetLink);
+
     const notify = process.env.ADMIN_SEED_NOTIFY_EMAIL || process.env.ADMIN_EMAIL;
     if (notify) {
       try {
         await sendEmail({
-          to: notify,
-          subject: 'In Good Hands: initial admin password',
-          html: `<p>A new In Good Hands database was initialised and an administrator account was created.</p>
-                 <p><strong>Email:</strong> admin@igh.local<br>
-                 <strong>Password:</strong> <code>${seedPassword}</code></p>
-                 <p>Sign in and change this password now. It is not stored anywhere and cannot be recovered.</p>`,
+          to:      notify,
+          subject: 'In Good Hands: set the administrator password',
+          html:    passwordResetEmail({ name: 'Administrator', resetLink }),
         });
-        console.warn('[seed] Initial admin password emailed to ' + notify);
+        console.warn('[seed] Admin setup link emailed to ' + notify);
       } catch (err) {
-        console.error('[seed] Could not email the initial admin password:', err.message);
+        console.error('[seed] Could not email the admin setup link:', err.message);
       }
     }
   }

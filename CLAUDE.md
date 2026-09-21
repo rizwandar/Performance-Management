@@ -100,7 +100,7 @@ The client and mobile apps import from `@in-good-hands/shared`. The Vite config 
 
 **Email:** Resend API via `server/lib/sendEmail.js`. Env vars: `RESEND_API_KEY`, `FROM_EMAIL`.
 
-**Admin seed:** On first run, an admin user `admin@igh.local` is created with a randomly generated password, printed once to the server log at creation time and not recoverable afterwards. Sign in and change it immediately. It is also emailed to `ADMIN_SEED_NOTIFY_EMAIL` (falling back to `ADMIN_EMAIL`) when one is set and Resend is configured, so standing up a new environment does not depend on catching the log line. It was previously the fixed string `Admin1234`, which shipped to every environment including production and is published in this repository's history. The demo organization and its six fixed-password accounts (`demo.orgadmin@igh.local` plus five demo customers) now seed only when `ORG_PORTAL_ENABLED` is `true`, so they no longer reach production at all.
+**Admin seed:** On first run an admin user `admin@igh.local` is created with a random password that is never disclosed. Access is bootstrapped through a single-use password reset link, valid 7 days, emailed to `ADMIN_SEED_NOTIFY_EMAIL` (falling back to `ADMIN_EMAIL`) and also written to the server log in case Resend is not configured. If that link expires the account is unreachable, since `admin@igh.local` is not a real mailbox and cannot use forgot-password: delete the row and redeploy to re-seed and get a fresh link. It was previously the fixed string `Admin1234`, which shipped to every environment including production and is published in this repository's history. The demo organization and its six fixed-password accounts (`demo.orgadmin@igh.local` plus five demo customers) now seed only when `ORG_PORTAL_ENABLED` is `true`, so they no longer reach production at all.
 
 ### Client (`client/src/`)
 
@@ -169,7 +169,7 @@ Optional, features degrade rather than fail:
 RESEND_API_KEY=                 # lib/sendEmail.js; email skipped with a warning if unset
 FROM_EMAIL=                     # lib/sendEmail.js; falls back to onboarding@resend.dev
 ADMIN_EMAIL=                    # routes/contact.js; falls back to admin@igh.local
-ADMIN_SEED_NOTIFY_EMAIL=        # db/database.js; where to email the generated admin password on a NEW database
+ADMIN_SEED_NOTIFY_EMAIL=        # db/database.js; where to email the admin setup link on a NEW database
 SENTRY_DSN=                     # instrument.js; Sentry disabled if unset
 PORT=3001                       # index.js; defaults to 3001
 NODE_ENV=development
