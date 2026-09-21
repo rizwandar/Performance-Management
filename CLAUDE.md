@@ -100,7 +100,7 @@ The client and mobile apps import from `@in-good-hands/shared`. The Vite config 
 
 **Email:** Resend API via `server/lib/sendEmail.js`. Env vars: `RESEND_API_KEY`, `FROM_EMAIL`.
 
-**Admin seed:** On first run, an admin user is created: `admin@igh.local` / `Admin1234`.
+**Admin seed:** On first run, an admin user `admin@igh.local` is created with a randomly generated password, printed once to the server log at creation time and not recoverable afterwards. Sign in and change it immediately. It was previously the fixed string `Admin1234`, which shipped to every environment including production and is published in this repository's history. The demo organization and its six fixed-password accounts (`demo.orgadmin@igh.local` plus five demo customers) now seed only when `ORG_PORTAL_ENABLED` is `true`, so they no longer reach production at all.
 
 ### Client (`client/src/`)
 
