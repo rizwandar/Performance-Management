@@ -32,13 +32,16 @@ const PLATFORM_ENV_SIGNALS = [
   'CI',
 ];
 
+// Allowlist rather than denylist. Naming the deployed environments would mean
+// a typo or an unanticipated value (NODE_ENV=prod, NODE_ENV=stage) silently
+// counts as local dev. Only these values, and an unset NODE_ENV, are local.
+const LOCAL_NODE_ENVS = ['', 'development', 'dev', 'test', 'local'];
+
 function isLocalDevelopment() {
   if (PLATFORM_ENV_SIGNALS.some((key) => process.env[key])) return false;
 
   const nodeEnv = (process.env.NODE_ENV || '').toLowerCase();
-  if (nodeEnv === 'production' || nodeEnv === 'staging') return false;
-
-  return true;
+  return LOCAL_NODE_ENVS.includes(nodeEnv);
 }
 
 function resolveJwtSecret() {
