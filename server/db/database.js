@@ -1,6 +1,7 @@
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
+const { sendEmail } = require('../lib/sendEmail');
 const { PRIVACY_V1_HTML, TOS_V1_HTML } = require('./legalSeed');
 
 const url = process.env.DATABASE_URL || '';
@@ -1126,9 +1127,32 @@ async function init() {
        VALUES ($1, $2, $3, 1, 1)`,
       ['Administrator', 'admin@igh.local', hash]
     );
+
+    // Always log it. Email can silently no-op when RESEND_API_KEY is unset, and
+    // being locked out of a fresh environment is worse than an extra log line.
     console.warn('[seed] Created admin@igh.local with a generated password:');
     console.warn('[seed]   ' + seedPassword);
     console.warn('[seed] Shown once, not recoverable. Sign in and change it now.');
+
+    // Also mail it, so standing up a new environment does not depend on
+    // catching that log line in time. ADMIN_SEED_NOTIFY_EMAIL overrides
+    // ADMIN_EMAIL for this one purpose. A failure here must never stop boot.
+    const notify = process.env.ADMIN_SEED_NOTIFY_EMAIL || process.env.ADMIN_EMAIL;
+    if (notify) {
+      try {
+        await sendEmail({
+          to: notify,
+          subject: 'In Good Hands: initial admin password',
+          html: `<p>A new In Good Hands database was initialised and an administrator account was created.</p>
+                 <p><strong>Email:</strong> admin@igh.local<br>
+                 <strong>Password:</strong> <code>${seedPassword}</code></p>
+                 <p>Sign in and change this password now. It is not stored anywhere and cannot be recovered.</p>`,
+        });
+        console.warn('[seed] Initial admin password emailed to ' + notify);
+      } catch (err) {
+        console.error('[seed] Could not email the initial admin password:', err.message);
+      }
+    }
   }
 
   // Seed a demo organization with sample customers across every lifecycle status,
