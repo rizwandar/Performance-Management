@@ -9,7 +9,7 @@ const { sendEmail } = require('../lib/sendEmail');
 const { orgAdminInviteEmail } = require('../lib/emailTemplates');
 const { setAuthCookies } = require('../lib/authCookies');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
+const { JWT_SECRET } = require('../lib/jwtSecret');
 
 const BUSINESS_CATEGORIES = [
   'Funeral Home', 'Cremation Services', 'Cemetery / Memorial Park',

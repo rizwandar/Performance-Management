@@ -177,11 +177,19 @@ STRIPE_ORG_PRICE_GROWTH=        # lib/orgPlanLimits.js, org portal only
 `RENDER_SERVICE_NAME` is injected by Render and read in `instrument.js` and
 `lib/backup.js` to label the environment. Do not set it locally.
 
-`JWT_SECRET` has a trap worth knowing: `server/middleware/auth.js` throws at
-startup if it is unset, but only when `NODE_ENV` is exactly `production`.
-Everywhere else, 9 route/middleware files fall back to a shared hardcoded
-`'dev-secret-change-in-production'` value, so a missing secret fails silently
-rather than loudly in dev and on any environment that does not set `NODE_ENV`.
+`JWT_SECRET` is resolved once, in `server/lib/jwtSecret.js`, and imported from
+there by every route and middleware that signs or verifies a token. The server
+**refuses to start** without it on anything it cannot positively identify as a
+local development machine: it is exempt only when no platform signal is present
+(`RENDER`, `RENDER_SERVICE_NAME`, `RENDER_EXTERNAL_URL`, `CI`) and `NODE_ENV` is
+neither `production` nor `staging`. The check fails closed, so a new deployment
+target that nobody thought to add to that list is required to set the secret
+rather than quietly exempted from it. On a local machine it falls back to a
+shared development value and warns loudly.
+
+Note that `NODE_ENV` alone is not a reliable environment signal here: Render
+sets it to `production` on every web service, staging included, which is why
+`instrument.js` and `lib/backup.js` both use `RENDER_SERVICE_NAME` instead.
 
 `CLIENT_URL` is the only var controlling CORS (`server/index.js`) - if it's unset at runtime, the CORS middleware falls back to reflecting whatever `Origin` header the request sends with `Access-Control-Allow-Credentials: true`, which allows any site to make authenticated, cookie-carrying requests to the API. This file previously (incorrectly) documented this var as `CORS_ORIGIN`, which the code never reads - verify the actual deployed value is named `CLIENT_URL` wherever this service is hosted, not just in this list.
 

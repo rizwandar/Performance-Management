@@ -1,4 +1,5 @@
 const express = require('express');
+const { JWT_SECRET } = require('../lib/jwtSecret');
 const router  = express.Router();
 const bcrypt  = require('bcryptjs');
 const crypto  = require('crypto');
@@ -251,7 +252,6 @@ router.post('/customers/:id/view-as', auth, requireOrgUser, async (req, res) => 
   const customerUser = await queryOne('SELECT name FROM users WHERE id = $1', [customer.user_id]);
 
   const jwt = require('jsonwebtoken');
-  const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
   const viewAsToken = jwt.sign(
     {
       id: req.user.id, email: req.user.email, is_admin: false,
@@ -286,7 +286,6 @@ router.post('/view-as/end', auth, async (req, res) => {
   if (!admin) return res.status(401).json({ error: 'Your session has expired. Please sign in again.', session_expired: true });
 
   const jwt = require('jsonwebtoken');
-  const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
   const restoredToken = jwt.sign(
     {
       id: admin.id, email: admin.email, is_admin: admin.is_admin,
