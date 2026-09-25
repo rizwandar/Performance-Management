@@ -2,7 +2,7 @@ require('dotenv').config();
 require('./instrument');
 // Required early: refuses to start if JWT_SECRET is missing on anything
 // that is not a local development machine. See lib/jwtSecret.js.
-const { JWT_SECRET } = require('./lib/jwtSecret');
+const { JWT_SECRET, isLocalDevelopment } = require('./lib/jwtSecret');
 const Sentry = require('@sentry/node');
 const express = require('express');
 const helmet  = require('helmet');
@@ -21,13 +21,29 @@ app.use(helmet({
 }));
 
 const ALLOWED_ORIGIN = process.env.CLIENT_URL || null;
+// Reflecting an arbitrary Origin back together with Allow-Credentials lets ANY
+// website make authenticated, cookie-carrying requests to this API. That is
+// precisely what the old `!ALLOWED_ORIGIN` fallback did, on every environment
+// where CLIENT_URL happened to be unset, which is fail-open on the exact axis
+// SEC-09's httpOnly cookie sessions depend on.
+//
+// The reflection is now confined to a local development machine, using the same
+// positive identification the JWT_SECRET guard uses (lib/jwtSecret.js) rather
+// than a second, separately-drifting notion of "is this production". A deployed
+// environment that loses CLIENT_URL now sends no CORS headers at all: its
+// frontend breaks loudly instead of the API quietly opening to every origin.
+const ALLOW_ORIGIN_REFLECTION = !ALLOWED_ORIGIN && isLocalDevelopment();
+if (!ALLOWED_ORIGIN && !ALLOW_ORIGIN_REFLECTION) {
+  console.warn(
+    '[cors] CLIENT_URL is not set on what looks like a deployed environment.\n' +
+    '       No CORS headers will be sent, so browser clients on another origin\n' +
+    '       will be blocked. Set CLIENT_URL to the site origin.'
+  );
+}
+
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  const isAllowed = !ALLOWED_ORIGIN || origin === ALLOWED_ORIGIN;
-  if (origin && isAllowed) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-  } else if (!ALLOWED_ORIGIN && origin) {
+  if (origin && (origin === ALLOWED_ORIGIN || ALLOW_ORIGIN_REFLECTION)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Credentials', 'true');
   }
