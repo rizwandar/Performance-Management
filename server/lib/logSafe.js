@@ -14,6 +14,9 @@
  *     fabricate entire entries that look like the server's own output.
  *   - Excess length. `subject` at sendEmail.js is built from an unvalidated
  *     `name` on the public contact form, so it is attacker-sized.
+ *   - The double quote, replaced with a single quote. sendEmail.js wraps the
+ *     subject in quotes, so an embedded one can make a reader misjudge where
+ *     that field ends. Cosmetic next to the newline case, but free to close.
  *
  * The pattern uses the Unicode property escape \p{Cc} ("Other, control"), which
  * is exactly U+0000-U+001F plus U+007F-U+009F. An earlier version spelled that
@@ -22,11 +25,14 @@
  */
 
 const CONTROL_CHARS = /\p{Cc}/gu;
+const DOUBLE_QUOTE = /"/g;
 const MAX_LOGGED_LENGTH = 300;
 
 function forLog(value) {
   if (value === null || value === undefined) return String(value);
-  const flattened = String(value).replace(CONTROL_CHARS, ' ');
+  const flattened = String(value)
+    .replace(CONTROL_CHARS, ' ')
+    .replace(DOUBLE_QUOTE, "'");
   return flattened.length > MAX_LOGGED_LENGTH
     ? flattened.slice(0, MAX_LOGGED_LENGTH) + '...[truncated]'
     : flattened;
