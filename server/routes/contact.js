@@ -3,6 +3,7 @@ const router  = express.Router();
 const { sendEmail } = require('../lib/sendEmail');
 const { query } = require('../db/database');
 const { isValidEmail } = require('../lib/validateEmail');
+const { forLog } = require('../lib/logSafe');
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@igh.local';
 
@@ -67,7 +68,7 @@ router.post('/', async (req, res) => {
       subject: `[In Good Hands] ${typeLabel} from ${name}`,
       html,
     });
-    console.log(`[contact] ${typeLabel} from ${email}`);
+    console.log(`[contact] ${forLog(typeLabel)} from ${forLog(email)}`);
     res.json({ success: true });
   } catch (err) {
     console.error('[contact] Email failed:', err.message, '| ADMIN_EMAIL:', ADMIN_EMAIL);
