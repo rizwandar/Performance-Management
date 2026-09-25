@@ -8,6 +8,7 @@ const { PLAN_TIERS, PLAN_RATES } = require('../lib/orgPlanLimits');
 const { sendEmail } = require('../lib/sendEmail');
 const { orgAdminInviteEmail } = require('../lib/emailTemplates');
 const { setAuthCookies } = require('../lib/authCookies');
+const { isValidEmail } = require('../lib/validateEmail');
 
 const { JWT_SECRET } = require('../lib/jwtSecret');
 
@@ -27,7 +28,7 @@ router.post('/apply', async (req, res) => {
     return res.status(400).json({ error: 'Organization name, your name, and your email are required.' });
   }
   const normalizedEmail = applicant_email.trim().toLowerCase();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+  if (!isValidEmail(normalizedEmail)) {
     return res.status(400).json({ error: 'Please enter a valid email address.' });
   }
   const existing = await queryOne('SELECT id FROM users WHERE email = $1', [normalizedEmail]);
