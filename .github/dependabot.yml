@@ -33,9 +33,26 @@ updates:
     # against a mismatched react-dom (error #527), and on 2026-09-25 a
     # Dependabot PR that bumped react alone blanked production for about
     # eight hours. Lint and build both passed; the mismatch only throws at
-    # runtime in a browser. Grouping them makes that split impossible.
+    # runtime in a browser.
+    #
+    # Two groups, deliberately. A groups entry defaults to
+    # applies-to: version-updates, so grouping the routine bumps leaves
+    # SECURITY updates ungrouped, and a GHSA affecting react alone would
+    # still open a react-only PR: the same split, by the one route the
+    # obvious config does not cover. Security updates are enabled on this
+    # repository, so that path is live rather than hypothetical.
+    #
+    # Caveat worth keeping: a group PR only contains the members that have
+    # a pending release, so a react-only release still yields a react-only
+    # bump. The pair ships in lockstep in practice, but check react-dom
+    # before merging either way.
     groups:
       react:
+        patterns:
+          - "react"
+          - "react-dom"
+      react-security:
+        applies-to: "security-updates"
         patterns:
           - "react"
           - "react-dom"
