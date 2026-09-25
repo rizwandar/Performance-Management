@@ -5,13 +5,12 @@
   "workspaces": [
     "shared",
     "client",
-    "server",
-    "mobile"
+    "server"
   ],
   "scripts": {
     "dev:web": "npm run dev --workspace=client",
     "dev:server": "npm run dev --workspace=server",
     "dev:server:infisical": "infisical run --env=dev -- npm run dev --workspace=server",
-    "dev:mobile": "npm run start --workspace=mobile"
+    "dev:mobile": "npm --prefix mobile start"
   }
 }
