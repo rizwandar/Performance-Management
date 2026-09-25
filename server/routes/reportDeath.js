@@ -5,7 +5,7 @@ const { sendEmail } = require('../lib/sendEmail');
 const { executorReportedInviteEmail } = require('../lib/emailTemplates');
 const { generateAccessLink } = require('../lib/inactivityTimer');
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const { isValidEmail } = require('../lib/validateEmail');
 
 // Public, unauthenticated: lets anyone who already knows an In Good Hands member
 // has passed away report it immediately, rather than waiting for the automatic
@@ -20,13 +20,13 @@ const GENERIC_RESPONSE = {
 router.post('/', async (req, res) => {
   const { owner_email, reporter_name, reporter_email, reporter_relationship, reporter_phone } = req.body;
 
-  if (!owner_email || !EMAIL_RE.test(owner_email)) {
+  if (!owner_email || !isValidEmail(owner_email)) {
     return res.status(400).json({ error: "Please enter the account holder's email address." });
   }
   if (!reporter_name || !reporter_name.trim()) {
     return res.status(400).json({ error: 'Please enter your name.' });
   }
-  if (!reporter_email || !EMAIL_RE.test(reporter_email)) {
+  if (!reporter_email || !isValidEmail(reporter_email)) {
     return res.status(400).json({ error: 'Please enter your own email address.' });
   }
 

@@ -2,6 +2,7 @@ const express = require('express');
 const router  = express.Router();
 const { sendEmail } = require('../lib/sendEmail');
 const { query } = require('../db/database');
+const { isValidEmail } = require('../lib/validateEmail');
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@igh.local';
 
@@ -15,7 +16,7 @@ router.post('/', async (req, res) => {
   if (!message || !message.trim()) return res.status(400).json({ error: 'Please enter a message.' });
 
   // Basic email format check
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  if (!isValidEmail(email)) {
     return res.status(400).json({ error: 'Please enter a valid email address.' });
   }
 
