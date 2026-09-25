@@ -1,5 +1,9 @@
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
+const { sendEmail } = require('../lib/sendEmail');
+const { hashResetToken } = require('../lib/resetToken');
+const { passwordResetEmail } = require('../lib/emailTemplates');
 const { PRIVACY_V1_HTML, TOS_V1_HTML } = require('./legalSeed');
 
 const url = process.env.DATABASE_URL || '';
@@ -1063,6 +1067,14 @@ async function init() {
      'Same class of bug as the resolved VAULT_KEY finding above: CLAUDE.md\'s required-env-vars list said CORS_ORIGIN, but server/index.js only ever reads process.env.CLIENT_URL. Unlike VAULT_KEY (which just documented something that does not exist), a wrong var name here would have been live-dangerous: if CLIENT_URL were unset at runtime, the CORS middleware falls back to reflecting whatever Origin header the request sends with Access-Control-Allow-Credentials: true, allowing any site to make authenticated, cookie-carrying requests to the API.',
      'Documentation corrected 2026-08-24 to CLIENT_URL, with an explanation of the fallback risk added inline. Verified in the browser (values not read, names only, per explicit user instruction) on both the in-good-hands-api-staging service and performance-api (the actual production backend at performance-api-djuk.onrender.com, provided directly by the user after this session initially could not locate it) - both have CLIENT_URL set and no CORS_ORIGIN or VAULT_KEY present. No live exposure occurred; this was a documentation-only gap.',
      'Claude Code security review, 2026-08-24'],
+    ['Production Postgres (in-good-hands-db) open to 0.0.0.0/0', 'infrastructure', 'high', 'resolved',
+     'Render inbound IP rules on in-good-hands-db list a single source of 0.0.0.0/0 ("everywhere"), so the production database accepts connections from any address on the internet, protected only by username and password. in-good-hands-db-staging has the identical rule. Workspace-level inbound rules are empty, so each database must be fixed individually.',
+     'Verified directly in the Render dashboard 2026-09-21. RESOLVED 2026-09-24 by the owner: the 0.0.0.0/0 rule was deleted from both in-good-hands-db and in-good-hands-db-staging, leaving each rule list empty, and both Render pages now show "All internet traffic is blocked by PostgreSQL inbound IP rules." The services were unaffected because they connect over Render private network addresses, which these rules do not govern. Verified from outside afterwards against database-backed public endpoints on both environments. GitHub issues #15 and #16 were closed the same day. Still open at low priority: rejectUnauthorized: false in server/db/database.js disables TLS certificate validation for non-localhost connections, which matters less now the public path is closed.',
+     'Claude Code infrastructure review, 2026-09-21'],
+    ['Seeded admin and demo accounts with published fixed passwords', 'secrets', 'high', 'resolved',
+     'admin@igh.local shipped with the fixed password Admin1234, published in this repository. The demo organization additionally seeded demo.orgadmin@igh.local and five demo customer accounts with fixed passwords, ungated by ORG_PORTAL_ENABLED, so they reached production too.',
+     'Resolved 2026-09-21. The production admin password was rotated by the owner, which also bumps session_version and invalidates any existing session on that account. The production user list was checked and contains no igh.local demo accounts, so the demo seed had never materialized there. In code: the admin seed now generates a random password per database and prints it once at creation, and the demo organization block is gated on ORG_PORTAL_ENABLED equal to true, so neither ships to production again. Note the demo guard tests for the organization row, not the users, so deleting that organization re-seeds all six accounts.',
+     'Claude Code security review, 2026-09-21'],
   ];
   for (const [title, category, severity, status, summary, details, source] of infisicalFindings) {
     const existing = await queryOne('SELECT id FROM security_findings WHERE title = $1', [title]);
@@ -1089,6 +1101,21 @@ async function init() {
      'Fixed 2026-09-18: centralized in server/lib/jwtSecret.js, which every call site now imports, and the guard was inverted to fail closed. The secret is required unless the process can affirmatively identify a local development machine. Previously the only guard threw when NODE_ENV was exactly "production", which Render sets by default, so staging and production were in fact covered. The real gap was any other host, which would have booted and signed real sessions with a secret published in this repository.']
   );
 
+  // Same reasoning for the seeded-accounts finding: the bulk array above only
+  // fires against an empty table, so the row already sitting open on staging and
+  // production would never close on its own. The replacement row is logged under
+  // a new title by infisicalFindings, so this closes the original by its own
+  // title. Guarded on status = 'open', so a later manual edit is not stomped.
+  await pool.query(
+    `UPDATE security_findings
+        SET status      = 'resolved',
+            resolved_at = COALESCE(resolved_at, NOW()),
+            details     = $2
+      WHERE title = $1 AND status = 'open'`,
+    ['Two hardcoded seed accounts ship to every environment',
+     'Fixed 2026-09-21, superseded by the finding titled "Seeded admin and demo accounts with published fixed passwords". The admin seed now generates a random password per database and bootstraps via a single-use reset link, and the demo organization block is gated on ORG_PORTAL_ENABLED equal to true. The production admin password was separately rotated by the owner on 2026-09-24.']
+  );
+
   // Seed default settings
   for (const [key, value] of [
     ['password_reset_method', 'email'],
@@ -1102,21 +1129,76 @@ async function init() {
     );
   }
 
-  // Seed admin user
+  // Seed admin user.
+  // The password is generated per database and printed once, at creation time
+  // only. It used to be the hardcoded string Admin1234, which shipped to every
+  // environment including production and is published in this repository's
+  // history, so anyone who read the repo had working admin credentials for any
+  // deployment that had never rotated them.
   const adminUser = await queryOne('SELECT id FROM users WHERE email = $1', ['admin@igh.local']);
   if (!adminUser) {
-    const hash = bcrypt.hashSync('Admin1234', 10);
-    await pool.query(
+    // The seeded password is random and is never disclosed to anyone, including
+    // the log. Access is bootstrapped through a single-use reset link instead,
+    // so nothing reusable ends up in an inbox or in the server output.
+    const seedPassword = crypto.randomBytes(18).toString('base64url');
+    const hash = bcrypt.hashSync(seedPassword, 10);
+    const inserted = await pool.query(
       `INSERT INTO users (name, email, password_hash, is_admin, email_verified)
-       VALUES ($1, $2, $3, 1, 1)`,
+       VALUES ($1, $2, $3, 1, 1) RETURNING id`,
       ['Administrator', 'admin@igh.local', hash]
     );
+
+    // Seven days, not the 30 minutes routes/auth.js uses for a user-initiated
+    // reset. Nobody is waiting by the inbox when a new environment is stood up,
+    // and if this link expires the account is unreachable: admin@igh.local is
+    // not a real mailbox, so it cannot use the forgot-password flow. Recovery
+    // in that case is to delete the admin@igh.local row and redeploy, which
+    // re-seeds and issues a fresh link.
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const expiry   = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    await pool.query(
+      'UPDATE users SET reset_token = $1, reset_token_expiry = $2 WHERE id = $3',
+      [hashResetToken(rawToken), expiry, inserted.rows[0].id]
+    );
+
+    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+    const resetLink = `${clientUrl}/reset-password?token=${rawToken}`;
+
+    // Logged as well as emailed, because sendEmail silently no-ops when
+    // RESEND_API_KEY is unset and being locked out of a fresh environment is
+    // worse than a link in the log. The link is single-use and expires, unlike
+    // a password.
+    console.warn('[seed] Created admin@igh.local. Set its password here (valid 7 days, single use):');
+    console.warn('[seed]   ' + resetLink);
+
+    const notify = process.env.ADMIN_SEED_NOTIFY_EMAIL || process.env.ADMIN_EMAIL;
+    if (notify) {
+      try {
+        await sendEmail({
+          to:      notify,
+          subject: 'In Good Hands: set the administrator password',
+          html:    passwordResetEmail({ name: 'Administrator', resetLink }),
+        });
+        console.warn('[seed] Admin setup link emailed to ' + notify);
+      } catch (err) {
+        console.error('[seed] Could not email the admin setup link:', err.message);
+      }
+    }
   }
 
   // Seed a demo organization with sample customers across every lifecycle status,
   // so the org portal can be showcased in sales meetings without exposing real
   // customer data (org portal spec, section 13).
-  const demoOrg = await queryOne("SELECT id FROM organizations WHERE name = 'Demo Funeral Home'");
+  // Gated on ORG_PORTAL_ENABLED (SEC-12). The demo org seeds six accounts with
+  // fixed, published passwords (Demo Org Admin plus five demo customers). It
+  // previously ran against every database regardless of whether the org portal
+  // was enabled, so those accounts shipped to production even though the routes
+  // that use them are never registered there. Note the guard is on the
+  // organization row, not the users: deleting the org re-seeds all six on the
+  // next boot.
+  const demoOrg = process.env.ORG_PORTAL_ENABLED === 'true'
+    ? await queryOne("SELECT id FROM organizations WHERE name = 'Demo Funeral Home'")
+    : { seedDisabled: true };
   if (!demoOrg) {
     const orgResult = await pool.query(
       `INSERT INTO organizations (name, business_categories, about, plan_tier)

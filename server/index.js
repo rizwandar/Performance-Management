@@ -119,7 +119,24 @@ app.use(async (req, res, next) => {
     if (token) {
       try {
         const decoded = jwt.verify(token, JWT_SECRET);
-        if (decoded.is_admin) return next();
+        // A view-as token carries the org staffer's own id but deliberately
+        // claims is_admin: false (routes/orgPortal.js). Never let one bypass,
+        // regardless of what the underlying account is in the database.
+        if (!decoded.viewAs) {
+          // Re-read admin status live rather than trusting the token's claim.
+          // Every other admin path re-checks per request (middleware/auth.js,
+          // SEC-04/SEC-10); this one did not, so a demoted or deactivated
+          // admin kept bypassing maintenance mode until their token expired.
+          // Same deactivation semantics as requireAuth: an org_role account
+          // with is_active = 0. A throw here falls to the 503 below, so a
+          // database error denies the bypass rather than granting it.
+          const row = await queryOne(
+            'SELECT is_admin, is_active, org_role FROM users WHERE id = $1',
+            [decoded.id]
+          );
+          const deactivated = row?.org_role && row.is_active === 0;
+          if (row?.is_admin && !deactivated) return next();
+        }
       } catch {}
     }
     res.status(503).json({ maintenance: true, error: 'The site is temporarily offline for maintenance. Please check back shortly.' });

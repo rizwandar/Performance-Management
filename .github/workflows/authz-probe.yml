@@ -62,6 +62,18 @@ jobs:
             curl -sf http://localhost:3001/api/health > /dev/null 2>&1 && break
             sleep 1
           done
+          # The probe needs a real admin for its positive control. The seeded
+          # admin no longer has a known password (random per database, bootstrapped
+          # via a single-use reset link), so mint a dedicated admin here rather than
+          # depending on a fixed credential. This keeps the control meaningful:
+          # a genuine admin must still reach /api/admin/users.
+          curl -sf -X POST http://localhost:3001/api/auth/register \
+            -H 'Content-Type: application/json' \
+            -d '{"name":"CI Admin","email":"ci-admin@example.test","password":"CiAdminProbe1234!","privacy_consent":true}' > /dev/null
+          PGPASSWORD=postgres psql -h localhost -U postgres -d authz_ci -q \
+            -c "UPDATE users SET is_admin = 1, email_verified = 1 WHERE email = 'ci-admin@example.test';"
+          SEED_ADMIN_EMAIL=ci-admin@example.test \
+          SEED_ADMIN_PASSWORD='CiAdminProbe1234!' \
           BASE_URL=http://localhost:3001/api node scripts/authz-probe.mjs
           STATUS=$?
           kill $SERVER_PID
