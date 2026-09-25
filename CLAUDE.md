@@ -248,9 +248,13 @@ Whenever a change is pushed that touches one of these areas, add a version entry
 
 | Module    | Covers                                                                 |
 |-----------|-------------------------------------------------------------------------|
-| `client`  | Anything in `client/src` outside `pages/AdminPage.jsx` and the org portal pages |
+| `client`  | Anything in `client/src` outside `pages/AdminPage.jsx` and the org portal pages, **plus anything that changes what the client actually ships** (`client/package.json`, `client/package-lock.json`, `client/vite.config.js`) |
 | `admin`   | `client/src/pages/AdminPage.jsx` and `server/routes/admin.js`          |
 | `org_portal` | Org/funeral-home portal pages, `server/routes/orgPortal.js`, `server/routes/organizations.js` |
+
+The `client` row was widened on 2026-09-25. As originally written it covered only `client/src`, so a dependency upgrade that changed the React runtime the app ships on fell outside every module and went unlogged. A version entry is meant to answer "what is live right now", and the shipped dependency tree is part of that: the react/react-dom mismatch that blanked production for hours touched no file in `client/src` at all.
+
+Server-only changes still have no module of their own, by design. Log them against the area whose behaviour they change, or leave them to the `security_findings` table when that is the better record.
 
 Bump PATCH for fixes, MINOR for new backwards-compatible features, MAJOR for breaking changes. Insert via a one-off script (`query('INSERT INTO app_versions (module, version, summary) VALUES ($1, $2, $3)', [...])`) or the admin UI form.
 

@@ -8,14 +8,16 @@ updates:
       interval: "weekly"
     open-pull-requests-limit: 5
     labels: ["dependencies"]
-    # Mobile is dropped from active development (2026-08-26) - the /mobile
-    # workspace entry below was removed for the same reason, but npm
-    # workspaces hoist some of its dependencies into the root lockfile, so
-    # this root scan would otherwise keep surfacing them anyway. Ignored
-    # here rather than deleted from package-lock.json, since the /mobile
-    # workspace itself is untouched and still needs these to build if
-    # mobile work resumes - remove this ignore list at that point instead
-    # of re-adding a separate /mobile entry from scratch.
+    # Mobile is dropped from active development (2026-08-26) and, since
+    # 2026-09-25, is no longer an npm workspace at all: it was removed from
+    # the root workspaces array after a react version it pinned was hoisted
+    # over the client's own and blanked production for several hours.
+    #
+    # The original reason for this ignore list was that workspace hoisting
+    # pulled mobile's dependencies into the root lockfile. That is no longer
+    # true. The list is kept because it is harmless and still expresses the
+    # intent (do not open PRs for a deprecated target), but it is no longer
+    # load-bearing. Remove it if mobile work ever resumes.
     ignore:
       - dependency-name: "react-native*"
       - dependency-name: "expo*"
@@ -27,6 +29,33 @@ updates:
       interval: "weekly"
     open-pull-requests-limit: 5
     labels: ["dependencies"]
+    # react and react-dom must move together. React refuses to initialise
+    # against a mismatched react-dom (error #527), and on 2026-09-25 a
+    # Dependabot PR that bumped react alone blanked production for about
+    # eight hours. Lint and build both passed; the mismatch only throws at
+    # runtime in a browser.
+    #
+    # Two groups, deliberately. A groups entry defaults to
+    # applies-to: version-updates, so grouping the routine bumps leaves
+    # SECURITY updates ungrouped, and a GHSA affecting react alone would
+    # still open a react-only PR: the same split, by the one route the
+    # obvious config does not cover. Security updates are enabled on this
+    # repository, so that path is live rather than hypothetical.
+    #
+    # Caveat worth keeping: a group PR only contains the members that have
+    # a pending release, so a react-only release still yields a react-only
+    # bump. The pair ships in lockstep in practice, but check react-dom
+    # before merging either way.
+    groups:
+      react:
+        patterns:
+          - "react"
+          - "react-dom"
+      react-security:
+        applies-to: "security-updates"
+        patterns:
+          - "react"
+          - "react-dom"
 
   - package-ecosystem: "npm"
     directory: "/server"

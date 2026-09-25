@@ -46,7 +46,11 @@ async function sendEmail({ to, subject, html }) {
     } else if (res.status === 422) {
       console.error(`[email] Resend rejected the sender domain. Use a verified domain and set FROM_EMAIL in server/.env`);
     } else {
-      console.error(`[email] Resend error ${res.status}: ${body}`);
+      // Resend echoes parts of the request back in its error text, including
+      // the recipient and subject we sent, so this body can carry values a
+      // user supplied. forLog also caps it, which bounds an arbitrarily
+      // large error response.
+      console.error(`[email] Resend error ${res.status}: ${forLog(body)}`);
     }
     throw new Error(`Email delivery failed (${res.status})`);
   }
