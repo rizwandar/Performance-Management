@@ -6,6 +6,7 @@ const { executorReportedInviteEmail } = require('../lib/emailTemplates');
 const { generateAccessLink } = require('../lib/inactivityTimer');
 
 const { isValidEmail } = require('../lib/validateEmail');
+const { forLog } = require('../lib/logSafe');
 
 // Public, unauthenticated: lets anyone who already knows an In Good Hands member
 // has passed away report it immediately, rather than waiting for the automatic
@@ -58,7 +59,7 @@ router.post('/', async (req, res) => {
             }),
           });
         } catch (err) {
-          console.error(`[report-death] Failed to email executor ${executor.email}:`, err.message);
+          console.error(`[report-death] Failed to email executor ${forLog(executor.email)}:`, err.message);
         }
       }
 
