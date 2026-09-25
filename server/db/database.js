@@ -1067,9 +1067,9 @@ async function init() {
      'Same class of bug as the resolved VAULT_KEY finding above: CLAUDE.md\'s required-env-vars list said CORS_ORIGIN, but server/index.js only ever reads process.env.CLIENT_URL. Unlike VAULT_KEY (which just documented something that does not exist), a wrong var name here would have been live-dangerous: if CLIENT_URL were unset at runtime, the CORS middleware falls back to reflecting whatever Origin header the request sends with Access-Control-Allow-Credentials: true, allowing any site to make authenticated, cookie-carrying requests to the API.',
      'Documentation corrected 2026-08-24 to CLIENT_URL, with an explanation of the fallback risk added inline. Verified in the browser (values not read, names only, per explicit user instruction) on both the in-good-hands-api-staging service and performance-api (the actual production backend at performance-api-djuk.onrender.com, provided directly by the user after this session initially could not locate it) - both have CLIENT_URL set and no CORS_ORIGIN or VAULT_KEY present. No live exposure occurred; this was a documentation-only gap.',
      'Claude Code security review, 2026-08-24'],
-    ['Production Postgres (in-good-hands-db) open to 0.0.0.0/0', 'infrastructure', 'high', 'open',
+    ['Production Postgres (in-good-hands-db) open to 0.0.0.0/0', 'infrastructure', 'high', 'resolved',
      'Render inbound IP rules on in-good-hands-db list a single source of 0.0.0.0/0 ("everywhere"), so the production database accepts connections from any address on the internet, protected only by username and password. in-good-hands-db-staging has the identical rule. Workspace-level inbound rules are empty, so each database must be fixed individually.',
-     'Verified directly in the Render dashboard 2026-09-21. Compounded by rejectUnauthorized: false in server/db/database.js, which disables TLS certificate validation, so there is no second check on who is answering. Remediation is a dashboard change, not code: confirm DATABASE_URL uses the internal hostname rather than the external one, then delete the 0.0.0.0/0 rule. Note render.yaml is staging-only, so production DATABASE_URL was configured by hand and must be checked separately. The prior finding recorded this for staging only; production was never logged.',
+     'Verified directly in the Render dashboard 2026-09-21. RESOLVED 2026-09-24 by the owner: the 0.0.0.0/0 rule was deleted from both in-good-hands-db and in-good-hands-db-staging, leaving each rule list empty, and both Render pages now show "All internet traffic is blocked by PostgreSQL inbound IP rules." The services were unaffected because they connect over Render private network addresses, which these rules do not govern. Verified from outside afterwards against database-backed public endpoints on both environments. GitHub issues #15 and #16 were closed the same day. Still open at low priority: rejectUnauthorized: false in server/db/database.js disables TLS certificate validation for non-localhost connections, which matters less now the public path is closed.',
      'Claude Code infrastructure review, 2026-09-21'],
     ['Seeded admin and demo accounts with published fixed passwords', 'secrets', 'high', 'resolved',
      'admin@igh.local shipped with the fixed password Admin1234, published in this repository. The demo organization additionally seeded demo.orgadmin@igh.local and five demo customer accounts with fixed passwords, ungated by ORG_PORTAL_ENABLED, so they reached production too.',
@@ -1099,6 +1099,21 @@ async function init() {
       WHERE title = $1 AND status = 'open'`,
     ['Hardcoded JWT fallback secret duplicated across 9 files',
      'Fixed 2026-09-18: centralized in server/lib/jwtSecret.js, which every call site now imports, and the guard was inverted to fail closed. The secret is required unless the process can affirmatively identify a local development machine. Previously the only guard threw when NODE_ENV was exactly "production", which Render sets by default, so staging and production were in fact covered. The real gap was any other host, which would have booted and signed real sessions with a secret published in this repository.']
+  );
+
+  // Same reasoning for the seeded-accounts finding: the bulk array above only
+  // fires against an empty table, so the row already sitting open on staging and
+  // production would never close on its own. The replacement row is logged under
+  // a new title by infisicalFindings, so this closes the original by its own
+  // title. Guarded on status = 'open', so a later manual edit is not stomped.
+  await pool.query(
+    `UPDATE security_findings
+        SET status      = 'resolved',
+            resolved_at = COALESCE(resolved_at, NOW()),
+            details     = $2
+      WHERE title = $1 AND status = 'open'`,
+    ['Two hardcoded seed accounts ship to every environment',
+     'Fixed 2026-09-21, superseded by the finding titled "Seeded admin and demo accounts with published fixed passwords". The admin seed now generates a random password per database and bootstraps via a single-use reset link, and the demo organization block is gated on ORG_PORTAL_ENABLED equal to true. The production admin password was separately rotated by the owner on 2026-09-24.']
   );
 
   // Seed default settings
