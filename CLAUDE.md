@@ -26,7 +26,8 @@ npm install
 # Development (run concurrently)
 npm run dev:web        # Vite on :5173
 npm run dev:server     # Express on :3001 (node --watch)
-npm run dev:mobile     # Expo (iOS/Android)
+npm run dev:mobile     # Expo (iOS/Android). Runs via `npm --prefix mobile`, not the
+                       # workspace mechanism, since mobile is no longer a workspace.
 
 # Production build (client)
 npm run build
@@ -76,7 +77,7 @@ Do this proactively as a standing habit after any merge to `main`, not just when
 ### Monorepo Workspaces
 - `client/` — React 19 + Vite SPA
 - `server/` — Express 5 REST API
-- `mobile/` — Expo 54 / React Native (Expo Router)
+- `mobile/` — Expo 54 / React Native (Expo Router). **No longer an npm workspace** (removed 2026-09-25) and not built or deployed. The directory is kept for a future mobile effort.
 - `shared/` — shared helpers. Currently just `format.js` (the package's only export, `./format`), not the `api.js`/`auth.js`/`constants.js` trio this file used to claim.
 
 The client and mobile apps import from `@in-good-hands/shared`. The Vite config aliases this path; Expo resolves it via `metro.config.js`. In practice the only thing imported today is `formatPhone` from `@in-good-hands/shared/format`. Anything server-only (for example the plan limits below) has no home here yet, which is why those get hand-mirrored instead.
@@ -115,6 +116,10 @@ The client and mobile apps import from `@in-good-hands/shared`. The Vite config 
 **Admin panel** (`pages/AdminPage.jsx`) — theme/font switcher (11 color themes, 6 fonts stored in `app_settings` table), logo upload for white-labelling, user management, security findings log, maintenance tools.
 
 ### Mobile (`mobile/`)
+
+**Deprecated as a build target (2026-09-25).** The mobile app is not being built, and `mobile/` was removed from the root `workspaces` array after a version it pinned (`react` at exactly `19.3.0`) was hoisted over the client's own and blanked production for several hours. A workspace shares one hoisted dependency tree with every other workspace, so a deprecated one still dictates what the deployed apps resolve.
+
+The API must nonetheless stay mobile-ready: a future mobile client will consume the same endpoints. In particular the `Authorization: Bearer` path in `server/middleware/auth.js` is deliberate, not legacy, and must not be collapsed into cookie-only auth. Keep endpoint payloads client-agnostic.
 
 Expo Router with file-based routing in `mobile/app/`. Bottom tab navigation mirrors the main sections. Uses `expo-secure-store` for token storage and `expo-notifications` for push notifications. Build config: `app.json` (bundle ID `com.ingoodhands.app`).
 

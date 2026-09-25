@@ -12,13 +12,15 @@
  *   • Set RESEND_API_KEY in server/.env. If the key is missing or invalid,
  *     emails are skipped with a console warning (no hard crash).
  */
+const { forLog } = require('./logSafe');
+
 const FROM_EMAIL = process.env.FROM_EMAIL || 'In Good Hands <onboarding@resend.dev>';
 
 async function sendEmail({ to, subject, html }) {
   const apiKey = process.env.RESEND_API_KEY;
 
   if (!apiKey) {
-    console.warn(`[email] RESEND_API_KEY not set — skipping email to ${to}`);
+    console.warn(`[email] RESEND_API_KEY not set, skipping email to ${forLog(to)}`);
     return;
   }
 
@@ -49,7 +51,7 @@ async function sendEmail({ to, subject, html }) {
     throw new Error(`Email delivery failed (${res.status})`);
   }
 
-  console.log(`[email] Sent "${subject}" to ${to}`);
+  console.log(`[email] Sent "${forLog(subject)}" to ${forLog(to)}`);
 }
 
 module.exports = { sendEmail };

@@ -13,7 +13,7 @@ const {
 
 const CLIENT_URL   = process.env.CLIENT_URL || 'http://localhost:5173';
 const EXPIRES_HOURS = 72;
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const { isValidEmail } = require('../lib/validateEmail');
 
 // ---------------------------------------------------------------------------
 // Create a share: name + email + section, immediate email, secure link.
@@ -24,7 +24,7 @@ router.post('/', requireAuth, async (req, res) => {
 
   if (!isValidSection(section)) return res.status(400).json({ error: 'Unknown section.' });
   if (!recipient_name?.trim())  return res.status(400).json({ error: 'Recipient name is required.' });
-  if (!recipient_email?.trim() || !EMAIL_RE.test(recipient_email.trim())) {
+  if (!recipient_email?.trim() || !isValidEmail(recipient_email.trim())) {
     return res.status(400).json({ error: 'A valid recipient email is required.' });
   }
 
