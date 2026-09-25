@@ -2,6 +2,8 @@
 
 Status: **Fully scoped, ready for implementation planning.** Scoped 2026-08-27, revised 2026-09-15 to fold in SEC-24 (vault-inheritance gap) as a capability on the same system and reverse the original Premium-only billing gate, finalized 2026-09-16 with the last two open decisions (Premium login-capacity ceiling, Helper's edit affordance).
 
+**Launch is blocked on a legal-documentation change**, not on scoping: see "Pre-launch requirement" below before shipping this to real users.
+
 ## What this replaces / doesn't replace
 
 - **Replaces:** nothing existing is removed. The current token-link access flow (`server/lib/inactivityTimer.js`'s `generateAccessLink`, `trusted_contact_tokens`) keeps working exactly as today for owners who don't opt in to this.
@@ -94,6 +96,27 @@ User-requested 2026-09-15: a trusted-access login (base, Helper, or Designated P
 9. **Post-login view is one consolidated read-only page** (reusing `AccessPage.jsx`'s existing rendering), not navigation through the app's own section pages - see the dedicated section above.
 10. **Login-capacity cap:** 1 contact free, 10 on Premium (matches the trusted-contacts premium ceiling exactly) - separate from and smaller-on-Free-only than the existing IDEA-43 trusted-contact-count cap.
 11. **Helper's edit affordance (finalized 2026-09-16):** read-only overview on the same consolidated page as everyone else; an "Edit →" link on each writable section opens the real, existing section page rather than a new inline editor - see the dedicated section above.
+
+## Pre-launch requirement: legal documents must ship with this feature
+
+**Blocking. This feature must not launch until the Privacy Policy and the Terms have been updated and published as a new version.**
+
+The live Privacy Policy (v3, published 2026-09-01) is silent on trusted contacts and access links. It says nothing about a third party holding a persistent login into another user's data, nothing about what a Designated Person can read (vault content included), nothing about Helper edits being written to an audit log, and nothing about how long any of that access persists or how it is revoked. Everything in this spec is a material change to who can see a user's personal data and under what conditions, so the published policy has to describe it before the first real user grants access.
+
+What needs to be covered, at minimum:
+
+- That an owner can grant a named third party a persistent login that reads their recorded data, effective immediately rather than only after death or inactivity.
+- The three capability levels and their scope: base read-only on non-vault sections, Helper edit rights on specific sections, and Designated Person read access to vault-protected sections.
+- That Helper edits are recorded in an audit log, what that log captures, and how long it is retained.
+- What the trusted person's own account is, what data is held about them, and their rights over it, given they are a data subject in their own right and not just an attribute of the owner's record.
+- How access is disabled or permanently removed, and what happens to the trusted person's account and to the audit trail in each case.
+- How this sits alongside the existing token-link access flow, which is unchanged and still fires on inactivity or death.
+
+The Terms need the matching treatment: what the owner is agreeing to when they grant access, what the trusted person is agreeing to when they accept an invite, and the fact that a Helper's edits are attributed to the Helper rather than to the owner.
+
+**Do not republish the Privacy Policy on its own to cover this.** The policy update and this feature's launch are one change and should be sequenced together: draft the new version alongside the implementation, then publish it as the feature goes live (or immediately before), keeping the version bump tied to the capability it describes. Publishing a policy that describes trusted-access logins while no such thing exists in the product is its own accuracy problem, and that is exactly the pattern that left the stale "links expire after 72 hours" claim sitting in an earlier version.
+
+This is a legal-documentation requirement, not an engineering one. The wording should be reviewed by someone qualified before it is published, particularly the Designated Person vault-access consent language, since that is the most permissive grant in the system.
 
 ## Suggested next step
 

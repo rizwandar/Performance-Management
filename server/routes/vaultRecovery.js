@@ -11,7 +11,7 @@ const { escrowAllTriples, tryRecoverKey } = require('../lib/vaultRecovery');
 const { recordVaultAttempt, getVaultLockStatus, resetVaultAttempts, LOCKOUT_MINUTES } = require('../lib/vaultAttempts');
 const { extractToken } = require('../lib/viewAsGuard');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
+const { JWT_SECRET } = require('../lib/jwtSecret');
 
 // This router was missing the same protections routes/sections.js applies to
 // every vault route (found in a 2026-08-15 security review before this PR was

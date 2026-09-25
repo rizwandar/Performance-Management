@@ -69,15 +69,17 @@ For those: branch → PR into `staging` → verify the deployed behavior on stag
 
 Do this proactively as a standing habit after any merge to `main`, not just when asked or when reconciling a large drift after the fact.
 
+**When `staging` is legitimately *ahead* of `main`, none of the above applies.** Staging-first changes awaiting promotion are the system working as intended, not drift: step 2's check will show `staging` has commits of its own, and the correct response is to leave it completely alone. Do not fast-forward, do not force-push, and do not "reconcile" it. Land docs-only changes on `staging` in that state and let them ride along with the pending promotion, rather than opening a competing `main` PR that would put the same file on two divergent paths.
+
 ## Architecture
 
 ### Monorepo Workspaces
 - `client/` — React 19 + Vite SPA
 - `server/` — Express 5 REST API
 - `mobile/` — Expo 54 / React Native (Expo Router)
-- `shared/` — shared constants and helpers (`api.js`, `auth.js`, `constants.js`)
+- `shared/` — shared helpers. Currently just `format.js` (the package's only export, `./format`), not the `api.js`/`auth.js`/`constants.js` trio this file used to claim.
 
-The client and mobile apps import from `@in-good-hands/shared`. The Vite config aliases this path; Expo resolves it via `metro.config.js`.
+The client and mobile apps import from `@in-good-hands/shared`. The Vite config aliases this path; Expo resolves it via `metro.config.js`. In practice the only thing imported today is `formatPhone` from `@in-good-hands/shared/format`. Anything server-only (for example the plan limits below) has no home here yet, which is why those get hand-mirrored instead.
 
 ### Server (`server/`)
 
@@ -85,7 +87,7 @@ The client and mobile apps import from `@in-good-hands/shared`. The Vite config 
 
 **Database:** PostgreSQL via `pg` (node-postgres), using the `Pool` implementation in `server/db/database.js`, connected through the `DATABASE_URL` env var. Schema initialization and migrations remain inline at application startup, via patterns such as `CREATE TABLE IF NOT EXISTS` and `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`. There is currently no separate migration runner.
 
-**Routes** are in `server/routes/`. One file per domain: `auth.js`, `users.js`, `sections.js`, `trusted-contacts.js`, `documents.js`, `export.js`, `billing.js`, `admin.js`, `deezer.js`, `contact.js`.
+**Routes** are in `server/routes/`. One file per domain, camelCase where a name has more than one word: `auth.js`, `users.js`, `sections.js`, `trustedContacts.js`, `documents.js`, `export.js`, `billing.js`, `admin.js`, `deezer.js`, `contact.js`. That list is not exhaustive; `ls server/routes/` is the reliable check.
 
 **Key middleware:**
 - `server/middleware/auth.js` — JWT verification (from an httpOnly cookie for web, or an `Authorization: Bearer` header for mobile, which has no browser cookie jar), attaches `req.user`. Also enforces CSRF (double-submit cookie) on mutating requests authenticated via cookie, and live-checks session_version/is_active/is_admin against the DB (SEC-04/SEC-10)
@@ -94,9 +96,9 @@ The client and mobile apps import from `@in-good-hands/shared`. The Vite config 
 
 **Vault encryption:** `server/lib/vault.js` — AES-256-GCM encryption for digital credentials (Section 3). No server-held key: each encryption key is derived on the fly via scrypt from the user's own vault password (never stored) plus their userId. There is no `VAULT_KEY` env var.
 
-**File uploads:** `server/lib/r2.js` — Cloudflare R2 via AWS S3 SDK. Env vars: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`.
+**File uploads:** `server/lib/r2.js` — Cloudflare R2 via AWS S3 SDK. Env vars: `R2_ENDPOINT`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`. The endpoint var is `R2_ENDPOINT`; `R2_ACCOUNT_ID` is read by no server code.
 
-**Email:** Resend API via `server/lib/email.js`. Env var: `RESEND_API_KEY`.
+**Email:** Resend API via `server/lib/sendEmail.js`. Env vars: `RESEND_API_KEY`, `FROM_EMAIL`.
 
 **Admin seed:** On first run, an admin user is created: `admin@igh.local` / `Admin1234`.
 
@@ -120,36 +122,107 @@ Expo Router with file-based routing in `mobile/app/`. Bottom tab navigation mirr
 
 Free users have limited section capacity. Premium users are unlocked. All users who registered before the freemium launch were auto-granted premium. Subscription state is checked via `SubscriptionContext` on the client and enforced in `server/routes/billing.js`.
 
+There are two distinct kinds of limit, and they are easy to confuse:
+
+1. **Whole-section gating** (is this entire section available on Free at all), enforced per route by the `requirePremium` middleware.
+2. **Per-item count caps within a section that Free users can already use** (IDEA-43, shipped 2026-09-15). These live in `server/lib/planLimits.js`, which is the source of truth: `PLAN_LIMITS` plus a `getLimit(key, plan)` helper returning `Infinity` for an uncapped Premium value. Current caps (Free / Premium): trusted contacts 2/10, messages to loved ones 2/unlimited, unfinished business 2/unlimited, people to notify 2/unlimited, funeral gallery photos 5/50, voice clips per message 1/3.
+
+`client/src/constants/planLimits.js` mirrors those numbers for the `PlanLimitNotice` upgrade prompt. It is display copy only, the server is the enforcement point, and the two files are kept in sync **by hand** because `shared/` has no home for server-only values. Change one, change the other in the same commit.
+
+A `signup_trial_active` user (BIL-08's 30-day no-card vault trial) already reads as `plan: 'premium'` from `getUserPlan()`, so these caps compose with the trial with no extra code.
+
 ### Inactivity System
 
 A node-cron job runs daily at 8am. It checks `users.last_active` against each user's configured inactivity period. When triggered, it emails the user a warning, then (after a grace period) notifies trusted contacts with time-limited access tokens.
 
 ## Environment Variables (Server)
 
-Required in `server/.env`:
+`server/.env.example` is the authoritative list, kept next to the code that
+reads each var. Copy it to `server/.env` and fill in real values. The summary
+below must stay in sync with it.
+
+Required (the server is broken or unsafe without these):
 
 ```
-JWT_SECRET=
 DATABASE_URL=
+JWT_SECRET=
 CLIENT_URL=http://localhost:5173
-R2_ACCOUNT_ID=
+```
+
+Required for file uploads, all read in `server/lib/r2.js`:
+
+```
+R2_ENDPOINT=
 R2_ACCESS_KEY_ID=
 R2_SECRET_ACCESS_KEY=
 R2_BUCKET_NAME=
-RESEND_API_KEY=
 ```
+
+Note `R2_ENDPOINT`, not `R2_ACCOUNT_ID`. This file previously listed
+`R2_ACCOUNT_ID`, which no server code reads, while omitting `R2_ENDPOINT`,
+which `server/lib/r2.js` actually requires. `render.yaml` still sets
+`R2_ACCOUNT_ID` too; it is inert, not load-bearing.
+
+Optional, features degrade rather than fail:
+
+```
+RESEND_API_KEY=                 # lib/sendEmail.js; email skipped with a warning if unset
+FROM_EMAIL=                     # lib/sendEmail.js; falls back to onboarding@resend.dev
+ADMIN_EMAIL=                    # routes/contact.js; falls back to admin@igh.local
+SENTRY_DSN=                     # instrument.js; Sentry disabled if unset
+PORT=3001                       # index.js; defaults to 3001
+NODE_ENV=development
+```
+
+Optional, only needed to exercise billing:
+
+```
+STRIPE_SECRET_KEY=              # lib/stripe.js; throws when a billing path is hit
+STRIPE_WEBHOOK_SECRET=          # routes/stripeWebhook.js
+STRIPE_PRICE_MONTHLY=           # lib/stripe.js
+STRIPE_PRICE_ANNUAL=            # lib/stripe.js
+STRIPE_ORG_PRICE_PROFESSIONAL=  # lib/orgPlanLimits.js, org portal only
+STRIPE_ORG_PRICE_GROWTH=        # lib/orgPlanLimits.js, org portal only
+```
+
+`RENDER_SERVICE_NAME` is injected by Render and read in `instrument.js` and
+`lib/backup.js` to label the environment. Do not set it locally.
+
+`JWT_SECRET` is resolved once, in `server/lib/jwtSecret.js`, and imported from
+there by every route and middleware that signs or verifies a token. The server
+**refuses to start** without it on anything it cannot positively identify as a
+local development machine: it is exempt only when no platform signal is present
+(`RENDER`, `RENDER_SERVICE_NAME`, `RENDER_EXTERNAL_URL`, `CI`) and `NODE_ENV` is
+neither `production` nor `staging`. The check fails closed, so a new deployment
+target that nobody thought to add to that list is required to set the secret
+rather than quietly exempted from it. On a local machine it falls back to a
+shared development value and warns loudly.
+
+Note that `NODE_ENV` alone is not a reliable environment signal here: Render
+sets it to `production` on every web service, staging included, which is why
+`instrument.js` and `lib/backup.js` both use `RENDER_SERVICE_NAME` instead.
 
 `CLIENT_URL` is the only var controlling CORS (`server/index.js`) - if it's unset at runtime, the CORS middleware falls back to reflecting whatever `Origin` header the request sends with `Access-Control-Allow-Credentials: true`, which allows any site to make authenticated, cookie-carrying requests to the API. This file previously (incorrectly) documented this var as `CORS_ORIGIN`, which the code never reads - verify the actual deployed value is named `CLIENT_URL` wherever this service is hosted, not just in this list.
 
 Optional: `ORG_PORTAL_ENABLED=true` registers the org/funeral-home portal routes (`organizations.js`, `orgPortal.js`, `orgPublic.js`, `orgRegister.js`). Unset or any other value keeps them unregistered entirely, not merely rejected (SEC-12) - this is the default in production since the org portal isn't part of the initial end-user launch. Set to `true` on staging/local dev to keep testing it.
 
+### Client and mobile
+
+**Client:** `VITE_API_URL` (required; `client/.env.development` is committed
+and supplies the local value) and `VITE_SENTRY_DSN` (optional). Production
+values come from `render.yaml`, not a local file.
+
+**Mobile:** no `.env` file at all. The API base URL is hardcoded in
+`mobile/src/lib/api.js` and `mobile/src/lib/notifications.js`, and the EAS
+project ID lives in `mobile/app.json`.
+
 ### Secrets management (Infisical)
 
-Decided 2026-08-05: secrets are moving from plaintext `.env` files / manually-pasted Render dashboard values to [Infisical](https://infisical.com), managed cloud tier. A real Infisical project now holds dev/staging/production environments, each with its own independent values (rotated/de-duplicated 2026-08-13 - `JWT_SECRET` and `RESEND_API_KEY` no longer share values across environments, and dead legacy entries like `DB_PATH`/`SECRET_WEBHOOK_SECRET` have been removed). `server/.env` still works as a local fallback (dotenv doesn't override already-set env vars, so it composes fine with the CLI below) - it isn't being ripped out, just superseded.
+Decided 2026-08-05, and complete for all three environments as of 2026-08-15: secrets moved from plaintext `.env` files / manually-pasted Render dashboard values to [Infisical](https://infisical.com), managed cloud tier. A real Infisical project now holds dev/staging/production environments, each with its own independent values (rotated/de-duplicated 2026-08-13 - `JWT_SECRET` and `RESEND_API_KEY` no longer share values across environments, and dead legacy entries like `DB_PATH`/`SECRET_WEBHOOK_SECRET` have been removed). `server/.env` still works as a local fallback (dotenv doesn't override already-set env vars, so it composes fine with the CLI below) - it isn't being ripped out, just superseded.
 
 - **Local dev:** `npm run dev:server:infisical` (root `package.json`) runs `infisical run --env=dev -- npm run dev --workspace=server`, which injects secrets from the Infisical `dev` environment as process env vars - nothing is written to disk. Requires the Infisical CLI (`npm install -g @infisical/cli`) and `infisical login` once per machine. `.infisical.json` (project ID + default environment slug, no secret values, safe to commit) lives at the repo root once `infisical init` has been run against the real project - currently only present on one machine, not yet committed.
-- **Staging/production: NOT yet synced automatically.** Render's own dashboard env vars are still the actual live source of truth for the running services - Infisical holds a separate copy of the same values that currently has to be updated by hand, alongside Render, every time a secret changes (this bit both JWT_SECRET and RESEND_API_KEY during the 2026-08-13 rotation - Infisical's copy and Render's live copy had drifted apart before that). The planned fix is Infisical's native Render Secret Sync integration (Project > Integrations > Secret Syncs > Render, one sync per Render service, connected with a Render API key entered directly in Infisical's UI), which would make Infisical the actual source of truth instead of a shadow copy - not connected yet.
-- **Known gap, tracked separately:** dev/staging/production currently share one Cloudflare R2 bucket (and staging/production share R2 credentials too) - not yet split into separate buckets/credentials per environment.
+- **Staging/production: synced automatically since 2026-08-14 (SEC-17).** Infisical's native Render Secret Sync is connected for both services (one sync per service: `staging-secrets-sync` to `in-good-hands-api-staging`, `in-good-hands-production-secrets-sync` to `performance-api`), with Auto-Sync, Auto-Redeploy and Secret Deletion Protection enabled on each. **Infisical is now the live source of truth: change a staging or production secret in Infisical, not in Render's dashboard**, or the next sync will overwrite the hand-edit. Both syncs were created with "Import Destination Secrets - Prioritize Render Values" on first run, deliberately, so the then-unverified live Render values were preserved rather than being overwritten by a possibly-stale Infisical copy. Before this, Render's dashboard was the real source of truth and Infisical was a hand-maintained shadow copy, which is exactly how `JWT_SECRET` and `RESEND_API_KEY` drifted into duplication unnoticed before the 2026-08-13 rotation.
+- **R2 buckets are separated per environment since 2026-08-15 (SEC-16).** Each environment has its own bucket (`in-good-hands-docs-dev` / `-staging` / `-production`) and its own scoped Cloudflare Account API token (Object Read & Write, applied to exactly one bucket each). Isolation was verified directly: each environment's credentials can list its own bucket and get AccessDenied against the old shared one. The two original shared-bucket tokens have been revoked. The old `in-good-hands-docs` bucket still exists but no live credential can reach it; it is retained as a passive rollback safety net pending an eventual deletion decision. Keep new environments on this pattern: one bucket, one scoped token, never a shared credential.
 - **CI:** no workflow currently needs a real secret (`smoke-test.yml` and `authz-probe.yml` both boot the server with safe, hardcoded CI-only values). If one ever does, the pattern is `Infisical/secrets-action` with OIDC auth and a machine identity scoped to that one project/environment - see [Infisical's GitHub Actions docs](https://infisical.com/docs/integrations/cicd/githubactions) - not a long-lived token sitting in GitHub secrets.
 - **Why Infisical over Doppler:** both were free at this project's team size (2 seats); Infisical was chosen for the free self-hosting fallback (MIT-licensed) if ever needed later, and because Doppler has no self-hosted option at all.
 
@@ -157,7 +230,7 @@ Decided 2026-08-05: secrets are moving from plaintext `.env` files / manually-pa
 
 - **No TypeScript** — the entire project is plain JavaScript.
 - **No em-dashes** anywhere in UI text, emails, PDFs, or code comments. Use commas, colons, or periods instead.
-- The `shared/` package exports are imported as `@in-good-hands/shared/api`, etc. Do not use relative paths to reach shared code from client or mobile.
+- The `shared/` package exports are imported by subpath, currently only `@in-good-hands/shared/format`. Do not use relative paths to reach shared code from client or mobile. Adding a new shared module means adding it to `shared/package.json`'s `exports` map too, or the import will not resolve.
 - Database schema changes must be backwards-compatible. Add columns with `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` in `database.js`; never drop or rename existing columns.
 - Section data endpoints follow the pattern `GET/POST/PUT/DELETE /api/sections/:sectionName`.
 

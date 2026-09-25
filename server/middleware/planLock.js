@@ -33,7 +33,7 @@ const jwt = require('jsonwebtoken');
 const { queryOne } = require('../db/database');
 const { extractToken } = require('../lib/viewAsGuard');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
+const { JWT_SECRET } = require('../lib/jwtSecret');
 
 async function checkPlanLock(req, res, next) {
   if (req.method === 'GET') return next();

@@ -11,7 +11,7 @@ const { welcomeEmail, passwordResetEmail, emailVerificationEmail } = require('..
 const { validate } = require('../middleware/validate');
 const { setAuthCookies, clearAuthCookies } = require('../lib/authCookies');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
+const { JWT_SECRET } = require('../lib/jwtSecret');
 
 // Reset tokens are high-entropy random values, so a fast hash is enough (unlike
 // passwords, there's nothing to slow an attacker down against - the entropy is

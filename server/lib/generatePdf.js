@@ -60,7 +60,7 @@ const BRAND = {
 // ---------------------------------------------------------------------------
 function formatDate(str) {
   if (!str) return null;
-  try { return new Date(str).toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' }); }
+  try { return new Date(str).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' }); }
   catch { return str; }
 }
 
