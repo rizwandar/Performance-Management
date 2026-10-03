@@ -226,6 +226,7 @@ const { expireOrgPremiumGrants } = require('./lib/orgPremiumExpiry');
 const { sendTrialReminders } = require('./lib/trialReminder');
 const { sendCardExpiryReminders } = require('./lib/cardExpiryReminder');
 const { sendSignupTrialReminders } = require('./lib/signupTrialReminder');
+const { SIGNUP_TRIAL_ENABLED } = require('./lib/subscription');
 const { sendUnfinishedSectionsNudges } = require('./lib/unfinishedSectionsNudge');
 const { deleteExpiredAuditLogs } = require('./lib/auditLogRetention');
 cron.schedule('0 8 * * *', () => {
@@ -235,11 +236,15 @@ cron.schedule('0 8 * * *', () => {
   expireOrgPremiumGrants().catch(err => console.error('[org-premium] Expiry sweep failed:', err.message));
   sendTrialReminders().catch(err => console.error('[billing] Trial reminder sweep failed:', err.message));
   sendCardExpiryReminders().catch(err => console.error('[billing] Card-expiry reminder sweep failed:', err.message));
-  // BIL-08: day-25/day-28 reminders for the universal no-card 30-day vault
-  // trial. No explicit "lock" job runs at day 30 - once the trial window
-  // passes, getUserPlan() in lib/subscription.js simply stops returning
-  // 'premium' for that user, the same way any other free-plan check works.
-  sendSignupTrialReminders().catch(err => console.error('[billing] Signup trial reminder sweep failed:', err.message));
+  // BIL-08: day-25/day-28 reminders for the no-card 30-day vault trial.
+  // Skipped entirely while the trial is retired (SIGNUP_TRIAL_ENABLED in
+  // lib/subscription.js): with no trial running there is nothing to remind
+  // anyone about, and an account still carrying an old
+  // signup_trial_started_at must not receive "your trial ends soon" for a
+  // trial that no longer grants anything.
+  if (SIGNUP_TRIAL_ENABLED) {
+    sendSignupTrialReminders().catch(err => console.error('[billing] Signup trial reminder sweep failed:', err.message));
+  }
   // IDEA-02: one-time "unfinished sections" nudge - see
   // lib/unfinishedSectionsNudge.js for the eligibility rules and the
   // trigger/cadence/audience defaults assumed for this feature.

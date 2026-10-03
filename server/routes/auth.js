@@ -10,6 +10,7 @@ const { sendEmail } = require('../lib/sendEmail');
 const { welcomeEmail, passwordResetEmail, emailVerificationEmail } = require('../lib/emailTemplates');
 const { validate } = require('../middleware/validate');
 const { setAuthCookies, clearAuthCookies } = require('../lib/authCookies');
+const { SIGNUP_TRIAL_ENABLED } = require('../lib/subscription');
 
 const { JWT_SECRET } = require('../lib/jwtSecret');
 
@@ -288,7 +289,13 @@ router.post('/login', loginRules, validate, async (req, res) => {
   // signup_trial_started_at from before). Never shown to an org-portal
   // account or an admin - both are outside the consumer freemium model this
   // trial exists for.
-  const needsTrialOffer = !user.signup_trial_started_at
+  // Always false while the trial is retired (SIGNUP_TRIAL_ENABLED in
+  // lib/subscription.js). This single field is what sends the client to the
+  // /welcome-trial interstitial, so switching it off removes the full-page
+  // free-versus-premium comparison from the first-login flow without the
+  // client needing to know the trial is gone.
+  const needsTrialOffer = SIGNUP_TRIAL_ENABLED
+    && !user.signup_trial_started_at
     && !user.signup_trial_offer_responded_at
     && !user.org_role
     && !user.is_admin;
