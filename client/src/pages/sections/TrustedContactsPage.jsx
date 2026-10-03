@@ -40,22 +40,16 @@ const SECTIONS = [
   { id: 'insurance_items',      label: 'Insurance' },
 ]
 
-const emptyContact = { sequence: '', name: '', relationship: '', email: '', phone: '', invite_message: '' }
+const emptyContact = { name: '', relationship: '', email: '', phone: '', invite_message: '' }
 
 export default function TrustedContactsPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const { isPremium } = useSubscription()
 
-  // Numbered "position" slots shown on this page, independent of the actual
-  // server-enforced item limit (PLAN_LIMITS.trusted_contacts). Free keeps
-  // its original 3-slot display (2 usable, one visible-but-locked teaser
-  // slot - unchanged since before this became plan-aware); Premium's grid
-  // now scales to match its real limit instead of a hardcoded 3.
-  const POSITIONS = Array.from(
-    { length: isPremium ? PLAN_LIMITS.trusted_contacts.premium : 3 },
-    (_, i) => i + 1
-  )
+  // How many contacts this account may hold. The server enforces the same
+  // number from server/lib/planLimits.js - this is the display mirror.
+  const cap = isPremium ? PLAN_LIMITS.trusted_contacts.premium : PLAN_LIMITS.trusted_contacts.free
 
   const [contacts, setContacts]   = useState([])
   const [tcLoading, setTcLoading] = useState(true)
@@ -110,22 +104,28 @@ export default function TrustedContactsPage() {
     loadContacts()
   }, [])
 
-  const takenSequences = contacts.map(c => c.sequence)
+  // Position is display order only (see the POST route in
+  // server/routes/trustedContacts.js) and is now assigned server-side, so
+  // the number shown against each contact is simply its place in the list.
+  // That keeps the numbering contiguous even when the stored sequences are
+  // not, which happens as soon as a middle contact is removed.
+  const ordered = [...contacts].sort((a, b) => a.sequence - b.sequence)
+  const canAddMore = ordered.length < cap
 
-  // PLAN_LIMITS.trusted_contacts.free (2) is the plan cap the server
-  // rejects past; POSITIONS (above) is the separate, larger structural grid
-  // size. A free user can still see an empty, disabled position 3 slot, so
-  // that control needs its own disabled state distinct from the "no
-  // positions left" case already handled by the SectionHero cta below.
-  const atFreeContactLimit = !isPremium && contacts.length >= PLAN_LIMITS.trusted_contacts.free
-  const addContactDisabledTitle = atFreeContactLimit
-    ? `You've reached the Free plan limit of ${PLAN_LIMITS.trusted_contacts.free} trusted contacts. Upgrade to Premium to add more.`
-    : undefined
+  // Two different shapes for the same limit, on purpose. A free plan shows
+  // its full capacity as empty, fillable slots, so what the plan includes is
+  // visible at a glance rather than discovered as a wall. A paid plan grows
+  // one contact at a time from a single button instead: ten empty slots is a
+  // wall of nothing, and nobody needs to see nine of them to add a fourth.
+  const emptySlotCount = isPremium ? 0 : Math.max(0, cap - ordered.length)
+  const slots = [
+    ...ordered.map((contact, i) => ({ contact, pos: i + 1 })),
+    ...Array.from({ length: emptySlotCount }, (_, i) => ({ contact: null, pos: ordered.length + i + 1 })),
+  ]
 
   const openAdd = () => {
     setEditingContact(null)
-    const next = POSITIONS.find(p => !takenSequences.includes(p)) || ''
-    setForm({ ...emptyContact, sequence: next })
+    setForm({ ...emptyContact })
     setPermissions([])
     setModalError('')
     setShowModal(true)
@@ -134,7 +134,7 @@ export default function TrustedContactsPage() {
   const openEdit = (contact) => {
     setEditingContact(contact)
     setForm({
-      sequence: contact.sequence, name: contact.name, relationship: contact.relationship || '',
+      name: contact.name, relationship: contact.relationship || '',
       email: contact.email || '', phone: contact.phone || '', invite_message: contact.invite_message || '',
     })
     setPermissions(contact.visible_sections || [])
@@ -148,7 +148,6 @@ export default function TrustedContactsPage() {
 
   const handleSave = async () => {
     if (!form.name.trim()) return setModalError('Name is required.')
-    if (!editingContact && !form.sequence) return setModalError('Please choose a position.')
     setSaving(true)
     setModalError('')
     try {
@@ -160,7 +159,7 @@ export default function TrustedContactsPage() {
         await axios.put(`${API}/trusted-contacts/${editingContact.id}/permissions`, { visible_sections: permissions })
       } else {
         await axios.post(`${API}/trusted-contacts`, {
-          sequence: form.sequence, name: form.name, relationship: form.relationship,
+          name: form.name, relationship: form.relationship,
           email: form.email, phone: form.phone, invite_message: form.invite_message, visible_sections: permissions,
         })
       }
@@ -243,16 +242,14 @@ export default function TrustedContactsPage() {
         eyebrow="Your People"
         headline="The people you trust"
         highlight="trust"
-        subtext={`Trusted contacts are the people who'll be given access to the plans you choose to share with them, when the time comes. You can add up to ${isPremium ? PLAN_LIMITS.trusted_contacts.premium : PLAN_LIMITS.trusted_contacts.free}${isPremium ? '' : ` on the Free plan (${PLAN_LIMITS.trusted_contacts.premium} on Premium)`}, and choose one of them to be your Legacy Contact: the one person who confirms what's happened and sets everything in motion.`}
-        cta={contacts.length < POSITIONS.length ? {
+        subtext={`Trusted contacts are the people who'll be given access to the plans you choose to share with them, when the time comes. You can add up to ${cap}, and choose one of them to be your Legacy Contact: the one person who confirms what's happened and sets everything in motion.`}
+        cta={canAddMore ? {
           label: '+ Add a trusted contact',
           onClick: openAdd,
-          disabled: atFreeContactLimit,
-          disabledTitle: addContactDisabledTitle,
         } : undefined}
       />
 
-      <PlanLimitNotice limitKey="trusted_contacts" currentCount={contacts.length} />
+      <PlanLimitNotice limitKey="trusted_contacts" currentCount={contacts.length} alwaysShow />
 
       <div style={{ background: 'var(--parchment)', borderRadius: 'var(--card-radius-sm, 12px)', padding: '24px 24px 16px', marginBottom: 16, border: '1px solid var(--border)' }}>
         <h6 style={{ color: 'var(--green-900)', margin: '0 0 8px' }}>Trusted Contacts</h6>
@@ -277,8 +274,7 @@ export default function TrustedContactsPage() {
       ) : (
         <>
           <div className="mb-4">
-            {POSITIONS.map(pos => {
-              const contact = contacts.find(c => c.sequence === pos)
+            {slots.map(({ contact, pos }) => {
               return (
                 <div key={pos} className="card mb-3" style={{ borderLeft: '4px solid var(--gold)' }}>
                   <div className="card-body">
@@ -357,15 +353,24 @@ export default function TrustedContactsPage() {
                           width: 26, height: 26, display: 'inline-flex', alignItems: 'center',
                           justifyContent: 'center', fontSize: '0.8rem', fontWeight: 700, flexShrink: 0,
                         }}>{pos}</span>
-                        <span className="text-muted" style={{ flex: 1 }}>Position {pos}: empty</span>
-                        <Button size="sm" variant="outline-primary" onClick={openAdd}
-                          disabled={atFreeContactLimit} title={addContactDisabledTitle}>+ Add</Button>
+                        <span className="text-muted" style={{ flex: 1 }}>Contact {pos}: empty</span>
+                        <Button size="sm" variant="outline-primary" onClick={openAdd}>+ Add</Button>
                       </div>
                     )}
                   </div>
                 </div>
               )
             })}
+
+            {/* Paid plans grow one at a time from here rather than being shown
+                every remaining slot up front. Hidden at the cap: the ceiling
+                is then stated by PlanLimitNotice above instead, so there is
+                never a visible control that cannot work. */}
+            {isPremium && canAddMore && (
+              <Button variant="outline-primary" onClick={openAdd}>
+                + Add a trusted contact
+              </Button>
+            )}
           </div>
 
           <div style={{ background: 'var(--green-50)', border: '1px solid var(--green-100)', borderRadius: 10, padding: '16px 20px', marginBottom: 16 }}>
@@ -404,21 +409,11 @@ export default function TrustedContactsPage() {
         <Modal.Body>
           {modalError && <Alert variant="danger">{modalError}</Alert>}
           <Row className="g-3">
-            {!editingContact && (
-              <Col xs={12} sm={3}>
-                <Form.Group>
-                  <Form.Label>Position</Form.Label>
-                  <Form.Select value={form.sequence}
-                    onChange={e => setForm(f => ({ ...f, sequence: Number(e.target.value) }))}>
-                    <option value="">Select position...</option>
-                    {POSITIONS.filter(p => !takenSequences.includes(p)).map(p => (
-                      <option key={p} value={p}>{p}</option>
-                    ))}
-                  </Form.Select>
-                </Form.Group>
-              </Col>
-            )}
-            <Col xs={12} sm={editingContact ? 6 : 5}>
+            {/* The "Position" picker that used to sit here is gone: position is
+                display order only and is now assigned by the server, so there
+                was nothing for the user to decide. It was also the control
+                that made the old 3-position database constraint reachable. */}
+            <Col xs={12} sm={6}>
               <Form.Group>
                 <Form.Label>Full name <span style={{ color: 'red' }}>*</span></Form.Label>
                 <Form.Control value={form.name}
@@ -426,7 +421,7 @@ export default function TrustedContactsPage() {
                   placeholder="e.g. Sarah Johnson" />
               </Form.Group>
             </Col>
-            <Col xs={12} sm={editingContact ? 6 : 4}>
+            <Col xs={12} sm={6}>
               <Form.Group>
                 <Form.Label>Relationship</Form.Label>
                 <Form.Control value={form.relationship}

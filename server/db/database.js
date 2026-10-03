@@ -82,7 +82,7 @@ async function init() {
     CREATE TABLE IF NOT EXISTS trusted_contacts (
       id           SERIAL PRIMARY KEY,
       user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      sequence     INTEGER NOT NULL CHECK (sequence IN (1,2,3)),
+      sequence     INTEGER NOT NULL,
       name         TEXT NOT NULL,
       relationship TEXT,
       email        TEXT,
@@ -1708,6 +1708,40 @@ async function init() {
   // other optional notes fields elsewhere in the app. Included in the access
   // link email sent from the "Send access link" flow.
   await pool.query(`ALTER TABLE trusted_contacts ADD COLUMN IF NOT EXISTS invite_message TEXT`);
+
+  // IDEA-43 follow-up (2026-10-03): the original trusted_contacts table
+  // declared `sequence INTEGER NOT NULL CHECK (sequence IN (1,2,3))`, from
+  // when every plan had a flat 3-contact limit. IDEA-43 raised the paid
+  // limit to 10 in lib/planLimits.js and widened the page's slot grid to
+  // match, but nothing ever dropped the CHECK, so inserting a 4th contact
+  // failed at the database with a constraint violation and surfaced to the
+  // user as a generic "something went wrong". The advertised paid limit of
+  // 10 had therefore never been reachable on any environment. Free users
+  // never saw it because their own cap of 2 stops them first.
+  //
+  // The constraint name is looked up rather than assumed: Postgres' default
+  // (trusted_contacts_sequence_check) holds for any database created by this
+  // file, but an older hand-created one may carry a different name. Matching
+  // on the constraint definition rather than the name is what makes this
+  // safe to run anywhere.
+  //
+  // Purely widening: no existing row can violate the *absence* of a
+  // constraint, so this cannot fail on live data and needs no backfill. The
+  // per-plan cap in lib/planLimits.js, enforced in routes/trustedContacts.js,
+  // is now the only limit on how many contacts a user may hold.
+  // UNIQUE (user_id, sequence) is deliberately left in place: two contacts
+  // must still never occupy the same position.
+  const seqChecks = await pool.query(`
+    SELECT con.conname
+    FROM pg_constraint con
+    JOIN pg_class rel ON rel.oid = con.conrelid
+    WHERE rel.relname = 'trusted_contacts'
+      AND con.contype = 'c'
+      AND pg_get_constraintdef(con.oid) ILIKE '%sequence%'
+  `);
+  for (const row of seqChecks.rows) {
+    await pool.query(`ALTER TABLE trusted_contacts DROP CONSTRAINT "${row.conname}"`);
+  }
 
   // IDEA-02: one-shot "you've started but not finished" nudge email for
   // users who started their plan but have not completed every section.

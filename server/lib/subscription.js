@@ -1,8 +1,15 @@
 const { queryOne } = require('../db/database');
 
-// BIL-08: universal no-card 30-day vault trial. Every new account gets one,
-// starting at registration (users.signup_trial_started_at) - see auth.js's
-// /register route. Separate from BIL-04's card-required Stripe trial.
+// BIL-08: no-card 30-day vault trial. Separate from BIL-04's card-required
+// Stripe trial.
+//
+// It is an explicit opt-in, NOT automatic: routes/auth.js's /register leaves
+// users.signup_trial_started_at NULL, and only billing.js's
+// /start-signup-trial sets it, from the post-login interstitial or
+// self-serve from the Upgrade page. So a brand new account reads as 'free'
+// here, and plenty of accounts never start a trial at all. This comment
+// previously claimed every account got one at registration, which was true
+// of the first version of BIL-08 and has been wrong since the opt-in landed.
 const SIGNUP_TRIAL_DAYS = 30;
 const SIGNUP_TRIAL_MS = SIGNUP_TRIAL_DAYS * 24 * 60 * 60 * 1000;
 
