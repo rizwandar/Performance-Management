@@ -2,7 +2,7 @@ const express = require('express');
 const router  = express.Router();
 const { queryOne, queryAll, query } = require('../db/database');
 const auth    = require('../middleware/auth');
-const { getAccessInfo, isActivePremiumSubscription } = require('../lib/subscription');
+const { getAccessInfo, isActivePremiumSubscription, SIGNUP_TRIAL_ENABLED } = require('../lib/subscription');
 const { stripe, PRICE_IDS } = require('../lib/stripe');
 const { upsertFromSubscription } = require('./stripeWebhook');
 
@@ -71,7 +71,11 @@ router.get('/access', auth, async (req, res) => {
     signup_trial_active: signupTrialActive,
     signup_trial_expired: signupTrialExpired,
     signup_trial_ends_at: signupTrialEndsAt,
-    signup_trial_available: isConsumerAccount && !trialRow?.signup_trial_started_at && !trialRow?.premium_used_at,
+    // False while the trial is retired, so the Upgrade page stops showing the
+    // self-serve "start my free trial" offer and /welcome-trial redirects
+    // away if it is reached directly.
+    signup_trial_available: SIGNUP_TRIAL_ENABLED
+      && isConsumerAccount && !trialRow?.signup_trial_started_at && !trialRow?.premium_used_at,
   });
 });
 
@@ -93,6 +97,13 @@ router.get('/access', auth, async (req, res) => {
 // off the /welcome-trial redirect, or they could call this endpoint
 // directly and self-grant Premium.
 router.post('/start-signup-trial', auth, async (req, res) => {
+  // Closed while the trial is retired. Refused server-side rather than only
+  // hidden in the UI: this route grants premium access, so a stale client,
+  // a cached page or a direct call must not be able to self-escalate through
+  // a feature that is supposed to be switched off.
+  if (!SIGNUP_TRIAL_ENABLED) {
+    return res.status(410).json({ error: 'This trial is no longer offered.' });
+  }
   const user = await queryOne('SELECT signup_trial_started_at, org_role, is_admin FROM users WHERE id = $1', [req.user.id]);
   if (user?.org_role || user?.is_admin) {
     return res.status(403).json({ error: 'This trial is only available on consumer accounts.' });

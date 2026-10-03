@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import { useSubscription } from '../context/SubscriptionContext'
@@ -54,9 +54,22 @@ function PlanColumn({ title, badge, items, checkColor, highlightFirst }) {
 
 export default function WelcomeTrialPage() {
   const navigate = useNavigate()
-  const { refresh } = useSubscription()
+  const { refresh, signupTrialAvailable, loading: planLoading } = useSubscription()
   const [loading, setLoading] = useState(null) // 'start' | 'decline' | null
   const [error, setError] = useState('')
+
+  // The trial is retired (SIGNUP_TRIAL_ENABLED in server/lib/subscription.js),
+  // so /auth/login no longer sends anyone here and this page is unreachable in
+  // the normal flow. It is kept rather than deleted so the feature can be
+  // switched back on in one place, which means it still needs a guard for a
+  // bookmark, a back button, or a stale tab: show the offer only when the
+  // server says a trial is actually available, otherwise send the user on to
+  // their plans rather than presenting an offer that cannot be accepted.
+  useEffect(() => {
+    if (!planLoading && !signupTrialAvailable) navigate('/profile', { replace: true })
+  }, [planLoading, signupTrialAvailable, navigate])
+
+  if (planLoading || !signupTrialAvailable) return null
 
   const respond = async (action) => {
     setLoading(action)
