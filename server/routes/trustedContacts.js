@@ -57,8 +57,7 @@ router.get('/', requireAuth, async (req, res) => {
 router.post('/', requireAuth, checkPlanLock, async (req, res) => {
   const { sequence, name, relationship, email, phone, invite_message, visible_sections = [] } = req.body;
 
-  if (!name)     return res.status(400).json({ error: 'Name is required.' });
-  if (!sequence) return res.status(400).json({ error: 'A position is required.' });
+  if (!name) return res.status(400).json({ error: 'Name is required.' });
 
   const invalid = visible_sections.filter(s => !VALID_SECTIONS.has(s));
   if (invalid.length > 0) {
@@ -68,35 +67,79 @@ router.post('/', requireAuth, checkPlanLock, async (req, res) => {
   const plan = await getUserPlan(req.user.id);
   const limit = getLimit('trusted_contacts', plan);
 
-  const count = await queryOne('SELECT COUNT(*)::int as c FROM trusted_contacts WHERE user_id = $1', [req.user.id]);
-  if (count.c >= limit) {
+  const taken = (await queryAll(
+    'SELECT sequence FROM trusted_contacts WHERE user_id = $1', [req.user.id]
+  )).map(r => r.sequence);
+
+  if (taken.length >= limit) {
+    // Plan wording deliberately avoids naming the paid tier - the upgrade
+    // page is where the plan is actually explained. See the matching copy in
+    // client/src/components/PlanLimitNotice.jsx.
     const errorMsg = plan !== 'premium'
-      ? `You can add up to ${limit} trusted contacts on the Free plan. Upgrade to Premium to add more.`
+      ? `Your plan includes ${limit} trusted contacts. Upgrade your account if you would like to add more.`
       : `You can add up to ${limit} trusted contacts.`;
     return res.status(400).json({ error: errorMsg });
   }
 
-  const existing = await queryOne(
-    'SELECT id FROM trusted_contacts WHERE user_id = $1 AND sequence = $2',
-    [req.user.id, sequence]
-  );
-  if (existing) return res.status(400).json({ error: `Position ${sequence} is already taken.` });
-
-  const contactId = await transaction(async (client) => {
-    const r = await client.query(`
-      INSERT INTO trusted_contacts (user_id, sequence, name, relationship, email, phone, invite_message)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-      RETURNING id
-    `, [req.user.id, sequence, name, relationship || null, email || null, phone || null, invite_message || null]);
-    const cid = r.rows[0].id;
-    for (const sectionId of visible_sections) {
-      await client.query(
-        'INSERT INTO trusted_contact_permissions (contact_id, section_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-        [cid, sectionId]
-      );
+  // sequence is optional. It is display order only - nothing in the app
+  // reads it as a notification priority or escalation order (the only other
+  // readers are two ORDER BY clauses, here and in routes/export.js) - so
+  // there is no reason to make the user choose one. When it is omitted we
+  // take the lowest free positive position, the same approach already used
+  // by the profile spouse-sync path in routes/users.js. An explicit
+  // sequence is still accepted so an existing or future client (including
+  // mobile, which must keep working against this contract) can send one.
+  // Only an absent value means "assign one for me". A supplied 0, '' or any
+  // other falsy-but-present value is a client bug, not a request to
+  // auto-assign, and is reported rather than silently turned into position 1.
+  let position = sequence;
+  if (position === undefined || position === null) {
+    position = 1;
+    while (taken.includes(position)) position += 1;
+  } else {
+    // Range-check an explicitly supplied position. The dropped
+    // CHECK (sequence IN (1,2,3)) used to make this impossible to get wrong;
+    // without it an arbitrary client value reaches the column directly, and
+    // anything outside int4 (or a non-integer) would surface as a 500 rather
+    // than a clear 400. The ceiling is deliberately well above any plan limit
+    // rather than equal to it, since an account that dropped from a paid plan
+    // can legitimately still hold positions above its current cap.
+    if (!Number.isInteger(position) || position < 1 || position > 1000) {
+      return res.status(400).json({ error: 'Invalid position.' });
     }
-    return cid;
-  });
+    if (taken.includes(position)) {
+      return res.status(400).json({ error: `Position ${position} is already taken.` });
+    }
+  }
+
+  let contactId;
+  try {
+    contactId = await transaction(async (client) => {
+      const r = await client.query(`
+        INSERT INTO trusted_contacts (user_id, sequence, name, relationship, email, phone, invite_message)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        RETURNING id
+      `, [req.user.id, position, name, relationship || null, email || null, phone || null, invite_message || null]);
+      const cid = r.rows[0].id;
+      for (const sectionId of visible_sections) {
+        await client.query(
+          'INSERT INTO trusted_contact_permissions (contact_id, section_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+          [cid, sectionId]
+        );
+      }
+      return cid;
+    });
+  } catch (err) {
+    // UNIQUE (user_id, sequence) still guards the table, so two adds racing
+    // for the same auto-assigned position lose one insert. Report it as a
+    // retryable conflict rather than letting it surface as a 500 with a
+    // generic "something went wrong", which is exactly how the old
+    // CHECK (sequence IN (1,2,3)) constraint presented itself for years.
+    if (err && err.code === '23505') {
+      return res.status(409).json({ error: 'That position was just taken. Please try again.' });
+    }
+    throw err;
+  }
 
   const contact = await queryOne('SELECT * FROM trusted_contacts WHERE id = $1', [contactId]);
   res.status(201).json({ ...contact, visible_sections });
