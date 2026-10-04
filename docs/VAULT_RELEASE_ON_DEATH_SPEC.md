@@ -154,18 +154,27 @@ Roughly ordered. Each is small on its own; the risk is in the interactions.
 
 ## 6. Open questions for the owner
 
+### Decided
+
+- **SMS: yes** (owner, 2026-10-04). The product has no SMS capability today, so
+  this adds a provider, a verified sender, per-country number handling and cost
+  per message. It is worth it: SMS is the main defence against a declaration made
+  by someone who also controls the mailbox, and without it the challenge rests on
+  email plus login alone. Testing will use the owner's own phone.
+- **The Confidant section is not being built** (owner, 2026-10-04), so the
+  question of whether this replaces it is closed. Encouraging users to tell
+  someone their vault password stays as guidance in the copy, not as a feature.
+
+### Still open
+
 1. **Window lengths.** 7 days and 48 hours are proposals, not research.
-2. **Is SMS worth adding?** It is the main defence against a compromised
-   mailbox, and there is no SMS capability in the product today. Without it the
-   challenge rests entirely on email plus login.
-3. **Release code delivery.** Shown once at setup is simplest and safest. A
-   printable sealed sheet is friendlier and likelier to survive, and is how
-   people actually handle this.
-4. **Can the Legacy Contact be told a release is pending before the window
-   closes?** Kinder, but tells an attacker their declaration worked.
-5. **Does this replace the Confidant idea entirely?** Largely, but not for
-   users who decline to enable it. Both can coexist.
-6. **Org portal interaction.** A funeral home attesting gets a shorter window.
+2. **Release code delivery.** Shown once at setup is simplest and safest. A
+   printable sealed sheet is friendlier and far likelier to survive, and is how
+   people actually handle this. Loss of the code means the vault is unrecoverable,
+   so this choice matters more than it looks.
+3. **Can the Legacy Contact be told a release is pending before the window
+   closes?** Kinder, but it also tells an attacker their declaration worked.
+4. **Org portal interaction.** A funeral home attesting gets a shorter window.
    Org work is paused, so this may be deferred, but the schema should allow for
    it now.
 
