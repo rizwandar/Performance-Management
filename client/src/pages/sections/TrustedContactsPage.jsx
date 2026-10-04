@@ -238,12 +238,13 @@ export default function TrustedContactsPage() {
         subtext={(
           <>
             <p className="mb-2">
-              Trusted contacts are people you choose to share your information with. You can add
-              up to {cap} and send each a secure link to read the sections you choose.
+              Trusted contacts are people you choose to share your selected information with, via a
+              secure link.
             </p>
             <p className="mb-0">
-              You can also name one as your <strong>Legacy Contact</strong>. They&rsquo;ll be notified
-              if you stop logging in and can view everything you've recorded, except your vault.{' '}
+              You can also name one of these trusted contacts as your <strong>Legacy Contact</strong>,
+              who will be notified first if you stop logging in. They can see everything
+              you've recorded, except your sensitive secured data in your vault.{' '}
               <Link to="/faq#legacy-contact-vs-trusted-contact">Learn more</Link>.
             </p>
           </>
