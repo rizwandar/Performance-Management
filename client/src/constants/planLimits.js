@@ -11,7 +11,7 @@ export const PLAN_LIMITS = {
   trusted_contacts:       { free: 2, premium: 10,   itemLabel: 'trusted contact',  itemLabelPlural: 'trusted contacts' },
   personal_messages:      { free: 2, premium: null, itemLabel: 'message',          itemLabelPlural: 'messages' },
   unfinished_business:    { free: 2, premium: null, itemLabel: 'entry',            itemLabelPlural: 'entries' },
-  people_to_notify:       { free: 2, premium: null, itemLabel: 'person',           itemLabelPlural: 'people' },
+  people_to_notify:       { free: 3, premium: null, itemLabel: 'person',           itemLabelPlural: 'people' },
   funeral_gallery_photos: { free: 5, premium: 50,   itemLabel: 'photo',            itemLabelPlural: 'photos' },
   message_audio_clips:    { free: 1, premium: 3,    itemLabel: 'voice clip',       itemLabelPlural: 'voice clips' },
 }
