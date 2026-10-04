@@ -382,17 +382,22 @@ export default function TrustedContactsPage() {
 
           <div style={{ background: 'var(--gold-50)', border: '1px solid var(--gold-light)', borderRadius: 10, padding: '16px 20px' }}>
             <p style={{ fontWeight: 600, color: 'var(--green-900)', marginBottom: 6 }}>How trusted contact access works</p>
-            <ol className="text-muted small mb-0" style={{ paddingLeft: '1.2rem', lineHeight: 1.8 }}>
-              <li><strong>Send access link:</strong> sends a secure link to your trusted contact with read-only access to the sections you've selected for them, valid for 72 hours.</li>
-              <li>
-                <strong>Legacy Contact:</strong> their link doesn't expire and gives read-only access to
-                everything except your vault. If you haven't logged in within{' '}
-                <strong>{inactivityMonths} month{inactivityMonths === 1 ? '' : 's'}</strong>, your Legacy
-                Contact is notified. You can change this period any time in{' '}
+            <ul className="text-muted small mb-0" style={{ listStyle: 'none', padding: 0, lineHeight: 1.7 }}>
+              <li className="mb-2">
+                <strong>Trusted Contacts:</strong> share selected information through a read-only link
+                that expires after 72 hours.
+              </li>
+              <li className="mb-2">
+                <strong>Legacy Contact:</strong> share everything except your vault through a permanent
+                read-only link. They're notified after{' '}
+                <strong>{inactivityMonths} month{inactivityMonths === 1 ? '' : 's'}</strong> of
+                inactivity, which you can adjust in{' '}
                 <Link to="/profile/settings#inactivity-timer">your profile</Link>.
               </li>
-              <li>Your passwords (digital credentials) are never shared and are encrypted, accessible only by you.</li>
-            </ol>
+              <li>
+                <strong>Your passwords:</strong> encrypted, never shared, and accessible only to you.
+              </li>
+            </ul>
           </div>
         </>
       )}
