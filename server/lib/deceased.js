@@ -3,6 +3,7 @@ const { sendEmail } = require('./sendEmail');
 const { forLog } = require('./logSafe');
 const { demiseNotificationEmail, executorNotificationEmail } = require('./emailTemplates');
 const { notifyTrustedContacts } = require('./inactivityTimer');
+const { openReleaseWindow } = require('./releaseChallenge');
 
 async function auditLog(userId, action, metadata) {
   try {
@@ -138,6 +139,38 @@ async function markUserDeceased(userId, { markedByType, markedById }) {
     }
   }
 
+  // The vault is the one thing a declaration does NOT release (spec 3.2/3.3).
+  // Everything above has just gone out immediately, exactly as before; if the
+  // owner armed vault release, this moves that row from 'armed' to 'pending'
+  // and starts the challenge window instead of handing anything over. It
+  // never touches key_enc, never produces a release code, and releases
+  // nothing. Accounts with no vault_release row - the default, since release
+  // is opt-in - are a no-op, and their vault stays sealed forever (spec 3.5).
+  //
+  // Deliberately only on a first declaration, not on a retry. markUserDeceased
+  // is re-entrant by design (REV-05: it re-runs to finish a partial
+  // notification fan-out), and a retry that re-opened the window would hand a
+  // bad actor an unlimited supply of clocks: declare, let the owner cancel,
+  // declare again, repeat until the owner stops answering. One declaration
+  // gets one window. A genuine second declaration after a cancellation is a
+  // support matter, not something this path should quietly grant.
+  //
+  // Its own try/catch, so that a failure here cannot undo or abort the
+  // non-vault notifications that have already been sent above, and cannot
+  // make a declaration look like it failed when it did not.
+  let vaultWindow = null;
+  if (!isRetry) {
+    try {
+      vaultWindow = await openReleaseWindow(userId, {
+        declaredByType: markedByType,
+        declaredById:   markedById,
+      });
+    } catch (err) {
+      console.error('[deceased] Opening the vault release window failed:', err.message);
+      vaultWindow = { opened: false, reason: 'error' };
+    }
+  }
+
   const fanOutComplete = contactsResult.failedCount === 0 && peopleResult.failedCount === 0
     && emergencyResult.failedCount === 0 && executorNoticeOk;
   if (fanOutComplete) {
@@ -155,6 +188,11 @@ async function markUserDeceased(userId, { markedByType, markedById }) {
     people_notified: peopleResult.sentCount, people_failed: peopleResult.failedCount,
     emergency_contact_notified: emergencyResult.sentCount, emergency_contact_failed: emergencyResult.failedCount,
     executor_notice_ok: executorNoticeOk, fan_out_complete: fanOutComplete,
+    // Recorded on the declaration event itself, so that "was a vault window
+    // opened by this, and if not why not" is answerable from the one audit row
+    // a reader will look at first.
+    vault_window_opened: vaultWindow ? vaultWindow.opened : false,
+    vault_window_reason: vaultWindow ? (vaultWindow.reason || 'opened') : 'retry_skipped',
   });
 
   return queryOne('SELECT * FROM users WHERE id = $1', [userId]);

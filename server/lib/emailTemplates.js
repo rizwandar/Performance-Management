@@ -1078,8 +1078,162 @@ function unfinishedSectionsNudgeEmail({ name, startedCount, totalCount }) {
   `);
 }
 
+// ---------------------------------------------------------------------------
+// Vault release: the challenge sent to the OWNER during a pending release.
+//
+// The most consequential email in the product, and the only one whose whole
+// job is to be answered by someone who is alive. Wording is taken from spec
+// 9.2 almost verbatim, including the owner's explicit steer that it must say
+// "passed away" rather than "died".
+//
+// Three deliberate choices:
+//   - One action only, and that action cancels. Spec 9.3: an option that
+//     could ACCELERATE the release would hand that power to whoever happens
+//     to be holding the deceased's phone or inbox, which is the one direction
+//     this design must never make easier. Cancelling is safe because it errs
+//     toward not releasing.
+//   - No release code, no vault content, no hint of either (spec 8.1). The
+//     security of the scheme rests on the two halves never meeting in one
+//     place, and an email provider plus a mailbox is exactly such a place.
+//   - The deadline is stated plainly. Someone reading this needs to know how
+//     long they have, not to be reassured vaguely.
+// ---------------------------------------------------------------------------
+function vaultReleaseChallengeEmail({ name, contactName, deadlineText, cancelLink }) {
+  // Names come from user-entered records, so they are escaped before being
+  // dropped into markup, same as the free-text fields in contactAccessEmail.
+  const ownerSafe   = escapeHtml(name || 'there');
+  const contactSafe = contactName ? escapeHtml(contactName) : null;
+  return layout(`
+    <p>Dear ${ownerSafe},</p>
+    <p>
+      It has been reported that you have passed away.
+    </p>
+    <p>
+      If you are reading this, that report is wrong. Press the button below and
+      nothing further will happen.
+    </p>
+    ${button('I am here', cancelLink)}
+    <p>
+      If we do not hear from you by <strong>${deadlineText}</strong>, the vault access
+      you set up for ${contactSafe ? `<strong>${contactSafe}</strong>` : 'your Legacy Contact'}
+      will go ahead as you arranged.
+    </p>
+    <p>
+      Simply signing in to your account also stops this, so if you would rather
+      not use the button, sign in as you normally would and that is enough.
+    </p>
+    <p style="color:#6B7280; font-size:14px;">
+      Nothing else in your plan is affected by pressing the button. It only stops
+      your vault from being handed over.
+    </p>
+    <p style="color:#6B7280; font-size:14px;">
+      With care,<br/>
+      The ${APP_NAME} team
+    </p>
+  `);
+}
+
+// ---------------------------------------------------------------------------
+// Vault release: the notice sent to EVERY trusted contact when a declaration
+// is made, not only to whoever made it (spec 3.3 and 10.2).
+//
+// This is a security control dressed as a courtesy. It is the cheapest second
+// channel the product has: it routes through other people rather than another
+// device, so a Legacy Contact who falsely declares a passing cannot do it
+// quietly, and for most users another human picking up the phone is a faster
+// alarm than any automated message.
+//
+// Carries no access link and no instructions on how to open anything. A
+// recipient who should have an access link already has one from the demise
+// fan-out in lib/deceased.js; this message exists purely so that somebody who
+// knows the owner is told out loud that a clock is running.
+// ---------------------------------------------------------------------------
+function vaultReleaseDeclarationNoticeEmail({ recipientName, ownerName, deadlineText }) {
+  const recipientSafe = escapeHtml(recipientName || 'there');
+  const ownerSafe     = escapeHtml(ownerName || 'the account holder');
+  return layout(`
+    <p>Dear ${recipientSafe},</p>
+    <p>
+      We are letting you know that someone has reported to <strong>${APP_NAME}</strong>
+      that <strong>${ownerSafe}</strong> has passed away.
+    </p>
+    <p>
+      ${ownerSafe} asked us to tell every one of their trusted contacts whenever
+      such a report is made, so that nobody finds out about it after the fact.
+      You are receiving this because you are one of those people.
+    </p>
+    <p>
+      ${ownerSafe} had arranged for their vault to be made available to their
+      Legacy Contact if this ever happened. We have contacted ${ownerSafe}
+      directly to check, and nothing will be handed over before
+      <strong>${deadlineText}</strong>. If ${ownerSafe} replies, or simply signs in,
+      it stops there and then.
+    </p>
+    <p>
+      <strong>If you believe this report is a mistake, please get in touch with
+      ${ownerSafe} directly.</strong> One phone call answered is all it takes to
+      stop this.
+    </p>
+    <p style="color:#6B7280; font-size:14px;">
+      There is nothing you need to do, and no action is expected of you. If
+      something here looks wrong, you can also contact us using the form at the
+      bottom of the site.
+    </p>
+    <p style="color:#6B7280; font-size:14px;">
+      With care,<br/>
+      The ${APP_NAME} team
+    </p>
+  `);
+}
+
+// ---------------------------------------------------------------------------
+// Vault release: the window has closed uncancelled, so the Legacy Contact can
+// now open the envelope with the code the owner gave them by hand (spec 8.5,
+// step 7).
+//
+// The code is not in here, and never will be, which the message says out loud
+// so that the recipient is not left waiting for a second email that is never
+// coming (spec 8.1). If they do not have the code, no email we could send
+// would help: we do not have it either.
+// ---------------------------------------------------------------------------
+function vaultReleaseAvailableEmail({ recipientName, ownerName, accessLink }) {
+  const recipientSafe = escapeHtml(recipientName || 'there');
+  const ownerSafe     = escapeHtml(ownerName || 'the account holder');
+  return layout(`
+    <p>Dear ${recipientSafe},</p>
+    <p>
+      <strong>${ownerSafe}</strong> arranged for you, as their Legacy Contact, to be
+      able to open their vault. The waiting period they set has now passed, and
+      the vault is available to you.
+    </p>
+    <p>
+      To open it you will need the <strong>release code</strong> that ${ownerSafe} gave
+      you. It may have been written down and kept with their will, in a sealed
+      envelope, or in a safe.
+    </p>
+    <p>
+      <strong>The code is not in this email, and we have never had a copy of it.</strong>
+      That is deliberate: we hold the sealed envelope and ${ownerSafe} gave you
+      the only key to it, so neither half is any use on its own. It is also why
+      we cannot send you a replacement if it has been lost.
+    </p>
+    ${accessLink ? button('Open the vault', accessLink) : ''}
+    <p style="color:#6B7280; font-size:14px;">
+      Please take your time. Nothing here expires, and there is no need to do this
+      today.
+    </p>
+    <p style="color:#6B7280; font-size:14px;">
+      With care,<br/>
+      The ${APP_NAME} team
+    </p>
+  `);
+}
+
 module.exports = {
   emailVerificationEmail,
+  vaultReleaseChallengeEmail,
+  vaultReleaseDeclarationNoticeEmail,
+  vaultReleaseAvailableEmail,
   unfinishedSectionsNudgeEmail,
   sectionSharedEmail,
   welcomeEmail,

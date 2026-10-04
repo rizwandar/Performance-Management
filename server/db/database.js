@@ -971,6 +971,59 @@ async function init() {
   // the primary one and still cancels on any login.
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS release_challenge_email TEXT`);
 
+  // The "I am here" link carried by the challenge emails during a pending
+  // release (lib/releaseChallenge.js). It exists because someone who has just
+  // been falsely declared dead may not be able to log in quickly - a
+  // forgotten password, a phone they are reading mail on, a hospital bed -
+  // and cancelling has to be the cheapest action in the whole system.
+  //
+  // Minted the same way trusted_contact_tokens are (crypto.randomBytes(32)
+  // hex, unique, looked up by exact value), and stored in the clear for the
+  // same reason that table does: the capability it grants is to make the
+  // system do the SAFE thing. A stolen cancel token can only stop a release,
+  // never cause one, never read anything and never reach key_enc. There is no
+  // expiry column because validity is already bounded by state rather than
+  // time: it is only honoured while status = 'pending', and it is set to NULL
+  // the moment it is used, the release is cancelled by any other route, the
+  // window closes, or the envelope is re-armed.
+  //
+  // One token per pending window, deliberately not rotated per challenge
+  // email. The owner may well open the first message after the third has
+  // arrived, and a rotating token would quietly kill the link in every
+  // earlier email - the exact opposite of what a safety valve should do.
+  await pool.query(`ALTER TABLE vault_release ADD COLUMN IF NOT EXISTS cancel_token TEXT`);
+  await pool.query(
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_vault_release_cancel_token
+     ON vault_release(cancel_token) WHERE cancel_token IS NOT NULL`
+  );
+
+  // Retry tracking for the one courtesy email the release itself sends: the
+  // "the vault is now available, come and enter your code" notice to the
+  // Legacy Contact once a window closes uncancelled.
+  //
+  // Separate from released_at because the two must be allowed to disagree.
+  // The state change is the authoritative act and is written first; the email
+  // is a courtesy that can fail against an email provider outage, and the
+  // sweep has to be able to come back for it tomorrow. Without its own column
+  // the row would read 'released' and so be skipped by the next sweep, and
+  // the contact would never be told - the same partial-fan-out failure mode
+  // REV-05 fixed on the deceased notifications (users.deceased_notified_at).
+  await pool.query(`ALTER TABLE vault_release ADD COLUMN IF NOT EXISTS release_notified_at TIMESTAMPTZ`);
+
+  // Per-contact completion tracking for the "a declaration has been made"
+  // fan-out during a pending release, which deliberately goes to EVERY
+  // trusted contact rather than only the person who declared it (spec 3.3):
+  // it is cheap, and it means one bad actor cannot do this quietly.
+  //
+  // Same shape and same reason as trusted_contacts.deceased_notified_at
+  // above: the sweep runs daily and may re-run after a partial failure, so it
+  // needs to be able to tell "already told" from "still to tell" per
+  // recipient rather than re-emailing everyone every morning. Cleared for the
+  // whole account when a pending release is cancelled, so a later, genuine
+  // declaration notifies afresh instead of being suppressed by a stamp left
+  // over from a false alarm.
+  await pool.query(`ALTER TABLE trusted_contacts ADD COLUMN IF NOT EXISTS release_declared_notified_at TIMESTAMPTZ`);
+
   // Seed version 1 of each policy from the content that used to be hardcoded
   // in TermsPage.jsx/PrivacyPage.jsx, so existing installs get a real v1
   // record instead of starting from an empty history.

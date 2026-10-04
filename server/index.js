@@ -139,6 +139,14 @@ app.use('/api/sections/digital-life/release/', (req, res, next) => (
 app.use(async (req, res, next) => {
   const exemptPaths = ['/api/health', '/api/auth/login', '/api/auth/logout'];
   if (exemptPaths.includes(req.path)) return next();
+  // The "I am here" link from a vault release challenge email
+  // (routes/vaultReleaseCancel.js). Exempt for the same reason /auth/login
+  // is: it is a safety valve, and it is the cheapest way for someone who has
+  // been falsely declared dead to stop their vault being handed over. A
+  // maintenance window must not be the reason that link does nothing. The
+  // path carries a secret token, so this is prefix-matched rather than listed
+  // above; it is one conditional UPDATE and reads nothing.
+  if (req.path.startsWith('/api/vault-release/cancel/')) return next();
   try {
     const setting = await queryOne("SELECT value FROM app_settings WHERE key = 'maintenance_mode'");
     if (setting?.value !== '1') return next();
@@ -209,6 +217,13 @@ app.use('/api/sections/digital-life/recovery', require('./routes/vaultRecovery')
 // generic '/digital-life/:id' routes in sections.js would otherwise swallow
 // these paths.
 app.use('/api/sections/digital-life/release', require('./routes/vaultRelease'));
+// Deliberately NOT under the owner-facing release prefix above. Everything
+// there requires a session and most of it requires the vault password; this
+// is the one release route that must work with neither, because someone being
+// falsely declared dead may not be able to sign in quickly. Its own top-level
+// prefix also keeps the URL short enough to survive being copied out of an
+// email by hand.
+app.use('/api/vault-release',   require('./routes/vaultReleaseCancel'));
 app.use('/api/sections',        require('./routes/sections'));
 app.use('/api/export',          require('./routes/export'));
 app.use('/api/billing',         require('./routes/billing'));
@@ -250,9 +265,20 @@ const { sendSignupTrialReminders } = require('./lib/signupTrialReminder');
 const { SIGNUP_TRIAL_ENABLED } = require('./lib/subscription');
 const { sendUnfinishedSectionsNudges } = require('./lib/unfinishedSectionsNudge');
 const { deleteExpiredAuditLogs } = require('./lib/auditLogRetention');
+const { runVaultReleaseChallenges } = require('./lib/releaseChallenge');
 cron.schedule('0 8 * * *', () => {
   console.log('[inactivity] Running daily check...');
   checkInactivity().catch(err => console.error('[inactivity] Check failed:', err.message));
+  // The challenge window for vault release on confirmed death
+  // (docs/VAULT_RELEASE_ON_DEATH_SPEC.md sections 3.3 and 8.5). Sits next to
+  // the inactivity check because it is the vault-shaped sibling of it: both
+  // are daily sweeps whose job is to give a living owner every chance to say
+  // "I am here" before anything is handed to anybody. Re-challenges owners
+  // with a pending release, tells their trusted contacts a declaration was
+  // made, cancels when the owner has been active, and moves a window that
+  // closed uncancelled to 'released'. Idempotent, so a re-run after a
+  // partial failure only does what is still outstanding.
+  runVaultReleaseChallenges().catch(err => console.error('[vault-release] Challenge sweep failed:', err.message));
   cleanupExpiredTokens().catch(err => console.error('[cleanup] Failed:', err.message));
   expireOrgPremiumGrants().catch(err => console.error('[org-premium] Expiry sweep failed:', err.message));
   sendTrialReminders().catch(err => console.error('[billing] Trial reminder sweep failed:', err.message));
