@@ -150,8 +150,13 @@ router.get('/status', requireAuth, async (req, res) => {
         status:             row.status,
         pending_started_at: row.pending_started_at,
         cancelled_at:       row.cancelled_at,
+        cancelled_reason:   row.cancelled_reason,
         released_at:        row.released_at,
         locked_until:       row.locked_until,
+        // A cancellation suspends the arrangement rather than re-arming it,
+        // so the profile needs to know to offer "turn it back on" rather than
+        // quietly showing it as active. See POST /resume below.
+        needs_resume:       row.status === 'suspended',
       },
     } : {}),
   });
@@ -320,6 +325,56 @@ router.post('/reissue', requireAuth, async (req, res) => {
  * recovery. It destroys the only copy of the vault key that outlives the
  * owner, so it should cost the same proof of ownership that creating it did.
  */
+/**
+ * Turn vault release back on after a cancellation suspended it.
+ *
+ * Cancelling a pending release suspends the arrangement rather than re-arming
+ * it, so that a false declaration costs the person who made it (see
+ * cancelPendingRelease in lib/releaseChallenge.js for why). This is how the
+ * owner turns it back on once they have satisfied themselves about what
+ * happened.
+ *
+ * Deliberately does NOT require the vault password and does NOT mint a new
+ * code. The envelope is untouched by a cancellation, so the code already in
+ * the Legacy Contact's hands still opens it, and forcing a re-seal here would
+ * mean physically delivering a new code after every false alarm. The thing
+ * being proved is only that the account holder is present and chose this,
+ * which the session already establishes.
+ *
+ * Clears the record of the false alarm, since from here on the arrangement is
+ * live again and the previous declaration is history rather than state. The
+ * audit log keeps what happened.
+ */
+router.post('/resume', requireAuth, async (req, res) => {
+  const row = await queryOne(
+    'SELECT id, status FROM vault_release WHERE user_id = $1',
+    [req.user.id]
+  );
+  if (!row) return res.status(404).json({ error: 'Vault release is not set up yet.' });
+  if (row.status === 'released') {
+    return res.status(409).json({ error: 'Your vault has already been released and this cannot be undone.' });
+  }
+  if (row.status !== 'suspended') {
+    return res.status(409).json({ error: 'Vault release is not suspended.' });
+  }
+
+  await query(
+    `UPDATE vault_release
+     SET status              = 'armed',
+         pending_started_at  = NULL,
+         pending_declared_by = NULL,
+         cancelled_at        = NULL,
+         cancelled_reason    = NULL,
+         last_challenged_at  = NULL,
+         cancel_token        = NULL
+     WHERE user_id = $1 AND status = 'suspended'`,
+    [req.user.id]
+  );
+
+  await auditRelease(req, 'vault_release_resumed', {});
+  res.json({ success: true, status: 'armed' });
+});
+
 router.delete('/setup', requireAuth, async (req, res) => {
   const { vault_password } = req.body || {};
 
