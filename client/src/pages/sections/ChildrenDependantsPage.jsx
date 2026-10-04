@@ -14,7 +14,7 @@ const API = import.meta.env.VITE_API_URL
 const TYPES = [
   { value: 'child',           label: 'Child' },
   { value: 'elderly_parent',  label: 'Elderly parent / relative' },
-  { value: 'other',           label: 'Other dependant' },
+  { value: 'other',           label: 'Other dependent' },
 ]
 
 const TYPE_LABELS  = Object.fromEntries(TYPES.map(t => [t.value, t.label]))
@@ -134,7 +134,7 @@ export default function ChildrenDependantsPage() {
             </p>
           </>
         )}
-        cta={{ label: '+ Add a dependant', onClick: openAdd }}
+        cta={{ label: '+ Add a dependent', onClick: openAdd }}
         secondaryAction={<ShareSectionTrigger section="children_dependants" sectionLabel="Dependents" />}
       />
 
@@ -150,7 +150,7 @@ export default function ChildrenDependantsPage() {
       ) : items.length === 0 ? (
         <div className="section-placeholder">
           <p style={{ fontSize: '2rem', marginBottom: 8 }}>👶</p>
-          <p className="mb-1" style={{ fontWeight: 600 }}>No dependants recorded yet</p>
+          <p className="mb-1" style={{ fontWeight: 600 }}>No dependents recorded yet</p>
           <p className="text-muted small mb-0">
             Add anyone who would need care if you were no longer able to provide it, such as children or relatives.
           </p>
@@ -217,7 +217,7 @@ export default function ChildrenDependantsPage() {
       <Modal show={showModal} onHide={closeModal} centered size="lg">
         <Modal.Header closeButton style={{ background: 'var(--green-50)', borderBottom: '1px solid var(--green-100)' }}>
           <Modal.Title style={{ color: 'var(--green-900)', fontSize: '1.1rem' }}>
-            {editing ? 'Edit record' : 'Add a dependant'}
+            {editing ? 'Edit record' : 'Add a dependent'}
           </Modal.Title>
         </Modal.Header>
         <Modal.Body>
@@ -295,7 +295,7 @@ export default function ChildrenDependantsPage() {
         <Modal.Footer style={{ borderTop: '1px solid var(--border)' }}>
           <Button variant="outline-secondary" onClick={closeModal}>Cancel</Button>
           <Button variant="primary" onClick={handleSave} disabled={saving}>
-            {saving ? 'Saving...' : editing ? 'Save changes' : 'Add dependant'}
+            {saving ? 'Saving...' : editing ? 'Save changes' : 'Add dependent'}
           </Button>
         </Modal.Footer>
       </Modal>
