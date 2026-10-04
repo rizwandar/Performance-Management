@@ -312,10 +312,25 @@ async function openReleaseWindow(userId, { declaredByType, declaredById } = {}) 
  *
  * Returns true only if this call is the one that cancelled it.
  */
+// A cancellation SUSPENDS the arrangement rather than re-arming it, and the
+// owner must turn it back on deliberately.
+//
+// Without this, cancelling returns the row to 'armed' and the next
+// declaration opens a fresh window. A Legacy Contact who wanted the vault
+// could then declare, wait for the owner to cancel, declare again, and repeat
+// until one window happened to fall across a holiday or a hospital stay. Each
+// attempt is noisy, since every trusted contact is told, but noise is not a
+// control, and the owner would be the one doing the work to stay ahead of it.
+//
+// Suspending inverts that. A false declaration costs the attacker the whole
+// arrangement, and the owner cancelling is also the owner saying something is
+// wrong here. Resuming is cheap and keeps the code already in their Legacy
+// Contact's hands valid, because the envelope is untouched: see
+// POST /resume in routes/vaultRelease.js. It is deliberately NOT automatic.
 async function cancelPendingRelease(userId, reason, metadata = {}) {
   const cancelled = await queryOne(
     `UPDATE vault_release
-     SET status             = 'armed',
+     SET status             = 'suspended',
          cancelled_at       = NOW(),
          cancelled_reason   = $1,
          last_challenged_at = NULL,
