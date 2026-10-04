@@ -928,6 +928,49 @@ async function init() {
   // have no value here and no re-consent flow currently backfills one.
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS health_data_consent_at TIMESTAMPTZ`);
 
+  // Vault release on confirmed death (docs/VAULT_RELEASE_ON_DEATH_SPEC.md).
+  //
+  // One row per user who has opted in. Holds the vault key sealed under a
+  // release code the server never keeps (lib/vaultRelease.js), plus the state
+  // machine for a pending release. Opt-in only: no row means the vault simply
+  // stays sealed forever, which is the status quo and remains a valid choice.
+  //
+  // contact_id is ON DELETE SET NULL rather than CASCADE on purpose. Deleting
+  // a trusted contact must not silently destroy the escrow: the envelope is
+  // still openable with the code the owner already handed out, and quietly
+  // dropping it would be the kind of data loss nobody discovers until it
+  // matters. A null contact_id means "escrow exists, nobody designated", which
+  // the release endpoint must refuse.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS vault_release (
+      id                   SERIAL PRIMARY KEY,
+      user_id              INTEGER UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      contact_id           INTEGER REFERENCES trusted_contacts(id) ON DELETE SET NULL,
+      key_enc              TEXT NOT NULL,
+      code_issued_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      window_hours         INTEGER NOT NULL DEFAULT 168,
+      status               TEXT NOT NULL DEFAULT 'armed',
+      pending_started_at   TIMESTAMPTZ,
+      pending_declared_by  TEXT,
+      cancelled_at         TIMESTAMPTZ,
+      cancelled_reason     TEXT,
+      released_at          TIMESTAMPTZ,
+      attempts             INTEGER NOT NULL DEFAULT 0,
+      locked_until         TIMESTAMPTZ,
+      last_challenged_at   TIMESTAMPTZ,
+      created_at           TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_vault_release_status ON vault_release(status)`);
+
+  // The second address the challenge is sent to during a pending release.
+  // SMS was considered and dropped (spec section 10), so a nominated backup
+  // email is the only second channel: it means an attacker who declares a
+  // death must also control two mailboxes rather than one. Optional, because
+  // plenty of people have only one address, and the challenge still reaches
+  // the primary one and still cancels on any login.
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS release_challenge_email TEXT`);
+
   // Seed version 1 of each policy from the content that used to be hardcoded
   // in TermsPage.jsx/PrivacyPage.jsx, so existing installs get a real v1
   // record instead of starting from an empty history.
