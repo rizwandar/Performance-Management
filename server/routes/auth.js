@@ -11,6 +11,7 @@ const { welcomeEmail, passwordResetEmail, emailVerificationEmail } = require('..
 const { validate } = require('../middleware/validate');
 const { setAuthCookies, clearAuthCookies } = require('../lib/authCookies');
 const { SIGNUP_TRIAL_ENABLED } = require('../lib/subscription');
+const { regimeForCountry } = require('../lib/complianceRegime');
 
 const { JWT_SECRET } = require('../lib/jwtSecret');
 
@@ -135,12 +136,21 @@ const registerRules = [
     .isDate().withMessage('Date of birth must be a valid date.'),
 ];
 router.post('/register', registerRules, validate, async (req, res) => {
-  const { name, email, password, date_of_birth, country_code, privacy_consent, acquisition_source } = req.body;
+  const { name, email, password, date_of_birth, country_code, privacy_consent, gdpr_age_consent, acquisition_source } = req.body;
   if (!name || !email || !password) {
     return res.status(400).json({ error: 'Name, email and password are required' });
   }
   if (!privacy_consent) {
     return res.status(400).json({ error: 'You must agree to the Privacy Policy and Terms of Service to create an account.' });
+  }
+  // The GDPR age-of-consent checkbox is only enforced client-side by a
+  // disabled submit button, which anyone can bypass by posting directly to
+  // this endpoint. The regime is worked out here from the submitted
+  // country_code rather than trusted from the client, so this check can't
+  // be skipped by simply omitting it from the request body.
+  const regime = regimeForCountry(country_code);
+  if (regime === 'gdpr' && !gdpr_age_consent) {
+    return res.status(400).json({ error: 'You must confirm that you are 16 years of age or older to create an account.' });
   }
   try {
     const hash = bcrypt.hashSync(password, 10);
@@ -173,16 +183,20 @@ router.post('/register', registerRules, validate, async (req, res) => {
     // here sets signup_trial_started_at anymore, it stays NULL until the
     // user actually accepts the offer (or self-serves it later from the
     // Upgrade page).
+    // gdpr_age_consent_at records WHEN consent was given (NULL if the
+    // regime check above didn't require it, or GDPR consent simply wasn't
+    // applicable) - see the ALTER TABLE comment in db/database.js for why
+    // this is a timestamp and not a boolean.
     const result = await query(`
       INSERT INTO users (name, email, password_hash, date_of_birth, country_code, privacy_consent,
                          privacy_consent_at, privacy_version_consented, tos_version_consented,
                          email_verified, email_verification_token, email_verification_expires_at,
-                         acquisition_source)
-      VALUES ($1, $2, $3, $4, $5, 1, NOW(), $6, $7, 0, $8, $9, $10)
+                         acquisition_source, gdpr_age_consent_at)
+      VALUES ($1, $2, $3, $4, $5, 1, NOW(), $6, $7, 0, $8, $9, $10, $11)
       RETURNING id
     `, [name, email, hash, date_of_birth || null, country_code || null,
         privacyVersion?.version ?? null, tosVersion?.version ?? null, verifyToken, verifyExpiry,
-        acquisitionSource]);
+        acquisitionSource, (regime === 'gdpr' && gdpr_age_consent) ? new Date().toISOString() : null]);
 
     const newId = result.rows[0].id;
 
