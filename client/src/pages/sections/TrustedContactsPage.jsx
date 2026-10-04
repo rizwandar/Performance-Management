@@ -234,11 +234,11 @@ export default function TrustedContactsPage() {
       {/* No "back to my plans" link here: it pushed the whole page down for a
           destination the main navigation already reaches. The header is the
           first thing on the page. */}
-      {/* The header carries everything a first-time reader needs: what a trusted
-          contact is, how they differ from the emergency contact, how many this
-          plan allows, and what naming one of them as Legacy Contact does. This
-          replaced two standalone explainer panels that sat further down the page
-          and split the same explanation across three places. */}
+      {/* The header carries what a first-time reader needs: what a trusted
+          contact is, how information reaches them, and what naming one of them
+          as Legacy Contact does. This replaced two standalone explainer panels
+          that sat further down the page and split the same explanation across
+          three places. Wording is the owner's own. */}
       <SectionHero
         eyebrow="Your People"
         headline="Trusted Contacts"
@@ -246,14 +246,13 @@ export default function TrustedContactsPage() {
         subtext={(
           <>
             <p className="mb-2">
-              Trusted contacts are the people you choose to share your plans with. Unlike your
-              emergency contact, each one receives a secure link that lets them actually read the
-              sections you've picked for them, when the time comes. You can add up to {cap}.
+              Trusted contacts are people you choose to share your selected plans with. You can
+              share the information with them using a secure link.
             </p>
             <p className="mb-0">
-              You can also name one of them your <strong>Legacy Contact</strong>: the person notified
-              first if you stop logging in. They can see everything you've recorded, except your
-              vault.{' '}
+              You can also name one of these trusted contacts as your <strong>Legacy Contact</strong>,
+              who will be notified first if you stop logging in. They can see everything
+              you've recorded, except your sensitive secured data in your vault.{' '}
               <Link to="/faq#legacy-contact-vs-trusted-contact">Learn more</Link>.
             </p>
           </>
