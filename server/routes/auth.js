@@ -134,6 +134,23 @@ const registerRules = [
     .matches(/[0-9]/).withMessage('Password must contain at least one number.'),
   body('date_of_birth').optional({ checkFalsy: true })
     .isDate().withMessage('Date of birth must be a valid date.'),
+  // country_code decides whether the GDPR age consent below is required, so
+  // it cannot arrive unvalidated. Without this an object stringified to
+  // "[OBJECT OBJECT]" and skipped the check entirely, while an array was
+  // written to the column as a Postgres array literal, leaving a row whose
+  // regime could never be re-derived. Validating the shape (two letters,
+  // upper-cased) rather than membership of a full country list is
+  // deliberate: the server only needs the gdpr/not-gdpr distinction, and
+  // mirroring the client's whole COUNTRIES array here would be a second
+  // hand-synced list to keep correct, for no security gain.
+  body('country_code').optional({ checkFalsy: true })
+    .customSanitizer(v => (typeof v === 'string' ? v.trim().toUpperCase() : v))
+    .isAlpha().isLength({ min: 2, max: 2 }).withMessage('Please select a valid country.'),
+  // Strict boolean. Anything truthy used to satisfy the gate, including an
+  // empty array and the string "false", which then wrote a consent timestamp
+  // for a consent nobody gave.
+  body('gdpr_age_consent').optional().isBoolean({ strict: true })
+    .withMessage('Invalid consent value.').toBoolean(),
 ];
 router.post('/register', registerRules, validate, async (req, res) => {
   const { name, email, password, date_of_birth, country_code, privacy_consent, gdpr_age_consent, acquisition_source } = req.body;
@@ -149,7 +166,7 @@ router.post('/register', registerRules, validate, async (req, res) => {
   // country_code rather than trusted from the client, so this check can't
   // be skipped by simply omitting it from the request body.
   const regime = regimeForCountry(country_code);
-  if (regime === 'gdpr' && !gdpr_age_consent) {
+  if (regime === 'gdpr' && gdpr_age_consent !== true) {
     return res.status(400).json({ error: 'You must confirm that you are 16 years of age or older to create an account.' });
   }
   try {
@@ -196,7 +213,7 @@ router.post('/register', registerRules, validate, async (req, res) => {
       RETURNING id
     `, [name, email, hash, date_of_birth || null, country_code || null,
         privacyVersion?.version ?? null, tosVersion?.version ?? null, verifyToken, verifyExpiry,
-        acquisitionSource, (regime === 'gdpr' && gdpr_age_consent) ? new Date().toISOString() : null]);
+        acquisitionSource, (regime === 'gdpr' && gdpr_age_consent === true) ? new Date().toISOString() : null]);
 
     const newId = result.rows[0].id;
 

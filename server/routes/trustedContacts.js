@@ -54,6 +54,16 @@ router.get('/', requireAuth, async (req, res) => {
   res.json(result);
 });
 
+// Plan wording deliberately avoids naming the paid tier: the upgrade page is
+// where the plan is actually explained. See the matching copy in
+// client/src/components/PlanLimitNotice.jsx. Shared between the cheap
+// pre-check and the in-transaction guard so both report the same thing.
+function capMessage(plan, limit) {
+  return plan !== 'premium'
+    ? `Your plan includes ${limit} trusted contacts. Upgrade your account if you would like to add more.`
+    : `You can add up to ${limit} trusted contacts.`;
+}
+
 router.post('/', requireAuth, checkPlanLock, async (req, res) => {
   const { sequence, name, relationship, email, phone, invite_message, visible_sections = [] } = req.body;
 
@@ -71,15 +81,7 @@ router.post('/', requireAuth, checkPlanLock, async (req, res) => {
     'SELECT sequence FROM trusted_contacts WHERE user_id = $1', [req.user.id]
   )).map(r => r.sequence);
 
-  if (taken.length >= limit) {
-    // Plan wording deliberately avoids naming the paid tier - the upgrade
-    // page is where the plan is actually explained. See the matching copy in
-    // client/src/components/PlanLimitNotice.jsx.
-    const errorMsg = plan !== 'premium'
-      ? `Your plan includes ${limit} trusted contacts. Upgrade your account if you would like to add more.`
-      : `You can add up to ${limit} trusted contacts.`;
-    return res.status(400).json({ error: errorMsg });
-  }
+  if (taken.length >= limit) return res.status(400).json({ error: capMessage(plan, limit) });
 
   // sequence is optional. It is display order only - nothing in the app
   // reads it as a notification priority or escalation order (the only other
@@ -115,11 +117,28 @@ router.post('/', requireAuth, checkPlanLock, async (req, res) => {
   let contactId;
   try {
     contactId = await transaction(async (client) => {
+      // Serialise concurrent adds for THIS user before counting. The
+      // conditional INSERT below is not sufficient on its own: under
+      // READ COMMITTED, which is Postgres's default, two statements running
+      // at the same time each evaluate their count subquery against their own
+      // snapshot, so both can observe room for the final slot and both insert.
+      // Measured: 20 simultaneous adds against a cap of 10 stored 11 rows.
+      // Locking the owner row makes the count authoritative, and costs nothing
+      // in the normal case where a person adds one contact at a time. Other
+      // users are unaffected, since the lock is on their own row.
+      await client.query('SELECT id FROM users WHERE id = $1 FOR UPDATE', [req.user.id]);
       const r = await client.query(`
         INSERT INTO trusted_contacts (user_id, sequence, name, relationship, email, phone, invite_message)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        SELECT $1, $2, $3, $4, $5, $6, $7
+        WHERE (SELECT COUNT(*) FROM trusted_contacts WHERE user_id = $1) < $8
         RETURNING id
-      `, [req.user.id, position, name, relationship || null, email || null, phone || null, invite_message || null]);
+      `, [req.user.id, position, name, relationship || null, email || null, phone || null, invite_message || null,
+          limit === Infinity ? Number.MAX_SAFE_INTEGER : limit]);
+      if (r.rowCount === 0) {
+        const err = new Error("plan_limit_reached");
+        err.planLimitReached = true;
+        throw err;
+      }
       const cid = r.rows[0].id;
       for (const sectionId of visible_sections) {
         await client.query(
@@ -135,6 +154,12 @@ router.post('/', requireAuth, checkPlanLock, async (req, res) => {
     // retryable conflict rather than letting it surface as a 500 with a
     // generic "something went wrong", which is exactly how the old
     // CHECK (sequence IN (1,2,3)) constraint presented itself for years.
+    // Lost a race for the last slot against another request from the same
+    // account. Same wording as the pre-transaction check above, since from
+    // the user's point of view it is the same situation.
+    if (err && err.planLimitReached) {
+      return res.status(400).json({ error: capMessage(plan, limit) });
+    }
     if (err && err.code === '23505') {
       return res.status(409).json({ error: 'That position was just taken. Please try again.' });
     }
