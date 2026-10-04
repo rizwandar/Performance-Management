@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { Button, Form, Row, Col, Alert, Modal, Spinner } from 'react-bootstrap'
 import axios from 'axios'
 import { useAuth } from '../../context/AuthContext'
@@ -20,7 +19,6 @@ const API = import.meta.env.VITE_API_URL
 const empty = { name: '', relationship: '', email: '', phone: '', notified_by: '', notes: '' }
 
 export default function PeopleToNotifyPage() {
-  const navigate = useNavigate()
   const { user } = useAuth()
   const { isPremium } = useSubscription()
   const [items, setItems]         = useState([])
@@ -48,10 +46,30 @@ export default function PeopleToNotifyPage() {
 
   useEffect(() => { load() }, [])
 
-  const atFreeLimit = !isPremium && items.length >= PLAN_LIMITS.people_to_notify.free
-  const addDisabledTitle = atFreeLimit
-    ? `You've reached the Free plan limit of ${PLAN_LIMITS.people_to_notify.free} people. Upgrade to Premium to add more.`
-    : undefined
+  // How many people this account may list. The server enforces the same
+  // number from server/lib/planLimits.js - this is the display mirror.
+  // A null premium value means no cap, matching that file's convention.
+  const cap = isPremium
+    ? (PLAN_LIMITS.people_to_notify.premium ?? Infinity)
+    : PLAN_LIMITS.people_to_notify.free
+  const canAddMore = items.length < cap
+
+  // Two different shapes for the same limit, on purpose, following Trusted
+  // Contacts. A free plan shows its full capacity as empty, fillable slots,
+  // so what the plan includes is visible at a glance rather than discovered
+  // as a wall. An uncapped plan grows one person at a time from a single
+  // button instead, since there is no capacity to draw.
+  //
+  // Math.max guards the case that matters most here: an account that held
+  // more people while paying (or during the signup trial) and has since
+  // returned to the free plan keeps every entry. The slots array starts from
+  // the entries themselves, so all of them render even above the cap. Never
+  // hide someone's own data to make it fit a limit.
+  const emptySlotCount = isPremium ? 0 : Math.max(0, cap - items.length)
+  const slots = [
+    ...items.map((item, i) => ({ item, pos: i + 1 })),
+    ...Array.from({ length: emptySlotCount }, (_, i) => ({ item: null, pos: items.length + i + 1 })),
+  ]
 
   const openAdd = () => { setEditing(null); setForm(empty); setError(''); setShowModal(true) }
   const openEdit = item => {
@@ -101,30 +119,34 @@ export default function PeopleToNotifyPage() {
 
   return (
     <div style={{ maxWidth: 800, margin: '0 auto' }}>
-      <div className="mb-4">
-        <button className="btn btn-link p-0 mb-2"
-          style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '0.9rem' }}
-          onClick={() => navigate('/profile')}>
-          ← Back to my plans
-        </button>
-      </div>
-
+      {/* No "back to my plans" link here: it pushed the whole page down for a
+          destination the main navigation and the journey footer both already
+          reach. The header is the first thing on the page. */}
+      {/* The header now carries the whole explanation: who to list, who
+          contacts them, and what those people do and do not receive. That
+          replaced a standalone italic paragraph underneath, which said the
+          same thing a second time in a quieter voice. Wording is the owner's
+          own. */}
       <SectionHero
         eyebrow="Your People"
-        headline="Make sure no one is forgotten"
-        highlight="forgotten"
-        subtext="When the time comes, who needs to know? List the people you'd want notified, and, just as importantly, who will be responsible for reaching each of them."
-        cta={{ label: '+ Add a person', onClick: openAdd, disabled: atFreeLimit, disabledTitle: addDisabledTitle }}
+        headline="People to Notify"
+        subheadline="Make sure no one is forgotten"
+        subtext={(
+          <>
+            <p className="mb-2">
+              Who would you want notified when you pass away? List each person and who should
+              contact them.
+            </p>
+            <p className="mb-0">
+              They'll receive a short, caring message, without access to your plans. Add their
+              email address for automatic notification after your Legacy Contact or funeral home
+              confirms your passing.
+            </p>
+          </>
+        )}
+        cta={canAddMore ? { label: '+ Add a person', onClick: openAdd } : undefined}
         secondaryAction={<ShareSectionTrigger section="people_to_notify" sectionLabel="People to Notify" />}
       />
-
-      <PlanLimitNotice limitKey="people_to_notify" currentCount={items.length} />
-
-      <p className="text-muted small mb-4" style={{ fontStyle: 'italic' }}>
-        These people don't get access to your plans, only a short, caring notice once your
-        Legacy Contact (or funeral home) has confirmed what's happened. If you'd like someone to
-        send this automatically, add their email address below.
-      </p>
 
       {success && <Alert variant="success">{success}</Alert>}
       {error && !showModal && <Alert variant="danger">{error}</Alert>}
@@ -133,48 +155,83 @@ export default function PeopleToNotifyPage() {
         <div className="text-center py-4">
           <Spinner animation="border" style={{ color: 'var(--green-800)' }} />
         </div>
-      ) : items.length === 0 ? (
-        <div className="section-placeholder">
-          <p style={{ fontSize: '2rem', marginBottom: 8 }}>👥</p>
-          <p className="mb-1" style={{ fontWeight: 600 }}>No one listed yet</p>
-          <p className="text-muted small mb-0">
-            Add friends, family, colleagues, or anyone else who should be told.
-          </p>
-        </div>
       ) : (
-        <div>
-          {items.map(item => (
-            <div key={item.id} className="section-card">
-              <div className="d-flex justify-content-between align-items-start">
-                <div style={{ flex: 1 }}>
-                  <p style={{ fontWeight: 600, color: 'var(--green-900)', marginBottom: 2 }}>
-                    {item.name}
-                    {item.relationship && (
-                      <span style={{ fontWeight: 400, color: 'var(--text-muted)', marginLeft: 8, fontSize: '0.9rem' }}>
-                        {item.relationship}
-                      </span>
-                    )}
-                  </p>
-                  {(item.email || item.phone) && (
-                    <p className="text-muted small mb-1">
-                      {[item.email, formatPhone(item.phone, user?.country_code)].filter(Boolean).join(' · ')}
-                    </p>
-                  )}
-                  {item.notified_by && (
-                    <p className="small mb-1" style={{ color: 'var(--green-800)' }}>
-                      Notified by: <span style={{ fontWeight: 600 }}>{item.notified_by}</span>
-                    </p>
-                  )}
-                  {item.notes && <p className="text-muted small mb-0" style={{ fontStyle: 'italic' }}>{item.notes}</p>}
-                </div>
-                <div className="d-flex gap-2 ms-3 flex-shrink-0">
-                  <Button size="sm" variant="outline-primary" onClick={() => openEdit(item)}>Edit</Button>
-                  <Button size="sm" variant="outline-danger" onClick={() => handleDelete(item.id)}>Remove</Button>
-                </div>
+        <>
+          <div className="mb-4">
+            {/* Only reachable on an uncapped plan with nothing listed: a
+                capped plan always has its empty slots to fill, which are a
+                warmer invitation than a placeholder. */}
+            {slots.length === 0 ? (
+              <div className="section-placeholder">
+                <p style={{ fontSize: '2rem', marginBottom: 8 }}>👥</p>
+                <p className="mb-1" style={{ fontWeight: 600 }}>No one listed yet</p>
+                <p className="text-muted small mb-0">
+                  Add friends, family, colleagues, or anyone else who should be told.
+                </p>
               </div>
-            </div>
-          ))}
-        </div>
+            ) : slots.map(({ item, pos }) => (
+              item ? (
+                // Entries themselves carry no slot number: the order here is
+                // just when each person was added, not a priority, so
+                // numbering them would imply a meaning the data has not got.
+                <div key={item.id} className="section-card">
+                  <div className="d-flex justify-content-between align-items-start">
+                    <div style={{ flex: 1 }}>
+                      <p style={{ fontWeight: 600, color: 'var(--green-900)', marginBottom: 2 }}>
+                        {item.name}
+                        {item.relationship && (
+                          <span style={{ fontWeight: 400, color: 'var(--text-muted)', marginLeft: 8, fontSize: '0.9rem' }}>
+                            {item.relationship}
+                          </span>
+                        )}
+                      </p>
+                      {(item.email || item.phone) && (
+                        <p className="text-muted small mb-1">
+                          {[item.email, formatPhone(item.phone, user?.country_code)].filter(Boolean).join(' · ')}
+                        </p>
+                      )}
+                      {item.notified_by && (
+                        <p className="small mb-1" style={{ color: 'var(--green-800)' }}>
+                          Notified by: <span style={{ fontWeight: 600 }}>{item.notified_by}</span>
+                        </p>
+                      )}
+                      {item.notes && <p className="text-muted small mb-0" style={{ fontStyle: 'italic' }}>{item.notes}</p>}
+                    </div>
+                    <div className="d-flex gap-2 ms-3 flex-shrink-0">
+                      <Button size="sm" variant="outline-primary" onClick={() => openEdit(item)}>Edit</Button>
+                      <Button size="sm" variant="outline-danger" onClick={() => handleDelete(item.id)}>Remove</Button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div key={`empty-${pos}`} className="section-card">
+                  <div className="d-flex align-items-center gap-3">
+                    <span style={{
+                      background: 'var(--border)', color: 'var(--text-muted)', borderRadius: '50%',
+                      width: 26, height: 26, display: 'inline-flex', alignItems: 'center',
+                      justifyContent: 'center', fontSize: '0.8rem', fontWeight: 700, flexShrink: 0,
+                    }}>{pos}</span>
+                    <span className="text-muted" style={{ flex: 1 }}>Person {pos}: empty</span>
+                    <Button size="sm" variant="outline-primary" onClick={openAdd}>+ Add</Button>
+                  </div>
+                </div>
+              )
+            ))}
+
+            {/* Uncapped plans grow one at a time from here rather than being
+                shown a run of empty slots they have no ceiling for. */}
+            {isPremium && canAddMore && (
+              <Button variant="outline-primary" onClick={openAdd}>
+                + Add a person
+              </Button>
+            )}
+          </div>
+
+          {/* Below the people, not above them: the allowance is already stated
+              by the slots themselves, so this only needs to be the invitation
+              to upgrade, read after someone has seen what they have. */}
+          <PlanLimitNotice limitKey="people_to_notify" currentCount={items.length} alwaysShow omitCount />
+        </>
       )}
 
       <Modal show={showModal} onHide={closeModal} centered>
