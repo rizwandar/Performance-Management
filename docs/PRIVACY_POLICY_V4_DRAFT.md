@@ -312,3 +312,76 @@ Put these to them rather than the whole document:
 6. Whether 30 days' notice before a transfer is right.
 7. The matching ToS assignment clause.
 8. Whether to build out or narrow v3's existing GDPR claims.
+
+---
+
+## 7. Correction and new finding, 2026-10-04
+
+### 7.1 I understated how much GDPR handling already exists
+
+Section 4 above said the policy "claims a regime whose central requirements it
+does not address", and described fixing the health-data consent as "a product
+change, not just a wording change", implying a large piece of work. **That
+overstated the cost, and the owner may have weighed a market decision against
+an inflated estimate. Correcting it here.**
+
+`client/src/pages/RegisterPage.jsx` already carries a full compliance-regime
+system: an ISO 3166 country list tagged `gdpr | pipeda | privacy_act | nz |
+ccpa | general | restricted`, regime-specific rights copy shown at signup, and
+for GDPR users **a separate, unbundled, submission-blocking consent checkbox**
+confirming they are 16 or older.
+
+So the pattern needed for a special-category health consent already exists and
+works. It would be a second checkbox beside the age one, shown to the same
+regime, not a rebuild of signup. That is modest.
+
+**Caveat, and it is a real one:** `gdpr_age_consent` appears nowhere in the
+server. The checkbox blocks the button client-side and is then apparently
+dropped. A consent that is not recorded cannot be evidenced later, which is
+most of the point of collecting it. That gap needs closing whatever is decided
+about markets, and it means the existing mechanism is less complete than the
+form implies.
+
+### 7.2 "Remove EU/UK from positioning but let them sign up" does not work
+
+The owner's stated plan on 2026-10-04 was to stop positioning for the EU and
+UK while still letting people there register.
+
+Under GDPR the test is whether the service is **offered to** people in the EU,
+not where the company sits, and the assessment turns on exactly the signals
+this app already shows:
+
+- a country selector that lists every EU member state
+- regime detection that branches specifically on `gdpr`
+- GDPR-specific consent collected at signup
+- a claim at signup that "We apply GDPR-standard protections"
+- a claim in the footer of **every page** that the service complies with GDPR
+- a dedicated GDPR section in the published Privacy Policy
+
+That is not passive accessibility. The product actively addresses EU users and
+tells them it complies. Not buying ads there would not undo any of it.
+
+### 7.3 The honest choice
+
+**Option A, stay in scope.** Keep the EU and UK. Add the health-data consent
+beside the existing age consent, record both server-side, and close the
+lawful-basis gap in the policy. Moderate work, and most of the scaffolding is
+already built.
+
+**Option B, leave scope properly.** Remove the EU states from the country list,
+remove the `gdpr` regime branch, remove the GDPR claim from the footer and the
+signup copy, and narrow the Privacy Policy's GDPR section. That is real work,
+it removes functionality that was deliberately built, and it is a regression in
+a product whose selling point is carefulness.
+
+**What is not an option** is leaving the GDPR claims in place while providing
+none of the substance. That is the current state, and it is the worst of both:
+a promise on every page that is not backed, with no benefit gained.
+
+**Recommendation: Option A.** The groundwork exists, the gap is narrower than
+section 4 implied, and the owner said on the same day that EU and UK users are
+wanted. Option B trades real functionality for a reduction in obligations that
+the product is already most of the way to meeting.
+
+A lawyer should confirm either path. This is an engineering reading of where
+the code targets, not legal advice.
