@@ -223,7 +223,13 @@ router.post('/setup', requireAuth, async (req, res) => {
       released_at         = NULL,
       attempts            = 0,
       locked_until        = NULL,
-      last_challenged_at  = NULL
+      last_challenged_at  = NULL,
+      -- Challenge-window state for whatever window this row used to be in.
+      -- A cancel token left behind is a live secret for a window that no
+      -- longer exists, and a stale release_notified_at would suppress the
+      -- "the vault is now available" notice for the next one.
+      cancel_token        = NULL,
+      release_notified_at = NULL
   `, [req.user.id, contact.id, keyEnc]);
 
   // Audit the fact, never the code. Arming this is the user consenting to
@@ -285,7 +291,8 @@ router.post('/reissue', requireAuth, async (req, res) => {
      SET key_enc = $1, code_issued_at = NOW(), status = 'armed',
          pending_started_at = NULL, pending_declared_by = NULL,
          cancelled_at = NULL, cancelled_reason = NULL, released_at = NULL,
-         attempts = 0, locked_until = NULL, last_challenged_at = NULL
+         attempts = 0, locked_until = NULL, last_challenged_at = NULL,
+         cancel_token = NULL, release_notified_at = NULL
      WHERE user_id = $2`,
     [keyEnc, req.user.id]
   );
