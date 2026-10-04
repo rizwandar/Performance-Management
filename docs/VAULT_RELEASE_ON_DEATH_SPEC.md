@@ -350,3 +350,101 @@ The owner asked. In order:
 7. If the clock runs out with no cancellation, the Legacy Contact is emailed:
    the vault is now available, come and enter your code. Only at that point is
    the envelope handed over.
+
+---
+
+## 9. Final copy decisions, 2026-10-04
+
+### 9.1 The "Make Legacy Contact" modal
+
+The owner's own wording, which is tighter than the earlier draft and replaces
+it. Two mechanical fixes applied: "optional vault access" promoted to a real
+subheading, and the em-dash replaced per the project's no-em-dash rule.
+
+> **Make {name} your Legacy Contact?**
+>
+> Your Legacy Contact is the person you choose to help carry out your wishes
+> when you're gone.
+>
+> {name} will be notified first if you stop logging in and will have permanent,
+> read-only access to everything except your vault. She can also confirm your
+> passing, triggering notifications to the people on your notification list.
+>
+> **Optional vault access**
+>
+> You can give {name} access to your vault using a private release code, now or
+> later. We securely store an encrypted copy of your vault key, but we never
+> store or send the code. You must give it to {name} yourself.
+>
+> [Make Legacy Contact] · [Make Legacy Contact and set up vault access] ·
+> [Cancel]
+
+Pronouns must come from the contact's own record or be neutral. "She" above is
+only correct because the example contact is Sarah; the shipped string needs
+"they" unless the app starts collecting pronouns, which it does not today.
+
+### 9.2 The challenge message
+
+Owner's steer: say "passed away" rather than "died", and give an SMS reply
+option as well as a link.
+
+**Email:**
+
+> Subject: Please confirm you are there
+>
+> It has been reported that you have passed away.
+>
+> If you are reading this, that report is wrong. Press the button below and
+> nothing further will happen.
+>
+> [I am here]
+>
+> If we do not hear from you by {date and time}, the vault access you set up for
+> {name} will go ahead as you arranged.
+
+**SMS:**
+
+> In Good Hands: it has been reported that you have passed away. If you are
+> reading this, reply 1 and nothing further will happen. {short link}
+
+### 9.3 One reply option, not two
+
+The owner suggested "respond by 1 or 2". **Recommend a single action.**
+
+The tempting second option is "2 to confirm the report is correct", letting
+whoever holds the deceased's phone shorten the wait. That hands the power to
+accelerate release to an unverified person who physically has the handset,
+which is the one direction the design should never make easier. Cancelling is
+safe because it errs toward not releasing; accelerating is not.
+
+If a second option is still wanted, it must only ever delay, never speed up.
+For example "2 to add another 7 days". Even then it is close to redundant, as
+anyone able to press 2 could press 1.
+
+### 9.4 Inbound SMS is a bigger ask than outbound
+
+Worth flagging while SMS is being scoped. Sending one-way SMS needs a provider
+and a sender. **Accepting a "reply 1" needs a two-way number, an inbound
+webhook, reply parsing, and per-number rules that differ by country.** Canadian
+and US long codes also carry carrier filtering and registration requirements
+for application-to-person traffic.
+
+If that proves slow to arrange, the fallback is SMS that carries only a short
+link, with the link doing the cancelling. That keeps the second channel, which
+is the actual security benefit, without needing inbound capability.
+
+### 9.5 Release code delivery: both
+
+Decided. The code is shown on screen so it can be written down, **and** offered
+as a printable PDF sheet. The PDF is the one likely to survive a decade in a
+safe or alongside a will, which is the horizon this feature has to work over.
+
+The sheet should carry the code, the Legacy Contact's name, the date issued, a
+one-line explanation of what it opens, and the warning that issuing a new code
+voids it. It should not carry the account's email address or any vault content.
+
+### 9.6 Re-issuance, confirmed
+
+The user can issue a new code at any time while alive, so a lost code is not
+fatal. Requires the vault password again, and the previous code stops working
+immediately.
