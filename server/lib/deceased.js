@@ -1,5 +1,6 @@
 const { queryOne, queryAll, query } = require('../db/database');
 const { sendEmail } = require('./sendEmail');
+const { forLog } = require('./logSafe');
 const { demiseNotificationEmail, executorNotificationEmail } = require('./emailTemplates');
 const { notifyTrustedContacts } = require('./inactivityTimer');
 
@@ -38,6 +39,31 @@ async function notifyPeopleToNotify(user) {
     }
   }
   return { sentCount, attempted: people.length, failedCount: people.length - sentCount };
+}
+
+// IDEA/OPS: the Emergency Contact section was previously write-only (nobody was
+// ever notified, nothing ever surfaced it), even though its whole purpose is the
+// one moment nothing else here covers: someone acting for the owner needs to
+// reach another person who knows them. One-shot, same shape as the executor
+// notice below (a single column on `users`, not a per-row table, since there's
+// exactly one emergency contact) rather than notifyPeopleToNotify's per-row
+// tracking, which exists because that table can hold many recipients.
+async function notifyEmergencyContact(user) {
+  if (user.deceased_emergency_contact_notified_at) return { sentCount: 0, attempted: 0, failedCount: 0 };
+  if (!user.emergency_contact_email) return { sentCount: 0, attempted: 0, failedCount: 0 };
+
+  try {
+    await sendEmail({
+      to:      user.emergency_contact_email,
+      subject: `An update regarding ${user.name}`,
+      html:    demiseNotificationEmail({ recipientName: user.emergency_contact_name || 'there', ownerName: user.name }),
+    });
+    await query('UPDATE users SET deceased_emergency_contact_notified_at = $1 WHERE id = $2', [new Date().toISOString(), user.id]);
+    return { sentCount: 1, attempted: 1, failedCount: 0 };
+  } catch (err) {
+    console.error(`[deceased] Failed to notify emergency contact ${forLog(user.emergency_contact_email)}:`, err.message);
+    return { sentCount: 0, attempted: 1, failedCount: 1 };
+  }
 }
 
 // Single entry point for marking a user deceased, called from every path that can
@@ -83,8 +109,9 @@ async function markUserDeceased(userId, { markedByType, markedById }) {
     }
   }
 
-  const contactsResult = await notifyTrustedContacts(user, { deceasedContext: true });
-  const peopleResult   = await notifyPeopleToNotify(user);
+  const contactsResult  = await notifyTrustedContacts(user, { deceasedContext: true });
+  const peopleResult    = await notifyPeopleToNotify(user);
+  const emergencyResult = await notifyEmergencyContact(user);
 
   // If someone other than the executor made this call (e.g. funeral-home staff),
   // let the designated executor know it has happened. If the executor did this
@@ -111,7 +138,8 @@ async function markUserDeceased(userId, { markedByType, markedById }) {
     }
   }
 
-  const fanOutComplete = contactsResult.failedCount === 0 && peopleResult.failedCount === 0 && executorNoticeOk;
+  const fanOutComplete = contactsResult.failedCount === 0 && peopleResult.failedCount === 0
+    && emergencyResult.failedCount === 0 && executorNoticeOk;
   if (fanOutComplete) {
     await query('UPDATE users SET deceased_notified_at = $1 WHERE id = $2', [new Date().toISOString(), userId]);
   }
@@ -125,6 +153,7 @@ async function markUserDeceased(userId, { markedByType, markedById }) {
     user_id: userId, marked_by_type: markedByType, marked_by_id: markedById,
     contacts_notified: contactsResult.sentCount, contacts_failed: contactsResult.failedCount,
     people_notified: peopleResult.sentCount, people_failed: peopleResult.failedCount,
+    emergency_contact_notified: emergencyResult.sentCount, emergency_contact_failed: emergencyResult.failedCount,
     executor_notice_ok: executorNoticeOk, fan_out_complete: fanOutComplete,
   });
 

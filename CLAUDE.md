@@ -101,6 +101,8 @@ The client and mobile apps import from `@in-good-hands/shared`. The Vite config 
 
 **Email:** Resend API via `server/lib/sendEmail.js`. Env vars: `RESEND_API_KEY`, `FROM_EMAIL`.
 
+**Database backups:** `server/lib/backup.js` dumps every table in the public schema to one JSON file nightly (8am cron in `index.js`, also `POST /api/admin/backups/run`), gzips it, encrypts it with AES-256-GCM (`server/lib/backupCrypto.js`, key from `BACKUP_ENCRYPTION_KEY`) and uploads it to R2 under `backups/<environment>/`, keeping the last 14 per environment. Compression happens before encryption, deliberately: see the comment on `encryptBackup` before changing that order. Nothing in the app reads a backup back, so the only restore path is `server/scripts/decrypt-backup.mjs`. If the file format changes, that script changes with it.
+
 **Admin seed:** On first run an admin user `admin@igh.local` is created with a random password that is never disclosed. Access is bootstrapped through a single-use password reset link, valid 7 days, emailed to `ADMIN_SEED_NOTIFY_EMAIL` (falling back to `ADMIN_EMAIL`) and also written to the server log in case Resend is not configured. If that link expires the account is unreachable, since `admin@igh.local` is not a real mailbox and cannot use forgot-password: delete the row and redeploy to re-seed and get a fresh link. It was previously the fixed string `Admin1234`, which shipped to every environment including production and is published in this repository's history. The demo organization and its six fixed-password accounts (`demo.orgadmin@igh.local` plus five demo customers) now seed only when `ORG_PORTAL_ENABLED` is `true`, so they no longer reach production at all.
 
 ### Client (`client/src/`)
@@ -154,6 +156,13 @@ JWT_SECRET=
 CLIENT_URL=http://localhost:5173
 ```
 
+Required for the nightly database backup (the backup run fails without it on
+any deployed environment):
+
+```
+BACKUP_ENCRYPTION_KEY=          # lib/backup.js resolves it, lib/backupCrypto.js defines the format
+```
+
 Required for file uploads, all read in `server/lib/r2.js`:
 
 ```
@@ -203,6 +212,25 @@ neither `production` nor `staging`. The check fails closed, so a new deployment
 target that nobody thought to add to that list is required to set the secret
 rather than quietly exempted from it. On a local machine it falls back to a
 shared development value and warns loudly.
+
+`BACKUP_ENCRYPTION_KEY` follows the same fail-closed rule, via the same
+`isLocalDevelopment()` helper exported from `server/lib/jwtSecret.js`. The
+nightly backup dumps every table, so a plaintext copy in R2 means one
+credential reads the entire database, and the published privacy policy states
+that backups are encrypted. On a deployed environment a missing key **fails the
+backup run**; it never falls back to plaintext, because a missing backup gets
+noticed and a quietly unencrypted one does not. On a local machine it warns
+loudly and writes an unencrypted `.json.gz` (encrypted files get a `.json.gz.enc`
+suffix, so the two are never confused). A malformed key fails everywhere,
+local dev included.
+
+Generate one with
+`node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`.
+**Losing the key makes every backup written with it permanently unrecoverable**,
+so it lives in Infisical, one distinct value per environment, and nowhere else.
+Read a backup back with
+`node server/scripts/decrypt-backup.mjs <downloaded file> -o backup.json`; that
+script is the only restore path, since nothing in the app reads a backup.
 
 Note that `NODE_ENV` alone is not a reliable environment signal here: Render
 sets it to `production` on every web service, staging included, which is why
