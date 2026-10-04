@@ -563,19 +563,12 @@ function NavBar() {
                   <>
                     <Nav.Link as={Link} to="/profile">My Plans</Nav.Link>
                     {!isViewAs && <Nav.Link as={Link} to="/profile/settings">My Profile</Nav.Link>}
-                    {!isViewAs && !isPremium && (
-                      <span
-                        title="You're on the Essentials plan, upgrade for full access to every section"
-                        style={{
-                          display: 'inline-flex', alignItems: 'center', gap: 5,
-                          fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.03em',
-                          color: '#fff', background: 'rgba(255,255,255,0.18)',
-                          borderRadius: 12, padding: '4px 11px', marginRight: 4,
-                        }}
-                      >
-                        ESSENTIALS PLAN
-                      </span>
-                    )}
+                    {/* Free users deliberately get no plan badge here. An
+                        Essentials plan badge used to render in this spot and was
+                        removed on purpose: labelling the free tier in the chrome
+                        of every page reads as a persistent nag. A plan badge
+                        should appear only once someone has actually upgraded,
+                        see the Premium badge below. The Upgrade link stays. */}
                     {!isViewAs && !isPremium && (
                       <Nav.Link as={Link} to="/upgrade" style={{ fontWeight: 600, color: 'var(--gold)' }}>
                         Upgrade
