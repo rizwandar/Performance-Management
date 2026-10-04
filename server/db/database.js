@@ -913,6 +913,21 @@ async function init() {
   // updated afterward.
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS gdpr_age_consent_at TIMESTAMPTZ`);
 
+  // Health data consent ("I agree that In Good Hands may store the health
+  // information I choose to record, such as my medical records and my
+  // doctors' details"), shown at registration beside the age checkbox
+  // above, only when the submitted country_code falls under GDPR. Medical
+  // Records and Doctors are ordinary unencrypted rows, and health data is
+  // special-category under GDPR/UK law: it needs a genuine, separate,
+  // affirmative choice rather than riding along on the combined
+  // privacy_consent checkbox. A timestamp, not a boolean, for the same
+  // reason as gdpr_age_consent_at: a current-state flag records no evidence
+  // of the original consent event. NULL means no health data consent was
+  // recorded (not applicable, or not yet given); set once, at registration,
+  // never updated afterward. Accounts registered before this column existed
+  // have no value here and no re-consent flow currently backfills one.
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS health_data_consent_at TIMESTAMPTZ`);
+
   // Seed version 1 of each policy from the content that used to be hardcoded
   // in TermsPage.jsx/PrivacyPage.jsx, so existing installs get a real v1
   // record instead of starting from an empty history.

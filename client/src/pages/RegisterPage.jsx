@@ -122,7 +122,7 @@ export default function RegisterPage() {
   const navigate = useNavigate()
   const [form, setForm] = useState({
     name: '', email: '', password: '', confirm_password: '', date_of_birth: '',
-    country_code: '', privacy_consent: false, gdpr_age_consent: false,
+    country_code: '', privacy_consent: false, gdpr_age_consent: false, health_data_consent: false,
   })
   const [error, setError]           = useState('')
   const [saving, setSaving]         = useState(false)
@@ -170,8 +170,9 @@ export default function RegisterPage() {
         password:         form.password,
         date_of_birth:    form.date_of_birth || null,
         country_code:     form.country_code,
-        privacy_consent:  form.privacy_consent,
-        gdpr_age_consent: form.gdpr_age_consent,
+        privacy_consent:     form.privacy_consent,
+        gdpr_age_consent:    form.gdpr_age_consent,
+        health_data_consent: form.health_data_consent,
       })
       navigate('/login', { state: { registered: true } })
     } catch (err) {
@@ -330,10 +331,27 @@ export default function RegisterPage() {
                   label={<span style={{ fontSize: '0.87rem' }}>I confirm that I am 16 years of age or older (required under GDPR).</span>}
                 />
               )}
+              {(regime === 'gdpr') && (
+                <Form.Check
+                  type="checkbox"
+                  id="health-data-consent"
+                  className="mt-2"
+                  checked={form.health_data_consent}
+                  onChange={e => setForm({ ...form, health_data_consent: e.target.checked })}
+                  label={
+                    <span style={{ fontSize: '0.87rem' }}>
+                      I agree that In Good Hands may store the health information I choose to record,
+                      such as my medical records and my doctors' details.
+                    </span>
+                  }
+                />
+              )}
             </div>
 
             <Button type="submit" variant="primary" className="w-100"
-              disabled={saving || rateLimited || !form.privacy_consent || (regime === 'gdpr' && !form.gdpr_age_consent)}>
+              disabled={saving || rateLimited || !form.privacy_consent
+                || (regime === 'gdpr' && !form.gdpr_age_consent)
+                || (regime === 'gdpr' && !form.health_data_consent)}>
               {saving ? 'Creating your account…' : 'Create my account'}
             </Button>
           </Form>

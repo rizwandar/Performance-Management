@@ -151,9 +151,16 @@ const registerRules = [
   // for a consent nobody gave.
   body('gdpr_age_consent').optional().isBoolean({ strict: true })
     .withMessage('Invalid consent value.').toBoolean(),
+  // Same strict-boolean treatment as gdpr_age_consent above, and for the
+  // same reason: this gates a second, separate consent (health data is
+  // special-category under GDPR/UK law and needs its own affirmative
+  // choice, not a bundled checkbox), so it must not be satisfiable by a
+  // truthy-but-not-true value either.
+  body('health_data_consent').optional().isBoolean({ strict: true })
+    .withMessage('Invalid consent value.').toBoolean(),
 ];
 router.post('/register', registerRules, validate, async (req, res) => {
-  const { name, email, password, date_of_birth, country_code, privacy_consent, gdpr_age_consent, acquisition_source } = req.body;
+  const { name, email, password, date_of_birth, country_code, privacy_consent, gdpr_age_consent, health_data_consent, acquisition_source } = req.body;
   if (!name || !email || !password) {
     return res.status(400).json({ error: 'Name, email and password are required' });
   }
@@ -168,6 +175,15 @@ router.post('/register', registerRules, validate, async (req, res) => {
   const regime = regimeForCountry(country_code);
   if (regime === 'gdpr' && gdpr_age_consent !== true) {
     return res.status(400).json({ error: 'You must confirm that you are 16 years of age or older to create an account.' });
+  }
+  // Medical Records and Doctors store health data, which is special-category
+  // under GDPR/UK law and needs its own genuine, separate consent rather than
+  // riding along on privacy_consent above. Same server-side enforcement
+  // reasoning as the age check: a disabled button is a UI nicety, not a
+  // guarantee, so the regime is re-derived here rather than trusted from the
+  // client.
+  if (regime === 'gdpr' && health_data_consent !== true) {
+    return res.status(400).json({ error: 'You must agree to the storage of health information to create an account.' });
   }
   try {
     const hash = bcrypt.hashSync(password, 10);
@@ -200,20 +216,21 @@ router.post('/register', registerRules, validate, async (req, res) => {
     // here sets signup_trial_started_at anymore, it stays NULL until the
     // user actually accepts the offer (or self-serves it later from the
     // Upgrade page).
-    // gdpr_age_consent_at records WHEN consent was given (NULL if the
-    // regime check above didn't require it, or GDPR consent simply wasn't
-    // applicable) - see the ALTER TABLE comment in db/database.js for why
-    // this is a timestamp and not a boolean.
+    // gdpr_age_consent_at and health_data_consent_at record WHEN each consent
+    // was given (NULL if the regime check above didn't require it, or GDPR
+    // consent simply wasn't applicable) - see the ALTER TABLE comments in
+    // db/database.js for why these are timestamps and not booleans.
     const result = await query(`
       INSERT INTO users (name, email, password_hash, date_of_birth, country_code, privacy_consent,
                          privacy_consent_at, privacy_version_consented, tos_version_consented,
                          email_verified, email_verification_token, email_verification_expires_at,
-                         acquisition_source, gdpr_age_consent_at)
-      VALUES ($1, $2, $3, $4, $5, 1, NOW(), $6, $7, 0, $8, $9, $10, $11)
+                         acquisition_source, gdpr_age_consent_at, health_data_consent_at)
+      VALUES ($1, $2, $3, $4, $5, 1, NOW(), $6, $7, 0, $8, $9, $10, $11, $12)
       RETURNING id
     `, [name, email, hash, date_of_birth || null, country_code || null,
         privacyVersion?.version ?? null, tosVersion?.version ?? null, verifyToken, verifyExpiry,
-        acquisitionSource, (regime === 'gdpr' && gdpr_age_consent === true) ? new Date().toISOString() : null]);
+        acquisitionSource, (regime === 'gdpr' && gdpr_age_consent === true) ? new Date().toISOString() : null,
+        (regime === 'gdpr' && health_data_consent === true) ? new Date().toISOString() : null]);
 
     const newId = result.rows[0].id;
 
