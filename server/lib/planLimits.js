@@ -18,7 +18,7 @@ const PLAN_LIMITS = {
   trusted_contacts:       { free: 2, premium: 10 },
   personal_messages:      { free: 2, premium: null },
   unfinished_business:    { free: 2, premium: null },
-  people_to_notify:       { free: 2, premium: null },
+  people_to_notify:       { free: 3, premium: null },
   funeral_gallery_photos: { free: 5, premium: 50 },
   message_audio_clips:    { free: 1, premium: 3 },
 };

@@ -7,6 +7,16 @@ import { getRetryAfterSeconds, rateLimitMessage, useCountdown } from '../utils/r
 
 // ISO 3166-1 alpha-2 country list with compliance regime tags
 // regime: gdpr | pipeda | privacy_act | nz | ccpa | general | restricted
+//
+// The codes tagged regime: 'gdpr' below are mirrored in
+// server/lib/complianceRegime.js, which the server uses to work out the
+// regime itself from the submitted country_code (it cannot trust the
+// client's gdpr_age_consent checkbox alone). Kept in sync by hand, since
+// this project has no cross-runtime shared module for this today (see
+// shared/package.json's single "./format" export, and
+// server/lib/planLimits.js / client/src/constants/planLimits.js for the
+// same hand-synced arrangement elsewhere). Change one, change the other
+// in the same commit.
 const COUNTRIES = [
   // Canada
   { code: 'CA', name: 'Canada',                        regime: 'pipeda' },
@@ -155,12 +165,13 @@ export default function RegisterPage() {
     setSaving(true)
     try {
       await axios.post(`${API}/auth/register`, {
-        name:            form.name,
-        email:           form.email,
-        password:        form.password,
-        date_of_birth:   form.date_of_birth || null,
-        country_code:    form.country_code,
-        privacy_consent: form.privacy_consent,
+        name:             form.name,
+        email:            form.email,
+        password:         form.password,
+        date_of_birth:    form.date_of_birth || null,
+        country_code:     form.country_code,
+        privacy_consent:  form.privacy_consent,
+        gdpr_age_consent: form.gdpr_age_consent,
       })
       navigate('/login', { state: { registered: true } })
     } catch (err) {

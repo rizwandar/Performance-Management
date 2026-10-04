@@ -29,7 +29,7 @@ const SECTION_META = {
   personal_messages:    { label: 'Messages to Loved Ones',        isVault: false, kind: 'list' },
   songs_that_define_me: { label: 'Songs That Define Me',          isVault: false, kind: 'list' },
   life_wishes:          { label: 'Bucket List',                   isVault: false, kind: 'list' },
-  children_dependants:  { label: 'Your Loved Ones',                isVault: false, kind: 'list' },
+  children_dependants:  { label: 'Dependents',                   isVault: false, kind: 'list' },
   pets:                 { label: 'Pet Care',                      isVault: false, kind: 'list' },
   how_to_be_remembered: { label: "How I'd Like to Be Remembered", isVault: false, kind: 'single' },
   insurance_items:      { label: 'Insurance',                     isVault: false, kind: 'list' },
@@ -157,8 +157,11 @@ const LIST_FIELDS = {
   },
   children_dependants: {
     titleKey: 'name',
+    // date_of_birth is deliberately absent: a dependant's birth date is no
+    // longer collected, and a shared section goes out to a third party, so
+    // legacy values held on older rows should not travel with it.
     fields: [
-      ['type', 'Type', cap], ['date_of_birth', 'Date of birth'], ['special_needs', 'Special needs'],
+      ['type', 'Type', cap], ['special_needs', 'Special needs'],
       ['preferred_guardian', 'Preferred guardian'], ['guardian_contact', 'Guardian contact'],
       ['alternate_guardian', 'Alternate guardian'], ['alternate_contact', 'Alternate contact'], ['notes', 'Notes'],
     ],

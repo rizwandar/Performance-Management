@@ -603,7 +603,7 @@ YOUR PEOPLE:
 - Emergency Contact: a single person to call right away in a crisis, stored on the users table (name, relationship, phone, email, notes). Does NOT receive plan access. (IDEA-27, split out of the old combined "Key Contacts" section.)
 - Trusted Contacts: stored in a separate trusted_contacts table (sequence-numbered position slots), plan-aware count limit since IDEA-43: 2 on Free, 10 on Premium (server/lib/planLimits.js), each with section-level view permissions. Trusted contacts get 72-hour access links to view permitted sections, except the designated Legacy Contact, whose link never expires. (IDEA-27, split out of the old combined "Key Contacts" section; the underlying trusted_contacts table and routes are unchanged.)
 - People to Notify: people_to_notify table. People who should be contacted when the user passes. Name, relationship, email, phone, notified_by, notes.
-- Your Loved Ones: children_dependants table. Name, type (child/elderly_parent/other), DOB, special needs, preferred guardian, alternate guardian, notes.
+- Dependents: children_dependants table. Name, type (child/elderly_parent/other), special needs, preferred guardian, alternate guardian, notes. (Renamed from "Your Loved Ones" in the UI; the table, routes and section id are unchanged. The date_of_birth column still exists but is no longer collected, returned or exported: a dependant's birth date was judged an unnecessary privacy risk to hold.)
 - Pet Care: pets table (IDEA-18, split out of Your Loved Ones). Name, age, special needs/care instructions, preferred caretaker + contact, alternate caretaker + contact, notes.
 
 YOUR AFFAIRS:
@@ -836,7 +836,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
                   { label: 'Emergency Contact', desc: 'The first person to call in an emergency. Does not receive access to your plans.' },
                   { label: 'Trusted Contacts', desc: 'Up to three people who can securely view your plans, with one optionally designated your Legacy Contact.' },
                   { label: 'People to Notify', desc: 'A list of people who should be contacted when you pass, and who should contact them.' },
-                  { label: 'Your Loved Ones', desc: 'Details for children or other dependants including preferred guardians.' },
+                  { label: 'Dependents', desc: 'Details for children or other dependants including preferred guardians.' },
                   { label: 'Pet Care', desc: 'Feeding routines, vet details, and preferred caretakers for your pets.' },
                 ]},
                 { group: 'Your Affairs', color: '#8A7A6A', icon: '📋', sections: [
@@ -1197,7 +1197,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
             },
             {
               table: 'children_dependants',
-              fields: 'id, user_id, name, type, date_of_birth, special_needs, preferred_guardian, guardian_contact, alternate_guardian, notes, created_at',
+              fields: 'id, user_id, name, type, date_of_birth (retained but inert, no longer collected, returned or exported), special_needs, preferred_guardian, guardian_contact, alternate_guardian, notes, created_at',
             },
             {
               table: 'digital_vault',
@@ -1259,7 +1259,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
               { id: 'emergency_contact', label: 'Emergency Contact', route: '/sections/emergency-contact', note: 'Fields on users table: emergency_contact_name/_relationship/_phone/_email/_notes. Saved via PUT /api/users/me, not /api/sections. Does not receive plan access.' },
               { id: 'trusted_contacts', label: 'Trusted Contacts', route: '/sections/trusted-contacts', note: 'trusted_contacts table (max 3, sequence 1-3), CRUD via /api/trusted-contacts, not /api/sections. Unchanged by the IDEA-27 page split.' },
               { id: 'people_to_notify', label: 'People to Notify', route: '/sections/people-to-notify', note: 'people_to_notify table.' },
-              { id: 'children-dependants', label: 'Your Loved Ones', route: '/sections/children-dependants', note: 'children_dependants table.' },
+              { id: 'children-dependants', label: 'Dependents', route: '/sections/children-dependants', note: 'children_dependants table.' },
               { id: 'pet-care', label: 'Pet Care', route: '/sections/pet-care', note: 'pets table (IDEA-18, split out of Your Loved Ones).' },
             ]},
             { group: 'Your Affairs', color: '#8A7A6A', sections: [

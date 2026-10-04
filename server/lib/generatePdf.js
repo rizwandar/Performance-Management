@@ -599,20 +599,23 @@ function generatePdf(data, outputStream) {
 
   addPageFooter(doc, pageNum, palette, fonts);
 
-  // ── Page 5: Your Loved Ones + Pet Care + Insurance ──────────────────────────
+  // ── Page 5: Dependents + Pet Care + Insurance ───────────────────────────────
   // Financial Affairs and Practical Household Information are vault-protected -
   // rendered on the vault page below. Insurance (IDEA-29) is not vault-protected
   // and belongs here alongside the other standard sections.
   doc.addPage();
 
-  sectionHeader(doc, 'Your Loved Ones', palette, fonts);
+  sectionHeader(doc, 'Dependents', palette, fonts);
   if (!childrenDependants.length) {
     noData(doc, fonts);
   } else {
+    // A dependant's date of birth is deliberately not printed here. It is no
+    // longer collected at all (see client ChildrenDependantsPage), and the
+    // exported plan is the one artefact most likely to be printed or emailed
+    // on, so there is no reason to surface a legacy value for older rows.
     renderCards(doc, childrenDependants.map(item => [
       { label: '',                   value: item.name },
       { label: 'Type',               value: item.type },
-      { label: 'Date of birth',      value: formatDate(item.date_of_birth) },
       { label: 'Special needs',      value: item.special_needs },
       { label: 'Preferred guardian', value: item.preferred_guardian },
       { label: 'Guardian contact',   value: item.guardian_contact },
@@ -622,8 +625,8 @@ function generatePdf(data, outputStream) {
   }
 
   // IDEA-18: Pet Care, split out into its own section, but sharing this page
-  // with Your Loved Ones (sectionHeader flows to a new page on its own
-  // if there isn't room, same as every other multi-section page in this PDF).
+  // with Dependents (sectionHeader flows to a new page on its own if there
+  // isn't room, same as every other multi-section page in this PDF).
   sectionHeader(doc, 'Pet Care', palette, fonts);
   if (!pets.length) {
     noData(doc, fonts);

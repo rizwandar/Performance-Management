@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { Button, Form, Row, Col, Alert, Modal, Spinner, Badge } from 'react-bootstrap'
 import axios from 'axios'
 import { useAuth } from '../../context/AuthContext'
@@ -33,29 +33,22 @@ const SECTIONS = [
   { id: 'personal_messages',    label: 'Messages to Loved Ones' },
   { id: 'songs_that_define_me', label: 'Songs That Define Me' },
   { id: 'life_wishes',          label: 'My Bucket List' },
-  { id: 'children_dependants',  label: 'Your Loved Ones' },
+  { id: 'children_dependants',  label: 'Dependents' },
   { id: 'unfinished_business',  label: 'Unfinished Business' },
   { id: 'last_moments',         label: 'Your Last Moments' },
   { id: 'pet-care',             label: 'Pet Care' },
   { id: 'insurance_items',      label: 'Insurance' },
 ]
 
-const emptyContact = { sequence: '', name: '', relationship: '', email: '', phone: '', invite_message: '' }
+const emptyContact = { name: '', relationship: '', email: '', phone: '', invite_message: '' }
 
 export default function TrustedContactsPage() {
-  const navigate = useNavigate()
   const { user } = useAuth()
   const { isPremium } = useSubscription()
 
-  // Numbered "position" slots shown on this page, independent of the actual
-  // server-enforced item limit (PLAN_LIMITS.trusted_contacts). Free keeps
-  // its original 3-slot display (2 usable, one visible-but-locked teaser
-  // slot - unchanged since before this became plan-aware); Premium's grid
-  // now scales to match its real limit instead of a hardcoded 3.
-  const POSITIONS = Array.from(
-    { length: isPremium ? PLAN_LIMITS.trusted_contacts.premium : 3 },
-    (_, i) => i + 1
-  )
+  // How many contacts this account may hold. The server enforces the same
+  // number from server/lib/planLimits.js - this is the display mirror.
+  const cap = isPremium ? PLAN_LIMITS.trusted_contacts.premium : PLAN_LIMITS.trusted_contacts.free
 
   const [contacts, setContacts]   = useState([])
   const [tcLoading, setTcLoading] = useState(true)
@@ -84,10 +77,6 @@ export default function TrustedContactsPage() {
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting, setDeleting]         = useState(false)
 
-  // Defaults to 12 (the server's own fallback in GET /users/me/timer) so the
-  // explanatory copy below reads correctly even before the fetch resolves,
-  // rather than showing a placeholder or nothing.
-  const [inactivityMonths, setInactivityMonths] = useState(12)
 
   const loadContacts = () => {
     setTcLoading(true)
@@ -103,29 +92,31 @@ export default function TrustedContactsPage() {
   }
 
   useEffect(() => {
-    axios.get(`${API}/users/me/timer`)
-      .then(r => setInactivityMonths(r.data.inactivity_period_months || 12))
-      .catch(() => {})
-
     loadContacts()
   }, [])
 
-  const takenSequences = contacts.map(c => c.sequence)
+  // Position is display order only (see the POST route in
+  // server/routes/trustedContacts.js) and is now assigned server-side, so
+  // the number shown against each contact is simply its place in the list.
+  // That keeps the numbering contiguous even when the stored sequences are
+  // not, which happens as soon as a middle contact is removed.
+  const ordered = [...contacts].sort((a, b) => a.sequence - b.sequence)
+  const canAddMore = ordered.length < cap
 
-  // PLAN_LIMITS.trusted_contacts.free (2) is the plan cap the server
-  // rejects past; POSITIONS (above) is the separate, larger structural grid
-  // size. A free user can still see an empty, disabled position 3 slot, so
-  // that control needs its own disabled state distinct from the "no
-  // positions left" case already handled by the SectionHero cta below.
-  const atFreeContactLimit = !isPremium && contacts.length >= PLAN_LIMITS.trusted_contacts.free
-  const addContactDisabledTitle = atFreeContactLimit
-    ? `You've reached the Free plan limit of ${PLAN_LIMITS.trusted_contacts.free} trusted contacts. Upgrade to Premium to add more.`
-    : undefined
+  // Two different shapes for the same limit, on purpose. A free plan shows
+  // its full capacity as empty, fillable slots, so what the plan includes is
+  // visible at a glance rather than discovered as a wall. A paid plan grows
+  // one contact at a time from a single button instead: ten empty slots is a
+  // wall of nothing, and nobody needs to see nine of them to add a fourth.
+  const emptySlotCount = isPremium ? 0 : Math.max(0, cap - ordered.length)
+  const slots = [
+    ...ordered.map((contact, i) => ({ contact, pos: i + 1 })),
+    ...Array.from({ length: emptySlotCount }, (_, i) => ({ contact: null, pos: ordered.length + i + 1 })),
+  ]
 
   const openAdd = () => {
     setEditingContact(null)
-    const next = POSITIONS.find(p => !takenSequences.includes(p)) || ''
-    setForm({ ...emptyContact, sequence: next })
+    setForm({ ...emptyContact })
     setPermissions([])
     setModalError('')
     setShowModal(true)
@@ -134,7 +125,7 @@ export default function TrustedContactsPage() {
   const openEdit = (contact) => {
     setEditingContact(contact)
     setForm({
-      sequence: contact.sequence, name: contact.name, relationship: contact.relationship || '',
+      name: contact.name, relationship: contact.relationship || '',
       email: contact.email || '', phone: contact.phone || '', invite_message: contact.invite_message || '',
     })
     setPermissions(contact.visible_sections || [])
@@ -148,7 +139,6 @@ export default function TrustedContactsPage() {
 
   const handleSave = async () => {
     if (!form.name.trim()) return setModalError('Name is required.')
-    if (!editingContact && !form.sequence) return setModalError('Please choose a position.')
     setSaving(true)
     setModalError('')
     try {
@@ -160,7 +150,7 @@ export default function TrustedContactsPage() {
         await axios.put(`${API}/trusted-contacts/${editingContact.id}/permissions`, { visible_sections: permissions })
       } else {
         await axios.post(`${API}/trusted-contacts`, {
-          sequence: form.sequence, name: form.name, relationship: form.relationship,
+          name: form.name, relationship: form.relationship,
           email: form.email, phone: form.phone, invite_message: form.invite_message, visible_sections: permissions,
         })
       }
@@ -233,34 +223,36 @@ export default function TrustedContactsPage() {
 
   return (
     <div style={{ maxWidth: 800, margin: '0 auto' }}>
-      <div className="mb-4">
-        <button className="btn btn-link p-0 mb-2"
-          style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '0.9rem' }}
-          onClick={() => navigate('/profile')}>← Back to my plans</button>
-      </div>
-
+      {/* No "back to my plans" link here: it pushed the whole page down for a
+          destination the main navigation already reaches. The header is the
+          first thing on the page. */}
+      {/* The header carries what a first-time reader needs: what a trusted
+          contact is, how information reaches them, and what naming one of them
+          as Legacy Contact does. This replaced two standalone explainer panels
+          that sat further down the page and split the same explanation across
+          three places. Wording is the owner's own. */}
       <SectionHero
         eyebrow="Your People"
-        headline="The people you trust"
-        highlight="trust"
-        subtext={`Trusted contacts are the people who'll be given access to the plans you choose to share with them, when the time comes. You can add up to ${isPremium ? PLAN_LIMITS.trusted_contacts.premium : PLAN_LIMITS.trusted_contacts.free}${isPremium ? '' : ` on the Free plan (${PLAN_LIMITS.trusted_contacts.premium} on Premium)`}, and choose one of them to be your Legacy Contact: the one person who confirms what's happened and sets everything in motion.`}
-        cta={contacts.length < POSITIONS.length ? {
+        headline="Trusted Contacts"
+        subheadline="The people you trust"
+        subtext={(
+          <>
+            <p className="mb-2">
+              Trusted contacts are people you choose to share your selected information with, via a
+              secure link.
+            </p>
+            <p className="mb-0">
+              You can also name one of them your <strong>Legacy Contact</strong>: the person notified
+              first, and the one who can confirm your passing. There is more about what that means
+              at the foot of this page.
+            </p>
+          </>
+        )}
+        cta={canAddMore ? {
           label: '+ Add a trusted contact',
           onClick: openAdd,
-          disabled: atFreeContactLimit,
-          disabledTitle: addContactDisabledTitle,
         } : undefined}
       />
-
-      <PlanLimitNotice limitKey="trusted_contacts" currentCount={contacts.length} />
-
-      <div style={{ background: 'var(--parchment)', borderRadius: 'var(--card-radius-sm, 12px)', padding: '24px 24px 16px', marginBottom: 16, border: '1px solid var(--border)' }}>
-        <h6 style={{ color: 'var(--green-900)', margin: '0 0 8px' }}>Trusted Contacts</h6>
-        <p className="text-muted small mb-0" style={{ fontStyle: 'italic' }}>
-          Unlike your emergency contact, each trusted contact receives a secure link to actually
-          read the sections you've chosen to share with them.
-        </p>
-      </div>
 
       {tcSuccess && <Alert variant="success">{tcSuccess}</Alert>}
       {tcError && (
@@ -277,8 +269,7 @@ export default function TrustedContactsPage() {
       ) : (
         <>
           <div className="mb-4">
-            {POSITIONS.map(pos => {
-              const contact = contacts.find(c => c.sequence === pos)
+            {slots.map(({ contact, pos }) => {
               return (
                 <div key={pos} className="card mb-3" style={{ borderLeft: '4px solid var(--gold)' }}>
                   <div className="card-body">
@@ -357,39 +348,72 @@ export default function TrustedContactsPage() {
                           width: 26, height: 26, display: 'inline-flex', alignItems: 'center',
                           justifyContent: 'center', fontSize: '0.8rem', fontWeight: 700, flexShrink: 0,
                         }}>{pos}</span>
-                        <span className="text-muted" style={{ flex: 1 }}>Position {pos}: empty</span>
-                        <Button size="sm" variant="outline-primary" onClick={openAdd}
-                          disabled={atFreeContactLimit} title={addContactDisabledTitle}>+ Add</Button>
+                        <span className="text-muted" style={{ flex: 1 }}>Contact {pos}: empty</span>
+                        <Button size="sm" variant="outline-primary" onClick={openAdd}>+ Add</Button>
                       </div>
                     )}
                   </div>
                 </div>
               )
             })}
+
+            {/* Paid plans grow one at a time from here rather than being shown
+                every remaining slot up front. Hidden at the cap: the ceiling
+                is then stated by PlanLimitNotice above instead, so there is
+                never a visible control that cannot work. */}
+            {isPremium && canAddMore && (
+              <Button variant="outline-primary" onClick={openAdd}>
+                + Add a trusted contact
+              </Button>
+            )}
           </div>
 
-          <div style={{ background: 'var(--green-50)', border: '1px solid var(--green-100)', borderRadius: 10, padding: '16px 20px', marginBottom: 16 }}>
-            <p style={{ fontWeight: 600, color: 'var(--green-900)', marginBottom: 6 }}>About the Legacy Contact</p>
-            <p className="text-muted small mb-0">
-              Your <strong>Legacy Contact</strong> is the person notified first if you stop logging in. They
-              can see everything you've recorded, except your vault.
-              {' '}<Link to="/faq#legacy-contact-vs-trusted-contact">Learn more</Link>.
+          <PlanLimitNotice limitKey="trusted_contacts" currentCount={contacts.length} alwaysShow omitCount />
+
+          {/* The Legacy Contact explanation sits at the foot of the page, not in
+              the header: it is the most consequential thing on this screen, but
+              it is reference material rather than something you act on while
+              adding a contact. Everything stated here is true of the app as it
+              stands. In particular the vault paragraph says the vault cannot be
+              opened by anyone, which is a fact about the encryption rather than
+              a policy, and must not be softened into "yet" or "for now" unless
+              and until a vault-release mechanism actually ships. */}
+          <div style={{ background: 'var(--green-50)', border: '1px solid var(--green-100)', borderRadius: 10, padding: '20px 22px', marginTop: 24 }}>
+            <p style={{ fontWeight: 600, color: 'var(--green-900)', marginBottom: 10, fontSize: '1.02rem' }}>
+              About your Legacy Contact
             </p>
-          </div>
-
-          <div style={{ background: 'var(--gold-50)', border: '1px solid var(--gold-light)', borderRadius: 10, padding: '16px 20px' }}>
-            <p style={{ fontWeight: 600, color: 'var(--green-900)', marginBottom: 6 }}>How trusted contact access works</p>
-            <ol className="text-muted small mb-0" style={{ paddingLeft: '1.2rem', lineHeight: 1.8 }}>
-              <li><strong>Send access link:</strong> sends a secure link to your trusted contact with read-only access to the sections you've selected for them, valid for 72 hours.</li>
+            <p className="text-muted small mb-2">
+              Any one of your trusted contacts can be named your Legacy Contact. It is the most
+              important choice on this page, so pick the person you would trust to act calmly on
+              your behalf when your family cannot.
+            </p>
+            <ul className="text-muted small mb-2" style={{ paddingLeft: '1.1rem', lineHeight: 1.75 }}>
               <li>
-                <strong>Legacy Contact:</strong> their link doesn't expire and gives read-only access to
-                everything except your vault. If you haven't logged in within{' '}
-                <strong>{inactivityMonths} month{inactivityMonths === 1 ? '' : 's'}</strong>, your Legacy
-                Contact is notified. You can change this period any time in{' '}
-                <Link to="/profile/settings#inactivity-timer">your profile</Link>.
+                <strong>Their access does not expire.</strong> Everyone else receives a link good for
+                72 hours. Your Legacy Contact keeps theirs, because when it is finally needed you will
+                not be there to send another one.
               </li>
-              <li>Your passwords (digital credentials) are never shared and are encrypted, accessible only by you.</li>
-            </ol>
+              <li>
+                <strong>They see everything you have recorded, except your vault.</strong>
+              </li>
+              <li>
+                <strong>They are told first if you stop logging in.</strong> You choose how long that
+                wait is in{' '}<Link to="/profile/settings#inactivity-timer">your profile</Link>.
+              </li>
+              <li>
+                <strong>They can confirm your passing.</strong> That does not wait for any timer: the
+                moment it is confirmed, every trusted contact and everyone on your People to Notify
+                list is told straight away.
+              </li>
+            </ul>
+            <p className="text-muted small mb-0">
+              <strong>Your vault is the exception, and deliberately so.</strong> It is encrypted with a
+              password that is never stored anywhere, so it cannot be opened by us, by anyone who stole
+              our records, or by your Legacy Contact. That is what makes it safe, and it is also the
+              catch: if nobody alive knows your vault password, what is inside it cannot be reached
+              after you are gone. If that matters to you, tell someone you trust.{' '}
+              <Link to="/faq#legacy-contact-vs-trusted-contact">Learn more</Link>.
+            </p>
           </div>
         </>
       )}
@@ -404,21 +428,11 @@ export default function TrustedContactsPage() {
         <Modal.Body>
           {modalError && <Alert variant="danger">{modalError}</Alert>}
           <Row className="g-3">
-            {!editingContact && (
-              <Col xs={12} sm={3}>
-                <Form.Group>
-                  <Form.Label>Position</Form.Label>
-                  <Form.Select value={form.sequence}
-                    onChange={e => setForm(f => ({ ...f, sequence: Number(e.target.value) }))}>
-                    <option value="">Select position...</option>
-                    {POSITIONS.filter(p => !takenSequences.includes(p)).map(p => (
-                      <option key={p} value={p}>{p}</option>
-                    ))}
-                  </Form.Select>
-                </Form.Group>
-              </Col>
-            )}
-            <Col xs={12} sm={editingContact ? 6 : 5}>
+            {/* The "Position" picker that used to sit here is gone: position is
+                display order only and is now assigned by the server, so there
+                was nothing for the user to decide. It was also the control
+                that made the old 3-position database constraint reachable. */}
+            <Col xs={12} sm={6}>
               <Form.Group>
                 <Form.Label>Full name <span style={{ color: 'red' }}>*</span></Form.Label>
                 <Form.Control value={form.name}
@@ -426,7 +440,7 @@ export default function TrustedContactsPage() {
                   placeholder="e.g. Sarah Johnson" />
               </Form.Group>
             </Col>
-            <Col xs={12} sm={editingContact ? 6 : 4}>
+            <Col xs={12} sm={6}>
               <Form.Group>
                 <Form.Label>Relationship</Form.Label>
                 <Form.Control value={form.relationship}

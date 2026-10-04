@@ -82,7 +82,7 @@ async function init() {
     CREATE TABLE IF NOT EXISTS trusted_contacts (
       id           SERIAL PRIMARY KEY,
       user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      sequence     INTEGER NOT NULL CHECK (sequence IN (1,2,3)),
+      sequence     INTEGER NOT NULL,
       name         TEXT NOT NULL,
       relationship TEXT,
       email        TEXT,
@@ -896,6 +896,17 @@ async function init() {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS privacy_version_consented INTEGER`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS tos_version_consented INTEGER`);
 
+  // GDPR age-of-consent confirmation ("I confirm that I am 16 years of age
+  // or older"), shown at registration only when the submitted country_code
+  // falls under GDPR (see server/lib/complianceRegime.js). A timestamp
+  // rather than a boolean, because this column exists as legal evidence
+  // that consent was given, and *when* is what makes it evidence - a bare
+  // boolean would just be a current-state flag with no record of the
+  // original consent event. NULL means no GDPR consent was recorded
+  // (not applicable, or not yet given); set once, at registration, never
+  // updated afterward.
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS gdpr_age_consent_at TIMESTAMPTZ`);
+
   // Seed version 1 of each policy from the content that used to be hardcoded
   // in TermsPage.jsx/PrivacyPage.jsx, so existing installs get a real v1
   // record instead of starting from an empty history.
@@ -1708,6 +1719,66 @@ async function init() {
   // other optional notes fields elsewhere in the app. Included in the access
   // link email sent from the "Send access link" flow.
   await pool.query(`ALTER TABLE trusted_contacts ADD COLUMN IF NOT EXISTS invite_message TEXT`);
+
+  // One-time purge of dependant dates of birth (2026-10-04).
+  //
+  // The same release stopped collecting, returning, exporting and sharing a
+  // dependant's date of birth, on the view that holding someone else's birth
+  // date is an identity-theft risk this section never needed to take on. That
+  // change closed every read path but left the values already stored sitting
+  // in the table, where the person they belong to could no longer see or
+  // correct them, and where they kept flowing into every nightly backup. A
+  // pre-promotion review rated that gap medium, and the owner approved this
+  // purge on 2026-10-04.
+  //
+  // Deliberately a data change rather than a schema change: the column itself
+  // stays, per the project's rule that columns are never dropped, so a rollback
+  // of the code still finds the shape it expects. It simply finds the column
+  // empty, which is the intended end state either way.
+  //
+  // Safe to run on every boot. The WHERE clause makes it a no-op once there is
+  // nothing left to clear, so it costs an index-free scan of a small table and
+  // writes nothing on all subsequent starts.
+  const purgedDob = await pool.query(
+    `UPDATE children_dependants SET date_of_birth = NULL WHERE date_of_birth IS NOT NULL`
+  );
+  if (purgedDob.rowCount > 0) {
+    console.log(`[db] Cleared stored date_of_birth on ${purgedDob.rowCount} dependant row(s); the field is no longer collected.`);
+  }
+
+  // IDEA-43 follow-up (2026-10-03): the original trusted_contacts table
+  // declared `sequence INTEGER NOT NULL CHECK (sequence IN (1,2,3))`, from
+  // when every plan had a flat 3-contact limit. IDEA-43 raised the paid
+  // limit to 10 in lib/planLimits.js and widened the page's slot grid to
+  // match, but nothing ever dropped the CHECK, so inserting a 4th contact
+  // failed at the database with a constraint violation and surfaced to the
+  // user as a generic "something went wrong". The advertised paid limit of
+  // 10 had therefore never been reachable on any environment. Free users
+  // never saw it because their own cap of 2 stops them first.
+  //
+  // The constraint name is looked up rather than assumed: Postgres' default
+  // (trusted_contacts_sequence_check) holds for any database created by this
+  // file, but an older hand-created one may carry a different name. Matching
+  // on the constraint definition rather than the name is what makes this
+  // safe to run anywhere.
+  //
+  // Purely widening: no existing row can violate the *absence* of a
+  // constraint, so this cannot fail on live data and needs no backfill. The
+  // per-plan cap in lib/planLimits.js, enforced in routes/trustedContacts.js,
+  // is now the only limit on how many contacts a user may hold.
+  // UNIQUE (user_id, sequence) is deliberately left in place: two contacts
+  // must still never occupy the same position.
+  const seqChecks = await pool.query(`
+    SELECT con.conname
+    FROM pg_constraint con
+    JOIN pg_class rel ON rel.oid = con.conrelid
+    WHERE rel.relname = 'trusted_contacts'
+      AND con.contype = 'c'
+      AND pg_get_constraintdef(con.oid) ILIKE '%sequence%'
+  `);
+  for (const row of seqChecks.rows) {
+    await pool.query(`ALTER TABLE trusted_contacts DROP CONSTRAINT "${row.conname}"`);
+  }
 
   // IDEA-02: one-shot "you've started but not finished" nudge email for
   // users who started their plan but have not completed every section.

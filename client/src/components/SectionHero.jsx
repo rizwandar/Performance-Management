@@ -9,7 +9,14 @@
 // real disabled button rather than hiding the CTA outright - used when a
 // plan limit has been reached but the control itself should stay visible
 // (see PlanLimitNotice.jsx).
-export default function SectionHero({ eyebrow, headline, highlight, subtext, cta, secondaryAction }) {
+// `subheadline` is optional. It sits directly under the headline for sections
+// whose title is the plain name of the thing ("Trusted Contacts") and whose
+// warmer phrase ("The people you trust") reads better as a second line than
+// as the title itself. Sections that do not pass it are unchanged.
+// `subtext` accepts a node as well as a string, so a section can give its
+// header two short paragraphs, or a paragraph carrying a link, instead of one
+// long sentence. A string still renders as a single paragraph exactly as before.
+export default function SectionHero({ eyebrow, headline, highlight, subheadline, subtext, cta, secondaryAction }) {
   const parts = highlight ? headline.split(highlight) : null
 
   return (
@@ -27,8 +34,18 @@ export default function SectionHero({ eyebrow, headline, highlight, subtext, cta
       }}>
         {parts ? <>{parts[0]}<mark>{highlight}</mark>{parts[1]}</> : headline}
       </h2>
+      {subheadline && (
+        <p style={{
+          color: 'var(--green-700)', fontFamily: 'Georgia, serif', fontStyle: 'italic',
+          fontSize: '1.05rem', margin: '-4px 0 12px',
+        }}>
+          {subheadline}
+        </p>
+      )}
       {subtext && (
-        <p className="text-muted mb-3" style={{ maxWidth: 560, lineHeight: 1.65 }}>{subtext}</p>
+        typeof subtext === 'string'
+          ? <p className="text-muted mb-3" style={{ maxWidth: 560, lineHeight: 1.65 }}>{subtext}</p>
+          : <div className="text-muted mb-3" style={{ maxWidth: 560, lineHeight: 1.65 }}>{subtext}</div>
       )}
       {(cta || secondaryAction) && (
         <div className="d-flex align-items-center gap-3 flex-wrap">

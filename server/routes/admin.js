@@ -485,6 +485,17 @@ router.post('/users/:id/revoke-premium', auth, adminOnly, async (req, res) => {
       plan = 'free', provider = NULL, granted_by_admin_id = NULL, updated_at = NOW()
   `, [user.id]);
 
+  // Revoking premium also has to end the no-card signup trial (BIL-08).
+  // lib/subscription.js's getAccessInfo falls back to that trial whenever
+  // there is no active *paid* subscription, so writing plan 'free' above is
+  // not on its own enough: for any account less than 30 days old the trial
+  // kept independently granting premium and this route silently did nothing.
+  // Clearing signup_trial_started_at makes "revoke" mean what it says, and
+  // also makes signupTrialExpired false rather than true, so the user sees
+  // the ordinary free-plan copy instead of "your trial has ended" for a
+  // trial that was revoked rather than served out.
+  await query('UPDATE users SET signup_trial_started_at = NULL WHERE id = $1', [user.id]);
+
   await query(
     `INSERT INTO user_audit_logs (user_id, action, metadata) VALUES ($1, 'premium_revoked', $2)`,
     [user.id, JSON.stringify({ revoked_by_admin_id: req.user.id })]

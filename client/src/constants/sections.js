@@ -42,16 +42,6 @@ export const SECTIONS = [
 
   // ── Your People ────────────────────────────────────────────────────────────
   {
-    id: 'children-dependants', label: 'Your Loved Ones',
-    icon: '👶', route: '/sections/children-dependants', group: 'people',
-    description: 'Everything your loved ones need to know about caring for your children and those who depend on you.',
-  },
-  {
-    id: 'pet-care', label: 'Pet Care',
-    icon: '🐾', route: '/sections/pet-care', group: 'people',
-    description: 'Feeding routines, vet details, and caretaker wishes so your pets are looked after too.',
-  },
-  {
     id: 'emergency_contact', label: 'Emergency Contact',
     icon: '📞', route: '/sections/emergency-contact', group: 'people',
     description: 'The first person to call in an emergency: always reachable, and ready to act on your behalf.',
@@ -62,9 +52,19 @@ export const SECTIONS = [
     description: 'The people who should be given access to your plans when the time comes, and what each of them can see.',
   },
   {
+    id: 'children-dependants', label: 'Dependents',
+    icon: '👶', route: '/sections/children-dependants', group: 'people',
+    description: 'Everything your loved ones need to know about caring for your children and those who depend on you.',
+  },
+  {
     id: 'people_to_notify', label: 'People to Notify',
     icon: '👥', route: '/sections/people-to-notify', group: 'people',
     description: 'The friends, family, and colleagues who should hear the news directly and with care.',
+  },
+  {
+    id: 'pet-care', label: 'Pet Care',
+    icon: '🐾', route: '/sections/pet-care', group: 'people',
+    description: 'Feeding routines, vet details, and caretaker wishes so your pets are looked after too.',
   },
 
   // ── Your Wishes ────────────────────────────────────────────────────────────

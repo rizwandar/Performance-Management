@@ -10,6 +10,8 @@ const { sendEmail } = require('../lib/sendEmail');
 const { welcomeEmail, passwordResetEmail, emailVerificationEmail } = require('../lib/emailTemplates');
 const { validate } = require('../middleware/validate');
 const { setAuthCookies, clearAuthCookies } = require('../lib/authCookies');
+const { SIGNUP_TRIAL_ENABLED } = require('../lib/subscription');
+const { regimeForCountry } = require('../lib/complianceRegime');
 
 const { JWT_SECRET } = require('../lib/jwtSecret');
 
@@ -132,14 +134,40 @@ const registerRules = [
     .matches(/[0-9]/).withMessage('Password must contain at least one number.'),
   body('date_of_birth').optional({ checkFalsy: true })
     .isDate().withMessage('Date of birth must be a valid date.'),
+  // country_code decides whether the GDPR age consent below is required, so
+  // it cannot arrive unvalidated. Without this an object stringified to
+  // "[OBJECT OBJECT]" and skipped the check entirely, while an array was
+  // written to the column as a Postgres array literal, leaving a row whose
+  // regime could never be re-derived. Validating the shape (two letters,
+  // upper-cased) rather than membership of a full country list is
+  // deliberate: the server only needs the gdpr/not-gdpr distinction, and
+  // mirroring the client's whole COUNTRIES array here would be a second
+  // hand-synced list to keep correct, for no security gain.
+  body('country_code').optional({ checkFalsy: true })
+    .customSanitizer(v => (typeof v === 'string' ? v.trim().toUpperCase() : v))
+    .isAlpha().isLength({ min: 2, max: 2 }).withMessage('Please select a valid country.'),
+  // Strict boolean. Anything truthy used to satisfy the gate, including an
+  // empty array and the string "false", which then wrote a consent timestamp
+  // for a consent nobody gave.
+  body('gdpr_age_consent').optional().isBoolean({ strict: true })
+    .withMessage('Invalid consent value.').toBoolean(),
 ];
 router.post('/register', registerRules, validate, async (req, res) => {
-  const { name, email, password, date_of_birth, country_code, privacy_consent, acquisition_source } = req.body;
+  const { name, email, password, date_of_birth, country_code, privacy_consent, gdpr_age_consent, acquisition_source } = req.body;
   if (!name || !email || !password) {
     return res.status(400).json({ error: 'Name, email and password are required' });
   }
   if (!privacy_consent) {
     return res.status(400).json({ error: 'You must agree to the Privacy Policy and Terms of Service to create an account.' });
+  }
+  // The GDPR age-of-consent checkbox is only enforced client-side by a
+  // disabled submit button, which anyone can bypass by posting directly to
+  // this endpoint. The regime is worked out here from the submitted
+  // country_code rather than trusted from the client, so this check can't
+  // be skipped by simply omitting it from the request body.
+  const regime = regimeForCountry(country_code);
+  if (regime === 'gdpr' && gdpr_age_consent !== true) {
+    return res.status(400).json({ error: 'You must confirm that you are 16 years of age or older to create an account.' });
   }
   try {
     const hash = bcrypt.hashSync(password, 10);
@@ -172,16 +200,20 @@ router.post('/register', registerRules, validate, async (req, res) => {
     // here sets signup_trial_started_at anymore, it stays NULL until the
     // user actually accepts the offer (or self-serves it later from the
     // Upgrade page).
+    // gdpr_age_consent_at records WHEN consent was given (NULL if the
+    // regime check above didn't require it, or GDPR consent simply wasn't
+    // applicable) - see the ALTER TABLE comment in db/database.js for why
+    // this is a timestamp and not a boolean.
     const result = await query(`
       INSERT INTO users (name, email, password_hash, date_of_birth, country_code, privacy_consent,
                          privacy_consent_at, privacy_version_consented, tos_version_consented,
                          email_verified, email_verification_token, email_verification_expires_at,
-                         acquisition_source)
-      VALUES ($1, $2, $3, $4, $5, 1, NOW(), $6, $7, 0, $8, $9, $10)
+                         acquisition_source, gdpr_age_consent_at)
+      VALUES ($1, $2, $3, $4, $5, 1, NOW(), $6, $7, 0, $8, $9, $10, $11)
       RETURNING id
     `, [name, email, hash, date_of_birth || null, country_code || null,
         privacyVersion?.version ?? null, tosVersion?.version ?? null, verifyToken, verifyExpiry,
-        acquisitionSource]);
+        acquisitionSource, (regime === 'gdpr' && gdpr_age_consent === true) ? new Date().toISOString() : null]);
 
     const newId = result.rows[0].id;
 
@@ -288,7 +320,13 @@ router.post('/login', loginRules, validate, async (req, res) => {
   // signup_trial_started_at from before). Never shown to an org-portal
   // account or an admin - both are outside the consumer freemium model this
   // trial exists for.
-  const needsTrialOffer = !user.signup_trial_started_at
+  // Always false while the trial is retired (SIGNUP_TRIAL_ENABLED in
+  // lib/subscription.js). This single field is what sends the client to the
+  // /welcome-trial interstitial, so switching it off removes the full-page
+  // free-versus-premium comparison from the first-login flow without the
+  // client needing to know the trial is gone.
+  const needsTrialOffer = SIGNUP_TRIAL_ENABLED
+    && !user.signup_trial_started_at
     && !user.signup_trial_offer_responded_at
     && !user.org_role
     && !user.is_admin;
