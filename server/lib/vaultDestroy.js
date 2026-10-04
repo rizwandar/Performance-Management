@@ -21,6 +21,14 @@ async function destroyVaultData(userId, { reason, req, metadata } = {}) {
   await transaction(async (client) => {
     await client.query('DELETE FROM digital_credentials WHERE user_id = $1', [userId])
     await client.query('DELETE FROM digital_vault WHERE user_id = $1', [userId])
+    // The vault-release envelope goes with the vault it belongs to. Its
+    // key_enc seals the key for the digital_vault row being deleted on the
+    // line above, so once that row is gone the envelope opens onto nothing:
+    // leaving it would only mean the profile still reporting "vault release
+    // is set up" over an escrow that can never work again. vault_release
+    // cascades from users, not from digital_vault, so nothing removes it for
+    // us here. See docs/VAULT_RELEASE_ON_DEATH_SPEC.md.
+    await client.query('DELETE FROM vault_release WHERE user_id = $1', [userId])
     await client.query(`DELETE FROM uploaded_documents WHERE user_id = $1 AND section_id = ANY($2)`, [userId, vaultProtectedTables])
     for (const table of vaultProtectedTables) {
       await client.query(`DELETE FROM ${table} WHERE user_id = $1`, [userId])

@@ -152,6 +152,29 @@ export default function ProfilePage() {
   const [recoveryDisablePw, setRecoveryDisablePw]     = useState('')
   const [recoveryDisabling, setRecoveryDisabling]     = useState(false)
   const [recoveryDisableError, setRecoveryDisableError] = useState('')
+
+  // Vault release on confirmed death (docs/VAULT_RELEASE_ON_DEATH_SPEC.md).
+  // releaseCode holds the one and only copy of a freshly issued code, in
+  // component state and nowhere else: the server has already forgotten it by
+  // the time this renders, so navigating away loses it for good. That is the
+  // design, not an oversight, which is why the reveal panel below has to be
+  // blunt about it and why the only way out of that panel is an explicit
+  // "I have saved it".
+  const [releaseStatus, setReleaseStatus]     = useState(null)
+  const [showReleaseSetup, setShowReleaseSetup] = useState(false)
+  const [releaseSetupPw, setReleaseSetupPw]   = useState('')
+  const [releaseSaving, setReleaseSaving]     = useState(false)
+  const [releaseError, setReleaseError]       = useState('')
+  const [releaseSuccess, setReleaseSuccess]   = useState('')
+  const [releaseCode, setReleaseCode]         = useState(null)
+  const [releaseCodeFor, setReleaseCodeFor]   = useState('')
+  const [showReleaseDisable, setShowReleaseDisable] = useState(false)
+  const [releaseDisablePw, setReleaseDisablePw]     = useState('')
+  const [releaseDisabling, setReleaseDisabling]     = useState(false)
+  const [challengeEmailInput, setChallengeEmailInput] = useState('')
+  const [challengeEmailSaving, setChallengeEmailSaving] = useState(false)
+  const [challengeEmailError, setChallengeEmailError]   = useState('')
+  const [challengeEmailSuccess, setChallengeEmailSuccess] = useState('')
   const [destroyThresholdInput, setDestroyThresholdInput] = useState(DEFAULT_DESTROY_SUGGESTION)
   const [destroyThresholdPw, setDestroyThresholdPw]       = useState('')
   const [savingThreshold, setSavingThreshold]             = useState(false)
@@ -263,7 +286,15 @@ export default function ProfilePage() {
       .then(r => setPaymentHistory(r.data.payments || []))
       .catch(() => {})
 
-    Promise.all([loadProfile, loadTimer, loadVault, loadBilling, loadPaymentHistory]).finally(() => setLoading(false))
+    const loadRelease = axios.get(`${API}/sections/digital-life/release/status`)
+      .then(r => {
+        setReleaseStatus(r.data)
+        setChallengeEmailInput(r.data.challenge_email || '')
+      })
+      .catch(() => {})
+
+    Promise.all([loadProfile, loadTimer, loadVault, loadBilling, loadPaymentHistory, loadRelease])
+      .finally(() => setLoading(false))
   }, [])
 
   // Landed here fresh from a successful Stripe checkout (IDEA-11) - the
@@ -294,6 +325,11 @@ export default function ProfilePage() {
   useEffect(() => {
     if (loading || !window.location.hash) return
     if (window.location.hash === '#inactivity-timer') setSection('inactivity-timer')
+    // Vault Release sits inside the Vault Password section rather than being
+    // a section of its own, so a link to it (Trusted Contacts points here
+    // from the Legacy Contact's card) has to open that section first before
+    // the scroll effect below can find the element.
+    if (window.location.hash === '#vault-release') setSection('vault-password')
   }, [loading])
 
   // Scrolls the newly-selected section into view (dropdown pick, or the
@@ -301,7 +337,11 @@ export default function ProfilePage() {
   // trigger the browser's own hash-scroll behavior, so this is manual.
   useEffect(() => {
     if (loading || !section) return
-    const el = document.getElementById(section)
+    // Prefer the hash target when there is one: a deep link can point at a
+    // block nested inside a section (#vault-release lives inside
+    // #vault-password), and scrolling to the section would stop short of it.
+    const hashEl = window.location.hash ? document.getElementById(window.location.hash.slice(1)) : null
+    const el = hashEl || document.getElementById(section)
     el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [section, loading])
 
@@ -412,12 +452,23 @@ export default function ProfilePage() {
     try {
       const { data } = await axios.put(`${API}/sections/digital-life/vault`, { old_password, new_password, password_hint: hint })
       setVaultPwForm({ old_password: '', new_password: '', confirm: '', hint })
+      // Both of these were sealed under the old key and cannot survive a
+      // password change (see the server's own comments in routes/sections.js).
+      // Vault release is the more serious of the two to lose quietly: the
+      // code someone is holding in a sealed envelope now opens nothing, and
+      // they have no way of knowing that.
+      const notes = []
       if (data.recovery_disabled) {
         setRecoveryEnabled(false)
-        setVaultPwSuccess('Vault password changed. All credentials re-encrypted with the new password. Your recovery questions were reset since they were tied to the old password - set them up again below if you\'d like recovery enabled.')
-      } else {
-        setVaultPwSuccess('Vault password changed. All credentials re-encrypted with the new password.')
+        notes.push('Your recovery questions were reset, since they were tied to the old password.')
       }
+      if (data.release_disabled) {
+        setReleaseStatus(s => (s ? { ...s, enabled: false, release: undefined } : s))
+        notes.push('Vault release was also switched off, because the release code you issued was sealed with the old password. Set it up again below and give your Legacy Contact the new code.')
+      }
+      setVaultPwSuccess(
+        `Vault password changed. All credentials re-encrypted with the new password.${notes.length ? ` ${notes.join(' ')}` : ''}`
+      )
       setTimeout(() => setVaultPwSuccess(''), 8000)
     } catch (err) {
       setVaultPwError(err.response?.data?.error || 'Could not change vault password. Please try again.')
@@ -463,6 +514,123 @@ export default function ProfilePage() {
       setRecoveryDisableError(err.response?.data?.error || 'Could not remove recovery questions. Please try again.')
     }
     setRecoveryDisabling(false)
+  }
+
+  // ─── Vault release on confirmed death ─────────────────────────────────────
+  // docs/VAULT_RELEASE_ON_DEATH_SPEC.md. Arming and re-issuing are the same
+  // request shape and the same consequence (the previous code dies), so they
+  // share one handler; `reissue` only decides which endpoint is called and
+  // whether a contact id goes with it.
+  const refreshReleaseStatus = async () => {
+    try {
+      const { data } = await axios.get(`${API}/sections/digital-life/release/status`)
+      setReleaseStatus(data)
+      setChallengeEmailInput(data.challenge_email || '')
+    } catch { /* leave the last known state on screen rather than blanking it */ }
+  }
+
+  const issueReleaseCode = async ({ reissue }) => {
+    setReleaseError('')
+    if (!releaseSetupPw) return setReleaseError('Please enter your current vault password to confirm.')
+    const contact = releaseStatus?.legacy_contact
+    if (!reissue && !contact) return setReleaseError('You need to name a Legacy Contact first, on your Trusted Contacts page.')
+    setReleaseSaving(true)
+    try {
+      const { data } = reissue
+        ? await axios.post(`${API}/sections/digital-life/release/reissue`, { vault_password: releaseSetupPw })
+        : await axios.post(`${API}/sections/digital-life/release/setup`, {
+          vault_password: releaseSetupPw, contact_id: contact.id,
+        })
+      // The code exists in exactly one place from here on: this component's
+      // state. Clear the password out of memory straight away, since it has
+      // done its job.
+      setReleaseCode(data.code)
+      setReleaseCodeFor(data.contact?.name || contact?.name || 'your Legacy Contact')
+      setShowReleaseSetup(false)
+      setReleaseSetupPw('')
+      await refreshReleaseStatus()
+    } catch (err) {
+      setReleaseError(err.response?.data?.error || 'Could not set up vault release. Please try again.')
+    }
+    setReleaseSaving(false)
+  }
+
+  const handleDisableRelease = async () => {
+    setReleaseError('')
+    if (!releaseDisablePw) return setReleaseError('Please enter your current vault password to confirm.')
+    setReleaseDisabling(true)
+    try {
+      await axios.delete(`${API}/sections/digital-life/release/setup`, { data: { vault_password: releaseDisablePw } })
+      setShowReleaseDisable(false)
+      setReleaseDisablePw('')
+      setReleaseSuccess('Vault release is switched off. Any code you have already given out no longer opens anything, and your vault will stay sealed.')
+      setTimeout(() => setReleaseSuccess(''), 8000)
+      await refreshReleaseStatus()
+    } catch (err) {
+      setReleaseError(err.response?.data?.error || 'Could not switch vault release off. Please try again.')
+    }
+    setReleaseDisabling(false)
+  }
+
+  const handleSaveChallengeEmail = async () => {
+    setChallengeEmailError(''); setChallengeEmailSuccess('')
+    setChallengeEmailSaving(true)
+    try {
+      const { data } = await axios.put(`${API}/sections/digital-life/release/challenge-email`, {
+        challenge_email: challengeEmailInput.trim() || null,
+      })
+      setReleaseStatus(s => (s ? { ...s, challenge_email: data.challenge_email } : s))
+      setChallengeEmailSuccess(data.challenge_email ? 'Backup address saved.' : 'Backup address removed.')
+      setTimeout(() => setChallengeEmailSuccess(''), 5000)
+    } catch (err) {
+      setChallengeEmailError(err.response?.data?.error || 'Could not save that address. Please try again.')
+    }
+    setChallengeEmailSaving(false)
+  }
+
+  // The printable sheet (spec 9.5). Rendered in the browser from state rather
+  // than generated as a PDF on the server, deliberately: a server-rendered
+  // sheet would mean the code travelling back to us, which is the one thing
+  // this whole design is built to avoid. Carries the code, the contact's name,
+  // the date, what it opens and the re-issue warning, and deliberately NOT
+  // the account's email address or anything from the vault.
+  const printReleaseSheet = () => {
+    const win = window.open('', '_blank', 'width=760,height=900')
+    if (!win) {
+      setReleaseError('Your browser blocked the print window. Please allow pop-ups for this site, or write the code down instead.')
+      return
+    }
+    const issued = new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })
+    const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+    win.document.write(`<!doctype html><html><head><meta charset="utf-8">
+<title>Vault release code</title>
+<style>
+  body { font-family: Georgia, 'Times New Roman', serif; color: #1f2937; margin: 48px; line-height: 1.6; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: #6b7280; font-size: 13px; margin-bottom: 32px; }
+  .code { font-family: 'Courier New', monospace; font-size: 30px; letter-spacing: 2px; font-weight: bold;
+          border: 2px solid #1f2937; border-radius: 8px; padding: 20px; text-align: center; margin: 24px 0; }
+  .meta { font-size: 14px; margin-bottom: 24px; }
+  .meta div { margin-bottom: 4px; }
+  .warn { border-left: 4px solid #b45309; background: #fffbeb; padding: 12px 16px; font-size: 14px; }
+  p { font-size: 14px; }
+</style></head><body>
+<h1>In Good Hands: vault release code</h1>
+<div class="sub">Keep this with your will, or somewhere it will still be found years from now.</div>
+<div class="code">${esc(releaseCode)}</div>
+<div class="meta">
+  <div><strong>For:</strong> ${esc(releaseCodeFor)}</div>
+  <div><strong>Issued:</strong> ${esc(issued)}</div>
+</div>
+<p>This code is the only thing that can open the In Good Hands vault after its
+owner has passed away. In Good Hands holds the sealed vault but cannot open it,
+and does not keep a copy of this code.</p>
+<div class="warn"><strong>If a new code is ever issued, this one stops working
+immediately.</strong> Only the most recent code opens the vault.</div>
+</body></html>`)
+    win.document.close()
+    win.focus()
+    win.print()
   }
 
   // Turns the optional auto-delete ON (or changes its threshold once on).
@@ -1465,6 +1633,228 @@ export default function ProfilePage() {
               </Col>
             </Row>
           </div>
+        </div>
+      )}
+
+      {/* ── Vault Release (docs/VAULT_RELEASE_ON_DEATH_SPEC.md) ───────────── */}
+      {vaultExists === true && (
+        <div id="vault-release" style={{ background: 'var(--parchment)', borderRadius: 12, padding: '24px', marginBottom: 24, border: '1px solid var(--border)' }}>
+          <h6 style={{ color: 'var(--green-900)', marginBottom: 4 }}>Vault Release</h6>
+          <p className="text-muted small mb-4">
+            Your vault is locked with a password we never store, so nobody can open it, not even
+            us. If you want your Legacy Contact to be able to open it after you are gone, you can
+            set that up here. We seal a copy of your vault key inside an envelope that only one
+            release code opens. We keep the envelope. You keep the code, and you give it to them
+            yourself. <strong>We never send the code.</strong>
+          </p>
+
+          {releaseSuccess && <Alert variant="success">{releaseSuccess}</Alert>}
+          {releaseError && !showReleaseSetup && !showReleaseDisable && <Alert variant="danger">{releaseError}</Alert>}
+
+          {/* The code reveal. Copy is spec 8.3 item 5, verbatim: this is the
+              one screen in the product where being vague would cost someone
+              their vault, so it is not paraphrased. The only way out is an
+              explicit "I have saved it", because closing this panel is the
+              moment the code ceases to exist anywhere. */}
+          {releaseCode ? (
+            <div style={{ background: '#FFF7ED', border: '2px solid #FDBA74', borderRadius: 8, padding: '18px 20px' }}>
+              <p style={{ fontWeight: 700, color: '#92400E', marginBottom: 12 }}>
+                Keep this code safe. We cannot show it to you again.
+              </p>
+              <div style={{
+                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                fontSize: '1.35rem', fontWeight: 700, letterSpacing: '0.08em',
+                background: '#fff', border: '1px solid #FDBA74', borderRadius: 6,
+                padding: '14px 16px', textAlign: 'center', marginBottom: 16, wordBreak: 'break-all',
+              }}>
+                {releaseCode}
+              </div>
+              <p className="small">
+                This is the only thing that can open your vault after you are gone. We do not keep
+                a copy, so if it is lost, what is in your vault is lost with it.
+              </p>
+              <p className="small">
+                Give it to {releaseCodeFor} in a way that will still exist in ten years: written
+                down and kept with your will, in a sealed envelope, in a safe. Not in a text
+                message you will both delete.
+              </p>
+              <p className="small mb-3">
+                If you ever lose track of it, come back here and issue a new one. The old code
+                stops working immediately.
+              </p>
+              <div className="d-flex gap-3 flex-wrap">
+                <Button variant="primary" size="sm" onClick={printReleaseSheet}>Print this sheet</Button>
+                <Button variant="outline-secondary" size="sm"
+                  onClick={() => { setReleaseCode(null); setReleaseCodeFor('') }}>
+                  I have saved it
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 8, padding: '14px 16px', marginBottom: 16 }}>
+                {!releaseStatus?.enabled ? (
+                  <>
+                    <p className="mb-2" style={{ fontWeight: 600 }}>Vault release: not set up</p>
+                    <p className="text-muted small">
+                      If nothing changes, your vault stays sealed forever when you are gone. That
+                      is a perfectly reasonable choice, but it should be a choice you made rather
+                      than one your family discovers.
+                    </p>
+                    {!releaseStatus?.legacy_contact ? (
+                      <p className="small mb-0">
+                        You have not named a Legacy Contact yet. Choose one on your{' '}
+                        <button className="btn btn-link p-0 align-baseline" style={{ fontSize: 'inherit' }}
+                          onClick={() => navigate('/sections/trusted-contacts')}>
+                          Trusted Contacts
+                        </button>{' '}
+                        page, then come back here.
+                      </p>
+                    ) : !showReleaseSetup ? (
+                      <Button variant="outline-primary" size="sm" onClick={() => {
+                        setReleaseSetupPw(''); setReleaseError(''); setShowReleaseSetup(true)
+                      }}>
+                        Set up vault release for {releaseStatus.legacy_contact.name}
+                      </Button>
+                    ) : null}
+                  </>
+                ) : (
+                  <>
+                    <p className="mb-2" style={{ fontWeight: 600 }}>
+                      Vault release: code issued {formatDate(releaseStatus.release?.code_issued_at)}
+                      {releaseStatus.release?.contact_name ? ` for ${releaseStatus.release.contact_name}` : ''}
+                    </p>
+                    <p className="text-muted small">
+                      We are holding the sealed envelope. If your passing is reported, we wait{' '}
+                      {Math.round((releaseStatus.release?.window_hours || 168) / 24)} days and
+                      contact you the whole time first. Logging in at any point during that wait
+                      cancels it.
+                    </p>
+                    {/* The role can move, or the contact can be deleted, after
+                        the envelope was sealed. The code already handed out
+                        still opens it, so saying nothing here would be
+                        actively misleading. */}
+                    {releaseStatus.release?.contact_missing && (
+                      <Alert variant="warning" className="small py-2">
+                        The contact this was set up for has been removed. The code you handed out
+                        still opens your vault, but there is now nobody designated to receive it.
+                        Please set vault release up again.
+                      </Alert>
+                    )}
+                    {!releaseStatus.release?.contact_missing && !releaseStatus.release?.contact_is_legacy && (
+                      <Alert variant="warning" className="small py-2">
+                        {releaseStatus.release?.contact_name} is no longer your Legacy Contact, but
+                        still holds a code that opens your vault. Set vault release up again for
+                        whoever holds that role now, which cancels the old code.
+                      </Alert>
+                    )}
+                    {!showReleaseSetup && !showReleaseDisable && (
+                      <div className="d-flex gap-3 flex-wrap">
+                        <Button variant="outline-primary" size="sm" onClick={() => {
+                          setReleaseSetupPw(''); setReleaseError(''); setShowReleaseSetup(true)
+                        }}>
+                          Issue a new code
+                        </Button>
+                        <button className="btn btn-link btn-sm p-0 text-danger" onClick={() => {
+                          setReleaseDisablePw(''); setReleaseError(''); setShowReleaseDisable(true)
+                        }}>
+                          Turn off vault release
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {showReleaseSetup && (
+                  <div className="mt-3">
+                    <p className="small">
+                      Sealing the envelope needs your vault password, because that is the only way
+                      we can reach your vault key at all. We use it for this one moment and do not
+                      keep it.
+                    </p>
+                    {releaseStatus?.enabled && (
+                      <p className="small" style={{ color: '#7f1d1d' }}>
+                        <strong>Issuing a new code cancels the old one immediately.</strong> If your
+                        Legacy Contact is holding a code already, it stops working the moment you
+                        do this, so make sure you give them the new one.
+                      </p>
+                    )}
+                    {releaseError && <Alert variant="danger">{releaseError}</Alert>}
+                    <Form.Group className="mb-3" style={{ maxWidth: 420 }}>
+                      <Form.Label style={{ fontWeight: 600 }}>Current vault password</Form.Label>
+                      <PasswordInput value={releaseSetupPw}
+                        onChange={e => setReleaseSetupPw(e.target.value)}
+                        placeholder="Required to seal the envelope" />
+                    </Form.Group>
+                    <div className="d-flex gap-3">
+                      <Button variant="primary" size="sm" disabled={releaseSaving}
+                        onClick={() => issueReleaseCode({ reissue: !!releaseStatus?.enabled && !!releaseStatus?.release?.contact_is_legacy })}>
+                        {releaseSaving ? 'Sealing...' : releaseStatus?.enabled ? 'Issue a new code' : 'Seal my vault key and show my code'}
+                      </Button>
+                      <Button variant="outline-secondary" size="sm" onClick={() => setShowReleaseSetup(false)}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {showReleaseDisable && (
+                  <div className="mt-3">
+                    <p className="small" style={{ color: '#7f1d1d' }}>
+                      This deletes the sealed envelope. Any code you have already given out stops
+                      working, and your vault will stay sealed when you are gone. You can set it up
+                      again later, which issues a new code.
+                    </p>
+                    {releaseError && <Alert variant="danger">{releaseError}</Alert>}
+                    <Form.Group className="mb-3" style={{ maxWidth: 420 }}>
+                      <Form.Label style={{ fontWeight: 600 }}>Current vault password</Form.Label>
+                      <PasswordInput value={releaseDisablePw}
+                        onChange={e => setReleaseDisablePw(e.target.value)}
+                        placeholder="Required to confirm" />
+                    </Form.Group>
+                    <div className="d-flex gap-3">
+                      <Button variant="danger" size="sm" onClick={handleDisableRelease} disabled={releaseDisabling}>
+                        {releaseDisabling ? 'Turning off...' : 'Turn off vault release'}
+                      </Button>
+                      <Button variant="outline-secondary" size="sm" onClick={() => setShowReleaseDisable(false)}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* The second channel. SMS was considered and dropped (spec
+                  section 10), so a nominated backup address is the only thing
+                  standing between a false declaration and a challenge that
+                  lands in a mailbox the person who made it already controls. */}
+              <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 8, padding: '14px 16px' }}>
+                <p className="mb-2" style={{ fontWeight: 600 }}>Backup address for the "are you there?" check</p>
+                <p className="text-muted small">
+                  If anyone ever reports that you have passed away, we write to you repeatedly
+                  before anything is released. Give us a second address we can use as well as your
+                  main one: a spouse's, a work address, an old account. It means someone who gets
+                  into one of your mailboxes cannot quietly intercept that question.
+                </p>
+                {challengeEmailError && <Alert variant="danger" className="small py-2">{challengeEmailError}</Alert>}
+                {challengeEmailSuccess && <Alert variant="success" className="small py-2">{challengeEmailSuccess}</Alert>}
+                <Row className="g-2 align-items-end">
+                  <Col xs={12} md={8}>
+                    <Form.Label className="small">Backup email address (optional)</Form.Label>
+                    <Form.Control type="email" value={challengeEmailInput}
+                      onChange={e => setChallengeEmailInput(e.target.value)}
+                      placeholder="someone.else@example.com" />
+                  </Col>
+                  <Col xs={12} md={4}>
+                    <Button variant="outline-primary" size="sm" className="w-100"
+                      onClick={handleSaveChallengeEmail} disabled={challengeEmailSaving}>
+                      {challengeEmailSaving ? 'Saving...' : 'Save'}
+                    </Button>
+                  </Col>
+                </Row>
+              </div>
+            </>
+          )}
         </div>
       )}
       </div>

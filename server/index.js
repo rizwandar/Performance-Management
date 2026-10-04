@@ -118,6 +118,23 @@ app.use('/api/auth/', authLimiter);
 app.use('/api/org-links/', authLimiter);
 app.use('/api/org-register/', authLimiter);
 app.use('/api/sections/digital-life/recovery/', authLimiter);
+// Same treatment as recovery directly above, and for the same reason: every
+// mutating route under here takes the vault password, so it is a
+// vault-password guessing surface and must not sit on the looser 200/15min
+// API budget.
+//
+// GET is exempt, though. /release/status takes no password, so it is not part
+// of the surface this limiter exists to slow, and it is read on every Profile
+// and Trusted Contacts page load - so counting it against a 20-per-15-minutes
+// budget shared with the real guessing routes produces exactly the collateral
+// lockout SEC-14 and the /csrf-token fix (PR #213) already had to undo twice:
+// ordinary browsing exhausts the budget, and then a legitimate attempt to
+// arm or re-issue gets a 429. Caught by the end-to-end test for this feature,
+// which locked itself out at request 21. GETs are still covered by the
+// 200/15min apiLimiter above.
+app.use('/api/sections/digital-life/release/', (req, res, next) => (
+  req.method === 'GET' ? next() : authLimiter(req, res, next)
+));
 
 app.use(async (req, res, next) => {
   const exemptPaths = ['/api/health', '/api/auth/login', '/api/auth/logout'];
@@ -188,6 +205,10 @@ app.use('/api/deezer',          require('./routes/deezer'));
 app.use('/api/documents',       require('./routes/documents'));
 app.use('/api/trusted-contacts',require('./routes/trustedContacts'));
 app.use('/api/sections/digital-life/recovery', require('./routes/vaultRecovery'));
+// Registered before '/api/sections' for the same reason recovery is: the
+// generic '/digital-life/:id' routes in sections.js would otherwise swallow
+// these paths.
+app.use('/api/sections/digital-life/release', require('./routes/vaultRelease'));
 app.use('/api/sections',        require('./routes/sections'));
 app.use('/api/export',          require('./routes/export'));
 app.use('/api/billing',         require('./routes/billing'));
