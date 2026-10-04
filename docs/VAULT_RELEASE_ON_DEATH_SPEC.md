@@ -191,3 +191,162 @@ It is also a differentiator that is hard to copy honestly. Most competitors
 either hold the key themselves, meaning they can read everything, or they do
 not offer encryption worth the name. This design releases the vault without the
 operator ever being able to read it.
+
+---
+
+## 8. Decisions of 2026-10-04 (second pass)
+
+- **Challenge window: 2 days**, not 7. Owner's call.
+- **The owner is challenged by email and SMS**, both.
+- **The Legacy Contact can see that a release is pending**, with a countdown,
+  rather than silence.
+- **Funeral home attestation: deferred**, but the schema makes room for a
+  per-declarer window length now, so it needs no migration later.
+
+### 8.1 The release code is never sent by us. Ever.
+
+The owner asked whether the access-link email should carry the release code.
+**No, and this is the one point in the design that cannot bend.**
+
+The security of the whole scheme rests on the two halves never meeting. We hold
+the sealed envelope. If we also transmitted the code, then at that moment our
+mail provider, our logs and the recipient's inbox would each hold both halves,
+and a single compromised mailbox would be enough to open the vault. It would
+also make the claim "we cannot read your vault" false in spirit, because we
+would have handled everything needed to open it.
+
+So: the code is generated, shown to the user once, and **never stored, never
+logged, never emailed.** It reaches the Legacy Contact by the user's own hand.
+That friction is the feature, not a rough edge to smooth off later.
+
+The access-link email should say so explicitly, so the recipient is not left
+waiting for a code that is never coming.
+
+### 8.2 Is the Legacy Contact's secure link different?
+
+Checked against the code. Same mechanism: both are rows in
+`trusted_contact_tokens`, delivered the same way. Two differences, both of
+which already exist today:
+
+- A regular trusted contact's link expires after 72 hours
+  (`EXPIRES_HOURS = 72` in `lib/inactivityTimer.js`). The Legacy Contact's
+  never expires, because when it is finally needed the owner is not there to
+  resend it.
+- The Legacy Contact's token carries `allow_demise_confirm`, so only they can
+  confirm a passing from it.
+
+Vault release adds nothing to the link itself. The envelope is fetched
+separately, after the window closes, and opened with the code.
+
+### 8.3 Where the explanation goes
+
+Five places, in order of how likely someone is to read them.
+
+**1. The "Make Legacy Contact" confirmation modal.** The moment of decision,
+and the most important of the five. Proposed copy:
+
+> **Make {name} your Legacy Contact?**
+>
+> Your Legacy Contact is the one person who acts for you when you cannot.
+>
+> - They are told first if you stop logging in.
+> - Their link never expires, unlike everyone else's.
+> - They can see everything you have recorded, except your vault.
+> - They can confirm your passing. When they do, everyone else on your lists is
+>   told straight away.
+>
+> **Your vault is the exception.** It is locked with a password we never store,
+> so nobody can open it, not even us. If you want {name} to be able to open it
+> after you are gone, you can set that up now or later.
+>
+> Here is how it works. We seal a copy of your vault key inside an envelope
+> that only one release code can open. We keep the envelope. You keep the code,
+> and you give it to {name} yourself.
+>
+> **We never send the code.** It has to come from you, because that is the
+> thing that keeps your vault yours. You can issue a new code whenever you
+> like, and the old one stops working the moment you do.
+>
+> [Make Legacy Contact] · [Make Legacy Contact and set up vault release] ·
+> [Cancel]
+
+**2. The Legacy Contact's own card**, once assigned. This is where re-issuance
+belongs, because it is where you look when you are thinking about that person.
+One line, with an action:
+
+> Vault release: not set up. **Set up**
+
+or, once set up:
+
+> Vault release: code issued 4 October 2026. **Issue a new code**
+
+**3. The "Send access link" modal**, when the contact is the Legacy Contact.
+One extra line:
+
+> This link never expires, and it lets {name} confirm your passing.
+>
+> Your release code is not in this email, and never will be. Give it to {name}
+> yourself, and ask them to keep it somewhere they will still find it years
+> from now.
+
+**4. The foot-of-page panel on Trusted Contacts**, as reference material. Added
+after the existing vault paragraph:
+
+> You can change that if you want to. Set up vault release and we will seal a
+> copy of your vault key in an envelope that only your release code opens. We
+> hold the envelope and cannot open it. Your Legacy Contact holds the code and
+> has nothing to open it with, until you are gone and a short waiting period
+> has passed. Neither half is any use on its own.
+
+**5. The setup flow itself**, in the profile, at the moment the code is shown:
+
+> **Keep this code safe. We cannot show it to you again.**
+>
+> This is the only thing that can open your vault after you are gone. We do not
+> keep a copy, so if it is lost, what is in your vault is lost with it.
+>
+> Give it to {name} in a way that will still exist in ten years: written down
+> and kept with your will, in a sealed envelope, in a safe. Not in a text
+> message you will both delete.
+>
+> If you ever lose track of it, come back here and issue a new one. The old
+> code stops working immediately.
+>
+> [Print this sheet] · [I have saved it]
+
+### 8.4 Re-issuance
+
+Available from the Legacy Contact's card and from profile security settings.
+
+Re-issuing means re-encrypting the vault key under a new code, which
+**requires the vault password again.** That is unavoidable, since the server
+has no other way to reach the key, and it is worth saying up front rather than
+surprising someone halfway through.
+
+The old envelope is replaced, so the old code dies instantly. The UI must say
+that plainly: a user who re-issues "just in case" and leaves their Legacy
+Contact holding the old code has silently broken the very thing they set up.
+
+**Open question remaining:** printed sheet versus on-screen only. The copy
+above assumes a printable sheet, which is friendlier and far likelier to
+survive a decade. Confirm before building.
+
+### 8.5 What actually happens across the 2 days
+
+The owner asked. In order:
+
+1. Someone declares the passing. Everything not vault-protected releases
+   immediately, exactly as today.
+2. The vault enters pending release. A 2-day clock starts.
+3. The owner is contacted by email and SMS, repeatedly rather than once:
+   *"It has been reported that you have died. If you are reading this, press
+   here."*
+4. Every trusted contact is told a declaration was made, not only the person
+   who made it.
+5. The Legacy Contact sees a countdown, so they are not left wondering whether
+   anything happened.
+6. Any reply from the owner, or any successful login, cancels everything and
+   logs it.
+7. If the clock runs out with no cancellation, the Legacy Contact is emailed:
+   the vault is now available, come and enter your code. Only at that point is
+   the envelope handed over.
