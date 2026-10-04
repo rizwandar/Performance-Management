@@ -178,8 +178,11 @@ router.get('/:token', async (req, res) => {
         );
         break;
       case 'children_dependants':
+        // date_of_birth is deliberately not selected. A dependant's birth date
+        // is no longer collected, and this payload goes to a trusted contact
+        // over a link, so legacy values on older rows stay out of it.
         data.children_dependants = await queryAll(
-          `SELECT id, name, type, date_of_birth, special_needs, preferred_guardian,
+          `SELECT id, name, type, special_needs, preferred_guardian,
                   guardian_contact, alternate_guardian, alternate_contact, notes
            FROM children_dependants WHERE user_id = $1`,
           [tokenRow.user_id]

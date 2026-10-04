@@ -854,20 +854,31 @@ router.delete('/household-info/:id', requireAuth, requirePremium, checkPlanLock,
 });
 
 // ---------------------------------------------------------------------------
-// Section 14 — Your Loved Ones
+// Section 14 - Dependents
 // ---------------------------------------------------------------------------
+// children_dependants.date_of_birth is no longer part of this section's
+// contract. Holding a dependant's birth date is a privacy and identity-theft
+// risk the section never needed, since care instructions do not turn on an
+// exact date. These routes neither accept it nor return it, so the column is
+// now inert: it is retained (schema changes here stay additive, columns are
+// never dropped) and any value already stored is simply never read back.
 router.get('/children-dependants', requireAuth, async (req, res) => {
-  res.json(await queryAll('SELECT * FROM children_dependants WHERE user_id = $1 ORDER BY type, name', [req.user.id]));
+  res.json(await queryAll(
+    `SELECT id, user_id, name, type, special_needs, preferred_guardian, guardian_contact,
+            alternate_guardian, alternate_contact, notes, created_at
+     FROM children_dependants WHERE user_id = $1 ORDER BY type, name`,
+    [req.user.id]
+  ));
 });
 
 router.post('/children-dependants', requireAuth, checkPlanLock, async (req, res) => {
-  const { name, type, date_of_birth, special_needs, preferred_guardian, guardian_contact, alternate_guardian, alternate_contact, notes } = req.body;
+  const { name, type, special_needs, preferred_guardian, guardian_contact, alternate_guardian, alternate_contact, notes } = req.body;
   if (!name) return res.status(400).json({ error: 'A name is required.' });
   const result = await query(`
     INSERT INTO children_dependants
-      (user_id, name, type, date_of_birth, special_needs, preferred_guardian, guardian_contact, alternate_guardian, alternate_contact, notes)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id
-  `, [req.user.id, name, type || null, date_of_birth || null, special_needs || null,
+      (user_id, name, type, special_needs, preferred_guardian, guardian_contact, alternate_guardian, alternate_contact, notes)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id
+  `, [req.user.id, name, type || null, special_needs || null,
       preferred_guardian || null, guardian_contact || null,
       alternate_guardian || null, alternate_contact || null, notes || null]);
   res.status(201).json({ id: result.rows[0].id });
@@ -876,13 +887,13 @@ router.post('/children-dependants', requireAuth, checkPlanLock, async (req, res)
 router.put('/children-dependants/:id', requireAuth, checkPlanLock, async (req, res) => {
   const item = await queryOne('SELECT * FROM children_dependants WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
-  const { name, type, date_of_birth, special_needs, preferred_guardian, guardian_contact, alternate_guardian, alternate_contact, notes } = req.body;
+  const { name, type, special_needs, preferred_guardian, guardian_contact, alternate_guardian, alternate_contact, notes } = req.body;
   await query(`
     UPDATE children_dependants
-    SET name=$1, type=$2, date_of_birth=$3, special_needs=$4, preferred_guardian=$5,
-        guardian_contact=$6, alternate_guardian=$7, alternate_contact=$8, notes=$9
-    WHERE id=$10
-  `, [name ?? item.name, type ?? item.type, date_of_birth ?? item.date_of_birth,
+    SET name=$1, type=$2, special_needs=$3, preferred_guardian=$4,
+        guardian_contact=$5, alternate_guardian=$6, alternate_contact=$7, notes=$8
+    WHERE id=$9
+  `, [name ?? item.name, type ?? item.type,
       special_needs ?? item.special_needs, preferred_guardian ?? item.preferred_guardian,
       guardian_contact ?? item.guardian_contact, alternate_guardian ?? item.alternate_guardian,
       alternate_contact ?? item.alternate_contact, notes ?? item.notes, item.id]);

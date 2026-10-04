@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { Button, Form, Row, Col, Alert, Modal, Spinner } from 'react-bootstrap'
 import axios from 'axios'
 import SectionHero from '../../components/SectionHero'
@@ -26,14 +25,18 @@ const TYPE_ICONS = {
   other:          '🤝',
 }
 
+// A dependant's date of birth is no longer collected: holding someone else's
+// DOB is a privacy and identity-theft risk that this section never needed to
+// take on, since care instructions do not depend on an exact birth date. The
+// children_dependants.date_of_birth column still exists (schema changes here
+// are additive only), it is simply no longer written, read, or displayed.
 const empty = {
-  name: '', type: 'child', date_of_birth: '', special_needs: '',
+  name: '', type: 'child', special_needs: '',
   preferred_guardian: '', guardian_contact: '',
   alternate_guardian: '', alternate_contact: '', notes: '',
 }
 
 export default function ChildrenDependantsPage() {
-  const navigate = useNavigate()
   const [items, setItems]         = useState([])
   const [loading, setLoading]     = useState(true)
   const [saving, setSaving]       = useState(false)
@@ -70,7 +73,6 @@ export default function ChildrenDependantsPage() {
     setForm({
       name:               item.name               || '',
       type:               item.type               || 'child',
-      date_of_birth:      item.date_of_birth      || '',
       special_needs:      item.special_needs      || '',
       preferred_guardian: item.preferred_guardian || '',
       guardian_contact:   item.guardian_contact   || '',
@@ -114,27 +116,26 @@ export default function ChildrenDependantsPage() {
     }
   }
 
-  const formatDob = dob => {
-    if (!dob) return null
-    try { return new Date(`${dob}T00:00:00`).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' }) }
-    catch { return dob }
-  }
-
   return (
     <div style={{ maxWidth: 800, margin: '0 auto' }}>
-      <div className="mb-4">
-        <button className="btn btn-link p-0 mb-2"
-          style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '0.9rem' }}
-          onClick={() => navigate('/profile')}>← Back to my plans</button>
-      </div>
-
       <SectionHero
         eyebrow="Your People"
-        headline="Care instructions for those who depend on you"
-        highlight="depend on you"
-        subtext="Record care arrangements for anyone who depends on you, including children or elderly relatives. Include guardianship wishes and any special care needs so your loved ones know exactly what to do. Looking for pet care instructions? Those now have their own dedicated section."
+        headline="Dependents"
+        subheadline="Care instructions for those who depend on you"
+        subtext={(
+          <>
+            <p className="mb-2">
+              Record care arrangements for anyone who depends on you, such as children or
+              elderly relatives. Include your guardianship wishes and any special care needs,
+              so the people you trust know exactly what to do.
+            </p>
+            <p className="mb-0">
+              Looking for pet care instructions? Those have their own dedicated section.
+            </p>
+          </>
+        )}
         cta={{ label: '+ Add a dependant', onClick: openAdd }}
-        secondaryAction={<ShareSectionTrigger section="children_dependants" sectionLabel="Your Loved Ones" />}
+        secondaryAction={<ShareSectionTrigger section="children_dependants" sectionLabel="Dependents" />}
       />
 
       {success && <Alert variant="success">{success}</Alert>}
@@ -168,9 +169,6 @@ export default function ChildrenDependantsPage() {
                       <div>
                         <p style={{ fontWeight: 600, color: 'var(--green-900)', marginBottom: 0 }}>{item.name}</p>
                         <span className="text-muted small">{typeLabel}</span>
-                        {item.date_of_birth && (
-                          <span className="text-muted small ms-2">· Born {formatDob(item.date_of_birth)}</span>
-                        )}
                       </div>
                     </div>
 
@@ -231,18 +229,13 @@ export default function ChildrenDependantsPage() {
                 <Form.Control value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
                   placeholder="Full name" autoFocus />
               </Col>
-              <Col md={3}>
+              <Col md={6}>
                 <Form.Label>Type</Form.Label>
                 <Form.Select value={form.type} onChange={e => setForm({ ...form, type: e.target.value })}>
                   {TYPES.map(t => (
                     <option key={t.value} value={t.value}>{t.label}</option>
                   ))}
                 </Form.Select>
-              </Col>
-              <Col md={3}>
-                <Form.Label>Date of birth</Form.Label>
-                <Form.Control type="date" value={form.date_of_birth}
-                  onChange={e => setForm({ ...form, date_of_birth: e.target.value })} />
               </Col>
             </Row>
 

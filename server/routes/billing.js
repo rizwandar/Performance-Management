@@ -164,7 +164,7 @@ router.get('/plans', (req, res) => {
           'Medical Records',
           'Emergency Contact',
           'People to Notify',
-          'Your Loved Ones',
+          'Dependents',
           'Pet Care',
           'Insurance',
           'Trusted contacts with access permissions',

@@ -20,7 +20,7 @@ export const FREE_FEATURES = [
   'Medical Records',
   'Emergency Contact',
   'People to Notify',
-  'Your Loved Ones',
+  'Dependents',
   'Pet Care',
   'Insurance',
   'Trusted contact access permissions',

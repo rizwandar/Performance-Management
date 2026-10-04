@@ -313,7 +313,9 @@ function ChildrenDependants({ data, documents }) {
           </Badge>
         )}
       </div>
-      <FieldRow label="Date of birth"          value={d.date_of_birth} />
+      {/* A dependant's date of birth is no longer collected or sent by the
+          server, so there is no row for it here. The owner's own date of
+          birth, further down this page, is a separate field and unaffected. */}
       <FieldRow label="Special needs / care"    value={d.special_needs} />
       <FieldRow label="Preferred guardian"      value={d.preferred_guardian} />
       <FieldRow label="Their contact details"   value={d.guardian_contact} />
@@ -437,7 +439,7 @@ const SECTION_CONFIG = {
   personal_messages: { label: 'Messages to Loved Ones',  Component: PersonalMessages, dataKey: 'personal_messages' },
   songs_that_define_me: { label: 'Songs That Define Me', Component: SongsThatDefineMe, dataKey: 'songs_that_define_me' },
   life_wishes:       { label: "My Bucket List",          Component: LifeWishes,       dataKey: 'life_wishes' },
-  children_dependants: { label: 'Your Loved Ones', Component: ChildrenDependants, dataKey: 'children_dependants' },
+  children_dependants: { label: 'Dependents', Component: ChildrenDependants, dataKey: 'children_dependants' },
   unfinished_business: { label: 'Unfinished Business',   Component: UnfinishedBusiness, dataKey: 'unfinished_business' },
   last_moments:      { label: 'Your Last Moments',       Component: LastMoments,      dataKey: 'last_moments' },
   'pet-care':        { label: 'Pet Care',                Component: PetCare,          dataKey: 'pet-care' },
