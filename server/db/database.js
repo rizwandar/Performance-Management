@@ -726,7 +726,6 @@ async function init() {
   // write-only Emergency Contact section), same one-shot shape as
   // deceased_executor_notified_at above, so a retry of markUserDeceased
   // doesn't re-send it once it has already gone out.
-  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS deceased_emergency_contact_notified_at TIMESTAMPTZ`);
   // trusted_contacts.deceased_notified_at: per-contact completion tracking for the
   // deceased-flow notification specifically (deliberately separate from the
   // per-user inactivity_contacts_notified_at above, which governs the unrelated
