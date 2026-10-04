@@ -1720,6 +1720,32 @@ async function init() {
   // link email sent from the "Send access link" flow.
   await pool.query(`ALTER TABLE trusted_contacts ADD COLUMN IF NOT EXISTS invite_message TEXT`);
 
+  // One-time purge of dependant dates of birth (2026-10-04).
+  //
+  // The same release stopped collecting, returning, exporting and sharing a
+  // dependant's date of birth, on the view that holding someone else's birth
+  // date is an identity-theft risk this section never needed to take on. That
+  // change closed every read path but left the values already stored sitting
+  // in the table, where the person they belong to could no longer see or
+  // correct them, and where they kept flowing into every nightly backup. A
+  // pre-promotion review rated that gap medium, and the owner approved this
+  // purge on 2026-10-04.
+  //
+  // Deliberately a data change rather than a schema change: the column itself
+  // stays, per the project's rule that columns are never dropped, so a rollback
+  // of the code still finds the shape it expects. It simply finds the column
+  // empty, which is the intended end state either way.
+  //
+  // Safe to run on every boot. The WHERE clause makes it a no-op once there is
+  // nothing left to clear, so it costs an index-free scan of a small table and
+  // writes nothing on all subsequent starts.
+  const purgedDob = await pool.query(
+    `UPDATE children_dependants SET date_of_birth = NULL WHERE date_of_birth IS NOT NULL`
+  );
+  if (purgedDob.rowCount > 0) {
+    console.log(`[db] Cleared stored date_of_birth on ${purgedDob.rowCount} dependant row(s); the field is no longer collected.`);
+  }
+
   // IDEA-43 follow-up (2026-10-03): the original trusted_contacts table
   // declared `sequence INTEGER NOT NULL CHECK (sequence IN (1,2,3))`, from
   // when every plan had a flat 3-contact limit. IDEA-43 raised the paid
