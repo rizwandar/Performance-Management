@@ -896,6 +896,17 @@ async function init() {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS privacy_version_consented INTEGER`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS tos_version_consented INTEGER`);
 
+  // GDPR age-of-consent confirmation ("I confirm that I am 16 years of age
+  // or older"), shown at registration only when the submitted country_code
+  // falls under GDPR (see server/lib/complianceRegime.js). A timestamp
+  // rather than a boolean, because this column exists as legal evidence
+  // that consent was given, and *when* is what makes it evidence - a bare
+  // boolean would just be a current-state flag with no record of the
+  // original consent event. NULL means no GDPR consent was recorded
+  // (not applicable, or not yet given); set once, at registration, never
+  // updated afterward.
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS gdpr_age_consent_at TIMESTAMPTZ`);
+
   // Seed version 1 of each policy from the content that used to be hardcoded
   // in TermsPage.jsx/PrivacyPage.jsx, so existing installs get a real v1
   // record instead of starting from an empty history.
