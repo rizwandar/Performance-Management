@@ -77,10 +77,6 @@ export default function TrustedContactsPage() {
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting, setDeleting]         = useState(false)
 
-  // Defaults to 12 (the server's own fallback in GET /users/me/timer) so the
-  // explanatory copy below reads correctly even before the fetch resolves,
-  // rather than showing a placeholder or nothing.
-  const [inactivityMonths, setInactivityMonths] = useState(12)
 
   const loadContacts = () => {
     setTcLoading(true)
@@ -96,10 +92,6 @@ export default function TrustedContactsPage() {
   }
 
   useEffect(() => {
-    axios.get(`${API}/users/me/timer`)
-      .then(r => setInactivityMonths(r.data.inactivity_period_months || 12))
-      .catch(() => {})
-
     loadContacts()
   }, [])
 
@@ -246,13 +238,12 @@ export default function TrustedContactsPage() {
         subtext={(
           <>
             <p className="mb-2">
-              Trusted contacts are people you choose to share your selected plans with. You can
-              share the information with them using a secure link.
+              Trusted contacts are people you choose to share your information with. You can add
+              up to {cap} and send each a secure link to read the sections you choose.
             </p>
             <p className="mb-0">
-              You can also name one of these trusted contacts as your <strong>Legacy Contact</strong>,
-              who will be notified first if you stop logging in. They can see everything
-              you've recorded, except your sensitive secured data in your vault.{' '}
+              You can also name one as your <strong>Legacy Contact</strong>. They&rsquo;ll be notified
+              if you stop logging in and can view everything you've recorded, except your vault.{' '}
               <Link to="/faq#legacy-contact-vs-trusted-contact">Learn more</Link>.
             </p>
           </>
@@ -377,27 +368,7 @@ export default function TrustedContactsPage() {
             )}
           </div>
 
-          <PlanLimitNotice limitKey="trusted_contacts" currentCount={contacts.length} alwaysShow />
-
-          <div style={{ background: 'var(--gold-50)', border: '1px solid var(--gold-light)', borderRadius: 10, padding: '16px 20px' }}>
-            <p style={{ fontWeight: 600, color: 'var(--green-900)', marginBottom: 6 }}>How trusted contact access works</p>
-            <ul className="text-muted small mb-0" style={{ listStyle: 'none', padding: 0, lineHeight: 1.7 }}>
-              <li className="mb-2">
-                <strong>Trusted Contacts:</strong> share selected information through a read-only link
-                that expires after 72 hours.
-              </li>
-              <li className="mb-2">
-                <strong>Legacy Contact:</strong> share everything except your vault through a permanent
-                read-only link. They're notified after{' '}
-                <strong>{inactivityMonths} month{inactivityMonths === 1 ? '' : 's'}</strong> of
-                inactivity, which you can adjust in{' '}
-                <Link to="/profile/settings#inactivity-timer">your profile</Link>.
-              </li>
-              <li>
-                <strong>Your passwords:</strong> encrypted, never shared, and accessible only to you.
-              </li>
-            </ul>
-          </div>
+          <PlanLimitNotice limitKey="trusted_contacts" currentCount={contacts.length} alwaysShow omitCount />
         </>
       )}
 

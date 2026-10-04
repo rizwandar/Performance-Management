@@ -27,7 +27,16 @@ import { PLAN_LIMITS } from '../constants/planLimits'
 // upgrade note would read as nagging. Trusted Contacts opts in; the other
 // five keep the original at-the-limit-only behaviour until each is looked at
 // on its own terms.
-export default function PlanLimitNotice({ limitKey, currentCount, alwaysShow = false }) {
+//
+// `omitCount` drops the "your plan includes N" half and leaves only the
+// invitation to upgrade. For a page whose own header already states the
+// allowance, repeating it here is the duplication the copy is trying to lose.
+// Explicit rather than inferred from `alwaysShow`: the two happen to travel
+// together on Trusted Contacts today, but a page could want one without the
+// other, and a silent coupling would be a trap later. A page that does NOT
+// state the allowance itself must leave this off, or the reader is told to
+// upgrade without being told from what.
+export default function PlanLimitNotice({ limitKey, currentCount, alwaysShow = false, omitCount = false }) {
   const navigate = useNavigate()
   const { isPremium } = useSubscription()
   const entry = PLAN_LIMITS[limitKey]
@@ -61,11 +70,16 @@ export default function PlanLimitNotice({ limitKey, currentCount, alwaysShow = f
   // gets its own reassuring copy.
   const overLimit = currentCount > limit
 
+  // The over-limit case keeps its full wording even under omitCount: someone
+  // holding more than their plan allows needs the reassurance that nothing is
+  // being taken away, and that is not a restatement of the allowance.
   const message = overLimit
     ? `You have more ${entry.itemLabelPlural} than your plan includes. They are all safe and will stay. Upgrade your account if you would like to add more.`
-    : atLimit
-      ? `You have added all ${limit} ${entry.itemLabelPlural} your plan includes. Upgrade your account if you would like to add more.`
-      : `Your plan includes ${limit} ${entry.itemLabelPlural}. Upgrade your account if you would like to add more.`
+    : omitCount
+      ? 'Upgrade your account if you would like to add more.'
+      : atLimit
+        ? `You have added all ${limit} ${entry.itemLabelPlural} your plan includes. Upgrade your account if you would like to add more.`
+        : `Your plan includes ${limit} ${entry.itemLabelPlural}. Upgrade your account if you would like to add more.`
 
   return (
     <Panel>
