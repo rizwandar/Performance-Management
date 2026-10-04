@@ -242,10 +242,9 @@ export default function TrustedContactsPage() {
               secure link.
             </p>
             <p className="mb-0">
-              You can also name one of these trusted contacts as your <strong>Legacy Contact</strong>,
-              who will be notified first if you stop logging in. They can see everything
-              you've recorded, except your sensitive secured data in your vault.{' '}
-              <Link to="/faq#legacy-contact-vs-trusted-contact">Learn more</Link>.
+              You can also name one of them your <strong>Legacy Contact</strong>: the person notified
+              first, and the one who can confirm your passing. There is more about what that means
+              at the foot of this page.
             </p>
           </>
         )}
@@ -370,6 +369,52 @@ export default function TrustedContactsPage() {
           </div>
 
           <PlanLimitNotice limitKey="trusted_contacts" currentCount={contacts.length} alwaysShow omitCount />
+
+          {/* The Legacy Contact explanation sits at the foot of the page, not in
+              the header: it is the most consequential thing on this screen, but
+              it is reference material rather than something you act on while
+              adding a contact. Everything stated here is true of the app as it
+              stands. In particular the vault paragraph says the vault cannot be
+              opened by anyone, which is a fact about the encryption rather than
+              a policy, and must not be softened into "yet" or "for now" unless
+              and until a vault-release mechanism actually ships. */}
+          <div style={{ background: 'var(--green-50)', border: '1px solid var(--green-100)', borderRadius: 10, padding: '20px 22px', marginTop: 24 }}>
+            <p style={{ fontWeight: 600, color: 'var(--green-900)', marginBottom: 10, fontSize: '1.02rem' }}>
+              About your Legacy Contact
+            </p>
+            <p className="text-muted small mb-2">
+              Any one of your trusted contacts can be named your Legacy Contact. It is the most
+              important choice on this page, so pick the person you would trust to act calmly on
+              your behalf when your family cannot.
+            </p>
+            <ul className="text-muted small mb-2" style={{ paddingLeft: '1.1rem', lineHeight: 1.75 }}>
+              <li>
+                <strong>Their access does not expire.</strong> Everyone else receives a link good for
+                72 hours. Your Legacy Contact keeps theirs, because when it is finally needed you will
+                not be there to send another one.
+              </li>
+              <li>
+                <strong>They see everything you have recorded, except your vault.</strong>
+              </li>
+              <li>
+                <strong>They are told first if you stop logging in.</strong> You choose how long that
+                wait is in{' '}<Link to="/profile/settings#inactivity-timer">your profile</Link>.
+              </li>
+              <li>
+                <strong>They can confirm your passing.</strong> That does not wait for any timer: the
+                moment it is confirmed, every trusted contact and everyone on your People to Notify
+                list is told straight away.
+              </li>
+            </ul>
+            <p className="text-muted small mb-0">
+              <strong>Your vault is the exception, and deliberately so.</strong> It is encrypted with a
+              password that is never stored anywhere, so it cannot be opened by us, by anyone who stole
+              our records, or by your Legacy Contact. That is what makes it safe, and it is also the
+              catch: if nobody alive knows your vault password, what is inside it cannot be reached
+              after you are gone. If that matters to you, tell someone you trust.{' '}
+              <Link to="/faq#legacy-contact-vs-trusted-contact">Learn more</Link>.
+            </p>
+          </div>
         </>
       )}
 
