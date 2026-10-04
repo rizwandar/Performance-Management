@@ -260,7 +260,14 @@ cron.schedule('0 8 * * *', () => {
 const { runBackup } = require('./lib/backup');
 cron.schedule('0 3 * * *', () => {
   console.log('[backup] Running daily database backup...');
-  runBackup().catch(err => console.error('[backup] Daily backup failed:', err.message));
+  runBackup().catch(err => {
+    console.error('[backup] Daily backup failed:', err.message);
+    // A failed backup is silent by nature: nothing user-facing breaks and the
+    // next request still succeeds, so without this it surfaces only to whoever
+    // happens to read the logs. A missing or malformed BACKUP_ENCRYPTION_KEY
+    // would stop backups every night until someone noticed.
+    Sentry.captureException(err, { tags: { job: 'daily-backup' } });
+  });
 });
 
 initDb()

@@ -1,5 +1,6 @@
 const { queryOne, queryAll, query } = require('../db/database');
 const { sendEmail } = require('./sendEmail');
+const { forLog } = require('./logSafe');
 const { demiseNotificationEmail, executorNotificationEmail } = require('./emailTemplates');
 const { notifyTrustedContacts } = require('./inactivityTimer');
 
@@ -60,7 +61,7 @@ async function notifyEmergencyContact(user) {
     await query('UPDATE users SET deceased_emergency_contact_notified_at = $1 WHERE id = $2', [new Date().toISOString(), user.id]);
     return { sentCount: 1, attempted: 1, failedCount: 0 };
   } catch (err) {
-    console.error(`[deceased] Failed to notify emergency contact ${user.emergency_contact_email}:`, err.message);
+    console.error(`[deceased] Failed to notify emergency contact ${forLog(user.emergency_contact_email)}:`, err.message);
     return { sentCount: 0, attempted: 1, failedCount: 1 };
   }
 }
