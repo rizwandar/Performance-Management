@@ -33,7 +33,7 @@ const SECTIONS = [
   { id: 'personal_messages',    label: 'Messages to Loved Ones' },
   { id: 'songs_that_define_me', label: 'Songs That Define Me' },
   { id: 'life_wishes',          label: 'My Bucket List' },
-  { id: 'children_dependants',  label: 'Your Loved Ones' },
+  { id: 'children_dependants',  label: 'Dependents' },
   { id: 'unfinished_business',  label: 'Unfinished Business' },
   { id: 'last_moments',         label: 'Your Last Moments' },
   { id: 'pet-care',             label: 'Pet Care' },

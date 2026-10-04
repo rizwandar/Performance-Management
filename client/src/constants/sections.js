@@ -42,7 +42,7 @@ export const SECTIONS = [
 
   // ── Your People ────────────────────────────────────────────────────────────
   {
-    id: 'children-dependants', label: 'Your Loved Ones',
+    id: 'children-dependants', label: 'Dependents',
     icon: '👶', route: '/sections/children-dependants', group: 'people',
     description: 'Everything your loved ones need to know about caring for your children and those who depend on you.',
   },
