@@ -448,3 +448,88 @@ voids it. It should not carry the account's email address or any vault content.
 The user can issue a new code at any time while alive, so a lost code is not
 fatal. Requires the vault password again, and the previous code stops working
 immediately.
+
+---
+
+## 10. Dropping SMS, 2026-10-04
+
+Owner's decision: no SMS for now. One reply option confirmed, and the second
+option dropped.
+
+### 10.1 What SMS was actually for
+
+A single job: a second channel, so that a Legacy Contact who also controls the
+owner's mailbox cannot both declare a death and silence the challenge. Nothing
+else in the design depends on it.
+
+So the question is not "how do we live without SMS", it is **"what else gives
+us a path to the owner that does not run through their main inbox".**
+
+### 10.2 Four substitutes, none needing new infrastructure
+
+**1. A second email address, nominated by the owner.** The strongest and
+cheapest of the four. At setup the owner adds a backup address used only for
+this: a spouse's, a work address, an old account. It is one more send through
+Resend. It defeats the exact attack SMS was there to defeat, because an
+attacker would now need two mailboxes rather than one, and it costs a column
+and a form field.
+
+**2. A longer window when there is only one channel.** With SMS, 2 days was
+reasonable. On email alone, 7 days is the safer default: more chances for the
+owner to read mail, log in, or hear from someone. Costs nothing, since the
+window length is already configurable per declarer.
+
+**3. Every trusted contact is told a declaration was made.** Already in the
+design, and worth recognising as a second channel in its own right. It routes
+through other people rather than another device: if a Legacy Contact falsely
+declares, the owner's other contacts are told, and one of them phones the
+owner. For most users that is a faster alarm than any automated message.
+
+**4. Login cancels, plus a full-width banner.** Already in the design. Any
+successful login cancels the release. Adding an unmissable in-app banner during
+a pending window means even a user who logs in for an unrelated reason cannot
+miss it.
+
+### 10.3 Recommended shape without SMS
+
+- Challenge by email to the primary address **and** the nominated backup
+  address.
+- Default window **7 days** rather than 2, while email is the only automated
+  channel. Revisit if SMS is ever added.
+- All trusted contacts notified of the declaration.
+- Cancel on login, plus a banner.
+- **Build the challenge dispatcher channel-agnostic**: a list of channels to
+  try, with email as the only implementation today. Adding SMS later should be
+  one new channel, not a rewrite. This is the "prepare an extension point"
+  call rather than "implement now" or "defer entirely".
+
+### 10.4 Restricting to Canada, US and Australia
+
+The owner raised this in the same breath as SMS. **It does not help with SMS**,
+and the two should be decided separately.
+
+It does, however, bear on something larger. Those three are exactly the three
+regimes the existing privacy policy already addresses: PIPEDA, US state law
+including CCPA and CPRA, and the Australian Privacy Act. Excluding the EU and
+UK would remove the largest open item in `PRIVACY_POLICY_V4_DRAFT.md`, which
+is that the product collects health data behind a single bundled signup consent
+that is unlikely to satisfy UK and EU requirements for special-category data.
+That is a product change to the signup flow, and dropping those markets makes
+it unnecessary.
+
+Set against that: the owner said on 2026-10-04 that EU and UK users are wanted
+as an audience. This would reverse that, and reversing it later is harder than
+holding it open now, because by then there are users.
+
+**Honest caveat on enforceability.** A geographic restriction is a statement of
+where the service is offered, not a wall. Nothing stops someone in Germany
+signing up, and IP geolocation is unreliable and trivially bypassed. What it
+genuinely buys is the right to say the service is not offered there, not to
+market there, and not to claim compliance that is not in place. That is worth
+having, but it is a positioning decision rather than a technical control.
+
+**Recommendation: decide this on its own merits, not as a workaround for SMS.**
+If the EU and UK are genuinely a near-term market, keep them and budget for the
+consent work. If they are an aspiration for later, narrow the policy's claims
+now, launch in the three named countries, and revisit when there is a reason
+to.
