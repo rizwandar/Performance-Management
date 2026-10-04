@@ -1018,6 +1018,10 @@ router.put('/digital-life/vault', requireAuth, checkPlanLock, async (req, res) =
   const newKey   = deriveKey(new_password, req.user.id);
   const newCheck = createVaultCheck(newKey);
 
+  // Read before the transaction purely so the response can tell the user
+  // their release arrangement was reset, same as recovery_disabled does.
+  const hadRelease = await queryOne('SELECT id FROM vault_release WHERE user_id = $1', [req.user.id]);
+
   await transaction(async (client) => {
     const rows = (await client.query(
       'SELECT id, username_enc, password_enc, notes_enc FROM digital_credentials WHERE user_id = $1',
@@ -1073,9 +1077,23 @@ router.put('/digital-life/vault', requireAuth, checkPlanLock, async (req, res) =
       await client.query('DELETE FROM vault_recovery_questions WHERE digital_vault_id = $1', [vault.id]);
       await client.query('DELETE FROM vault_recovery_shares WHERE digital_vault_id = $1', [vault.id]);
     }
+    // The vault-release envelope is in exactly the same position as the
+    // recovery shares above: it seals the OLD key, so after this change the
+    // release code a Legacy Contact is holding would decrypt to a key that
+    // opens nothing. Re-sealing it here is impossible without issuing a new
+    // code, and we cannot deliver a new code to a user who is not in front of
+    // us. So it is deleted and the client is told, rather than leaving a
+    // confident-looking "vault release: armed" sitting over a dead envelope,
+    // which is a failure nobody would discover until the worst possible
+    // moment. See docs/VAULT_RELEASE_ON_DEATH_SPEC.md.
+    await client.query('DELETE FROM vault_release WHERE user_id = $1', [req.user.id]);
   });
 
-  res.json({ success: true, recovery_disabled: !!vault.recovery_enabled });
+  res.json({
+    success: true,
+    recovery_disabled: !!vault.recovery_enabled,
+    release_disabled: !!hadRelease,
+  });
 });
 
 router.delete('/digital-life/vault', requireAuth, checkPlanLock, async (req, res) => {

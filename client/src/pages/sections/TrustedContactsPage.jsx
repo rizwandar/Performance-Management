@@ -42,6 +42,14 @@ const SECTIONS = [
 
 const emptyContact = { name: '', relationship: '', email: '', phone: '', invite_message: '' }
 
+// "4 October 2026", matching the wording in the spec and the profile's own
+// formatDate. Falls back to the raw value rather than rendering "Invalid Date".
+const formatIssuedDate = (iso) => {
+  if (!iso) return 'at an unknown date'
+  try { return new Date(iso).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' }) }
+  catch { return iso }
+}
+
 export default function TrustedContactsPage() {
   const { user } = useAuth()
   const { isPremium } = useSubscription()
@@ -91,8 +99,24 @@ export default function TrustedContactsPage() {
       .finally(() => setTcLoading(false))
   }
 
+  // Vault release state, so the Legacy Contact's card can say in one line
+  // whether their vault access is actually set up (spec 8.3 item 2). It is
+  // read-only here on purpose: issuing or re-issuing a code needs the vault
+  // password, which belongs on the profile's vault screens, not on a page
+  // about who can see which sections.
+  const [releaseStatus, setReleaseStatus] = useState(null)
+
+  const loadReleaseStatus = () => {
+    axios.get(`${API}/sections/digital-life/release/status`)
+      .then(r => setReleaseStatus(r.data))
+      // A failure here must not break the page. The line simply does not
+      // render, which is better than a card that cannot load at all.
+      .catch(() => setReleaseStatus(null))
+  }
+
   useEffect(() => {
     loadContacts()
+    loadReleaseStatus()
   }, [])
 
   // Position is display order only (see the POST route in
@@ -194,6 +218,10 @@ export default function TrustedContactsPage() {
       await axios.put(`${API}/trusted-contacts/${contact.id}/executor`, { is_executor: !contact.is_executor })
       setTcSuccess(contact.is_executor ? `${contact.name} is no longer your Legacy Contact.` : `${contact.name} is now your Legacy Contact and has been emailed about it.`)
       loadContacts()
+      // Moving the role changes whether an existing sealed envelope still
+      // points at the current Legacy Contact, so the line below has to be
+      // re-read rather than left describing the previous arrangement.
+      loadReleaseStatus()
       setTimeout(() => setTcSuccess(''), 3000)
     } catch (err) {
       setTcError(err.response?.data?.error || "We couldn't update this. Please try again.")
@@ -300,10 +328,35 @@ export default function TrustedContactsPage() {
                               {contact.phone && <span>📞 {formatPhone(contact.phone, user?.country_code)}</span>}
                             </div>
                             {contact.is_executor ? (
-                              <p className="text-muted small mb-0" style={{ paddingLeft: 34, marginTop: 6 }}>
-                                As Legacy Contact, sees everything you've recorded except your vault, regardless
-                                of the sections picked below.
-                              </p>
+                              <>
+                                <p className="text-muted small mb-0" style={{ paddingLeft: 34, marginTop: 6 }}>
+                                  As Legacy Contact, sees everything you've recorded except your vault, regardless
+                                  of the sections picked below.
+                                </p>
+                                {/* Spec 8.3 item 2: one line of state and one
+                                    action, here rather than buried in the
+                                    profile, because this card is where you
+                                    look when you are thinking about this
+                                    person. Only shown once a vault exists:
+                                    there is nothing to release otherwise. */}
+                                {releaseStatus?.vault_exists && (
+                                  <p className="small mb-0" style={{ paddingLeft: 34, marginTop: 6 }}>
+                                    <span className="text-muted">
+                                      Vault release:{' '}
+                                      {releaseStatus.enabled && releaseStatus.release?.contact_id === contact.id
+                                        ? `code issued ${formatIssuedDate(releaseStatus.release.code_issued_at)}.`
+                                        : releaseStatus.enabled
+                                          ? 'set up for a different contact.'
+                                          : 'not set up.'}
+                                    </span>{' '}
+                                    <Link to="/profile?section=vault-password#vault-release">
+                                      {releaseStatus.enabled && releaseStatus.release?.contact_id === contact.id
+                                        ? 'Issue a new code'
+                                        : 'Set up'}
+                                    </Link>
+                                  </p>
+                                )}
+                              </>
                             ) : contact.visible_sections?.length > 0 ? (
                               <div style={{ paddingLeft: 34, marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                                 {contact.visible_sections.map(sid => {
