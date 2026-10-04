@@ -99,8 +99,15 @@ router.get('/:token', async (req, res) => {
       )).map(p => p.section_id)
   ).filter(sectionId => !isVaultProtectedSection(sectionId));
 
+  // Emergency contact fields are intentionally NOT gated by `permissions`
+  // above, and must never be added to VALID_SECTIONS/EXECUTOR_SECTIONS. This
+  // is the one piece of information anyone holding a valid access link
+  // should always see, same as the owner's name: it answers "who else do I
+  // call right now", which matters most while the owner is alive but unable
+  // to speak for themselves. Gating it behind a grantable permission would
+  // reproduce the exact write-only bug this section was shipped with.
   const owner = await queryOne(
-    'SELECT name, date_of_birth, about_me, legacy_message, country_code, is_deceased FROM users WHERE id = $1',
+    'SELECT name, date_of_birth, about_me, legacy_message, country_code, is_deceased, emergency_contact_name, emergency_contact_phone, emergency_contact_email, emergency_contact_relationship, emergency_contact_notes FROM users WHERE id = $1',
     [tokenRow.user_id]
   );
 
@@ -243,6 +250,11 @@ router.get('/:token', async (req, res) => {
       legacy_message: owner.legacy_message,
       country_code:   owner.country_code,
       is_deceased:    !!owner.is_deceased,
+      emergency_contact_name:         owner.emergency_contact_name,
+      emergency_contact_phone:        owner.emergency_contact_phone,
+      emergency_contact_email:        owner.emergency_contact_email,
+      emergency_contact_relationship: owner.emergency_contact_relationship,
+      emergency_contact_notes:        owner.emergency_contact_notes,
     },
     visible_sections: permissions,
     data,
