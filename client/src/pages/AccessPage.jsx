@@ -521,6 +521,25 @@ export default function AccessPage() {
         </p>
       </div>
 
+      {/* Emergency contact: always shown to anyone holding a valid access link,
+          never gated behind a grantable permission. This covers the moment
+          nothing else on this page does: {owner.name} is alive but unable to
+          speak for themselves, and the first thing someone acting for them
+          needs is who else to call. Placed above the Legacy Contact panel so
+          it's the first thing read, not buried among the sections below. */}
+      {(owner.emergency_contact_name || owner.emergency_contact_phone || owner.emergency_contact_email) && (
+        <div style={{ background: 'var(--green-50)', border: '1px solid var(--gold)', borderRadius: 10, padding: '16px 20px', marginBottom: 32 }}>
+          <p style={{ fontWeight: 700, color: 'var(--green-900)', marginBottom: 10 }}>
+            {owner.name}'s Emergency Contact
+          </p>
+          <FieldRow label="Name" value={owner.emergency_contact_name} />
+          <FieldRow label="Relationship" value={owner.emergency_contact_relationship} />
+          <FieldRow label="Phone" value={owner.emergency_contact_phone ? formatPhone(owner.emergency_contact_phone) : null} />
+          <FieldRow label="Email" value={owner.emergency_contact_email} />
+          <FieldRow label="Notes" value={owner.emergency_contact_notes} />
+        </div>
+      )}
+
       {is_executor && (
         <div style={{ background: 'var(--green-50)', border: '1px solid var(--green-800)', borderRadius: 10, padding: '18px 20px', marginBottom: 32 }}>
           {!can_confirm_demise ? (
