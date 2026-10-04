@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { Button, Form, Row, Col, Alert, Modal, Spinner, Badge } from 'react-bootstrap'
 import axios from 'axios'
 import { useAuth } from '../../context/AuthContext'
@@ -43,7 +43,6 @@ const SECTIONS = [
 const emptyContact = { name: '', relationship: '', email: '', phone: '', invite_message: '' }
 
 export default function TrustedContactsPage() {
-  const navigate = useNavigate()
   const { user } = useAuth()
   const { isPremium } = useSubscription()
 
@@ -232,32 +231,38 @@ export default function TrustedContactsPage() {
 
   return (
     <div style={{ maxWidth: 800, margin: '0 auto' }}>
-      <div className="mb-4">
-        <button className="btn btn-link p-0 mb-2"
-          style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '0.9rem' }}
-          onClick={() => navigate('/profile')}>← Back to my plans</button>
-      </div>
-
+      {/* No "back to my plans" link here: it pushed the whole page down for a
+          destination the main navigation already reaches. The header is the
+          first thing on the page. */}
+      {/* The header carries everything a first-time reader needs: what a trusted
+          contact is, how they differ from the emergency contact, how many this
+          plan allows, and what naming one of them as Legacy Contact does. This
+          replaced two standalone explainer panels that sat further down the page
+          and split the same explanation across three places. */}
       <SectionHero
         eyebrow="Your People"
-        headline="The people you trust"
-        highlight="trust"
-        subtext={`Trusted contacts are the people who'll be given access to the plans you choose to share with them, when the time comes. You can add up to ${cap}, and choose one of them to be your Legacy Contact: the one person who confirms what's happened and sets everything in motion.`}
+        headline="Trusted Contacts"
+        subheadline="The people you trust"
+        subtext={(
+          <>
+            <p className="mb-2">
+              Trusted contacts are the people you choose to share your plans with. Unlike your
+              emergency contact, each one receives a secure link that lets them actually read the
+              sections you've picked for them, when the time comes. You can add up to {cap}.
+            </p>
+            <p className="mb-0">
+              You can also name one of them your <strong>Legacy Contact</strong>: the person notified
+              first if you stop logging in. They can see everything you've recorded, except your
+              vault.{' '}
+              <Link to="/faq#legacy-contact-vs-trusted-contact">Learn more</Link>.
+            </p>
+          </>
+        )}
         cta={canAddMore ? {
           label: '+ Add a trusted contact',
           onClick: openAdd,
         } : undefined}
       />
-
-      <PlanLimitNotice limitKey="trusted_contacts" currentCount={contacts.length} alwaysShow />
-
-      <div style={{ background: 'var(--parchment)', borderRadius: 'var(--card-radius-sm, 12px)', padding: '24px 24px 16px', marginBottom: 16, border: '1px solid var(--border)' }}>
-        <h6 style={{ color: 'var(--green-900)', margin: '0 0 8px' }}>Trusted Contacts</h6>
-        <p className="text-muted small mb-0" style={{ fontStyle: 'italic' }}>
-          Unlike your emergency contact, each trusted contact receives a secure link to actually
-          read the sections you've chosen to share with them.
-        </p>
-      </div>
 
       {tcSuccess && <Alert variant="success">{tcSuccess}</Alert>}
       {tcError && (
@@ -373,14 +378,7 @@ export default function TrustedContactsPage() {
             )}
           </div>
 
-          <div style={{ background: 'var(--green-50)', border: '1px solid var(--green-100)', borderRadius: 10, padding: '16px 20px', marginBottom: 16 }}>
-            <p style={{ fontWeight: 600, color: 'var(--green-900)', marginBottom: 6 }}>About the Legacy Contact</p>
-            <p className="text-muted small mb-0">
-              Your <strong>Legacy Contact</strong> is the person notified first if you stop logging in. They
-              can see everything you've recorded, except your vault.
-              {' '}<Link to="/faq#legacy-contact-vs-trusted-contact">Learn more</Link>.
-            </p>
-          </div>
+          <PlanLimitNotice limitKey="trusted_contacts" currentCount={contacts.length} alwaysShow />
 
           <div style={{ background: 'var(--gold-50)', border: '1px solid var(--gold-light)', borderRadius: 10, padding: '16px 20px' }}>
             <p style={{ fontWeight: 600, color: 'var(--green-900)', marginBottom: 6 }}>How trusted contact access works</p>
