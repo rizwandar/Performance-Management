@@ -605,4 +605,62 @@ router.post('/backups/run', auth, adminOnly, async (req, res) => {
   }
 });
 
+// A read-only inventory of the live database schema, for comparing one
+// environment against another.
+//
+// Schema changes here are inline startup migrations (CREATE TABLE IF NOT
+// EXISTS / ADD COLUMN IF NOT EXISTS in db/database.js), so in principle every
+// environment converges on whatever the deployed code declares. In practice
+// three things can still leave an environment out of step, and none of them
+// are visible without looking: the service may be running older code than the
+// branch you are reading, a one-time conditional backfill may have run in one
+// environment and not another, and objects created by a branch that was once
+// deployed and then abandoned are never cleaned up, because this project
+// deliberately never drops anything.
+//
+// Direct inbound access to the staging and production databases was closed in
+// SEC-25, which is correct and is not being reopened, so this endpoint is the
+// supported way to see their schema. It returns structure only, never row
+// data: table names, column names, types and nullability. Admin-only all the
+// same, since an inventory of the schema is useful reconnaissance.
+router.get('/schema-audit', auth, adminOnly, async (req, res) => {
+  const cols = await queryAll(`
+    SELECT table_name, column_name, data_type, is_nullable
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+    ORDER BY table_name, column_name
+  `);
+
+  // Views and the like are excluded: only real tables are declared by the
+  // migrations, so only real tables are comparable against them.
+  const baseTables = await queryAll(`
+    SELECT table_name FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+    ORDER BY table_name
+  `);
+  const isBase = new Set(baseTables.map(r => r.table_name));
+
+  const tables = {};
+  for (const c of cols) {
+    if (!isBase.has(c.table_name)) continue;
+    if (!tables[c.table_name]) tables[c.table_name] = [];
+    tables[c.table_name].push({
+      column:   c.column_name,
+      type:     c.data_type,
+      nullable: c.is_nullable === 'YES',
+    });
+  }
+
+  res.json({
+    // RENDER_SERVICE_NAME rather than NODE_ENV: Render sets NODE_ENV to
+    // 'production' on every web service, staging included, so it cannot tell
+    // the two apart. Same reason instrument.js and lib/backup.js use it.
+    environment:  process.env.RENDER_SERVICE_NAME || 'local',
+    generated_at: new Date().toISOString(),
+    table_count:  Object.keys(tables).length,
+    column_count: Object.values(tables).reduce((n, c) => n + c.length, 0),
+    tables,
+  });
+});
+
 module.exports = router;
