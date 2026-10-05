@@ -171,9 +171,19 @@ Current caps (Free / Premium):
 Enforcement points, since a cap is only real where a route refuses:
 
 - `refuseIfOverSectionCap` in `server/routes/sections.js` guards the five vault
-  sections. It takes `SELECT ... FOR UPDATE` on the user row inside the
-  transaction, because a plain count-then-insert under READ COMMITTED let 20
-  concurrent adds store 11 items against a cap of 10.
+  sections. It is a plain `SELECT COUNT(*)` outside any transaction and takes
+  **no row lock**, so two concurrent adds can both pass it and overshoot the cap
+  by one. Known and accepted for now: the impact is one extra legal document,
+  not a crossed security boundary, and adding the lock means restructuring five
+  vault routes into transactions, which is more risk than the bug.
+
+  Do not confuse this with the `SELECT ... FOR UPDATE` guards that do exist, on
+  the trusted-contacts cap (`server/routes/trustedContacts.js`) and the
+  per-message voice-clip cap (`server/routes/sections.js`). Those are where the
+  "20 concurrent adds stored 11 against a cap of 10" lesson was learned, and
+  this file briefly and wrongly credited the same protection to
+  `refuseIfOverSectionCap`, which never had it. Verify the lock in the code
+  before relying on it for a new cap.
 - `refuseIfOverUploadCap` in `server/routes/documents.js` guards both upload
   routes, counting funeral gallery photos separately since they have their own
   allowance. `GET /api/documents/usage` reports `used` and `limit` so the attach
