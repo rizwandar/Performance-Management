@@ -122,11 +122,42 @@ export function AuthProvider({ children }) {
     }
   }
 
-  const logout = () => {
+  // Kept in step with `user` so callers registered once at mount can read the
+  // current value instead of the one captured in their closure. The logout
+  // handler below is exactly that case, and its stale closure was half of the
+  // loop described on `notifyServer`.
+  // Written in an effect rather than during render: a ref assignment in the
+  // render body is a real violation (react-hooks/refs catches it), and an
+  // effect is correct here anyway, since the only reader is a handler that
+  // runs long after commit.
+  const userRef = useRef(user)
+  useEffect(() => { userRef.current = user }, [user])
+
+  // `notifyServer: false` skips telling the server, for the one case where it
+  // is already known to be pointless: a logout triggered BY a session-expired
+  // 401. Without this the app looped on production (found 2026-10-05 in the
+  // owner's console, roughly 45 requests in a row).
+  //
+  // The loop: any 401 carrying session_expired makes the response interceptor
+  // fire every authStateHandler, which calls logout(), which POSTs
+  // /auth/logout, which sits behind the auth middleware, which answers 401
+  // session_expired, which re-enters the interceptor. The `if (user)` guard
+  // did not stop it because the handler is registered once with an empty
+  // dependency array (exhaustive-deps suppressed) and so closed over a `user`
+  // that was never null from its point of view. It terminated only by
+  // accident, once setCsrfToken(null) had made the calls fail CSRF with 403
+  // instead, and a 403 carries no session_expired to re-trigger on.
+  //
+  // Worth keeping both halves of the fix: the flag makes the loop impossible
+  // by construction, and userRef makes the guard mean what it says again.
+  // /auth/logout is exempt from the login rate limiter (PR #213) so this could
+  // not lock anyone out, but it still spent about a quarter of the 200-per-15
+  // minute general API budget every time a session expired with a tab open.
+  const logout = ({ notifyServer = true } = {}) => {
     // Fire-and-forget: tell the server so the logout is audit-logged and the
     // session cookie is cleared server-side. Guarded on `user` since there's
     // no cookie visibility to check client-side anymore.
-    if (user) {
+    if (notifyServer && userRef.current) {
       axios.post(`${import.meta.env.VITE_API_URL}/auth/logout`)
         .catch(() => {/* best-effort — never block the client logout */})
     }
@@ -141,7 +172,10 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     const handler = (action) => {
-      if (action === 'logout') logout()
+      // The server already rejected the session, so there is nothing to tell
+      // it and asking would 401 straight back into this handler. See the
+      // comment on logout's notifyServer.
+      if (action === 'logout') logout({ notifyServer: false })
     }
     authStateHandlers.push(handler)
     return () => {
