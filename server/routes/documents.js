@@ -88,6 +88,32 @@ async function refuseIfOverUploadCap(userId, res) {
   return true;
 }
 
+// How much of the upload allowance is used, so the attach control can say so
+// before someone picks a file instead of refusing them after.
+//
+// The allowance is account-wide, not per item or per section, which is why
+// this has to be asked for: a page only ever holds the documents for its own
+// section and cannot work the total out for itself.
+//
+// Counts exactly what refuseIfOverUploadCap counts, funeral gallery photos
+// excluded, because they have an allowance of their own. If these two ever
+// disagree the control will promise room that the upload then refuses.
+router.get('/usage', requireAuth, async (req, res) => {
+  const plan  = await getUserPlan(req.user.id);
+  const limit = getLimit('uploaded_documents', plan);
+  const count = await queryOne(
+    `SELECT COUNT(*)::int as c FROM uploaded_documents
+     WHERE user_id = $1 AND (photo_role IS NULL OR photo_role != 'funeral_gallery')`,
+    [req.user.id]
+  );
+  res.json({
+    used: count.c,
+    // JSON has no Infinity. null is the same 'no limit' convention that
+    // lib/planLimits.js already uses for an uncapped premium value.
+    limit: limit === Infinity ? null : limit,
+  });
+});
+
 router.post('/upload', requireAuth, checkPlanLock, (req, res, next) => {
   upload.single('file')(req, res, (err) => {
     if (err) return res.status(400).json({ error: err.message });

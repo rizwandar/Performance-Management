@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { Button, Form, Row, Col, Alert, Modal, Spinner } from 'react-bootstrap'
 import axios from 'axios'
 import { VaultSetupScreen, VaultLockScreen } from '../../components/VaultGate'
+import PlanLimitNotice from '../../components/PlanLimitNotice'
+import { usePlanLimit } from '../../hooks/usePlanLimit'
 import FileAttachments from '../../components/FileAttachments'
 import SectionHero from '../../components/SectionHero'
 import SectionFooterNav from '../../components/SectionFooterNav'
@@ -35,6 +37,11 @@ export default function PropertyPossessionsPage() {
   const [vaultExists, setVaultExists] = useState(null)  // null = still checking
 
   const [items, setItems]         = useState([])
+
+  // This section is capped rather than gated since 2026-10-04: it used to be
+  // Premium-only and is now open to everyone with a limit on how much a free
+  // plan holds. The ceiling comes from PLAN_LIMITS, mirroring the server.
+  const { atLimit } = usePlanLimit('property_items', items.length)
   const [sectionDocs, setSectionDocs] = useState([])  // all uploaded_documents for this section
   const [loading, setLoading]     = useState(false)
   const [saving, setSaving]       = useState(false)
@@ -218,8 +225,10 @@ export default function PropertyPossessionsPage() {
       {success && <Alert variant="success">{success}</Alert>}
       {error && !showModal && <Alert variant="danger">{error}</Alert>}
 
-      <div className="mb-4 d-flex align-items-center gap-3 flex-wrap">
-        <Button variant="primary" onClick={openAdd}>+ Add an item</Button>
+            <PlanLimitNotice limitKey="property_items" currentCount={items.length} alwaysShow />
+
+<div className="mb-4 d-flex align-items-center gap-3 flex-wrap">
+        <Button variant="primary" onClick={openAdd} disabled={atLimit}>+ Add an item</Button>
         {shareTrigger}
       </div>
 
