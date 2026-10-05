@@ -127,16 +127,82 @@ Expo Router with file-based routing in `mobile/app/`. Bottom tab navigation mirr
 
 ### Freemium Model
 
-Free users have limited section capacity. Premium users are unlocked. All users who registered before the freemium launch were auto-granted premium. Subscription state is checked via `SubscriptionContext` on the client and enforced in `server/routes/billing.js`.
+Every section is available on every plan, the vault included. Premium sells
+capacity, not access. All users who registered before the freemium launch were
+auto-granted premium. Subscription state is checked via `SubscriptionContext`
+on the client and enforced in `server/routes/billing.js`.
 
-There are two distinct kinds of limit, and they are easy to confuse:
+**This replaced whole-section gating on 2026-10-04.** Before that, seven
+sections were Premium-only behind a `requirePremium` middleware, and the free
+plan got the rest. All 20 of those gates are gone, the middleware is no longer
+imported by `server/routes/sections.js`, and the dashboard no longer has a
+"Premium sections" divider, locked tiles, or a whole-section upgrade modal. The
+reasoning and the owner's own numbers are in `docs/FREE_VAULT_PLAN.md`: the goal
+is a user base first, so the vault earns signups rather than revenue. Do not
+reintroduce a whole-section gate without checking that decision.
 
-1. **Whole-section gating** (is this entire section available on Free at all), enforced per route by the `requirePremium` middleware.
-2. **Per-item count caps within a section that Free users can already use** (IDEA-43, shipped 2026-09-15). These live in `server/lib/planLimits.js`, which is the source of truth: `PLAN_LIMITS` plus a `getLimit(key, plan)` helper returning `Infinity` for an uncapped Premium value. Current caps (Free / Premium): trusted contacts 2/10, messages to loved ones 2/unlimited, unfinished business 2/unlimited, people to notify 2/unlimited, funeral gallery photos 5/50, voice clips per message 1/3.
+One `requirePremium` use survives, deliberately: `POST /api/export` in
+`server/routes/export.js`, the vault-inclusive PDF. `GET /api/export` has no
+gate, so every plan can export everything outside the vault. That is exactly
+what the plan copy promises, so the two must move together if either changes.
 
-`client/src/constants/planLimits.js` mirrors those numbers for the `PlanLimitNotice` upgrade prompt. It is display copy only, the server is the enforcement point, and the two files are kept in sync **by hand** because `shared/` has no home for server-only values. Change one, change the other in the same commit.
+So there is now one kind of limit, a per-item count cap. These live in
+`server/lib/planLimits.js`, which is the source of truth: `PLAN_LIMITS` plus a
+`getLimit(key, plan)` helper returning `Infinity` for an uncapped Premium value.
+Current caps (Free / Premium):
 
-A `signup_trial_active` user (BIL-08's 30-day no-card vault trial) already reads as `plan: 'premium'` from `getUserPlan()`, so these caps compose with the trial with no extra code.
+| Area | Free | Premium |
+|------|------|---------|
+| trusted contacts | 2 | 10 |
+| messages to loved ones | 2 | unlimited |
+| unfinished business | 2 | unlimited |
+| people to notify | 3 | unlimited |
+| funeral gallery photos | 5 | 30 |
+| voice clips per message | 1 | 3 |
+| legal documents | 2 | unlimited |
+| financial items | 1 | unlimited |
+| property items | 1 | unlimited |
+| household info | 1 | unlimited |
+| digital credentials | 2 | unlimited |
+| donation bank | 1 | unlimited |
+| your last moments | 1 | unlimited |
+| uploaded files (account-wide) | 3 | unlimited |
+
+Enforcement points, since a cap is only real where a route refuses:
+
+- `refuseIfOverSectionCap` in `server/routes/sections.js` guards the five vault
+  sections. It takes `SELECT ... FOR UPDATE` on the user row inside the
+  transaction, because a plain count-then-insert under READ COMMITTED let 20
+  concurrent adds store 11 items against a cap of 10.
+- `refuseIfOverUploadCap` in `server/routes/documents.js` guards both upload
+  routes, counting funeral gallery photos separately since they have their own
+  allowance. `GET /api/documents/usage` reports `used` and `limit` so the attach
+  control can state the allowance before a file is chosen, the total being
+  account-wide and not derivable from one section's documents.
+
+Caps apply to **adding**, never to what already exists. An account that filled
+up while paying keeps every item on returning to free; nothing is ever deleted.
+`PlanLimitNotice` has distinct copy for that over-limit case, reassuring rather
+than threatening.
+
+Four files carry these numbers and are kept in step **by hand**, because
+`shared/` has no home for server-only values (`shared/package.json` only exports
+`./format`). Change one, change all four in the same commit:
+`server/lib/planLimits.js` (enforcement), `client/src/constants/planLimits.js`
+(mirror for `PlanLimitNotice` and `usePlanLimit`),
+`client/src/constants/planFeatures.js` and `/plans` in `server/routes/billing.js`
+(both display copy).
+
+Surfacing convention: `PlanLimitNotice` sits above a section's add control, and
+`usePlanLimit()` answers "am I full" so the add control can stand down rather
+than let someone fill in a form the server will refuse. The nudge deliberately
+never names the paid tier; the upgrade page is where the plan gets explained.
+Trusted Contacts and the five vault sections pass `alwaysShow` so a small
+allowance is stated rather than discovered.
+
+A `signup_trial_active` user (BIL-08's 30-day no-card vault trial) already reads
+as `plan: 'premium'` from `getUserPlan()`, so these caps compose with the trial
+with no extra code. The trial itself is being retired.
 
 ### Inactivity System
 
