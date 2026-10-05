@@ -59,6 +59,35 @@ const photoUpload = multer({
   },
 });
 
+// Shared general upload cap (2026-10-04), used by both upload routes so the
+// two cannot drift apart. Files are the one limit with real unit economics
+// behind it: a row in Postgres costs nothing to keep, a 20MB PDF in R2 does,
+// and that cost arrives whether or not the account ever pays.
+//
+// Funeral gallery photos are counted and capped separately and keep their own
+// allowance, so they are excluded here. Folding them in would have taken
+// something away from people who already have it.
+//
+// Returns true when it has already sent a response, so callers read as
+// `if (await refuseIfOverUploadCap(...)) return;`.
+async function refuseIfOverUploadCap(userId, res) {
+  const plan = await getUserPlan(userId);
+  const limit = getLimit('uploaded_documents', plan);
+  if (limit === Infinity) return false;
+  const count = await queryOne(
+    `SELECT COUNT(*)::int as c FROM uploaded_documents
+     WHERE user_id = $1 AND (photo_role IS NULL OR photo_role != 'funeral_gallery')`,
+    [userId]
+  );
+  if (count.c < limit) return false;
+  res.status(400).json({
+    error: plan !== 'premium'
+      ? `Your plan includes ${limit} uploaded files. Upgrade your account if you would like to add more.`
+      : `You can upload up to ${limit} files.`,
+  });
+  return true;
+}
+
 router.post('/upload', requireAuth, checkPlanLock, (req, res, next) => {
   upload.single('file')(req, res, (err) => {
     if (err) return res.status(400).json({ error: err.message });
@@ -74,6 +103,8 @@ router.post('/upload', requireAuth, checkPlanLock, (req, res, next) => {
     if (isVaultProtectedSection(section_id)) {
       if (!await checkVault(vault_password, userId, res, req)) return;
     }
+
+    if (await refuseIfOverUploadCap(userId, res)) return;
 
     const ext    = req.file.originalname.split('.').pop();
     const safeExt = ext.replace(/[^a-zA-Z0-9]/g, '');
@@ -212,6 +243,7 @@ router.post('/photos/upload', requireAuth, checkPlanLock, (req, res, next) => {
       }
     }
 
+    if (photo_role !== 'funeral_gallery' && await refuseIfOverUploadCap(userId, res)) return;
     const ext     = req.file.originalname.split('.').pop()?.toLowerCase() || 'jpg';
     const safeExt = ext.replace(/[^a-zA-Z0-9]/g, '');
     if (!matchesExtension(req.file.buffer, safeExt)) {
