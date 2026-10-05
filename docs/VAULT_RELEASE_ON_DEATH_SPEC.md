@@ -533,3 +533,59 @@ If the EU and UK are genuinely a near-term market, keep them and budget for the
 consent work. If they are an aspiration for later, narrow the policy's claims
 now, launch in the three named countries, and revisit when there is a reason
 to.
+
+---
+
+## 11. Corrections, 2026-10-04, after building it
+
+Three things in this document turned out to be wrong or silent once the code
+existed. Left here as corrections rather than edited away, so the reasoning
+survives.
+
+### 11.1 Section 3.4 is wrong about where decryption happens
+
+It says the vault "decrypts in their browser session" and that "the server
+never holds both halves at any point". **That is not what was built, and it
+should not be.** Decrypting in the browser means shipping the vault key to a
+browser, which is strictly worse. What ships instead: the server opens the
+envelope, decrypts server-side, zeroes the key in a `finally`, and returns
+only the plaintext sections.
+
+The property that actually matters is unchanged and still true: **the server
+never holds the release code**, so it cannot open the envelope on its own, at
+any time, for anyone. That is the claim the privacy policy rests on. The
+"never holds both halves" phrasing was an imprecise way of saying it.
+
+### 11.2 Section 8.2 is wrong about the Legacy Contact's link surviving
+
+It says the link never expires "because when it is finally needed the owner is
+not there to resend it". In fact the declaration itself rotates it:
+`markUserDeceased`'s fan-out calls `generateAccessLink`, which deletes and
+reissues. The contact is emailed the new one, so nothing breaks, but the claim
+as written is false. Pre-existing behaviour, not introduced by this feature.
+
+### 11.3 Four things the spec never said, decided during the build
+
+- **Attachments are included** in what a Legacy Contact can read. Omitting
+  them would have meant handing over a list of documents without the
+  documents.
+- **An envelope sealed for a contact who has since lost the Legacy Contact
+  role does not open.** The envelope names a specific person, not a role.
+- **Opening notifies nobody.** Arguable either way; revisit if it ever
+  matters.
+- **Repeat opens are allowed.** A grieving person will come back, and refusing
+  them the second time would be gratuitous.
+
+### 11.4 Two safeguards added that the spec had not thought of
+
+Both found by building it, both now in the code:
+
+- **A window cannot close unless at least one challenge actually reached the
+  owner.** As specified, a server outage or an email failure spanning the
+  window would have released the vault with every safeguard in section 3.3
+  silently skipped. The clock now restarts instead.
+- **A cancellation suspends the arrangement rather than re-arming it.** As
+  specified, cancelling returned it to armed, so a Legacy Contact could
+  declare, wait for the cancel, and declare again indefinitely until one
+  window fell across a holiday. Now a false declaration costs them the whole
+  arrangement and the owner turns it back on deliberately.
