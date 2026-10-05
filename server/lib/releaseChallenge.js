@@ -15,9 +15,20 @@
  *
  * The state machine, which is the whole of this module:
  *
- *     armed  --(a passing is declared)-->  pending
- *     pending --(owner replies, or signs in)-->  armed      [cancelled_*]
- *     pending --(window_hours elapse, uncancelled)-->  released
+ *     armed   --(a passing is declared)-->               pending
+ *     pending --(owner replies, or signs in)-->          suspended  [cancelled_*]
+ *     pending --(window_hours elapse, uncancelled)-->    released
+ *     suspended --(owner calls POST /resume)-->          armed
+ *
+ * Note where a cancellation lands. This comment used to say it returned to
+ * 'armed', which was both what the code did and a real bug: the next
+ * declaration re-opened the window, so declare/cancel/declare could run
+ * forever and the owner's objection bought them nothing but a delay.
+ * Cancelling now SUSPENDS, and only the owner, authenticated, can re-arm it
+ * through POST /resume in routes/vaultRelease.js. Resume deliberately keeps
+ * the existing release code valid, because the envelope has not changed and
+ * invalidating a code already in someone's hands would be a worse failure
+ * than the one being fixed.
  *
  * Two asymmetries are deliberate and run through every function here.
  *
