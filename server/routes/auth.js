@@ -12,6 +12,7 @@ const { validate } = require('../middleware/validate');
 const { setAuthCookies, clearAuthCookies } = require('../lib/authCookies');
 const { SIGNUP_TRIAL_ENABLED } = require('../lib/subscription');
 const { regimeForCountry } = require('../lib/complianceRegime');
+const { cancelPendingRelease } = require('../lib/releaseChallenge');
 
 const { JWT_SECRET } = require('../lib/jwtSecret');
 
@@ -329,6 +330,30 @@ router.post('/login', loginRules, validate, async (req, res) => {
   );
 
   auditLog(user.id, 'login_success', req);
+
+  // A successful login is the strongest available evidence of life, and the
+  // only one that needs no decision from the owner at all, so it cancels a
+  // pending vault release outright (spec 3.3). Someone who has been falsely
+  // declared dead and simply signs in as normal has already defended
+  // themselves without knowing there was anything to defend.
+  //
+  // Awaited rather than fired and forgotten, so the row is back to 'armed'
+  // before this response is sent and the dashboard cannot render a pending
+  // banner for a release that this very request has just stopped.
+  //
+  // Errors are caught and logged rather than failing the login: being unable
+  // to sign in would remove the very path that cancels, which is the worst
+  // possible response to this write failing. The daily sweep is the backstop
+  // either way - it re-checks users.last_active_at, stamped by the UPDATE
+  // above, against the declaration time and cancels on its own if this did
+  // not take (see processReleaseRow in lib/releaseChallenge.js).
+  try {
+    await cancelPendingRelease(user.id, 'owner_login', {
+      ip: req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress || null,
+    });
+  } catch (err) {
+    console.error('[auth] Cancelling pending vault release on login failed:', err.message);
+  }
 
   // Post-BIL-08: offer the opt-in 30-day no-card trial interstitial once,
   // right after this login, to a plain consumer account that has never been

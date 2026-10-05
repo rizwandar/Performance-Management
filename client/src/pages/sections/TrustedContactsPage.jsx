@@ -42,6 +42,14 @@ const SECTIONS = [
 
 const emptyContact = { name: '', relationship: '', email: '', phone: '', invite_message: '' }
 
+// "4 October 2026", matching the wording in the spec and the profile's own
+// formatDate. Falls back to the raw value rather than rendering "Invalid Date".
+const formatIssuedDate = (iso) => {
+  if (!iso) return 'at an unknown date'
+  try { return new Date(iso).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' }) }
+  catch { return iso }
+}
+
 export default function TrustedContactsPage() {
   const { user } = useAuth()
   const { isPremium } = useSubscription()
@@ -91,9 +99,53 @@ export default function TrustedContactsPage() {
       .finally(() => setTcLoading(false))
   }
 
+  // Vault release state, so the Legacy Contact's card can say in one line
+  // whether their vault access is actually set up (spec 8.3 item 2). It is
+  // read-only here on purpose: issuing or re-issuing a code needs the vault
+  // password, which belongs on the profile's vault screens, not on a page
+  // about who can see which sections.
+  const [releaseStatus, setReleaseStatus] = useState(null)
+
+  const loadReleaseStatus = () => {
+    axios.get(`${API}/sections/digital-life/release/status`)
+      .then(r => setReleaseStatus(r.data))
+      // A failure here must not break the page. The line simply does not
+      // render, which is better than a card that cannot load at all.
+      .catch(() => setReleaseStatus(null))
+  }
+
   useEffect(() => {
     loadContacts()
+    loadReleaseStatus()
   }, [])
+
+  // Whether the foot-of-page vault paragraph can promise a release at all.
+  // `enabled` alone is not enough: a suspended arrangement is one the owner
+  // cancelled, so telling them their Legacy Contact will be let in would be
+  // wrong until they resume it.
+  const releaseArmed = !!releaseStatus?.enabled && releaseStatus.release?.status !== 'suspended'
+
+  // The envelope survives its contact being deleted or demoted (contact_id is
+  // ON DELETE SET NULL, deliberately), and the code already handed over still
+  // opens it. So when the name is gone, say "they" rather than invent one or
+  // print the current Legacy Contact's name over an envelope sealed for
+  // somebody else.
+  const releaseContactName = releaseStatus?.release?.contact_name || 'they'
+
+  // Not hardcoded: window_hours is per-user, and the spec leaves room for a
+  // shorter window when an organization attests to a passing rather than a
+  // Legacy Contact declaring one. Days while it divides evenly, which covers
+  // both the 168-hour default and a 48-hour org window, hours otherwise, so an
+  // odd value can never render as "1.5 days".
+  const releaseWindow = (() => {
+    const hours = Number(releaseStatus?.release?.window_hours)
+    if (!Number.isFinite(hours) || hours <= 0) return '7 days'
+    if (hours % 24 === 0) {
+      const days = hours / 24
+      return days === 1 ? '1 day' : `${days} days`
+    }
+    return hours === 1 ? '1 hour' : `${hours} hours`
+  })()
 
   // Position is display order only (see the POST route in
   // server/routes/trustedContacts.js) and is now assigned server-side, so
@@ -194,6 +246,10 @@ export default function TrustedContactsPage() {
       await axios.put(`${API}/trusted-contacts/${contact.id}/executor`, { is_executor: !contact.is_executor })
       setTcSuccess(contact.is_executor ? `${contact.name} is no longer your Legacy Contact.` : `${contact.name} is now your Legacy Contact and has been emailed about it.`)
       loadContacts()
+      // Moving the role changes whether an existing sealed envelope still
+      // points at the current Legacy Contact, so the line below has to be
+      // re-read rather than left describing the previous arrangement.
+      loadReleaseStatus()
       setTimeout(() => setTcSuccess(''), 3000)
     } catch (err) {
       setTcError(err.response?.data?.error || "We couldn't update this. Please try again.")
@@ -300,10 +356,35 @@ export default function TrustedContactsPage() {
                               {contact.phone && <span>📞 {formatPhone(contact.phone, user?.country_code)}</span>}
                             </div>
                             {contact.is_executor ? (
-                              <p className="text-muted small mb-0" style={{ paddingLeft: 34, marginTop: 6 }}>
-                                As Legacy Contact, sees everything you've recorded except your vault, regardless
-                                of the sections picked below.
-                              </p>
+                              <>
+                                <p className="text-muted small mb-0" style={{ paddingLeft: 34, marginTop: 6 }}>
+                                  As Legacy Contact, sees everything you've recorded except your vault, regardless
+                                  of the sections picked below.
+                                </p>
+                                {/* Spec 8.3 item 2: one line of state and one
+                                    action, here rather than buried in the
+                                    profile, because this card is where you
+                                    look when you are thinking about this
+                                    person. Only shown once a vault exists:
+                                    there is nothing to release otherwise. */}
+                                {releaseStatus?.vault_exists && (
+                                  <p className="small mb-0" style={{ paddingLeft: 34, marginTop: 6 }}>
+                                    <span className="text-muted">
+                                      Vault release:{' '}
+                                      {releaseStatus.enabled && releaseStatus.release?.contact_id === contact.id
+                                        ? `code issued ${formatIssuedDate(releaseStatus.release.code_issued_at)}.`
+                                        : releaseStatus.enabled
+                                          ? 'set up for a different contact.'
+                                          : 'not set up.'}
+                                    </span>{' '}
+                                    <Link to="/profile?section=vault-password#vault-release">
+                                      {releaseStatus.enabled && releaseStatus.release?.contact_id === contact.id
+                                        ? 'Issue a new code'
+                                        : 'Set up'}
+                                    </Link>
+                                  </p>
+                                )}
+                              </>
                             ) : contact.visible_sections?.length > 0 ? (
                               <div style={{ paddingLeft: 34, marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                                 {contact.visible_sections.map(sid => {
@@ -373,11 +454,20 @@ export default function TrustedContactsPage() {
           {/* The Legacy Contact explanation sits at the foot of the page, not in
               the header: it is the most consequential thing on this screen, but
               it is reference material rather than something you act on while
-              adding a contact. Everything stated here is true of the app as it
-              stands. In particular the vault paragraph says the vault cannot be
-              opened by anyone, which is a fact about the encryption rather than
-              a policy, and must not be softened into "yet" or "for now" unless
-              and until a vault-release mechanism actually ships. */}
+              adding a contact.
+
+              The closing vault paragraph used to state flatly that the vault
+              could never be opened by anyone, the Legacy Contact included. That
+              was true until vault release shipped and is now false for anyone
+              who has armed it, which is why there are two versions rather than
+              one hedged paragraph: release is opt-in, so no single wording is
+              honest for both states. Copy is the owner's own.
+
+              Neither version may be collapsed into the other, and the "only you
+              can decrypt" promise in both is a fact about the encryption rather
+              than a policy: the server holds ciphertext only, and arming
+              release does not change that, it only seals a second copy of the
+              key under a code the owner hands over in person. */}
           <div style={{ background: 'var(--green-50)', border: '1px solid var(--green-100)', borderRadius: 10, padding: '20px 22px', marginTop: 24 }}>
             <p style={{ fontWeight: 600, color: 'var(--green-900)', marginBottom: 10, fontSize: '1.02rem' }}>
               About your Legacy Contact
@@ -406,14 +496,29 @@ export default function TrustedContactsPage() {
                 list is told straight away.
               </li>
             </ul>
-            <p className="text-muted small mb-0">
-              <strong>Your vault is the exception, and deliberately so.</strong> It is encrypted with a
-              password that is never stored anywhere, so it cannot be opened by us, by anyone who stole
-              our records, or by your Legacy Contact. That is what makes it safe, and it is also the
-              catch: if nobody alive knows your vault password, what is inside it cannot be reached
-              after you are gone. If that matters to you, tell someone you trust.{' '}
-              <Link to="/faq#legacy-contact-vs-trusted-contact">Learn more</Link>.
-            </p>
+            {releaseArmed ? (
+              <p className="text-muted small mb-0">
+                <strong>Your vault is the exception.</strong> Your vault is encrypted and only you can
+                decrypt the information in your vault using your vault password. Only your Legacy
+                Contact {releaseContactName} can open it using the code you gave them, but only after
+                a passing is declared and a waiting period of {releaseWindow} has passed. During that
+                period we try to reach you on every contact detail we hold. In case you log in during
+                this period, we cancel the timer. After {releaseWindow}, your Legacy Contact gets a
+                secured link where they can enter the Vault Release Code you provided to them and
+                access the vault information.{' '}
+                <Link to="/faq#legacy-contact-vs-trusted-contact">Learn more</Link>.
+              </p>
+            ) : (
+              <p className="text-muted small mb-0">
+                <strong>Your vault is the exception.</strong> Once you set up your vault, only you can
+                decrypt your information using your vault password. This ensures that no one can see
+                your private data, even if the data is compromised. You can, though, designate a
+                Legacy Contact and set up a vault release in your profile. You will have to personally
+                hand them a Vault Release Code, which they can use to open the vault once you are not
+                there to take care of your affairs.{' '}
+                <Link to="/faq#legacy-contact-vs-trusted-contact">Learn more</Link>.
+              </p>
+            )}
           </div>
         </>
       )}

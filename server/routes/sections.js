@@ -4,7 +4,6 @@ const multer  = require('multer');
 const { v4: uuidv4 } = require('uuid');
 const { queryOne, queryAll, query, transaction } = require('../db/database');
 const requireAuth    = require('../middleware/auth');
-const requirePremium = require('../middleware/requiresPremium');
 const { deriveKey, encryptField, decryptField, createVaultCheck, verifyVaultPassword } = require('../lib/vault');
 const { checkVault } = require('../lib/vaultAuth');
 const { TABLE_FIELDS, decryptRow, migrateRow } = require('../lib/vaultFields');
@@ -158,7 +157,46 @@ router.post('/legal-documents/list', requireAuth, async (req, res) => {
   res.json(items);
 });
 
-router.post('/legal-documents', requireAuth, requirePremium, checkPlanLock, async (req, res) => {
+// Shared per-section item cap for the vault sections (2026-10-04).
+//
+// These were gated whole by requirePremium: a free user could not open them
+// at all. They are open to everyone now and capped instead, so Premium sells
+// capacity rather than access. The numbers live in lib/planLimits.js, which
+// is the single source of truth; see docs/FREE_VAULT_PLAN.md for the why.
+//
+// Returns true when it has already sent a response, so callers read as
+// `if (await refuseIfOverSectionCap(...)) return;`. The wording deliberately
+// does not name the paid tier, matching PlanLimitNotice on the client: the
+// upgrade page is where the plan gets explained.
+// The only table names this guard will ever query. A table name cannot be a
+// bound parameter, so it has to be interpolated; every value passed today is
+// a literal written at the call site and none comes from a request. The
+// allowlist makes that true by construction rather than by reading the call
+// sites, so a future caller cannot turn this into an injection point.
+const CAPPED_TABLES = new Set([
+  'legal_documents', 'financial_items', 'property_items', 'household_info',
+  'digital_credentials',
+]);
+
+async function refuseIfOverSectionCap(req, res, { limitKey, table, noun }) {
+  if (!CAPPED_TABLES.has(table)) throw new Error(`refuseIfOverSectionCap: unknown table ${table}`);
+  const plan = await getUserPlan(req.user.id);
+  const limit = getLimit(limitKey, plan);
+  if (limit === Infinity) return false;
+  const existing = await queryOne(
+    `SELECT COUNT(*)::int AS c FROM ${table} WHERE user_id = $1`,
+    [req.user.id]
+  );
+  if (existing.c < limit) return false;
+  res.status(400).json({
+    error: plan !== 'premium'
+      ? `Your plan includes ${limit} ${noun}. Upgrade your account if you would like to add more.`
+      : `You can add up to ${limit} ${noun}.`,
+  });
+  return true;
+}
+router.post('/legal-documents', requireAuth, checkPlanLock, async (req, res) => {
+  if (await refuseIfOverSectionCap(req, res, { limitKey: 'legal_documents', table: 'legal_documents', noun: 'legal documents' })) return;
   const { vault_password, document_type, title, held_by, location, notes } = req.body;
   // REV-07: reuse the key checkVault() already derived, instead of deriving it again.
   // Vault-password verification (and its attempt/lockout tracking) still runs
@@ -180,7 +218,7 @@ router.post('/legal-documents', requireAuth, requirePremium, checkPlanLock, asyn
   res.status(201).json({ id: result.rows[0].id });
 });
 
-router.put('/legal-documents/:id', requireAuth, requirePremium, checkPlanLock, async (req, res) => {
+router.put('/legal-documents/:id', requireAuth, checkPlanLock, async (req, res) => {
   const row = await queryOne('SELECT * FROM legal_documents WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!row) return res.status(404).json({ error: 'Item not found.' });
   const { vault_password, document_type, title, held_by, location, notes } = req.body;
@@ -197,7 +235,7 @@ router.put('/legal-documents/:id', requireAuth, requirePremium, checkPlanLock, a
   res.json({ success: true });
 });
 
-router.delete('/legal-documents/:id', requireAuth, requirePremium, checkPlanLock, async (req, res) => {
+router.delete('/legal-documents/:id', requireAuth, checkPlanLock, async (req, res) => {
   const item = await queryOne('SELECT * FROM legal_documents WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
   if (!await checkVault(req.body?.vault_password, req.user.id, res, req)) return;
@@ -223,7 +261,8 @@ router.post('/financial-affairs/list', requireAuth, async (req, res) => {
   res.json(items);
 });
 
-router.post('/financial-affairs', requireAuth, requirePremium, checkPlanLock, async (req, res) => {
+router.post('/financial-affairs', requireAuth, checkPlanLock, async (req, res) => {
+  if (await refuseIfOverSectionCap(req, res, { limitKey: 'financial_items', table: 'financial_items', noun: 'financial records' })) return;
   const { vault_password, category, institution, account_type, account_reference, contact_name, contact_phone, notes } = req.body;
   const key = await checkVault(vault_password, req.user.id, res, req);
   if (!key) return;
@@ -244,7 +283,7 @@ router.post('/financial-affairs', requireAuth, requirePremium, checkPlanLock, as
   res.status(201).json({ id: result.rows[0].id });
 });
 
-router.put('/financial-affairs/:id', requireAuth, requirePremium, checkPlanLock, async (req, res) => {
+router.put('/financial-affairs/:id', requireAuth, checkPlanLock, async (req, res) => {
   const row = await queryOne('SELECT * FROM financial_items WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!row) return res.status(404).json({ error: 'Item not found.' });
   const { vault_password, category, institution, account_type, account_reference, contact_name, contact_phone, notes } = req.body;
@@ -263,7 +302,7 @@ router.put('/financial-affairs/:id', requireAuth, requirePremium, checkPlanLock,
   res.json({ success: true });
 });
 
-router.delete('/financial-affairs/:id', requireAuth, requirePremium, checkPlanLock, async (req, res) => {
+router.delete('/financial-affairs/:id', requireAuth, checkPlanLock, async (req, res) => {
   const item = await queryOne('SELECT * FROM financial_items WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
   if (!await checkVault(req.body?.vault_password, req.user.id, res, req)) return;
@@ -382,7 +421,7 @@ router.post('/donation-bank/view', requireAuth, async (req, res) => {
   res.json(decrypted);
 });
 
-router.put('/donation-bank', requireAuth, requirePremium, checkPlanLock, async (req, res) => {
+router.put('/donation-bank', requireAuth, checkPlanLock, async (req, res) => {
   const { vault_password, organ_donation, organ_donation_details } = req.body;
   const key = await checkVault(vault_password, req.user.id, res, req);
   if (!key) return;
@@ -464,7 +503,8 @@ router.post('/property-possessions/list', requireAuth, async (req, res) => {
   res.json(items);
 });
 
-router.post('/property-possessions', requireAuth, requirePremium, checkPlanLock, async (req, res) => {
+router.post('/property-possessions', requireAuth, checkPlanLock, async (req, res) => {
+  if (await refuseIfOverSectionCap(req, res, { limitKey: 'property_items', table: 'property_items', noun: 'property items' })) return;
   const { vault_password, category, title, description, location, intended_recipient, notes } = req.body;
   const key = await checkVault(vault_password, req.user.id, res, req);
   if (!key) return;
@@ -484,7 +524,7 @@ router.post('/property-possessions', requireAuth, requirePremium, checkPlanLock,
   res.status(201).json({ id: result.rows[0].id });
 });
 
-router.put('/property-possessions/:id', requireAuth, requirePremium, checkPlanLock, async (req, res) => {
+router.put('/property-possessions/:id', requireAuth, checkPlanLock, async (req, res) => {
   const row = await queryOne('SELECT * FROM property_items WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!row) return res.status(404).json({ error: 'Item not found.' });
   const { vault_password, category, title, description, location, intended_recipient, notes } = req.body;
@@ -502,7 +542,7 @@ router.put('/property-possessions/:id', requireAuth, requirePremium, checkPlanLo
   res.json({ success: true });
 });
 
-router.delete('/property-possessions/:id', requireAuth, requirePremium, checkPlanLock, async (req, res) => {
+router.delete('/property-possessions/:id', requireAuth, checkPlanLock, async (req, res) => {
   const item = await queryOne('SELECT * FROM property_items WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
   if (!await checkVault(req.body?.vault_password, req.user.id, res, req)) return;
@@ -806,7 +846,8 @@ router.post('/household-info/list', requireAuth, async (req, res) => {
   res.json(items);
 });
 
-router.post('/household-info', requireAuth, requirePremium, checkPlanLock, async (req, res) => {
+router.post('/household-info', requireAuth, checkPlanLock, async (req, res) => {
+  if (await refuseIfOverSectionCap(req, res, { limitKey: 'household_info', table: 'household_info', noun: 'household entries' })) return;
   const { vault_password, category, title, provider, account_reference, contact, notes } = req.body;
   const key = await checkVault(vault_password, req.user.id, res, req);
   if (!key) return;
@@ -826,7 +867,7 @@ router.post('/household-info', requireAuth, requirePremium, checkPlanLock, async
   res.status(201).json({ id: result.rows[0].id });
 });
 
-router.put('/household-info/:id', requireAuth, requirePremium, checkPlanLock, async (req, res) => {
+router.put('/household-info/:id', requireAuth, checkPlanLock, async (req, res) => {
   const row = await queryOne('SELECT * FROM household_info WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!row) return res.status(404).json({ error: 'Item not found.' });
   const { vault_password, category, title, provider, account_reference, contact, notes } = req.body;
@@ -844,7 +885,7 @@ router.put('/household-info/:id', requireAuth, requirePremium, checkPlanLock, as
   res.json({ success: true });
 });
 
-router.delete('/household-info/:id', requireAuth, requirePremium, checkPlanLock, async (req, res) => {
+router.delete('/household-info/:id', requireAuth, checkPlanLock, async (req, res) => {
   const item = await queryOne('SELECT id FROM household_info WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Item not found.' });
   if (!await checkVault(req.body?.vault_password, req.user.id, res, req)) return;
@@ -973,7 +1014,7 @@ router.get('/digital-life/vault', requireAuth, async (req, res) => {
   });
 });
 
-router.post('/digital-life/vault', requireAuth, requirePremium, checkPlanLock, async (req, res) => {
+router.post('/digital-life/vault', requireAuth, checkPlanLock, async (req, res) => {
   const { vault_password, password_hint } = req.body;
   if (!vault_password || vault_password.length < 8) {
     return res.status(400).json({ error: 'Vault password must be at least 8 characters.' });
@@ -1017,6 +1058,10 @@ router.put('/digital-life/vault', requireAuth, checkPlanLock, async (req, res) =
 
   const newKey   = deriveKey(new_password, req.user.id);
   const newCheck = createVaultCheck(newKey);
+
+  // Read before the transaction purely so the response can tell the user
+  // their release arrangement was reset, same as recovery_disabled does.
+  const hadRelease = await queryOne('SELECT id FROM vault_release WHERE user_id = $1', [req.user.id]);
 
   await transaction(async (client) => {
     const rows = (await client.query(
@@ -1073,9 +1118,23 @@ router.put('/digital-life/vault', requireAuth, checkPlanLock, async (req, res) =
       await client.query('DELETE FROM vault_recovery_questions WHERE digital_vault_id = $1', [vault.id]);
       await client.query('DELETE FROM vault_recovery_shares WHERE digital_vault_id = $1', [vault.id]);
     }
+    // The vault-release envelope is in exactly the same position as the
+    // recovery shares above: it seals the OLD key, so after this change the
+    // release code a Legacy Contact is holding would decrypt to a key that
+    // opens nothing. Re-sealing it here is impossible without issuing a new
+    // code, and we cannot deliver a new code to a user who is not in front of
+    // us. So it is deleted and the client is told, rather than leaving a
+    // confident-looking "vault release: armed" sitting over a dead envelope,
+    // which is a failure nobody would discover until the worst possible
+    // moment. See docs/VAULT_RELEASE_ON_DEATH_SPEC.md.
+    await client.query('DELETE FROM vault_release WHERE user_id = $1', [req.user.id]);
   });
 
-  res.json({ success: true, recovery_disabled: !!vault.recovery_enabled });
+  res.json({
+    success: true,
+    recovery_disabled: !!vault.recovery_enabled,
+    release_disabled: !!hadRelease,
+  });
 });
 
 router.delete('/digital-life/vault', requireAuth, checkPlanLock, async (req, res) => {
@@ -1120,7 +1179,8 @@ router.post('/digital-life/list', requireAuth, async (req, res) => {
   })));
 });
 
-router.post('/digital-life', requireAuth, requirePremium, checkPlanLock, async (req, res) => {
+router.post('/digital-life', requireAuth, checkPlanLock, async (req, res) => {
+  if (await refuseIfOverSectionCap(req, res, { limitKey: 'digital_credentials', table: 'digital_credentials', noun: 'accounts' })) return;
   const { vault_password, service, service_url, username, password, notes } = req.body;
   if (!service)        return res.status(400).json({ error: 'Service name is required.' });
   if (!username && !password) return res.status(400).json({ error: 'At least a username or password is required.' });
@@ -1140,7 +1200,7 @@ router.post('/digital-life', requireAuth, requirePremium, checkPlanLock, async (
   res.status(201).json({ id: result.rows[0].id });
 });
 
-router.put('/digital-life/:id', requireAuth, requirePremium, checkPlanLock, async (req, res) => {
+router.put('/digital-life/:id', requireAuth, checkPlanLock, async (req, res) => {
   const { vault_password, service, service_url, username, password, notes } = req.body;
 
   const item = await queryOne('SELECT * FROM digital_credentials WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
@@ -1167,7 +1227,7 @@ router.put('/digital-life/:id', requireAuth, requirePremium, checkPlanLock, asyn
   res.json({ success: true });
 });
 
-router.delete('/digital-life/:id', requireAuth, requirePremium, checkPlanLock, async (req, res) => {
+router.delete('/digital-life/:id', requireAuth, checkPlanLock, async (req, res) => {
   if (!await checkVault(req.body.vault_password, req.user.id, res, req)) return;
   const item = await queryOne('SELECT id FROM digital_credentials WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
   if (!item) return res.status(404).json({ error: 'Credential not found.' });
@@ -1178,7 +1238,7 @@ router.delete('/digital-life/:id', requireAuth, requirePremium, checkPlanLock, a
 // ---------------------------------------------------------------------------
 // Section 16 — Insurance (IDEA-29)
 // Flat list of policy entries, NOT vault-protected - same non-encrypted,
-// no-requirePremium pattern as pets/children-dependants/people-to-notify
+// same ungated pattern as pets/children-dependants/people-to-notify
 // above, not the shared-vault pattern used by legal-documents/financial-
 // affairs/property-possessions/household-info below.
 // ---------------------------------------------------------------------------
@@ -1224,7 +1284,7 @@ router.delete('/insurance/:id', requireAuth, checkPlanLock, async (req, res) => 
 // One entry per person or topic - reconciliation, apologies, and other loose
 // ends - deliberately separate from My Bucket List (aspirational future
 // goals) and Messages to Loved Ones (final words per recipient). Flat list,
-// NOT vault-protected, same no-requirePremium pattern as pets/insurance/
+// NOT vault-protected, same ungated pattern as pets/insurance/
 // children-dependants above.
 // ---------------------------------------------------------------------------
 router.get('/unfinished-business', requireAuth, async (req, res) => {
@@ -1290,7 +1350,7 @@ router.get('/last-moments', requireAuth, async (req, res) => {
   res.json(await withAudioUrl(row || {}));
 });
 
-router.put('/last-moments', requireAuth, requirePremium, checkPlanLock, async (req, res) => {
+router.put('/last-moments', requireAuth, checkPlanLock, async (req, res) => {
   const { message, notes } = req.body;
   // REV-27: use UPSERT (INSERT ... ON CONFLICT) instead of check-then-insert
   // to prevent race conditions. The UNIQUE constraint on user_id now enforces
@@ -1303,7 +1363,7 @@ router.put('/last-moments', requireAuth, requirePremium, checkPlanLock, async (r
   res.json({ success: true });
 });
 
-router.post('/last-moments/audio', requireAuth, requirePremium, checkPlanLock, (req, res, next) => {
+router.post('/last-moments/audio', requireAuth, checkPlanLock, (req, res, next) => {
   audioUpload.single('audio')(req, res, (err) => {
     if (err) return res.status(400).json({ error: err.message });
     next();
@@ -1352,7 +1412,7 @@ router.post('/last-moments/audio', requireAuth, requirePremium, checkPlanLock, (
   }
 });
 
-router.delete('/last-moments/audio', requireAuth, requirePremium, checkPlanLock, async (req, res) => {
+router.delete('/last-moments/audio', requireAuth, checkPlanLock, async (req, res) => {
   const item = await queryOne('SELECT * FROM last_moments WHERE user_id = $1', [req.user.id]);
   if (!item || !item.audio_r2_key) return res.json({ success: true });
   await deleteFile(item.audio_r2_key).catch(() => {});

@@ -19,8 +19,34 @@ const PLAN_LIMITS = {
   personal_messages:      { free: 2, premium: null },
   unfinished_business:    { free: 2, premium: null },
   people_to_notify:       { free: 3, premium: null },
-  funeral_gallery_photos: { free: 5, premium: 50 },
+  funeral_gallery_photos: { free: 5, premium: 30 },
   message_audio_clips:    { free: 1, premium: 3 },
+
+  // The vault sections (2026-10-04). These were gated whole by
+  // requirePremium: a free user could not open them at all. They are now
+  // open to everyone and capped instead, so Premium sells capacity rather
+  // than access. See docs/FREE_VAULT_PLAN.md for the reasoning and the
+  // owner's own numbers, which these are.
+  //
+  // Donation Bank and Your Last Moments are single-record sections, so their
+  // 1 is inherent rather than a new ceiling. They are listed anyway so the
+  // copy can state a limit consistently and so nothing has to special-case
+  // them.
+  legal_documents:        { free: 2, premium: null },
+  financial_items:        { free: 1, premium: null },
+  property_items:         { free: 1, premium: null },
+  household_info:         { free: 1, premium: null },
+  digital_credentials:    { free: 2, premium: null },
+  donation_bank:          { free: 1, premium: null },
+  last_moments:           { free: 1, premium: null },
+
+  // Uploaded files, counted across every section. The only cap here with
+  // real unit economics behind it: a row in Postgres costs nothing to keep,
+  // a 20MB PDF in R2 does, and that cost arrives whether or not the account
+  // ever pays. Funeral gallery photos are counted separately above and keep
+  // their existing allowance, deliberately: folding them in would have taken
+  // something away from people who already have it.
+  uploaded_documents:     { free: 3, premium: null },
 };
 
 // plan is 'free' or 'premium' (see server/lib/subscription.js's

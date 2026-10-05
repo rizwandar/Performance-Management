@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { Spinner, Alert, Badge, Button, Modal } from 'react-bootstrap'
+import { Spinner, Alert, Badge, Button, Modal, Form } from 'react-bootstrap'
 import axios from 'axios'
 import { formatPhone } from '@in-good-hands/shared/format'
 
@@ -447,6 +447,266 @@ const SECTION_CONFIG = {
 }
 
 // ---------------------------------------------------------------------------
+// Vault release (docs/VAULT_RELEASE_ON_DEATH_SPEC.md)
+// ---------------------------------------------------------------------------
+// The Legacy Contact's side of the envelope. Everything below is read-only:
+// there is no write path to vault-protected data from an access link, and
+// there must never be one.
+//
+// The three renderers here are the vault-protected sections that had no
+// renderer on this page before, because before this they could never appear
+// on it. LegalDocuments, FinancialItems and PropertyItems above already
+// existed from before SEC-20 removed them from the ordinary access-link
+// payload, and are reused as they are.
+
+function HouseholdInfo({ data }) {
+  if (!data?.length) return <p className="text-muted small">No household information recorded.</p>
+  return data.map(d => (
+    <ItemCard key={d.id}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 4, marginBottom: 4 }}>
+        <span style={{ fontWeight: 700, color: 'var(--green-900)' }}>{d.title}</span>
+        {d.category && <Badge bg={null} style={{ background: 'var(--green-100)', color: 'var(--green-900)', fontWeight: 500 }}>{d.category.replace('_', ' ')}</Badge>}
+      </div>
+      <FieldRow label="Provider"          value={d.provider} />
+      <FieldRow label="Account reference" value={d.account_reference} />
+      <FieldRow label="Contact"           value={d.contact} />
+      <FieldRow label="Notes"             value={d.notes} />
+    </ItemCard>
+  ))
+}
+
+function DonationBank({ data }) {
+  if (!data) return <p className="text-muted small">No donation preferences recorded.</p>
+  return (
+    <ItemCard>
+      <FieldRow label="Organ donation" value={data.organ_donation} />
+      <FieldRow label="Details"        value={data.organ_donation_details} />
+    </ItemCard>
+  )
+}
+
+// Passwords are hidden until asked for. The person reading this is often not
+// alone, and may well be doing it on a shared screen in a difficult week.
+// Nothing is gained by having them on screen by default.
+function DigitalCredentials({ data }) {
+  const [revealed, setRevealed] = useState(false)
+  if (!data?.length) return <p className="text-muted small">No digital accounts recorded.</p>
+  return (
+    <>
+      <Button
+        variant="outline-secondary"
+        size="sm"
+        className="mb-3"
+        onClick={() => setRevealed(v => !v)}
+      >
+        {revealed ? 'Hide passwords' : 'Show passwords'}
+      </Button>
+      {data.map(d => (
+        <ItemCard key={d.id}>
+          <p style={{ fontWeight: 700, color: 'var(--green-900)', marginBottom: 4 }}>{d.service}</p>
+          <FieldRow label="Website"  value={d.service_url} />
+          <FieldRow label="Username" value={d.username} />
+          <FieldRow
+            label="Password"
+            value={d.password ? (revealed ? d.password : '••••••••••') : null}
+          />
+          <FieldRow label="Notes"    value={d.notes} />
+        </ItemCard>
+      ))}
+    </>
+  )
+}
+
+// Display order, not the server's. The server returns whatever the owner
+// recorded; this decides what a person reads first, and legal documents are
+// what somebody settling an estate reaches for before anything else.
+const VAULT_SECTIONS = [
+  { id: 'legal_documents',     label: 'Legal Documents',           Component: LegalDocuments },
+  { id: 'financial_items',     label: 'Financial Affairs',         Component: FinancialItems },
+  { id: 'property_items',      label: 'Property and Possessions',  Component: PropertyItems },
+  { id: 'household_info',      label: 'Household Information',     Component: HouseholdInfo },
+  { id: 'donation_bank',       label: 'Donation Preferences',      Component: DonationBank },
+  { id: 'digital_credentials', label: 'Digital Life',              Component: DigitalCredentials },
+]
+
+function remainingText(target) {
+  const ms = new Date(target).getTime() - Date.now()
+  if (!(ms > 0)) return 'any time now'
+  const hours = Math.floor(ms / 3600000)
+  const days  = Math.floor(hours / 24)
+  if (days >= 1) return `${days} day${days === 1 ? '' : 's'} and ${hours % 24} hour${hours % 24 === 1 ? '' : 's'} from now`
+  if (hours >= 1) return `${hours} hour${hours === 1 ? '' : 's'} from now`
+  return `${Math.max(1, Math.floor(ms / 60000))} minutes from now`
+}
+
+function PanelShell({ children }) {
+  return (
+    <div style={{ background: '#fff', border: '1px solid var(--gold)', borderRadius: 10, padding: '18px 20px', marginBottom: 32 }}>
+      {children}
+    </div>
+  )
+}
+
+function VaultReleasePanel({ token, ownerName, ownerDeceased, countryCode }) {
+  const [status, setStatus]   = useState(null)
+  const [code, setCode]       = useState('')
+  const [opening, setOpening] = useState(false)
+  const [error, setError]     = useState('')
+  const [vault, setVault]     = useState(null)
+  const [, setTick]           = useState(0)
+
+  useEffect(() => {
+    axios.get(`${API}/access/${token}/vault-release`)
+      .then(r => setStatus(r.data))
+      // A failure here must not be read as "there is something and we cannot
+      // show it". There may be nothing at all, which is the common case.
+      .catch(() => setStatus({ state: 'none' }))
+  }, [token])
+
+  // Keeps the countdown honest without hammering anything. The server is the
+  // only thing that moves the state on; this just re-renders the text.
+  const state = status?.state
+  useEffect(() => {
+    if (state !== 'pending') return undefined
+    const id = setInterval(() => setTick(t => t + 1), 30000)
+    return () => clearInterval(id)
+  }, [state])
+
+  const open = async (e) => {
+    e.preventDefault()
+    setOpening(true)
+    setError('')
+    try {
+      const r = await axios.post(`${API}/access/${token}/vault-release/open`, { code })
+      setVault(r.data)
+      // The code has done its job. It is not kept in component state, not put
+      // in the URL, and not stored anywhere by this page.
+      setCode('')
+    } catch (err) {
+      setError(err.response?.data?.error || "We couldn't open it just now. Please try again in a few minutes.")
+    }
+    setOpening(false)
+  }
+
+  if (!status) return null
+
+  if (vault) {
+    return (
+      <div style={{ marginBottom: 32 }}>
+        <Alert variant="success">
+          <strong>{ownerName}&apos;s vault is open.</strong> Everything they kept in it is below. This is
+          read-only, and nothing you do here changes their records. If you close this page you can come
+          back and enter the same code again.
+        </Alert>
+        {VAULT_SECTIONS.map(({ id, label, Component }) => (
+          <SectionBlock key={id} title={label}>
+            <Component data={vault.data?.[id]} countryCode={countryCode} />
+            <DocumentList documents={vault.documents?.[id]} />
+          </SectionBlock>
+        ))}
+      </div>
+    )
+  }
+
+  if (status.state === 'none') {
+    // Spec 3.5: when there is no arrangement, that has to be said plainly
+    // rather than discovered by a grieving family. But only then. While the
+    // owner is alive there is nothing to report and they may yet set it up,
+    // so saying "cannot be opened" would be both noise and, shortly, wrong.
+    if (!ownerDeceased) return null
+    return (
+      <PanelShell>
+        <p style={{ fontWeight: 700, color: 'var(--green-900)', marginBottom: 6 }}>
+          {ownerName}&apos;s vault cannot be opened
+        </p>
+        <p className="text-muted small mb-0">
+          {ownerName} kept some things in a vault, locked with a password that we never store. Nobody can
+          open it, including us, and {ownerName} did not arrange for it to be handed to anyone. There is
+          nothing here for you to do, and nothing anyone can do to recover what is inside. Everything
+          else they recorded is shown on this page.
+        </p>
+      </PanelShell>
+    )
+  }
+
+  if (status.state === 'armed') {
+    return (
+      <PanelShell>
+        <p style={{ fontWeight: 700, color: 'var(--green-900)', marginBottom: 6 }}>
+          {ownerName} has arranged for you to receive their vault
+        </p>
+        <p className="text-muted small mb-0">
+          It is not available yet, and nothing in it can be seen until it is. It becomes available only
+          after a passing has been reported and a short waiting period has passed, during which we try to
+          reach {ownerName}. We will email you when that happens. Until then, keep the release code
+          {' '}{ownerName} gave you somewhere safe: it is the only thing that can open the vault, and we
+          do not have a copy of it.
+        </p>
+      </PanelShell>
+    )
+  }
+
+  if (status.state === 'pending') {
+    return (
+      <PanelShell>
+        <p style={{ fontWeight: 700, color: 'var(--green-900)', marginBottom: 6 }}>
+          {ownerName}&apos;s vault: waiting period in progress
+        </p>
+        <p className="text-muted small mb-2">
+          A passing has been reported, so the handover of {ownerName}&apos;s vault has started. Before
+          anything is released we try to reach {ownerName} on every address we hold, because only a
+          living person can tell us a report is wrong.
+        </p>
+        <p className="text-muted small mb-0">
+          If we do not hear from them, the vault becomes available to you on{' '}
+          <strong>{new Date(status.window_closes_at).toLocaleString()}</strong>, which is{' '}
+          {remainingText(status.window_closes_at)}. You will be emailed. If {ownerName} replies or signs
+          in before then, the handover stops and nothing is released.
+        </p>
+      </PanelShell>
+    )
+  }
+
+  // released
+  return (
+    <PanelShell>
+      <p style={{ fontWeight: 700, color: 'var(--green-900)', marginBottom: 6 }}>
+        {ownerName}&apos;s vault is ready for you to open
+      </p>
+      <p className="text-muted small mb-3">
+        Enter the release code {ownerName} gave you. We have never had a copy of it and cannot send it to
+        you or look it up, so it has to be the one they handed over: written down with their will, in a
+        sealed envelope, or wherever they told you to look.
+      </p>
+      {error && <Alert variant="danger" className="py-2 small">{error}</Alert>}
+      <Form onSubmit={open}>
+        <Form.Group className="mb-2">
+          <Form.Label className="small fw-semibold" style={{ color: 'var(--green-900)' }}>
+            Release code
+          </Form.Label>
+          <Form.Control
+            type="text"
+            value={code}
+            onChange={e => setCode(e.target.value)}
+            placeholder="XXXX-XXXX-XXXX-XXXX-XXXX"
+            autoComplete="off"
+            spellCheck={false}
+            style={{ maxWidth: 360, fontFamily: 'monospace', letterSpacing: '0.05em' }}
+          />
+          <Form.Text className="text-muted">
+            Twenty characters, usually written as five groups of four. Capitals, spaces and dashes do not
+            matter.
+          </Form.Text>
+        </Form.Group>
+        <Button type="submit" variant="success" size="sm" disabled={opening || !code.trim()}>
+          {opening ? 'Opening…' : 'Open the vault'}
+        </Button>
+      </Form>
+    </PanelShell>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Main page
 // ---------------------------------------------------------------------------
 export default function AccessPage() {
@@ -584,6 +844,19 @@ export default function AccessPage() {
             </>
           )}
         </div>
+      )}
+
+      {/* Vault release. Only on the real Legacy Contact link: OPS-20's
+          reference-only preview link cannot open a vault, and the server
+          refuses it, so showing it a vault panel would promise something it
+          cannot deliver. */}
+      {is_executor && can_confirm_demise && (
+        <VaultReleasePanel
+          token={token}
+          ownerName={owner.name}
+          ownerDeceased={!!owner.is_deceased || markedDemised}
+          countryCode={owner.country_code}
+        />
       )}
 
       {/* Owner's basic info if present */}
