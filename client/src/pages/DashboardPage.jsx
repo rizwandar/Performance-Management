@@ -4,7 +4,6 @@ import { Row, Col, Card, Badge, Spinner } from 'react-bootstrap'
 import axios from 'axios'
 import { useAuth } from '../context/AuthContext'
 import { useSubscription } from '../context/SubscriptionContext'
-import UpgradeModal from '../components/UpgradeModal'
 import OrgBrandingBanner from '../components/OrgBrandingBanner'
 import { SECTIONS } from '../constants/sections'
 
@@ -130,32 +129,10 @@ const GROUPS = [
   },
 ]
 
-const FREE_ROUTES = new Set([
-  '/sections/how-to-be-remembered',
-  '/sections/messages',
-  '/sections/unfinished-business',
-  '/sections/songs-that-define-me',
-  '/sections/lifes-wishes',
-  '/sections/funeral-wishes',
-  // IDEA-32: doctors and medical-records replace medical-wishes at the same
-  // (free) protection level. donation-bank is deliberately NOT listed here -
-  // it's vault-protected/Premium-only, unlike the rest of the old Medical
-  // & Care Wishes section.
-  '/sections/doctors',
-  '/sections/medical-records',
-  '/sections/emergency-contact',
-  '/sections/trusted-contacts',
-  '/sections/people-to-notify',
-  '/sections/children-dependants',
-  '/sections/pet-care',
-  // IDEA-29: Insurance is not vault-protected (unlike the other sections in
-  // its 'affairs' dashboard group below), so it's free-plan accessible too,
-  // consistent with the server not gating it behind requirePremium.
-  '/sections/insurance',
-])
+// FREE_ROUTES and the premium boundary that used it are gone (2026-10-04).
+// Every section is reachable on every plan; the vault sections are capped
+// rather than gated. See docs/FREE_VAULT_PLAN.md.
 
-// First group id after which all remaining sections are premium-only.
-const PREMIUM_BOUNDARY_GROUP = 'affairs'
 
 // ---------------------------------------------------------------------------
 // Sections — each assigned to a group, with a warm description.
@@ -169,12 +146,11 @@ const PREMIUM_BOUNDARY_GROUP = 'affairs'
 // ---------------------------------------------------------------------------
 export default function DashboardPage() {
   const { user }       = useAuth()
-  const { isPremium, signupTrialExpired } = useSubscription()
+  const { isPremium } = useSubscription()
   const navigate       = useNavigate()
   const [completion, setCompletion]   = useState({})
   const [loading, setLoading]         = useState(true)
   const [iconSet, setIconSet]         = useState('classic')
-  const [upgradeModal, setUpgradeModal] = useState(null)
   // Groups the user has manually re-expanded after they collapsed to a
   // finished summary row. Session-only: resets on reload, never persisted.
   const [expandedGroups, setExpandedGroups] = useState(() => new Set())
@@ -373,53 +349,13 @@ export default function DashboardPage() {
         return (
           <div key={group.id} style={{ marginBottom: gi < GROUPS.length - 1 ? 36 : 0 }}>
 
-            {/* Premium boundary divider */}
-            {group.id === PREMIUM_BOUNDARY_GROUP && (
-              <div style={{
-                margin: '4px 0 28px',
-                padding: '20px 24px',
-                background: 'linear-gradient(135deg, var(--gold-50, #FBF3E4), var(--green-50, #EEF4EE))',
-                border: '1px solid var(--gold-light, #E8D8A8)',
-                borderRadius: 12,
-                textAlign: 'center',
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-                  <div style={{ flex: 1, height: 1, background: 'var(--gold-light, #E8D8A8)' }} />
-                  <span style={{
-                    fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.08em',
-                    color: 'var(--green-800)', textTransform: 'uppercase', whiteSpace: 'nowrap',
-                    fontFamily: 'var(--ui-font, inherit)',
-                  }}>
-                    🔒 Premium sections
-                  </span>
-                  <div style={{ flex: 1, height: 1, background: 'var(--gold-light, #E8D8A8)' }} />
-                </div>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', lineHeight: 1.6, maxWidth: 540, margin: '0 auto', fontFamily: 'var(--body-font, inherit)' }}>
-                  {isPremium
-                    ? 'The sections below are part of your Premium plan: your legal, financial, property, digital, and household records.'
-                    : signupTrialExpired
-                      ? "Your 30-day free trial has ended. Everything above is still free, forever, but the sections below, your legal, financial, property, digital, and household records, are now Premium-only. Nothing you recorded during your trial was lost."
-                      : 'Everything above is free, forever. The sections below, your legal, financial, property, digital, and household records, require a Premium plan to add or edit.'}
-                </p>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.78rem', lineHeight: 1.6, maxWidth: 540, margin: '8px auto 0', fontStyle: 'italic', fontFamily: 'var(--body-font, inherit)' }}>
-                  🔐 Your Personal &amp; Legal Documents and Digital Life sections hold your most sensitive
-                  information, so they're protected by a separate vault password, on top of your regular
-                  sign-in, that only you know and that is never stored on our servers.
-                </p>
-                {!isPremium && (
-                  <button
-                    onClick={() => navigate('/upgrade')}
-                    style={{
-                      marginTop: 14, background: 'var(--green-800)', color: '#fff', border: 'none',
-                      borderRadius: 8, padding: '8px 20px', fontSize: '0.85rem', fontWeight: 600,
-                      cursor: 'pointer', fontFamily: 'var(--ui-font, inherit)',
-                    }}
-                  >
-                    See Premium plans
-                  </button>
-                )}
-              </div>
-            )}
+            {/* The "Premium sections" divider that used to sit here is gone
+                (2026-10-04). It announced a boundary that no longer exists:
+                the vault sections are open on every plan and capped instead,
+                so there is nothing below this point that a free user cannot
+                reach. The per-section caps are surfaced by PlanLimitNotice on
+                the sections themselves, which is where they are actually
+                relevant. See docs/FREE_VAULT_PLAN.md. */}
 
             {groupCollapsed ? (
               /* Finished group: collapsed to a single summary row */
@@ -500,25 +436,24 @@ export default function DashboardPage() {
                   {groupSections.map(section => {
                 const started  = isStarted(section)
                 const cnt      = count(section)
-                const locked   = !isPremium && !FREE_ROUTES.has(section.route)
-                const handleClick = () => {
-                  if (locked) setUpgradeModal(section)
-                  else navigate(section.route)
-                }
+                // Every section is reachable on every plan since 2026-10-04.
+                // The vault sections are capped rather than gated, and the cap
+                // is surfaced on the section itself where it is relevant, so a
+                // tile no longer needs a locked state at all.
+                const handleClick = () => navigate(section.route)
                 return (
                   <Col key={section.id} xs={12} sm={6} lg={4}>
                     <Card
                       className="h-100"
                       role="button"
                       tabIndex={0}
-                      aria-label={`${section.label}${locked ? ', Premium section' : started ? `, ${count(section)} items recorded` : ', not started'}`}
+                      aria-label={`${section.label}${started ? `, ${count(section)} items recorded` : ', not started'}`}
                       style={{
                         cursor: 'pointer',
                         background: group.cardBg,
                         border: `1px var(--card-border-style, solid) ${group.cardBorder}`,
                         transition: 'box-shadow 0.15s, transform 0.1s',
                         boxShadow: 'none',
-                        opacity: locked ? 0.8 : 1,
                       }}
                       onClick={handleClick}
                       onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && handleClick()}
@@ -560,16 +495,7 @@ export default function DashboardPage() {
                         {/* Bottom: status left, icon right */}
                         <div className="d-flex justify-content-between align-items-end mt-3">
                           <div>
-                            {locked && (
-                              <Badge bg={null} style={{
-                                fontSize: '0.67rem', background: '#8A7A6A',
-                                color: '#ffffff', fontWeight: 600, border: 'none', padding: '3px 8px',
-                                fontFamily: 'var(--ui-font, inherit)',
-                              }}>
-                                🔒 Premium
-                              </Badge>
-                            )}
-                            {!locked && !started && (
+                            {!started && (
                               <Badge bg={null} style={{
                                 fontSize: '0.67rem',
                                 background: group.startedBorder,
@@ -582,7 +508,7 @@ export default function DashboardPage() {
                                 Not started
                               </Badge>
                             )}
-                            {!locked && cnt !== null && cnt > 0 && (
+                            {cnt !== null && cnt > 0 && (
                               <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--green-800)', fontFamily: 'var(--ui-font, inherit)' }}>
                                 {cnt} {cnt === 1 ? 'item' : 'items'}
                               </span>
@@ -610,11 +536,6 @@ export default function DashboardPage() {
         )
       })}
 
-      <UpgradeModal
-        show={!!upgradeModal}
-        onHide={() => setUpgradeModal(null)}
-        sectionName={upgradeModal?.label || ''}
-      />
     </div>
   )
 }

@@ -144,59 +144,57 @@ router.post('/decline-signup-trial', auth, async (req, res) => {
   res.json({ success: true });
 });
 
+// Plan descriptions shown on the Upgrade page and in Stripe Checkout.
+//
+// Rewritten 2026-10-04, when the vault was opened on the free plan. These
+// lists used to split the product in two: seven sections were Premium-only
+// and the free plan got the rest. That split is gone. Every section is on
+// every plan now, vault included, and Premium sells capacity instead of
+// access. See docs/FREE_VAULT_PLAN.md.
+//
+// The numbers here are display copy. They must match the real limits in
+// lib/planLimits.js, which is the enforcement point, and the client mirror
+// in client/src/constants/planLimits.js and planFeatures.js. Four places,
+// kept in step by hand. Change one, change all of them in the same commit.
 router.get('/plans', (req, res) => {
   res.json({
     plans: [
       {
         id:            'free',
         name:          'Essentials',
-        description:   'Start your end-of-life planning at no cost',
+        description:   'Every section, including the vault, at no cost',
         price_monthly: 0,
         price_annual:  0,
         features: [
-          "How I'd Like to Be Remembered",
-          'Messages to Loved Ones',
-          'Unfinished Business',
-          'Songs That Define Me',
-          'My Bucket List',
-          'Funeral and End-of-Life Wishes',
-          'Doctors',
-          'Medical Records',
-          'Emergency Contact',
-          'People to Notify',
-          'Dependents',
-          'Pet Care',
-          'Insurance',
-          'Trusted contacts with access permissions',
+          'Every section, including the vault',
+          'Vault-encrypted protection for your most sensitive records',
+          'A Legacy Contact, an emergency contact, and 2 trusted contacts',
+          'Up to 2 legal documents and 2 saved accounts',
+          'Up to 3 uploaded files, plus 5 funeral gallery photos',
+          'PDF export of everything outside your vault',
+          'Inactivity timer and notifications',
         ],
       },
       {
         id:            'monthly',
         name:          'Premium Monthly',
-        // NOTE: section count verified against DashboardPage.jsx's SECTIONS
-        // array length as of this edit. Reverify there before trusting this
-        // number again if another section-adding branch has landed since.
-        description:   'Full access to all 21 sections, billed monthly',
+        description:   'No limits on what you can record, billed monthly',
         price_monthly: 10,
         price_annual:  null,
         features: [
-          'All free sections',
-          'Your Last Moments (a dedicated final recording or letter)',
-          'Personal and Legal Documents',
-          'Property and Possessions',
-          'Financial Affairs',
-          'Vault-encrypted Digital Life',
-          'Practical Household Information',
-          'Donation Bank (vault-encrypted)',
-          'Document uploads',
-          'Full PDF export with vault',
-          'Inactivity timer',
+          'Everything in the free plan, with no limits on what you can record',
+          'Unlimited legal, financial, property and household records',
+          'Unlimited saved accounts in your Digital Life vault',
+          'Unlimited uploads, and up to 30 funeral gallery photos',
+          'Full PDF export, including your vault',
+          'Up to 10 trusted contacts instead of 2',
+          'No sponsor messages',
         ],
       },
       {
         id:           'annual',
         name:         'Premium Annual',
-        description:  'Full access, billed annually (save $20)',
+        description:  'No limits, billed annually (save $20)',
         price_monthly: null,
         price_annual:  100,
         features: ['Everything in Premium Monthly', 'Save $20 vs monthly'],
