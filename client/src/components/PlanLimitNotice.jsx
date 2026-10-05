@@ -23,10 +23,13 @@ import { PLAN_LIMITS } from '../constants/planLimits'
 //
 // `alwaysShow` keeps the note visible before the cap is reached, so the
 // limit is known up front rather than discovered as a wall. It is opt-in per
-// caller rather than the default: on six capped areas at once, an always-on
-// upgrade note would read as nagging. Trusted Contacts opts in; the other
-// five keep the original at-the-limit-only behaviour until each is looked at
-// on its own terms.
+// caller rather than the default, because an always-on upgrade note is only
+// worth its noise where the allowance is small enough to matter.
+//
+// Opted in: Trusted Contacts, and the five vault sections as of 2026-10-04,
+// where a free allowance of one or two items is reached almost immediately
+// and is better stated than discovered. The remaining callers keep the
+// original at-the-limit-only behaviour.
 //
 // `omitCount` drops the "your plan includes N" half and leaves only the
 // invitation to upgrade. For a page whose own header already states the

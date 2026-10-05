@@ -59,6 +59,61 @@ const photoUpload = multer({
   },
 });
 
+// Shared general upload cap (2026-10-04), used by both upload routes so the
+// two cannot drift apart. Files are the one limit with real unit economics
+// behind it: a row in Postgres costs nothing to keep, a 20MB PDF in R2 does,
+// and that cost arrives whether or not the account ever pays.
+//
+// Funeral gallery photos are counted and capped separately and keep their own
+// allowance, so they are excluded here. Folding them in would have taken
+// something away from people who already have it.
+//
+// Returns true when it has already sent a response, so callers read as
+// `if (await refuseIfOverUploadCap(...)) return;`.
+async function refuseIfOverUploadCap(userId, res) {
+  const plan = await getUserPlan(userId);
+  const limit = getLimit('uploaded_documents', plan);
+  if (limit === Infinity) return false;
+  const count = await queryOne(
+    `SELECT COUNT(*)::int as c FROM uploaded_documents
+     WHERE user_id = $1 AND (photo_role IS NULL OR photo_role != 'funeral_gallery')`,
+    [userId]
+  );
+  if (count.c < limit) return false;
+  res.status(400).json({
+    error: plan !== 'premium'
+      ? `Your plan includes ${limit} uploaded files. Upgrade your account if you would like to add more.`
+      : `You can upload up to ${limit} files.`,
+  });
+  return true;
+}
+
+// How much of the upload allowance is used, so the attach control can say so
+// before someone picks a file instead of refusing them after.
+//
+// The allowance is account-wide, not per item or per section, which is why
+// this has to be asked for: a page only ever holds the documents for its own
+// section and cannot work the total out for itself.
+//
+// Counts exactly what refuseIfOverUploadCap counts, funeral gallery photos
+// excluded, because they have an allowance of their own. If these two ever
+// disagree the control will promise room that the upload then refuses.
+router.get('/usage', requireAuth, async (req, res) => {
+  const plan  = await getUserPlan(req.user.id);
+  const limit = getLimit('uploaded_documents', plan);
+  const count = await queryOne(
+    `SELECT COUNT(*)::int as c FROM uploaded_documents
+     WHERE user_id = $1 AND (photo_role IS NULL OR photo_role != 'funeral_gallery')`,
+    [req.user.id]
+  );
+  res.json({
+    used: count.c,
+    // JSON has no Infinity. null is the same 'no limit' convention that
+    // lib/planLimits.js already uses for an uncapped premium value.
+    limit: limit === Infinity ? null : limit,
+  });
+});
+
 router.post('/upload', requireAuth, checkPlanLock, (req, res, next) => {
   upload.single('file')(req, res, (err) => {
     if (err) return res.status(400).json({ error: err.message });
@@ -74,6 +129,8 @@ router.post('/upload', requireAuth, checkPlanLock, (req, res, next) => {
     if (isVaultProtectedSection(section_id)) {
       if (!await checkVault(vault_password, userId, res, req)) return;
     }
+
+    if (await refuseIfOverUploadCap(userId, res)) return;
 
     const ext    = req.file.originalname.split('.').pop();
     const safeExt = ext.replace(/[^a-zA-Z0-9]/g, '');
@@ -212,6 +269,7 @@ router.post('/photos/upload', requireAuth, checkPlanLock, (req, res, next) => {
       }
     }
 
+    if (photo_role !== 'funeral_gallery' && await refuseIfOverUploadCap(userId, res)) return;
     const ext     = req.file.originalname.split('.').pop()?.toLowerCase() || 'jpg';
     const safeExt = ext.replace(/[^a-zA-Z0-9]/g, '');
     if (!matchesExtension(req.file.buffer, safeExt)) {
