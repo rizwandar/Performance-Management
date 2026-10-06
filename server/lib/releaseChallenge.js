@@ -377,7 +377,37 @@ async function cancelPendingRelease(userId, reason, metadata = {}) {
 }
 
 /**
+ * Does this token still have something to cancel? Read only.
+ *
+ * Exists so that the confirmation page in routes/vaultReleaseCancel.js can be
+ * rendered by a GET that writes nothing at all. The GET there used to cancel
+ * outright, which a mail-client prefetch could trigger on a mailbox nobody was
+ * reading; that route's header comment carries the full history.
+ *
+ * Answers one boolean and nothing else. A token that never existed, one
+ * already used and one whose row has since moved on are all simply "not
+ * pending", so this distinguishes no more than the old GET already did, and it
+ * cannot be used to change anything.
+ */
+async function peekCancelToken(token) {
+  if (typeof token !== 'string' || !/^[0-9a-f]{64}$/.test(token)) {
+    return { pending: false };
+  }
+  const row = await queryOne(
+    `SELECT status FROM vault_release WHERE cancel_token = $1`,
+    [token]
+  );
+  return { pending: row?.status === 'pending' };
+}
+
+/**
  * Cancel from the "I am here" link, with no session involved.
+ *
+ * Reached by POST only. The GET on that route renders a confirmation page and
+ * writes nothing, so that a link prefetched by a mail client or a security
+ * scanner cannot suspend a release in a mailbox nobody is reading. The header
+ * comment in routes/vaultReleaseCancel.js says why that matters more under the
+ * suspend semantics above than it did under the old re-arm ones.
  *
  * Looked up by exact token value against a partial unique index, the same way
  * routes/access.js consumes a trusted_contact_tokens row, and only honoured
@@ -866,6 +896,7 @@ module.exports = {
   openReleaseWindow,
   cancelPendingRelease,
   cancelByToken,
+  peekCancelToken,
   runVaultReleaseChallenges,
   dispatchPendingNow,
   // Exported for tests and for the route layer; not part of the sweep's

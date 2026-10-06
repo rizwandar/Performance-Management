@@ -1230,6 +1230,10 @@ function vaultReleaseAvailableEmail({ recipientName, ownerName, accessLink }) {
 }
 
 module.exports = {
+  // Exported so that routes/vaultReleaseCancel.js, which renders a standalone
+  // HTML page of its own rather than an email, escapes with this one rather
+  // than carrying a third copy of the same four lines.
+  escapeHtml,
   emailVerificationEmail,
   vaultReleaseChallengeEmail,
   vaultReleaseDeclarationNoticeEmail,
