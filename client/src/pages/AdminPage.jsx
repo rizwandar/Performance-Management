@@ -1629,6 +1629,10 @@ export default function AdminPage() {
   const [versionSaving, setVersionSaving] = useState(false)
   const [versionError, setVersionError]   = useState('')
   const [runningInactivityCheck, setRunningInactivityCheck] = useState(false)
+  const [runningVaultReleaseSweep, setRunningVaultReleaseSweep] = useState(false)
+  const [releaseWindowUserId, setReleaseWindowUserId] = useState('')
+  const [releaseWindowHours, setReleaseWindowHours]   = useState('')
+  const [savingReleaseWindow, setSavingReleaseWindow] = useState(false)
 
   // Security tab state
   const [findings, setFindings]           = useState([])
@@ -1653,6 +1657,49 @@ export default function AdminPage() {
       showAlert('danger', "Couldn't run the inactivity check.")
     }
     setRunningInactivityCheck(false)
+  }
+
+  const runVaultReleaseSweepNow = async () => {
+    if (!window.confirm(
+      'Run the vault release sweep now? Any pending release whose window has already elapsed will be released, '
+      + 'and owners still inside their window will be challenged by email. A release cannot be undone.'
+    )) return
+    setRunningVaultReleaseSweep(true)
+    try {
+      const r = await axios.post(`${API}/admin/vault-release/run`)
+      const { examined = 0, challenged = 0, cancelled = 0, released = 0 } = r.data || {}
+      showAlert('success', `Vault release sweep complete. ${examined} examined, ${challenged} challenged, ${cancelled} cancelled, ${released} released.`)
+    } catch {
+      showAlert('danger', "Couldn't run the vault release sweep.")
+    }
+    setRunningVaultReleaseSweep(false)
+  }
+
+  const saveReleaseWindow = async () => {
+    const userId = releaseWindowUserId.trim()
+    const hours  = releaseWindowHours.trim()
+    if (!userId || !hours) {
+      showAlert('danger', 'Enter both a user ID and a number of hours.')
+      return
+    }
+    // Deliberately spelled out rather than a generic "are you sure": shortening
+    // this window shortens the time a living person has to object to being
+    // declared dead, and the confirm is the last place to say so out loud.
+    if (!window.confirm(
+      `Set the vault release challenge window for user ${userId} to ${hours} hour(s)? `
+      + 'This shortens the time that user has to object to being declared dead, and it is recorded against their account.'
+    )) return
+    setSavingReleaseWindow(true)
+    try {
+      const r = await axios.post(`${API}/admin/users/${encodeURIComponent(userId)}/vault-release-window`, {
+        window_hours: Number(hours),
+      })
+      showAlert('success', `Challenge window for user ${userId} changed from ${r.data.previous_window_hours} to ${r.data.window_hours} hour(s).`)
+      setReleaseWindowHours('')
+    } catch (err) {
+      showAlert('danger', err.response?.data?.error || "Couldn't change the challenge window.")
+    }
+    setSavingReleaseWindow(false)
   }
 
   const showAlert = (type, msg) => {
@@ -2353,6 +2400,65 @@ export default function AdminPage() {
               {runningInactivityCheck ? 'Running…' : 'Run inactivity check now'}
             </Button>
           </div>
+        </div>
+
+        {/* Vault release sweep */}
+        <div style={{ background: 'var(--parchment)', borderRadius: 12, padding: '24px', border: '1px solid var(--border)', marginTop: 24 }}>
+          <div className="d-flex justify-content-between align-items-start flex-wrap gap-3">
+            <div>
+              <h6 style={{ color: 'var(--green-900)', marginBottom: 4 }}>Vault Release Sweep</h6>
+              <p className="text-muted small mb-0">
+                Normally runs automatically every day at 8am. Use this to run it immediately, for example to
+                test the release path without waiting for the next daily run. It challenges owners who are
+                still inside their window, and releases any whose window has already elapsed uncancelled.
+              </p>
+            </div>
+            <Button variant="outline-primary" onClick={runVaultReleaseSweepNow} disabled={runningVaultReleaseSweep}>
+              {runningVaultReleaseSweep ? 'Running…' : 'Run vault release sweep now'}
+            </Button>
+          </div>
+        </div>
+
+        {/* Challenge window override */}
+        <div style={{ background: 'var(--parchment)', borderRadius: 12, padding: '24px', border: '1px solid var(--border)', marginTop: 24 }}>
+          <h6 style={{ color: 'var(--green-900)', marginBottom: 4 }}>Vault Release Challenge Window</h6>
+          <p className="text-muted small mb-3">
+            The challenge window is 7 days (168 hours) by default. Shortening it for one account makes a full
+            release testable in minutes instead of a week. Only use this on a test account: it shortens the
+            time that person has to object to being declared dead, and every change is recorded against their
+            account with your admin ID. On a release that is already pending, the deadline is counted from
+            when it went pending, so a window shorter than the time already elapsed is refused rather than
+            releasing the vault on the next sweep.
+          </p>
+          <Row className="g-2 align-items-end" style={{ maxWidth: 560 }}>
+            <Col xs={12} sm={5}>
+              <Form.Label className="small text-muted mb-1">User ID</Form.Label>
+              <Form.Control
+                type="text"
+                inputMode="numeric"
+                value={releaseWindowUserId}
+                onChange={e => setReleaseWindowUserId(e.target.value)}
+                placeholder="e.g. 42"
+              />
+            </Col>
+            <Col xs={12} sm={4}>
+              <Form.Label className="small text-muted mb-1">Window (hours, 1 to 168)</Form.Label>
+              <Form.Control
+                type="number"
+                min={1}
+                max={168}
+                step={1}
+                value={releaseWindowHours}
+                onChange={e => setReleaseWindowHours(e.target.value)}
+                placeholder="e.g. 1"
+              />
+            </Col>
+            <Col xs={12} sm={3}>
+              <Button variant="outline-danger" className="w-100" onClick={saveReleaseWindow} disabled={savingReleaseWindow}>
+                {savingReleaseWindow ? 'Saving…' : 'Set window'}
+              </Button>
+            </Col>
+          </Row>
         </div>
 
         {/* Password Reset Method */}

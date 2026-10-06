@@ -1,11 +1,12 @@
 const express = require('express');
 const router  = express.Router();
-const { queryOne, queryAll, query } = require('../db/database');
+const { queryOne, queryAll, query, transaction } = require('../db/database');
 const auth    = require('../middleware/auth');
 const multer  = require('multer');
 const { uploadFile, getDownloadUrl, deleteFile } = require('../lib/r2');
 const { runBackup, listBackups } = require('../lib/backup');
 const { checkInactivity } = require('../lib/inactivityTimer');
+const { runVaultReleaseChallenges } = require('../lib/releaseChallenge');
 const { matchesExtension } = require('../lib/fileSignature');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } });
@@ -593,6 +594,152 @@ router.post('/inactivity-check/run', auth, adminOnly, async (req, res) => {
     console.error('[inactivity] Manual run failed:', err.message);
     res.status(500).json({ error: "We couldn't run the inactivity check. Please try again." });
   }
+});
+
+// Manually runs the same daily vault-release challenge sweep the 8am cron runs
+// (see index.js and lib/releaseChallenge.js), so the release path can be
+// exercised without waiting out a real seven-day window. Mirrors the inactivity
+// check above. Safe to run anytime, and safe to run twice: every write in the
+// sweep is either a conditional UPDATE that matches nothing on a second pass or
+// is guarded by an "already told" stamp, so it only acts on rows whose window
+// has genuinely lapsed or is due another challenge.
+router.post('/vault-release/run', auth, adminOnly, async (req, res) => {
+  try {
+    const summary = await runVaultReleaseChallenges();
+    res.json({ success: true, ...summary });
+  } catch (err) {
+    console.error('[vault-release] Manual sweep failed:', err.message);
+    res.status(500).json({ error: "We couldn't run the vault release sweep. Please try again." });
+  }
+});
+
+// 168 hours is both the schema default for vault_release.window_hours and the
+// seven days the spec promises, so it is the ceiling here as well as the
+// starting point: this control exists to shorten a window for testing, never to
+// extend one past what the owner was told. One hour is the floor because a zero
+// or negative window would close the moment it opened, which is the one outcome
+// the whole challenge mechanism exists to prevent.
+const VAULT_RELEASE_MIN_WINDOW_HOURS = 1;
+const VAULT_RELEASE_MAX_WINDOW_HOURS = 168;
+
+// How much of a pending window must still be left after this route has
+// finished with it. A bound of "strictly in the future" would still permit a
+// deadline one second away, which is an immediate release wearing a clock, so
+// the floor is a few minutes: long enough for whoever pressed this to notice
+// and cancel, short enough to be useless as a wait.
+const VAULT_RELEASE_MIN_REMAINING_MS = 5 * 60 * 1000;
+const MS_PER_HOUR = 60 * 60 * 1000;
+
+// Shortens (or restores) the challenge window for a single account, so a
+// release can actually be driven to completion in a test rather than theorised
+// about. Per-row by design: lib/releaseChallenge.js reads window_hours off the
+// row on every pass, so this takes effect on an already-pending window too,
+// recomputed from pending_started_at rather than from now.
+//
+// That recomputation is exactly why this route refuses to leave a pending
+// deadline in the past. releaseIfWindowClosed() reads the deadline as
+// pending_started_at + window_hours, so one hour set on a row that went
+// pending two hours ago is a deadline that has already lapsed, and the very
+// next sweep (including the manual one above) releases that vault. Nothing
+// undoes it: POST /users/:id/revert-deceased never touches vault_release, and
+// the owner's own POST /resume refuses a released row. Spec section 9.3 states
+// the principle this follows, that cancelling is safe because it errs toward
+// not releasing while accelerating is not.
+//
+// The refusal is keyed on the resulting deadline rather than on the status,
+// because shortening a pending window to something still in the future is a
+// legitimate thing to want during a test, and a flat "no while pending" would
+// take away the only case the control was built for.
+//
+// This is the most dangerous button in the admin panel, which is why it writes
+// an audit row before it is of any use to anyone. It compresses the period in
+// which a living person can object to having been declared dead, so "who
+// shortened it, for whom, from what, to what" has to survive the session that
+// did it. The audit row and the change are one transaction: a committed audit
+// row beside a failed UPDATE is a trail asserting a change that never
+// happened, which is worse than no trail at all.
+router.post('/users/:id/vault-release-window', auth, adminOnly, async (req, res) => {
+  // Only number and string are accepted: Number() is happy to turn null, true
+  // and single-element arrays into valid-looking integers, and a bound on this
+  // value is worth nothing if the parse can be talked into producing one.
+  const raw = req.body ? req.body.window_hours : undefined;
+  const parseable = (typeof raw === 'number' || (typeof raw === 'string' && raw.trim() !== ''));
+  const hours = parseable ? Number(raw) : NaN;
+  if (!Number.isInteger(hours) || hours < VAULT_RELEASE_MIN_WINDOW_HOURS || hours > VAULT_RELEASE_MAX_WINDOW_HOURS) {
+    return res.status(400).json({
+      error: `Window must be a whole number of hours between ${VAULT_RELEASE_MIN_WINDOW_HOURS} and ${VAULT_RELEASE_MAX_WINDOW_HOURS}.`,
+    });
+  }
+
+  const user = await queryOne('SELECT id FROM users WHERE id = $1 AND is_admin = 0', [req.params.id]);
+  if (!user) return res.status(404).json({ error: 'User not found.' });
+
+  const outcome = await transaction(async (client) => {
+    // FOR UPDATE because the clamp below reads status and pending_started_at
+    // and then acts on them. Without the lock a declaration landing in between
+    // would move the row from armed to pending after the check had already
+    // waved the value through, which is the same past deadline by a slower
+    // route. The lock is on one row of one user and is held for two statements.
+    //
+    // No row means the owner has never armed the envelope. Nothing is created
+    // here: key_enc is NOT NULL and only the owner can produce it, so a window
+    // without an envelope would be a half-built release record.
+    const found = await client.query(
+      'SELECT window_hours, status, pending_started_at FROM vault_release WHERE user_id = $1 FOR UPDATE',
+      [user.id]
+    );
+    const existing = found.rows[0];
+    if (!existing) {
+      return { refusal: { status: 404, error: 'This user has not set up vault release on death, so there is no window to change.' } };
+    }
+
+    if (existing.status === 'pending') {
+      // A pending row with no start time cannot have its deadline reasoned
+      // about at all (windowClosesAt would produce an Invalid Date, which
+      // compares false against now and therefore reads as lapsed), so it is
+      // refused rather than guessed at.
+      if (!existing.pending_started_at) {
+        return { refusal: { status: 409, error: 'This release is pending but has no recorded start time, so its deadline cannot be computed. Cancel the pending release instead.' } };
+      }
+
+      const startedMs  = new Date(existing.pending_started_at).getTime();
+      const closesAtMs = startedMs + hours * MS_PER_HOUR;
+      const earliestMs = Date.now() + VAULT_RELEASE_MIN_REMAINING_MS;
+      if (closesAtMs < earliestMs) {
+        const minHours = Math.max(
+          VAULT_RELEASE_MIN_WINDOW_HOURS,
+          Math.ceil((earliestMs - startedMs) / MS_PER_HOUR)
+        );
+        const error = minHours > VAULT_RELEASE_MAX_WINDOW_HOURS
+          ? 'This release has been pending for longer than the maximum window, so no value here can leave its deadline in the future. Cancel the pending release instead.'
+          : `This release is already pending, and its deadline is measured from when it went pending, not from now. A window of ${hours} hour${hours === 1 ? '' : 's'} has already elapsed, so the next sweep would release the vault straight away. Use at least ${minHours} hours, or cancel the pending release instead.`;
+        return { refusal: { status: 400, error } };
+      }
+    }
+
+    const previousHours = Number(existing.window_hours);
+    await client.query(
+      `INSERT INTO user_audit_logs (user_id, action, metadata) VALUES ($1, 'vault_release_window_hours_changed', $2)`,
+      [user.id, JSON.stringify({
+        changed_by_admin_id: req.user.id,
+        from_window_hours:   previousHours,
+        to_window_hours:     hours,
+        status_at_change:    existing.status,
+      })]
+    );
+
+    // window_hours and nothing else. Status, timers, attempt counters and above
+    // all key_enc are none of this route's business.
+    await client.query('UPDATE vault_release SET window_hours = $1 WHERE user_id = $2', [hours, user.id]);
+
+    return { previousHours, status: existing.status };
+  });
+
+  if (outcome.refusal) {
+    return res.status(outcome.refusal.status).json({ error: outcome.refusal.error });
+  }
+
+  res.json({ success: true, window_hours: hours, previous_window_hours: outcome.previousHours, status: outcome.status });
 });
 
 router.post('/backups/run', auth, adminOnly, async (req, res) => {
