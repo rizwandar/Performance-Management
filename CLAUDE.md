@@ -221,9 +221,13 @@ Enforcement points, since a cap is only real where a route refuses:
   full list lives in `client/src/constants/sections.js`). `funeral_wishes` with
   roles `funeral_main`/`funeral_gallery` is the only entry today; a new section
   with photo uploads has to be added there or its uploads are refused.
-  `POST /api/documents/upload` (general attachments, plus `site_logo`) is
+  `POST /api/documents/upload` (general attachments) is
   deliberately **not** restricted this way: its cap is account-wide, so an
-  invented `section_id` buys nothing there.
+  invented `section_id` buys nothing there. This sentence previously added
+  "plus `site_logo`", which was wrong: branding uploads go through
+  `POST /api/admin/branding/logo` in `server/routes/admin.js`, which writes
+  `branding/logo-<ts>.<ext>` and records the key in `app_settings`, never
+  touching `uploaded_documents` or any plan cap.
 
 Caps apply to **adding**, never to what already exists. An account that filled
 up while paying keeps every item on returning to free; nothing is ever deleted.
