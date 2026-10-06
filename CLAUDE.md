@@ -170,10 +170,12 @@ Current caps (Free / Premium):
 
 Enforcement points, since a cap is only real where a route refuses:
 
-- `sectionCapGuard` in `server/routes/sections.js` guards the five vault
-  sections (legal documents, financial items, property items, household info,
-  digital credentials). Since 2026-10-06 it **does hold a row lock**, in the
-  second of its two halves:
+- `sectionCapGuard` in `server/routes/sections.js` guards **eight** section
+  caps: the five vault sections (legal documents, financial items, property
+  items, household info, digital credentials) since 2026-10-06, and the three
+  non-vault counted sections (personal messages, unfinished business, people to
+  notify) since later the same day. Since 2026-10-06 it **does hold a row
+  lock**, in the second of its two halves:
 
   - `cap.full`, checked at the top of each POST route, is a plain
     `SELECT COUNT(*)` outside any transaction. It only refuses early, before the
@@ -187,15 +189,33 @@ Enforcement points, since a cap is only real where a route refuses:
     early check; an uncapped Premium plan skips the lock and the re-count
     because there is no last slot to race for.
 
-  All five vault POST routes use both halves. Measured on the local dev
-  database, 12 concurrent adds against a cap of 2 now store exactly 2 (before
-  the lock, the equivalent unlocked cap stored 10).
+  All eight POST routes use both halves, so all eight hold the lock. Those
+  eight routes are, exactly:
 
-  **Three non-vault caps still have no lock** and can still overshoot:
-  `POST /sections/messages` (personal messages), `POST /sections/unfinished-business`,
-  and `POST /sections/people-to-notify` each do a plain `SELECT COUNT(*)`
-  followed by an unprotected INSERT. Not addressed by the 2026-10-06 change and
-  not yet a decision either way.
+  - `POST /api/sections/legal-documents`
+  - `POST /api/sections/financial-affairs`
+  - `POST /api/sections/property-possessions`
+  - `POST /api/sections/household-info`
+  - `POST /api/sections/digital-life`
+  - `POST /api/sections/messages`
+  - `POST /api/sections/unfinished-business`
+  - `POST /api/sections/people-to-notify`
+
+  Measured on the local dev database, 12 concurrent adds against a cap of 2
+  now store exactly 2 (before the lock, the equivalent unlocked cap stored 10).
+  The three non-vault routes were the same bug and were measured the same way:
+  before the lock, 12 concurrent adds stored 11 rows against a cap of 2; after
+  it, exactly the cap, with the same wording, status code and validation order
+  as before. A control run with the `FOR UPDATE` line removed overshot again,
+  which is how the test is known to race rather than merely to pass.
+
+  The three non-vault sections keep an older refusal sentence ("You can add up
+  to N ... on the Free plan. Upgrade to Premium to add more.") than the vault
+  five ("Your plan includes N ..."). The guard carries both behind its
+  `wording` option deliberately, so that a concurrency fix did not reword live
+  product text. Converging them is a copy change that also has to move
+  `client/src/constants/planLimits.js`'s notice copy, so it belongs in its own
+  commit. New callers should use the default wording.
 
   The other locked caps, for comparison, are the trusted-contacts cap
   (`server/routes/trustedContacts.js`) and the per-message voice-clip cap

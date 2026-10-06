@@ -166,12 +166,15 @@ router.post('/legal-documents/list', requireAuth, async (req, res) => {
   res.json(items);
 });
 
-// Shared per-section item cap for the vault sections (2026-10-04).
+// Shared per-section item cap. Introduced for the vault sections (2026-10-04),
+// extended on 2026-10-06 to the three non-vault counted sections as well
+// (personal messages, unfinished business, people to notify).
 //
-// These were gated whole by requirePremium: a free user could not open them
-// at all. They are open to everyone now and capped instead, so Premium sells
-// capacity rather than access. The numbers live in lib/planLimits.js, which
-// is the single source of truth; see docs/FREE_VAULT_PLAN.md for the why.
+// The vault sections were gated whole by requirePremium: a free user could not
+// open them at all. They are open to everyone now and capped instead, so
+// Premium sells capacity rather than access. The numbers live in
+// lib/planLimits.js, which is the single source of truth; see
+// docs/FREE_VAULT_PLAN.md for the why.
 //
 // The cap is enforced in two halves, and a POST route needs both:
 //
@@ -180,6 +183,9 @@ router.post('/legal-documents/list', requireAuth, async (req, res) => {
 //   lock below and is kept deliberately: a full account is refused without
 //   paying scryptSync's intentional ~50-100ms cost, and the error returned for
 //   a full account that also sent the wrong vault password does not change.
+//   The three non-vault sections have no vault password step at all, so for
+//   them this half buys nothing but a cheaper refusal; it is used anyway so
+//   all eight capped POSTs read identically.
 //
 //   cap.insert() then runs the INSERT inside a transaction that locks the
 //   owner's users row and re-counts, which is what actually makes the cap
@@ -192,9 +198,7 @@ router.post('/legal-documents/list', requireAuth, async (req, res) => {
 //   one account's adds never serialise another account's.
 //
 // Both halves send their own 400 when they refuse, so call sites read as
-// `if (cap.full) return;` and `if (id === null) return;`. The wording
-// deliberately does not name the paid tier, matching PlanLimitNotice on the
-// client: the upgrade page is where the plan gets explained.
+// `if (cap.full) return;` and `if (id === null) return;`.
 //
 // The only table names this guard will ever query. A table name cannot be a
 // bound parameter, so it has to be interpolated; every value passed today is
@@ -204,15 +208,49 @@ router.post('/legal-documents/list', requireAuth, async (req, res) => {
 const CAPPED_TABLES = new Set([
   'legal_documents', 'financial_items', 'property_items', 'household_info',
   'digital_credentials',
+  // Added 2026-10-06 when the three non-vault counted sections moved onto this
+  // guard. They were doing a plain SELECT COUNT(*) then an unprotected INSERT,
+  // and 12 concurrent adds measurably stored up to 11 rows against a cap of 2.
+  'personal_messages', 'unfinished_business', 'people_to_notify',
 ]);
 
-async function sectionCapGuard(req, res, { limitKey, table, noun }) {
+// Two refusal wordings are live in the product today. The five vault sections
+// say "Your plan includes N ...", the three non-vault sections say "You can add
+// up to N ... on the Free plan". Converging them is a copy change with its own
+// review and its own client-side mirror to keep in step, so this guard carries
+// both rather than silently rewording live product text as a side effect of a
+// concurrency fix. The Premium sentence is already identical in both, so only
+// the free-plan sentence varies here.
+//
+// 'plan-includes' deliberately does not name the paid tier, matching
+// PlanLimitNotice on the client: the upgrade page is where the plan gets
+// explained. 'free-plan' is the older wording and does name it. New callers
+// should use the default.
+//
+// Null-prototype so the lookup below cannot be satisfied by an inherited key.
+// A plain object literal answers to 'constructor', 'toString' and 'valueOf',
+// which would slip past the `if (!freeWording) throw` guard and put a function
+// object where a sentence belongs. No caller can reach that today, since every
+// call site passes a literal, but the table allowlist beside this one is a Set
+// and is therefore safe by construction rather than by convention. These two
+// guards sit together and should be equally strong, so that reading one does
+// not teach the wrong lesson about the other.
+const CAP_REFUSAL_FREE_WORDING = Object.assign(Object.create(null), {
+  'plan-includes': (limit, noun) =>
+    `Your plan includes ${limit} ${noun}. Upgrade your account if you would like to add more.`,
+  'free-plan': (limit, noun) =>
+    `You can add up to ${limit} ${noun} on the Free plan. Upgrade to Premium to add more.`,
+});
+
+async function sectionCapGuard(req, res, { limitKey, table, noun, wording = 'plan-includes' }) {
   if (!CAPPED_TABLES.has(table)) throw new Error(`sectionCapGuard: unknown table ${table}`);
+  const freeWording = CAP_REFUSAL_FREE_WORDING[wording];
+  if (!freeWording) throw new Error(`sectionCapGuard: unknown wording ${wording}`);
   const plan = await getUserPlan(req.user.id);
   const limit = getLimit(limitKey, plan);
   const refuse = () => res.status(400).json({
     error: plan !== 'premium'
-      ? `Your plan includes ${limit} ${noun}. Upgrade your account if you would like to add more.`
+      ? freeWording(limit, noun)
       : `You can add up to ${limit} ${noun}.`,
   });
 
@@ -520,21 +558,20 @@ router.get('/people-to-notify', requireAuth, async (req, res) => {
 router.post('/people-to-notify', requireAuth, checkPlanLock, async (req, res) => {
   const { name, relationship, email, phone, notified_by, notes } = req.body;
   if (!name) return res.status(400).json({ error: 'A name is required.' });
-  const plan = await getUserPlan(req.user.id);
-  const limit = getLimit('people_to_notify', plan);
-  const existingCount = await queryOne('SELECT COUNT(*)::int AS c FROM people_to_notify WHERE user_id = $1', [req.user.id]);
-  if (existingCount.c >= limit) {
-    return res.status(400).json({
-      error: plan !== 'premium'
-        ? `You can add up to ${limit} people on the Free plan. Upgrade to Premium to add more.`
-        : `You can add up to ${limit} people.`,
-    });
-  }
-  const result = await query(`
+  // The name check stays ahead of the cap check, as it was before this route
+  // moved onto sectionCapGuard: a request with no name is malformed whether or
+  // not the account has room, and swapping the two would change which error a
+  // full account sees for an empty form.
+  const cap = await sectionCapGuard(req, res, {
+    limitKey: 'people_to_notify', table: 'people_to_notify', noun: 'people', wording: 'free-plan',
+  });
+  if (cap.full) return;
+  const id = await cap.insert((client) => client.query(`
     INSERT INTO people_to_notify (user_id, name, relationship, email, phone, notified_by, notes)
     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id
-  `, [req.user.id, name, relationship || null, email || null, phone || null, notified_by || null, notes || null]);
-  res.status(201).json({ id: result.rows[0].id });
+  `, [req.user.id, name, relationship || null, email || null, phone || null, notified_by || null, notes || null]));
+  if (id === null) return;
+  res.status(201).json({ id });
 });
 
 router.put('/people-to-notify/:id', requireAuth, checkPlanLock, async (req, res) => {
@@ -652,21 +689,18 @@ router.get('/messages', requireAuth, async (req, res) => {
 router.post('/messages', requireAuth, checkPlanLock, async (req, res) => {
   const { recipient_name, relationship, message, notes } = req.body;
   if (!recipient_name) return res.status(400).json({ error: 'A recipient name is required.' });
-  const plan = await getUserPlan(req.user.id);
-  const limit = getLimit('personal_messages', plan);
-  const existingCount = await queryOne('SELECT COUNT(*)::int AS c FROM personal_messages WHERE user_id = $1', [req.user.id]);
-  if (existingCount.c >= limit) {
-    return res.status(400).json({
-      error: plan !== 'premium'
-        ? `You can add up to ${limit} messages on the Free plan. Upgrade to Premium to add more.`
-        : `You can add up to ${limit} messages.`,
-    });
-  }
-  const result = await query(`
+  // Recipient-name check stays ahead of the cap check, same reasoning as
+  // POST /people-to-notify above.
+  const cap = await sectionCapGuard(req, res, {
+    limitKey: 'personal_messages', table: 'personal_messages', noun: 'messages', wording: 'free-plan',
+  });
+  if (cap.full) return;
+  const id = await cap.insert((client) => client.query(`
     INSERT INTO personal_messages (user_id, recipient_name, relationship, message, notes)
     VALUES ($1, $2, $3, $4, $5) RETURNING id
-  `, [req.user.id, recipient_name, relationship || null, message || null, notes || null]);
-  res.status(201).json({ id: result.rows[0].id });
+  `, [req.user.id, recipient_name, relationship || null, message || null, notes || null]));
+  if (id === null) return;
+  res.status(201).json({ id });
 });
 
 router.put('/messages/:id', requireAuth, checkPlanLock, async (req, res) => {
@@ -1369,21 +1403,18 @@ router.get('/unfinished-business', requireAuth, async (req, res) => {
 router.post('/unfinished-business', requireAuth, checkPlanLock, async (req, res) => {
   const { name, description, notes } = req.body;
   if (!name) return res.status(400).json({ error: 'A name is required.' });
-  const plan = await getUserPlan(req.user.id);
-  const limit = getLimit('unfinished_business', plan);
-  const existingCount = await queryOne('SELECT COUNT(*)::int AS c FROM unfinished_business WHERE user_id = $1', [req.user.id]);
-  if (existingCount.c >= limit) {
-    return res.status(400).json({
-      error: plan !== 'premium'
-        ? `You can add up to ${limit} entries on the Free plan. Upgrade to Premium to add more.`
-        : `You can add up to ${limit} entries.`,
-    });
-  }
-  const result = await query(`
+  // Name check stays ahead of the cap check, same reasoning as
+  // POST /people-to-notify above.
+  const cap = await sectionCapGuard(req, res, {
+    limitKey: 'unfinished_business', table: 'unfinished_business', noun: 'entries', wording: 'free-plan',
+  });
+  if (cap.full) return;
+  const id = await cap.insert((client) => client.query(`
     INSERT INTO unfinished_business (user_id, name, description, notes)
     VALUES ($1, $2, $3, $4) RETURNING id
-  `, [req.user.id, name, description || null, notes || null]);
-  res.status(201).json({ id: result.rows[0].id });
+  `, [req.user.id, name, description || null, notes || null]));
+  if (id === null) return;
+  res.status(201).json({ id });
 });
 
 router.put('/unfinished-business/:id', requireAuth, checkPlanLock, async (req, res) => {
