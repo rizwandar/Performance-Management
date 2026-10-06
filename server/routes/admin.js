@@ -6,6 +6,7 @@ const multer  = require('multer');
 const { uploadFile, getDownloadUrl, deleteFile } = require('../lib/r2');
 const { runBackup, listBackups } = require('../lib/backup');
 const { checkInactivity } = require('../lib/inactivityTimer');
+const { runVaultReleaseChallenges } = require('../lib/releaseChallenge');
 const { matchesExtension } = require('../lib/fileSignature');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } });
@@ -593,6 +594,86 @@ router.post('/inactivity-check/run', auth, adminOnly, async (req, res) => {
     console.error('[inactivity] Manual run failed:', err.message);
     res.status(500).json({ error: "We couldn't run the inactivity check. Please try again." });
   }
+});
+
+// Manually runs the same daily vault-release challenge sweep the 8am cron runs
+// (see index.js and lib/releaseChallenge.js), so the release path can be
+// exercised without waiting out a real seven-day window. Mirrors the inactivity
+// check above. Safe to run anytime, and safe to run twice: every write in the
+// sweep is either a conditional UPDATE that matches nothing on a second pass or
+// is guarded by an "already told" stamp, so it only acts on rows whose window
+// has genuinely lapsed or is due another challenge.
+router.post('/vault-release/run', auth, adminOnly, async (req, res) => {
+  try {
+    const summary = await runVaultReleaseChallenges();
+    res.json({ success: true, ...summary });
+  } catch (err) {
+    console.error('[vault-release] Manual sweep failed:', err.message);
+    res.status(500).json({ error: "We couldn't run the vault release sweep. Please try again." });
+  }
+});
+
+// 168 hours is both the schema default for vault_release.window_hours and the
+// seven days the spec promises, so it is the ceiling here as well as the
+// starting point: this control exists to shorten a window for testing, never to
+// extend one past what the owner was told. One hour is the floor because a zero
+// or negative window would close the moment it opened, which is the one outcome
+// the whole challenge mechanism exists to prevent.
+const VAULT_RELEASE_MIN_WINDOW_HOURS = 1;
+const VAULT_RELEASE_MAX_WINDOW_HOURS = 168;
+
+// Shortens (or restores) the challenge window for a single account, so a
+// release can actually be driven to completion in a test rather than theorised
+// about. Per-row by design: lib/releaseChallenge.js reads window_hours off the
+// row on every pass, so this takes effect on an already-pending window too,
+// recomputed from pending_started_at rather than from now.
+//
+// This is the most dangerous button in the admin panel, which is why it writes
+// an audit row before it is of any use to anyone. It compresses the period in
+// which a living person can object to having been declared dead, so "who
+// shortened it, for whom, from what, to what" has to survive the session that
+// did it. The audit write is awaited and not fire-and-forget: if the trail
+// cannot be written the change does not happen.
+router.post('/users/:id/vault-release-window', auth, adminOnly, async (req, res) => {
+  // Only number and string are accepted: Number() is happy to turn null, true
+  // and single-element arrays into valid-looking integers, and a bound on this
+  // value is worth nothing if the parse can be talked into producing one.
+  const raw = req.body ? req.body.window_hours : undefined;
+  const parseable = (typeof raw === 'number' || (typeof raw === 'string' && raw.trim() !== ''));
+  const hours = parseable ? Number(raw) : NaN;
+  if (!Number.isInteger(hours) || hours < VAULT_RELEASE_MIN_WINDOW_HOURS || hours > VAULT_RELEASE_MAX_WINDOW_HOURS) {
+    return res.status(400).json({
+      error: `Window must be a whole number of hours between ${VAULT_RELEASE_MIN_WINDOW_HOURS} and ${VAULT_RELEASE_MAX_WINDOW_HOURS}.`,
+    });
+  }
+
+  const user = await queryOne('SELECT id FROM users WHERE id = $1 AND is_admin = 0', [req.params.id]);
+  if (!user) return res.status(404).json({ error: 'User not found.' });
+
+  // No row means the owner has never armed the envelope. Nothing is created
+  // here: key_enc is NOT NULL and only the owner can produce it, so a window
+  // without an envelope would be a half-built release record.
+  const existing = await queryOne('SELECT window_hours, status FROM vault_release WHERE user_id = $1', [user.id]);
+  if (!existing) {
+    return res.status(404).json({ error: 'This user has not set up vault release on death, so there is no window to change.' });
+  }
+
+  const previousHours = Number(existing.window_hours);
+  await query(
+    `INSERT INTO user_audit_logs (user_id, action, metadata) VALUES ($1, 'vault_release_window_hours_changed', $2)`,
+    [user.id, JSON.stringify({
+      changed_by_admin_id: req.user.id,
+      from_window_hours:   previousHours,
+      to_window_hours:     hours,
+      status_at_change:    existing.status,
+    })]
+  );
+
+  // window_hours and nothing else. Status, timers, attempt counters and above
+  // all key_enc are none of this route's business.
+  await query('UPDATE vault_release SET window_hours = $1 WHERE user_id = $2', [hours, user.id]);
+
+  res.json({ success: true, window_hours: hours, previous_window_hours: previousHours, status: existing.status });
 });
 
 router.post('/backups/run', auth, adminOnly, async (req, res) => {
