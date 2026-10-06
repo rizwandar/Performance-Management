@@ -11,6 +11,13 @@ const { generateAccessLink } = require('../lib/inactivityTimer');
 const { stripe } = require('../lib/stripe');
 const { blockViewAs } = require('../lib/viewAsGuard');
 const checkPlanLock = require('../middleware/planLock');
+const { getUserPlan } = require('../lib/subscription');
+// The Legacy Contact cap check lives next to the rest of the trusted contacts
+// cap logic and is reused from here, not copied: the Profile page's spouse
+// checkbox moves the same role, so a second copy of the limit, the
+// is_executor filter or the wording would be free to drift out of step with
+// the route that is meant to be authoritative.
+const { demotionCapRefusal } = require('./trustedContacts');
 
 const CLIENT_URL  = process.env.CLIENT_URL  || 'http://localhost:5173';
 
@@ -74,77 +81,127 @@ router.get('/me', auth, async (req, res) => {
   res.json({ ...user, has_security_question: !!user.security_question, songs, bucket_list });
 });
 
+// Thrown by syncSpouseExecutor when the save would push the account over its
+// trusted contacts allowance. Tagged rather than typed so the route can tell
+// it apart from a real failure, and thrown rather than returned so it aborts
+// the whole transaction: the profile row must not be left saying the spouse is
+// (or is not) the Legacy Contact when the trusted_contacts rows were not
+// changed to match. See the route's catch for why refusing the whole save is
+// the chosen behaviour.
+function capRefusalError(message) {
+  const err = new Error(message);
+  err.legacyContactCapReached = true;
+  return err;
+}
+
 // OPS-15: keeps the Profile page's "designate my spouse as executor" checkbox
 // in sync with a trusted_contacts row, without duplicating the executor logic
 // already in trustedContacts.js. Runs after the users row is saved, using the
-// values just written. Only ever touches the one row flagged
-// linked_to_profile_spouse for this user, so it never collides with contacts
-// the owner added by hand on the Trusted Contacts page (even one that happens
-// to also be named after their spouse).
-async function syncSpouseExecutor(userId, { marital_status, spouse_name, spouse_email, spouse_phone, spouse_is_executor }) {
+// values just written, on the same transaction client so the two cannot
+// disagree. Only ever touches the one row flagged linked_to_profile_spouse for
+// this user, so it never collides with contacts the owner added by hand on the
+// Trusted Contacts page (even one that happens to also be named after their
+// spouse).
+//
+// The caller must already hold the owner row lock. Every path below that turns
+// an exempt Legacy Contact row into an ordinary contact is a cap-relevant
+// addition to the capped list, and the Legacy Contact exemption is only safe
+// while all of them are guarded: this checkbox can both demote (untick) and
+// displace (tick, while someone else holds the role), and when neither was
+// checked the two together were an unbounded free-slot generator. Untick to
+// demote the exempt spouse into an ordinary contact, designate a fresh exempt
+// Legacy Contact (allowed, since none exists), re-tick to launder that one
+// into an ordinary contact as well, and repeat: one extra ordinary contact per
+// cycle, for ever. Hence demotionCapRefusal below, shared with
+// routes/trustedContacts.js rather than reimplemented.
+async function syncSpouseExecutor(client, userId, { marital_status, spouse_name, spouse_email, spouse_phone, spouse_is_executor }, plan) {
   const eligible = ['Married', 'Common-law / Domestic Partner'].includes(marital_status)
     && !!spouse_name && !!spouse_is_executor;
 
-  const linked = await queryOne(
+  const linked = (await client.query(
     'SELECT * FROM trusted_contacts WHERE user_id = $1 AND linked_to_profile_spouse = true',
     [userId]
-  );
+  )).rows[0] ?? null;
 
   if (!eligible) {
     // Box unchecked, or the spouse fields no longer apply (e.g. marital
     // status changed). Leave the contact record itself alone, an owner may
     // still want their spouse listed as a contact, just not as executor.
     if (linked && linked.is_executor) {
-      await query('UPDATE trusted_contacts SET is_executor = 0 WHERE id = $1', [linked.id]);
+      // The spouse keeps their row and rejoins the ordinary list, so this is
+      // an addition to the capped list and is refused when it is full. Not
+      // deleting the row instead: the row is the person, and silently removing
+      // a trusted contact to make room for a limit would destroy data the
+      // owner entered.
+      const refusal = await demotionCapRefusal(client, userId, plan, 'your spouse');
+      if (refusal) throw capRefusalError(refusal);
+      await client.query('UPDATE trusted_contacts SET is_executor = 0 WHERE id = $1', [linked.id]);
     }
     return null;
   }
 
   if (linked) {
     const wasExecutor = !!linked.is_executor;
-    await transaction(async (client) => {
-      await client.query('UPDATE trusted_contacts SET is_executor = 0 WHERE user_id = $1', [userId]);
-      await client.query(
-        `UPDATE trusted_contacts SET name = $1, relationship = $2, email = $3, phone = $4, is_executor = 1 WHERE id = $5`,
-        [spouse_name, 'Spouse', spouse_email || null, spouse_phone || null, linked.id]
-      );
-    });
+    // No cap check on this path, deliberately. The blanket clear demotes
+    // whatever other row holds the role, but the linked spouse row takes the
+    // role in the same breath, so the capped list is net unchanged:
+    // trusted_contacts_one_executor (a partial unique index on user_id WHERE
+    // is_executor = 1, see db/database.js) means at most one row holds it, so
+    // a row being demoted here implies the spouse row was an ordinary contact
+    // and is now leaving that list. Checking here would refuse a swap that
+    // does not grow the list at all.
+    await client.query('UPDATE trusted_contacts SET is_executor = 0 WHERE user_id = $1', [userId]);
+    await client.query(
+      `UPDATE trusted_contacts SET name = $1, relationship = $2, email = $3, phone = $4, is_executor = 1 WHERE id = $5`,
+      [spouse_name, 'Spouse', spouse_email || null, spouse_phone || null, linked.id]
+    );
     // Only report back (and email) if this save is what newly turned the
     // flag on, resaving an already-executor spouse shouldn't re-notify them.
     return wasExecutor ? null : { id: linked.id, name: spouse_name, email: spouse_email || null };
   }
 
-  // No linked contact yet, so this save creates one. The trusted contact cap
-  // used to be checked here and the sync skipped when the owner had already
-  // used every slot on other people. That check is gone (2026-10-04): the
-  // Legacy Contact is a separate, free allowance and never consumes a trusted
-  // contact slot, so the row this creates is exempt from the cap in exactly
-  // the way the one created by routes/trustedContacts.js is. The row is
-  // created with is_executor = 1 from the outset, so it is never counted as an
-  // ordinary contact even for an instant.
+  // No linked contact yet, so this save creates one. The cap no longer refuses
+  // the creation itself and no longer skips the sync (2026-10-04): the Legacy
+  // Contact is a separate, free allowance and never consumes a trusted contact
+  // slot, so the row this creates is exempt from the cap in exactly the way
+  // the one created by routes/trustedContacts.js is. The row is created with
+  // is_executor = 1 from the outset, so it is never counted as an ordinary
+  // contact even for an instant.
   //
+  // What the cap does still refuse here is the side effect: the row this
+  // creates is exempt, and it was never an ordinary contact, so
+  // nothing leaves the capped list to offset the row the blanket clear below
+  // demotes. That demotion therefore grows the capped list by one and is
+  // refused when it is full. Without this, deleting the linked spouse row and
+  // re-ticking the box reopens the same unbounded cycle the untick path above
+  // closes, just one route further along.
+  const held = await client.query(
+    'SELECT id FROM trusted_contacts WHERE user_id = $1 AND is_executor = 1', [userId]
+  );
+  if (held.rowCount > 0) {
+    const refusal = await demotionCapRefusal(client, userId, plan, 'the person who holds it now');
+    if (refusal) throw capRefusalError(refusal);
+  }
+
   // The position is the lowest free one, searched without an upper bound. It
   // used to be searched only up to the plan limit, which was unreachable while
   // the cap check above stood but would now hand the INSERT an undefined
   // sequence on a full account and write a NULL position.
   const taken = new Set(
-    (await queryAll('SELECT sequence FROM trusted_contacts WHERE user_id = $1', [userId])).map(r => r.sequence)
+    (await client.query('SELECT sequence FROM trusted_contacts WHERE user_id = $1', [userId])).rows.map(r => r.sequence)
   );
   let sequence = 1;
   while (taken.has(sequence)) sequence += 1;
 
-  const newContactId = await transaction(async (client) => {
-    await client.query('UPDATE trusted_contacts SET is_executor = 0 WHERE user_id = $1', [userId]);
-    const r = await client.query(`
-      INSERT INTO trusted_contacts
-        (user_id, sequence, name, relationship, email, phone, is_executor, linked_to_profile_spouse)
-      VALUES ($1, $2, $3, 'Spouse', $4, $5, 1, true)
-      RETURNING id
-    `, [userId, sequence, spouse_name, spouse_email || null, spouse_phone || null]);
-    return r.rows[0].id;
-  });
+  await client.query('UPDATE trusted_contacts SET is_executor = 0 WHERE user_id = $1', [userId]);
+  const inserted = await client.query(`
+    INSERT INTO trusted_contacts
+      (user_id, sequence, name, relationship, email, phone, is_executor, linked_to_profile_spouse)
+    VALUES ($1, $2, $3, 'Spouse', $4, $5, 1, true)
+    RETURNING id
+  `, [userId, sequence, spouse_name, spouse_email || null, spouse_phone || null]);
 
-  return { id: newContactId, name: spouse_name, email: spouse_email || null };
+  return { id: inserted.rows[0].id, name: spouse_name, email: spouse_email || null };
 }
 
 router.put('/me', auth, async (req, res) => {
@@ -164,66 +221,93 @@ router.put('/me', auth, async (req, res) => {
     // field falls back to what's already there, same merge convention already
     // used by every list-section PUT route in sections.js (e.g.
     // /people-to-notify/:id, /lifes-wishes/:id).
-    const existing = await queryOne(`
-      SELECT name, email, date_of_birth, about_me, legacy_message, life_story, remembered_for,
-             emergency_contact_name, emergency_contact_phone, emergency_contact_email,
-             emergency_contact_relationship, emergency_contact_notes,
-             marital_status, spouse_name, spouse_phone, spouse_email, spouse_is_executor
-      FROM users WHERE id = $1
-    `, [req.user.id]);
-    if (!existing) return res.status(404).json({ error: 'User not found.' });
+    // The plan is read before the transaction opens: it is not part of the
+    // contended state, and getUserPlan runs on the pool rather than this
+    // client.
+    const plan = await getUserPlan(req.user.id);
 
-    const merged = {
-      name:                           name ?? existing.name,
-      email:                          email ?? existing.email,
-      date_of_birth:                  date_of_birth ?? existing.date_of_birth,
-      about_me:                       about_me ?? existing.about_me,
-      legacy_message:                 legacy_message ?? existing.legacy_message,
-      life_story:                     life_story ?? existing.life_story,
-      remembered_for:                 remembered_for ?? existing.remembered_for,
-      emergency_contact_name:         emergency_contact_name ?? existing.emergency_contact_name,
-      emergency_contact_phone:        emergency_contact_phone ?? existing.emergency_contact_phone,
-      emergency_contact_email:        emergency_contact_email ?? existing.emergency_contact_email,
-      emergency_contact_relationship: emergency_contact_relationship ?? existing.emergency_contact_relationship,
-      emergency_contact_notes:        emergency_contact_notes ?? existing.emergency_contact_notes,
-      marital_status:                 marital_status ?? existing.marital_status,
-      spouse_name:                    spouse_name ?? existing.spouse_name,
-      spouse_phone:                   spouse_phone ?? existing.spouse_phone,
-      spouse_email:                   spouse_email ?? existing.spouse_email,
-      // An absent spouse_is_executor (a page that doesn't send it at all,
-      // e.g. EmergencyContactPage.jsx) must never clear an existing executor
-      // designation - only an explicitly-present value in the request acts.
-      spouse_is_executor: spouse_is_executor !== undefined ? !!spouse_is_executor : existing.spouse_is_executor,
-    };
+    // One transaction for the users row and the trusted_contacts row the
+    // spouse checkbox owns, holding the owner row lock throughout. Both are
+    // needed for the cap:
+    //   - the lock makes the count syncSpouseExecutor checks authoritative, so
+    //     two concurrent saves cannot both see room for the same slot (the
+    //     same discipline as the add route in routes/trustedContacts.js)
+    //   - one transaction means a refusal rolls the profile write back too,
+    //     instead of leaving users.spouse_is_executor claiming something the
+    //     contact rows do not reflect
+    const result = await transaction(async (client) => {
+      await client.query('SELECT id FROM users WHERE id = $1 FOR UPDATE', [req.user.id]);
 
-    await query(`
-      UPDATE users SET name=$1, email=$2, date_of_birth=$3, about_me=$4, legacy_message=$5,
-        life_story=$6, remembered_for=$7,
-        emergency_contact_name=$8, emergency_contact_phone=$9, emergency_contact_email=$10,
-        marital_status=$11, spouse_name=$12, spouse_phone=$13, spouse_email=$14,
-        spouse_is_executor=$15, emergency_contact_relationship=$16, emergency_contact_notes=$17
-      WHERE id=$18
-    `, [
-      merged.name, merged.email, merged.date_of_birth, merged.about_me, merged.legacy_message,
-      merged.life_story, merged.remembered_for,
-      merged.emergency_contact_name, merged.emergency_contact_phone, merged.emergency_contact_email,
-      merged.marital_status, merged.spouse_name, merged.spouse_phone, merged.spouse_email,
-      merged.spouse_is_executor, merged.emergency_contact_relationship, merged.emergency_contact_notes,
-      req.user.id,
-    ]);
+      const existing = (await client.query(`
+        SELECT name, email, date_of_birth, about_me, legacy_message, life_story, remembered_for,
+               emergency_contact_name, emergency_contact_phone, emergency_contact_email,
+               emergency_contact_relationship, emergency_contact_notes,
+               marital_status, spouse_name, spouse_phone, spouse_email, spouse_is_executor
+        FROM users WHERE id = $1
+      `, [req.user.id])).rows[0] ?? null;
+      if (!existing) return { notFound: true };
 
-    // Pass the merged (effective, post-save) values, not the raw request
-    // body, so a partial save that omits the spouse fields entirely evaluates
-    // eligibility against what's actually now in the users row - not against
-    // undefined, which would otherwise read as "not eligible" and wrongly
-    // clear an existing executor designation (REV-02).
-    const syncResult = await syncSpouseExecutor(req.user.id, {
-      marital_status:     merged.marital_status,
-      spouse_name:        merged.spouse_name,
-      spouse_email:       merged.spouse_email,
-      spouse_phone:       merged.spouse_phone,
-      spouse_is_executor: merged.spouse_is_executor,
+      const merged = {
+        name:                           name ?? existing.name,
+        email:                          email ?? existing.email,
+        date_of_birth:                  date_of_birth ?? existing.date_of_birth,
+        about_me:                       about_me ?? existing.about_me,
+        legacy_message:                 legacy_message ?? existing.legacy_message,
+        life_story:                     life_story ?? existing.life_story,
+        remembered_for:                 remembered_for ?? existing.remembered_for,
+        emergency_contact_name:         emergency_contact_name ?? existing.emergency_contact_name,
+        emergency_contact_phone:        emergency_contact_phone ?? existing.emergency_contact_phone,
+        emergency_contact_email:        emergency_contact_email ?? existing.emergency_contact_email,
+        emergency_contact_relationship: emergency_contact_relationship ?? existing.emergency_contact_relationship,
+        emergency_contact_notes:        emergency_contact_notes ?? existing.emergency_contact_notes,
+        marital_status:                 marital_status ?? existing.marital_status,
+        spouse_name:                    spouse_name ?? existing.spouse_name,
+        spouse_phone:                   spouse_phone ?? existing.spouse_phone,
+        spouse_email:                   spouse_email ?? existing.spouse_email,
+        // An absent spouse_is_executor (a page that doesn't send it at all,
+        // e.g. EmergencyContactPage.jsx) must never clear an existing executor
+        // designation - only an explicitly-present value in the request acts.
+        spouse_is_executor: spouse_is_executor !== undefined ? !!spouse_is_executor : existing.spouse_is_executor,
+      };
+
+      await client.query(`
+        UPDATE users SET name=$1, email=$2, date_of_birth=$3, about_me=$4, legacy_message=$5,
+          life_story=$6, remembered_for=$7,
+          emergency_contact_name=$8, emergency_contact_phone=$9, emergency_contact_email=$10,
+          marital_status=$11, spouse_name=$12, spouse_phone=$13, spouse_email=$14,
+          spouse_is_executor=$15, emergency_contact_relationship=$16, emergency_contact_notes=$17
+        WHERE id=$18
+      `, [
+        merged.name, merged.email, merged.date_of_birth, merged.about_me, merged.legacy_message,
+        merged.life_story, merged.remembered_for,
+        merged.emergency_contact_name, merged.emergency_contact_phone, merged.emergency_contact_email,
+        merged.marital_status, merged.spouse_name, merged.spouse_phone, merged.spouse_email,
+        merged.spouse_is_executor, merged.emergency_contact_relationship, merged.emergency_contact_notes,
+        req.user.id,
+      ]);
+
+      // Pass the merged (effective, post-save) values, not the raw request
+      // body, so a partial save that omits the spouse fields entirely evaluates
+      // eligibility against what's actually now in the users row - not against
+      // undefined, which would otherwise read as "not eligible" and wrongly
+      // clear an existing executor designation (REV-02).
+      //
+      // This can throw capRefusalError, which rolls the UPDATE above back with
+      // it. That is the point: the checkbox and the Legacy Contact row either
+      // move together or neither moves.
+      const syncResult = await syncSpouseExecutor(client, req.user.id, {
+        marital_status:     merged.marital_status,
+        spouse_name:        merged.spouse_name,
+        spouse_email:       merged.spouse_email,
+        spouse_phone:       merged.spouse_phone,
+        spouse_is_executor: merged.spouse_is_executor,
+      }, plan);
+
+      return { syncResult };
     });
+
+    if (result.notFound) return res.status(404).json({ error: 'User not found.' });
+    const syncResult = result.syncResult;
 
     // spouse_executor_blocked is gone with the cap check that produced it: the
     // Legacy Contact no longer uses a trusted contact slot, so a full trusted
@@ -258,6 +342,20 @@ router.put('/me', auth, async (req, res) => {
 
     res.json({ success: true, ...responseExtra });
   } catch (err) {
+    // The spouse checkbox would have moved the Legacy Contact role in a way
+    // that grows the ordinary trusted contacts list past the plan's
+    // allowance. The whole save is refused rather than partly applied: the
+    // alternative (save everything else and quietly leave the checkbox where
+    // it was) tells the owner their profile saved while one field silently did
+    // not, and the honest alternatives both cost more than they are worth here
+    // (deleting a contact to make room would destroy data the owner entered,
+    // and a second "saved, except for this" response shape would need client
+    // copy to surface it at all). Refusing loses nothing: ProfilePage.jsx
+    // keeps the form as typed and shows this sentence, so the owner makes room
+    // and saves again.
+    if (err && err.legacyContactCapReached) {
+      return res.status(400).json({ error: `${err.message} Your other profile changes were not saved.` });
+    }
     if (err.code === '23505') {
       return res.status(409).json({ error: 'That email address is already registered to another account.' });
     }

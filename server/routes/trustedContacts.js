@@ -83,11 +83,45 @@ function capMessage(plan, limit) {
 // Separate wording for the one case where the cap bites on a removal rather
 // than an addition: giving up the Legacy Contact role moves that person back
 // onto the trusted contacts list, which is an addition to it.
-function demoteCapMessage(plan, limit) {
-  const base = `Removing the Legacy Contact role would move this person back to your trusted contacts, and you already have ${limit}.`;
+//
+// `subject` names whoever is losing the role, because the same refusal is
+// reported from the Profile page's spouse checkbox (routes/users.js), where
+// the person displaced is either the owner's spouse or the contact who holds
+// the role today, not the contact named in the URL. One template with a
+// substituted subject rather than a second copy of the sentence, so the
+// wording cannot drift between the two routes.
+function demoteCapMessage(plan, limit, subject = 'this person') {
+  const base = `Removing the Legacy Contact role would move ${subject} back to your trusted contacts, and you already have ${limit}.`;
   return plan !== 'premium'
     ? `${base} Remove a trusted contact first, or upgrade your account if you would like room for more.`
     : `${base} Remove a trusted contact first.`;
+}
+
+// The one cap check for "an exempt Legacy Contact row is about to become an
+// ordinary contact", shared by every route that can cause that.
+//
+// It has to be shared rather than copied because the exemption is only safe
+// while EVERY such path is guarded. A row that can be converted from exempt
+// to ordinary without passing the cap is a free slot generator: designate an
+// exempt Legacy Contact, convert them to ordinary, designate another, and the
+// ordinary list grows without bound. routes/users.js's spouse checkbox was
+// exactly that hole (it moves the role, from two places, and checked
+// nothing), so it now calls this.
+//
+// Returns the refusal sentence, or null when there is room. The caller must
+// already hold the owner row lock (SELECT ... FOR UPDATE on users, as the add
+// route below does) and must apply the demotion in the same transaction:
+// without that, two concurrent saves both read a count with room and both
+// demote, which is the same race that once stored 11 contacts against a cap
+// of 10.
+async function demotionCapRefusal(client, userId, plan, subject) {
+  const limit = getLimit('trusted_contacts', plan);
+  if (limit === Infinity) return null;
+  const ordinary = await client.query(
+    `SELECT COUNT(*)::int AS c FROM trusted_contacts WHERE user_id = $1 AND ${ORDINARY_ONLY}`,
+    [userId]
+  );
+  return ordinary.rows[0].c >= limit ? demoteCapMessage(plan, limit, subject) : null;
 }
 
 // Tells a newly designated Legacy Contact what the role means right away,
@@ -333,37 +367,67 @@ router.put('/:id/executor', requireAuth, checkPlanLock, async (req, res) => {
   if (!contact) return res.status(404).json({ error: 'Contact not found.' });
 
   const { is_executor } = req.body;
+  const plan = await getUserPlan(req.user.id);
 
-  // Giving up the role moves this person back onto the ordinary trusted
-  // contacts list, which is an addition to it, so the cap applies here just as
-  // it does when adding one. Refusing is also what keeps the exemption from
-  // being farmed: create an exempt Legacy Contact, demote them, create
-  // another, and an account could hold any number of ordinary contacts.
-  if (!is_executor && contact.is_executor) {
-    const plan  = await getUserPlan(req.user.id);
-    const limit = getLimit('trusted_contacts', plan);
-    const ordinary = await queryOne(
-      `SELECT COUNT(*)::int as c FROM trusted_contacts WHERE user_id = $1 AND ${ORDINARY_ONLY}`,
-      [req.user.id]
-    );
-    if (ordinary.c >= limit) {
-      return res.status(400).json({ error: demoteCapMessage(plan, limit) });
-    }
-  }
+  // Set inside the transaction and acted on after it, so the refusal path
+  // leaves the transaction to roll back without writing anything.
+  let refusal = null;
 
   await transaction(async (client) => {
+    // Owner row lock before counting, same discipline as the add route above
+    // and for the same reason: the cap check below and the UPDATEs that act on
+    // its answer must see one consistent count, or two concurrent demotions
+    // both find room and the account ends up over its allowance.
+    await client.query('SELECT id FROM users WHERE id = $1 FOR UPDATE', [req.user.id]);
+
+    // Giving up the role moves that person back onto the ordinary trusted
+    // contacts list, which is an addition to it, so the cap applies here just
+    // as it does when adding one. Refusing is also what keeps the exemption
+    // from being farmed: designate an exempt Legacy Contact, demote them,
+    // designate another, and an account could hold any number of ordinary
+    // contacts.
+    //
+    // The condition asks whether ANY row holds the role, not whether this one
+    // does, because the clearing UPDATE below is blanket. A request naming an
+    // ordinary contact with is_executor false still demotes whoever actually
+    // holds the role, so keying the check off contact.is_executor let that
+    // call grow the ordinary list by one while skipping the check entirely.
+    if (!is_executor) {
+      const held = await client.query(
+        'SELECT id FROM trusted_contacts WHERE user_id = $1 AND is_executor = 1', [req.user.id]
+      );
+      if (held.rowCount > 0) {
+        // Name the person who actually loses the role, which is only the
+        // contact in the URL when that contact is the one holding it.
+        refusal = await demotionCapRefusal(
+          client, req.user.id, plan,
+          contact.is_executor ? 'this person' : 'your Legacy Contact'
+        );
+        if (refusal) return;
+      }
+    }
+
     await client.query('UPDATE trusted_contacts SET is_executor = 0 WHERE user_id = $1', [req.user.id]);
     if (is_executor) {
       await client.query('UPDATE trusted_contacts SET is_executor = 1 WHERE id = $1', [contact.id]);
     }
     // Keep the Profile page's "designate my spouse as executor" checkbox
-    // (OPS-15) truthful if this contact is the one it's linked to, otherwise
-    // saving the profile again would silently re-apply the checkbox's stale
-    // state over whatever was just set here.
-    if (contact.linked_to_profile_spouse) {
-      await client.query('UPDATE users SET spouse_is_executor = $1 WHERE id = $2', [!!is_executor, req.user.id]);
-    }
+    // (OPS-15) truthful, otherwise saving the profile again would silently
+    // re-apply the checkbox's stale state over whatever was just set here.
+    //
+    // Written unconditionally rather than only when this contact is the linked
+    // spouse: the clearing UPDATE above is blanket, so moving the role TO
+    // another contact takes it away from the linked spouse too, and leaving
+    // the box ticked in that case both lies and makes the next profile save
+    // try to take the role back (which, now that the profile path is capped,
+    // would refuse an otherwise innocent save).
+    await client.query(
+      'UPDATE users SET spouse_is_executor = $1 WHERE id = $2',
+      [!!is_executor && !!contact.linked_to_profile_spouse, req.user.id]
+    );
   });
+
+  if (refusal) return res.status(400).json({ error: refusal });
 
   const updated = await queryOne('SELECT * FROM trusted_contacts WHERE id = $1', [contact.id]);
 
@@ -434,3 +498,10 @@ router.post('/:id/access-link', requireAuth, checkPlanLock, async (req, res) => 
 });
 
 module.exports = router;
+
+// Exported for routes/users.js, whose Profile page spouse checkbox moves the
+// Legacy Contact role and therefore has to apply exactly this cap. Same
+// pattern routes/billing.js already uses to reach into routes/stripeWebhook.js
+// rather than keeping a second copy of shared logic. Nothing here requires
+// routes/users.js, so there is no require cycle.
+module.exports.demotionCapRefusal = demotionCapRefusal;
