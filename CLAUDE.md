@@ -214,12 +214,28 @@ worth knowing before touching it:
   **remove** the role while the ordinary list is full. Both are what stop the
   exemption being farmed (create exempt, demote, repeat) into an unlimited
   contacts list.
-- `syncSpouseExecutor` in `server/routes/users.js` creates its row with
-  `is_executor = 1` from the outset and no longer cap-checks. Unticking that
-  profile box still demotes without a cap check, so an account can end up
-  holding one ordinary contact over its allowance that way. Accepted: the
-  checkbox has to tell the truth about who the Legacy Contact is, and no new row
-  is created, so it cannot compound.
+- **The cap is applied wherever an exempt Legacy Contact row becomes an ordinary
+  one.** That is the whole of what stops the exemption being farmed, and it took
+  two passes to get right, so do not relax any of it without re-reading this.
+  One shared helper, `demotionCapRefusal` in `server/routes/trustedContacts.js`,
+  is used by every such path: the `PUT /:id/executor` demotion, the profile's
+  spouse checkbox being unticked, and the blanket clear that `syncSpouseExecutor`
+  performs when it creates or promotes the linked spouse row and displaces
+  whoever held the role. `PUT /api/users/me` holds `SELECT ... FOR UPDATE` on
+  the owner row across the profile write and the sync, so two concurrent saves
+  cannot both pass, and a refusal rolls the profile write back with it.
+
+  This paragraph previously recorded the profile path as an accepted quirk that
+  "cannot compound". That was wrong on both counts and is kept here as a warning
+  rather than deleted. It compounded without bound: untick to push the list one
+  over, create a new cap-exempt Legacy Contact, re-tick so the blanket clear
+  launders that person into an ordinary contact for free, untick again, repeat.
+  A second instance of the same shape was then found in `PUT /:id/executor`,
+  which keyed its check off whether *that* contact held the role while clearing
+  the role from every row. Both are fixed, both were verified by running the
+  exploit against a pre-fix build and watching it stop. The lesson is the
+  general one this file already carries twice: a reasoned-sounding "this cannot
+  compound" is worth nothing next to actually running it.
 
 Four files carry these numbers and are kept in step **by hand**, because
 `shared/` has no home for server-only values (`shared/package.json` only exports
