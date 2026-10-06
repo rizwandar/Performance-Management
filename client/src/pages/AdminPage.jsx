@@ -2426,7 +2426,9 @@ export default function AdminPage() {
             The challenge window is 7 days (168 hours) by default. Shortening it for one account makes a full
             release testable in minutes instead of a week. Only use this on a test account: it shortens the
             time that person has to object to being declared dead, and every change is recorded against their
-            account with your admin ID.
+            account with your admin ID. On a release that is already pending, the deadline is counted from
+            when it went pending, so a window shorter than the time already elapsed is refused rather than
+            releasing the vault on the next sweep.
           </p>
           <Row className="g-2 align-items-end" style={{ maxWidth: 560 }}>
             <Col xs={12} sm={5}>
