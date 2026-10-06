@@ -516,18 +516,68 @@ router.post('/reset-password', resetPasswordLimiter, resetRules, validate, async
   res.json({ success: true });
 });
 
+// Verification is deliberately idempotent, and the token is deliberately NOT
+// cleared once it has been used.
+//
+// This URL points at the SPA (/verify-email?token=...), not at this route, so
+// a link prefetcher that does not run JavaScript never reaches the API at all.
+// But anything that does reach it used to consume the token: email_verified
+// went to 1 and the token was set to NULL in the same statement. The owner's
+// own click a moment later then matched no row and was told "Invalid or
+// expired verification link" about an account that was in fact already
+// verified. That is a dead end at the very first thing a new user does, and it
+// invites a pointless resend loop. A mail client or security scanner that
+// executes page JavaScript, a double click, and a restored browser tab all
+// produce it; so does an admin verifying the account by hand first.
+//
+// Keeping the token is what lets this route recognise whose link it is on a
+// second visit. NULLing it destroys the only link between the token and the
+// user, after which an already-verified account is indistinguishable from a
+// forged token, and the only honest answer left is a refusal.
+//
+// The tradeoff is that the token stays a valid lookup key for that account
+// indefinitely, so it is replayable. That is acceptable here, for this flag
+// and no other, because email_verified only ever moves in one direction and
+// the replay path does nothing: it writes no row, sends no email, records no
+// audit event, and answers with a flag the client renders as "Already
+// verified". A replayed token grants nothing it did not already grant and
+// discloses nothing about the account, not even its address. It would stop
+// being acceptable the moment this route gained any further power, such as
+// signing the visitor in, returning account details, or clearing some other
+// flag, so do not add any of that here without first making the token single
+// use again.
+//
+// What did not change: an unknown token is still refused, and a token that
+// was never used still expires. Nothing here became a way to verify an
+// address you do not control.
+//
+// The alternative considered was adding an email_verified_at column and
+// matching on that. It was rejected because email_verified already answers
+// "has this happened", auditLog below already records when it happened, and a
+// new column would make this a schema change, which CLAUDE.md routes through
+// staging first for a fix that otherwise needs no environment of its own.
 router.get('/verify-email/:token', async (req, res) => {
   const { token } = req.params;
   const user = await queryOne('SELECT * FROM users WHERE email_verification_token = $1', [token]);
   if (!user) return res.status(400).json({ error: 'Invalid or expired verification link.' });
+  // Ahead of the expiry check on purpose. Once an account is verified, how old
+  // its link is stops mattering, and "this link has expired" is the same
+  // unhelpful dead end as "invalid link" to someone whose email is fine.
   if (user.email_verified) return res.json({ success: true, already: true });
   if (user.email_verification_expires_at && new Date(user.email_verification_expires_at) < new Date()) {
     return res.status(400).json({ error: 'This verification link has expired. Please request a new one from inside your account.' });
   }
-  await query(
-    'UPDATE users SET email_verified = 1, email_verification_token = NULL, email_verification_expires_at = NULL WHERE id = $1',
+  // Compare and set, so two requests arriving together cannot both win. The
+  // read above and this write are separate statements, so without the
+  // `AND email_verified = 0` both could pass the check above and both would go
+  // on to send a welcome email and write an audit row. A rowCount of 0 means
+  // another request got there first, which is the already-verified case rather
+  // than a failure, and the loser must stay silent.
+  const claimed = await query(
+    'UPDATE users SET email_verified = 1 WHERE id = $1 AND email_verified = 0 RETURNING id',
     [user.id]
   );
+  if (claimed.rowCount === 0) return res.json({ success: true, already: true });
   sendEmail({
     to:      user.email,
     subject: 'Welcome to In Good Hands',
