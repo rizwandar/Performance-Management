@@ -366,7 +366,12 @@ router.put('/:id/executor', requireAuth, checkPlanLock, async (req, res) => {
   );
   if (!contact) return res.status(404).json({ error: 'Contact not found.' });
 
-  const { is_executor } = req.body;
+  // Parsed exactly as the create route above parses it: only `true` and the 1
+  // this column actually stores mean "designate", everything else means
+  // "remove". A loose `if (!req.body.is_executor)` read the string "false" and
+  // an empty array as designate, so a client meaning to demote would instead
+  // hand the role to a third party and fire the designation email at them.
+  const asExecutor = req.body.is_executor === true || req.body.is_executor === 1;
   const plan = await getUserPlan(req.user.id);
 
   // Set inside the transaction and acted on after it, so the refusal path
@@ -392,7 +397,7 @@ router.put('/:id/executor', requireAuth, checkPlanLock, async (req, res) => {
     // ordinary contact with is_executor false still demotes whoever actually
     // holds the role, so keying the check off contact.is_executor let that
     // call grow the ordinary list by one while skipping the check entirely.
-    if (!is_executor) {
+    if (!asExecutor) {
       const held = await client.query(
         'SELECT id FROM trusted_contacts WHERE user_id = $1 AND is_executor = 1', [req.user.id]
       );
@@ -404,11 +409,32 @@ router.put('/:id/executor', requireAuth, checkPlanLock, async (req, res) => {
           contact.is_executor ? 'this person' : 'your Legacy Contact'
         );
         if (refusal) return;
+
+        // Revoke the access links that person already holds. A Legacy
+        // Contact's link is deliberately non-expiring (generateAccessLink in
+        // lib/inactivityTimer.js), because by the time it matters there may be
+        // nobody left to resend it. Losing the role narrows what the link
+        // shows, since routes/access.js re-reads is_executor live on every
+        // request, but it does not make the link stop working: with no granted
+        // sections at all they would still see the owner's name, date of
+        // birth, about_me, legacy_message and the always-visible emergency
+        // contact block, for ever. Removing the role is presented as a clean
+        // handover, so it has to be one. Deleting the contact outright already
+        // revokes their tokens through ON DELETE CASCADE, so this only makes
+        // demotion behave the way deletion already does.
+        //
+        // Keyed on the rows that actually hold the role, not on the contact in
+        // the URL, for the same reason the cap check above is: the clearing
+        // UPDATE below is blanket.
+        await client.query(
+          'DELETE FROM trusted_contact_tokens WHERE contact_id = ANY($1)',
+          [held.rows.map(r => r.id)]
+        );
       }
     }
 
     await client.query('UPDATE trusted_contacts SET is_executor = 0 WHERE user_id = $1', [req.user.id]);
-    if (is_executor) {
+    if (asExecutor) {
       await client.query('UPDATE trusted_contacts SET is_executor = 1 WHERE id = $1', [contact.id]);
     }
     // Keep the Profile page's "designate my spouse as executor" checkbox
@@ -423,7 +449,7 @@ router.put('/:id/executor', requireAuth, checkPlanLock, async (req, res) => {
     // would refuse an otherwise innocent save).
     await client.query(
       'UPDATE users SET spouse_is_executor = $1 WHERE id = $2',
-      [!!is_executor && !!contact.linked_to_profile_spouse, req.user.id]
+      [asExecutor && !!contact.linked_to_profile_spouse, req.user.id]
     );
   });
 
@@ -431,7 +457,7 @@ router.put('/:id/executor', requireAuth, checkPlanLock, async (req, res) => {
 
   const updated = await queryOne('SELECT * FROM trusted_contacts WHERE id = $1', [contact.id]);
 
-  if (is_executor) await notifyExecutorDesignated(req.user.id, updated);
+  if (asExecutor) await notifyExecutorDesignated(req.user.id, updated);
 
   res.json({ id: updated.id, is_executor: !!updated.is_executor });
 });
@@ -442,7 +468,23 @@ router.delete('/:id', requireAuth, checkPlanLock, async (req, res) => {
     [req.params.id, req.user.id]
   );
   if (!contact) return res.status(404).json({ error: 'Contact not found.' });
-  await query('DELETE FROM trusted_contacts WHERE id = $1', [contact.id]);
+
+  // Deleting the row the Profile page's spouse checkbox owns has to clear the
+  // checkbox too, in the same transaction. Left set, users.spouse_is_executor
+  // still says the spouse is the Legacy Contact while no linked row exists, so
+  // the next PUT /api/users/me takes syncSpouseExecutor's "no linked contact
+  // yet, so this save creates one" branch and silently re-creates the person
+  // just deleted, as Legacy Contact, and emails them the designation. That
+  // needs no spouse fields in the request to happen: the route merges the
+  // stored values, so any profile save at all is enough, including one from a
+  // page that never shows these fields.
+  await transaction(async (client) => {
+    await client.query('DELETE FROM trusted_contacts WHERE id = $1', [contact.id]);
+    if (contact.linked_to_profile_spouse) {
+      await client.query('UPDATE users SET spouse_is_executor = false WHERE id = $1', [req.user.id]);
+    }
+  });
+
   res.json({ success: true });
 });
 

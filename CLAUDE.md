@@ -204,7 +204,7 @@ deliberately did not move, because every access token, permission and link path
 already works off that row. Only the counting and the presentation changed, so
 every cap query filters that row out (`ORDINARY_ONLY` in
 `server/routes/trustedContacts.js`, matched in `GET /api/sections/completion`
-and in `client/src/pages/sections/TrustedContactsPage.jsx`). Three consequences
+and in `client/src/pages/sections/TrustedContactsPage.jsx`). Four consequences
 worth knowing before touching it:
 
 - `POST /api/trusted-contacts` accepts `is_executor: true` so the row can be
@@ -236,6 +236,23 @@ worth knowing before touching it:
   exploit against a pre-fix build and watching it stop. The lesson is the
   general one this file already carries twice: a reasoned-sounding "this cannot
   compound" is worth nothing next to actually running it.
+- **Removing the role deletes that person's access tokens**, in the same
+  transaction and under the same lock as the demotion. A Legacy Contact's link
+  is non-expiring on purpose (`generateAccessLink` in
+  `server/lib/inactivityTimer.js`), and `routes/access.js` re-reads
+  `is_executor` live, so a demoted contact's scope narrowed correctly but their
+  link kept working for ever: with zero granted sections they still saw the
+  owner's name, date of birth, `about_me`, `legacy_message` and the
+  always-visible emergency contact block. Deleting the contact outright already
+  revoked their tokens by `ON DELETE CASCADE`, so demotion now matches
+  deletion. Still open and deliberately not changed here: moving the role to
+  someone else (`PUT /:id/executor` with `is_executor: true`) displaces the
+  previous holder through the same blanket clear but leaves their non-expiring
+  token alive. Same gap, one branch over.
+  `DELETE /trusted-contacts/:id` also clears `users.spouse_is_executor` when
+  the deleted row was `linked_to_profile_spouse`, or the next `PUT
+  /api/users/me` (any profile save, since the route merges stored values)
+  re-creates the just-deleted spouse as Legacy Contact and re-emails them.
 
 Four files carry these numbers and are kept in step **by hand**, because
 `shared/` has no home for server-only values (`shared/package.json` only exports

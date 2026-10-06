@@ -188,7 +188,7 @@ export default function LegacyContactPage() {
     setError('')
     try {
       await axios.put(`${API}/trusted-contacts/${legacyContact.id}/executor`, { is_executor: false })
-      setSuccess(`${legacyContact.name} is no longer your Legacy Contact. They remain one of your trusted contacts.`)
+      setSuccess(`${legacyContact.name} is no longer your Legacy Contact. They remain one of your trusted contacts, but the access link they held no longer works. Send them a new one if you still want them to have access.`)
       setShowRemove(false)
       loadContacts()
     } catch (err) {
@@ -531,7 +531,8 @@ export default function LegacyContactPage() {
         <Modal.Body>
           They stay one of your trusted contacts and keep whatever sections you have shared with them,
           but they will no longer be told first, will no longer be able to confirm your passing, and any
-          vault release code you handed them stops working.
+          vault release code you handed them stops working. The access link they already hold stops
+          working too, so send them a new one if you still want them to see those sections.
         </Modal.Body>
         <Modal.Footer>
           <Button variant="outline-secondary" onClick={() => setShowRemove(false)}>Cancel</Button>
