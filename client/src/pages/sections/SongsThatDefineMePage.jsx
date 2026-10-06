@@ -1,5 +1,4 @@
 import { useEffect, useState, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { Button, Alert, Spinner, InputGroup, Form } from 'react-bootstrap'
 import axios from 'axios'
 import SectionHero from '../../components/SectionHero'
@@ -10,7 +9,6 @@ import ShareSectionHistory from '../../components/ShareSectionHistory'
 const API = import.meta.env.VITE_API_URL
 
 export default function SongsThatDefineMePage() {
-  const navigate = useNavigate()
   const [items, setItems]     = useState([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
@@ -123,12 +121,6 @@ export default function SongsThatDefineMePage() {
 
   return (
     <div style={{ maxWidth: 800, margin: '0 auto' }}>
-      <div className="mb-4">
-        <button className="btn btn-link p-0 mb-2"
-          style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '0.9rem' }}
-          onClick={() => navigate('/profile')}>← Back to my plans</button>
-      </div>
-
       <SectionHero
         eyebrow="Your Legacy"
         headline="The soundtrack of your life"

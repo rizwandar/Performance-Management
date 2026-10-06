@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { Button, Form, Alert, Spinner, OverlayTrigger, Popover } from 'react-bootstrap'
 import axios from 'axios'
 import SectionHero from '../../components/SectionHero'
@@ -53,7 +52,6 @@ function HelpIcon({ title, children }) {
 }
 
 export default function HowToBeRememberedPage() {
-  const navigate = useNavigate()
   const [loading, setLoading]   = useState(true)
   const [saving, setSaving]     = useState(false)
   const [error, setError]       = useState('')
@@ -109,12 +107,6 @@ export default function HowToBeRememberedPage() {
 
   return (
     <div style={{ maxWidth: 720, margin: '0 auto' }}>
-      <div className="mb-4">
-        <button className="btn btn-link p-0 mb-2"
-          style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '0.9rem' }}
-          onClick={() => navigate('/profile')}>← Back to my plans</button>
-      </div>
-
       <SectionHero
         eyebrow="Your Legacy"
         headline="Your story, in your own words"

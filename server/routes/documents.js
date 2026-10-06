@@ -9,7 +9,7 @@ const { uploadFile, getDownloadUrl, deleteFile } = require('../lib/r2');
 const { checkVault } = require('../lib/vaultAuth');
 const { isVaultProtectedSection } = require('../lib/vaultSections');
 const { matchesExtension } = require('../lib/fileSignature');
-const { getLimit } = require('../lib/planLimits');
+const { getLimit, countNoun } = require('../lib/planLimits');
 const { getUserPlan } = require('../lib/subscription');
 
 // Signed URLs for vault-protected documents get a much shorter lifetime than
@@ -82,8 +82,8 @@ async function refuseIfOverUploadCap(userId, res) {
   if (count.c < limit) return false;
   res.status(400).json({
     error: plan !== 'premium'
-      ? `Your plan includes ${limit} uploaded files. Upgrade your account if you would like to add more.`
-      : `You can upload up to ${limit} files.`,
+      ? `Your plan includes ${countNoun(limit, 'uploaded file', 'uploaded files')}. Upgrade your account if you would like to add more.`
+      : `You can upload up to ${countNoun(limit, 'file', 'files')}.`,
   });
   return true;
 }
@@ -298,9 +298,10 @@ router.post('/photos/upload', requireAuth, checkPlanLock, (req, res, next) => {
         [userId, section_id]
       );
       if (count.c >= limit) {
+        const counted = countNoun(limit, 'funeral gallery photo', 'funeral gallery photos');
         const errorMsg = plan !== 'premium'
-          ? `You can add up to ${limit} funeral gallery photos on the Free plan. Upgrade to Premium to add more.`
-          : `You can add up to ${limit} funeral gallery photos.`;
+          ? `You can add up to ${counted} on the Free plan. Upgrade to Premium to add more.`
+          : `You can add up to ${counted}.`;
         return res.status(400).json({ error: errorMsg });
       }
     }

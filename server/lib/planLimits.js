@@ -69,4 +69,14 @@ function getLimit(key, plan) {
   return value == null ? Infinity : value;
 }
 
-module.exports = { PLAN_LIMITS, getLimit };
+// "1 item", not "1 items". Several caps above are 1 (financial items,
+// property, household info, donation bank, your last moments, one voice clip
+// per message), so every refusal message that pairs a count with a noun builds
+// it here rather than interpolating a hardcoded plural. The nouns in use are
+// irregular enough (entry/entries, person/people) that both forms have to be
+// given explicitly.
+function countNoun(n, singular, plural) {
+  return `${n} ${n === 1 ? singular : plural}`;
+}
+
+module.exports = { PLAN_LIMITS, getLimit, countNoun };

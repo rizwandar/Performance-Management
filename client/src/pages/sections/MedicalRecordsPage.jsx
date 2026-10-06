@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { Button, Form, Alert, Spinner } from 'react-bootstrap'
 import axios from 'axios'
 import SectionHero from '../../components/SectionHero'
@@ -18,7 +17,6 @@ const empty = {
 // Wishes section along with Doctors and Donation Bank. Not vault-protected,
 // same protection level (none) the old section had for these fields.
 export default function MedicalRecordsPage() {
-  const navigate = useNavigate()
   const [form, setForm]       = useState(empty)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving]   = useState(false)
@@ -78,14 +76,6 @@ export default function MedicalRecordsPage() {
 
   return (
     <div style={{ maxWidth: 700, margin: '0 auto' }}>
-      <div className="mb-4">
-        <button className="btn btn-link p-0 mb-2"
-          style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '0.9rem' }}
-          onClick={() => navigate('/profile')}>
-          ← Back to my plans
-        </button>
-      </div>
-
       <SectionHero
         eyebrow="Your Wishes"
         headline="Care, on your terms"

@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { Button, Form, Row, Col, Alert, Modal, Spinner } from 'react-bootstrap'
 import axios from 'axios'
 import SectionHero from '../../components/SectionHero'
@@ -18,7 +17,6 @@ const API = import.meta.env.VITE_API_URL
 const empty = { name: '', description: '', notes: '' }
 
 export default function UnfinishedBusinessPage() {
-  const navigate = useNavigate()
   const { isPremium } = useSubscription()
   const [items, setItems]         = useState([])
   const [loading, setLoading]     = useState(true)
@@ -104,12 +102,6 @@ export default function UnfinishedBusinessPage() {
 
   return (
     <div style={{ maxWidth: 800, margin: '0 auto' }}>
-      <div className="mb-4">
-        <button className="btn btn-link p-0 mb-2"
-          style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '0.9rem' }}
-          onClick={() => navigate('/profile')}>← Back to my plans</button>
-      </div>
-
       <SectionHero
         eyebrow="Your Legacy"
         headline="Reconciliation, apologies, and loose ends"
@@ -118,8 +110,6 @@ export default function UnfinishedBusinessPage() {
         cta={{ label: '+ Add an entry', onClick: openAdd, disabled: atFreeLimit, disabledTitle: addDisabledTitle }}
         secondaryAction={<ShareSectionTrigger section="unfinished_business" sectionLabel="Unfinished Business" />}
       />
-
-      <PlanLimitNotice limitKey="unfinished_business" currentCount={items.length} />
 
       {success && <Alert variant="success">{success}</Alert>}
       {error && !showModal && <Alert variant="danger">{error}</Alert>}
@@ -180,6 +170,11 @@ export default function UnfinishedBusinessPage() {
           })}
         </div>
       )}
+
+      {/* Below the recorded entries, not above them: the allowance is a
+          footnote to what is already here, and at the top it pushed the
+          entries down. */}
+      <PlanLimitNotice limitKey="unfinished_business" currentCount={items.length} />
 
       <Modal show={showModal} onHide={closeModal} centered size="lg">
         <Modal.Header closeButton style={{ background: 'var(--green-50)', borderBottom: '1px solid var(--green-100)' }}>

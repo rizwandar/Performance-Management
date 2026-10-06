@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { Button, Form, Row, Col, Alert, Spinner } from 'react-bootstrap'
 import axios from 'axios'
 import SectionHero from '../../components/SectionHero'
@@ -11,8 +10,6 @@ import { useDictation } from '../../hooks/useDictation'
 const API = import.meta.env.VITE_API_URL
 
 export default function EmergencyContactPage() {
-  const navigate = useNavigate()
-
   const [loading, setLoading] = useState(true)
   const [saving, setSaving]   = useState(false)
   const [success, setSuccess] = useState('')
@@ -57,12 +54,6 @@ export default function EmergencyContactPage() {
 
   return (
     <div style={{ maxWidth: 800, margin: '0 auto' }}>
-      <div className="mb-4">
-        <button className="btn btn-link p-0 mb-2"
-          style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '0.9rem' }}
-          onClick={() => navigate('/profile')}>← Back to my plans</button>
-      </div>
-
       <SectionHero
         eyebrow="Your People"
         headline="The person to call on"

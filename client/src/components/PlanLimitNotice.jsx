@@ -5,11 +5,17 @@ import { PLAN_LIMITS } from '../constants/planLimits'
 
 // Small, quiet "here is what your plan includes, upgrade if you want more"
 // callout. This is the standard way of surfacing a per-section item-count
-// limit, and is the inline sibling to UpgradeModal.jsx's "this whole section
-// is Premium-only" popup: same visual language (parchment background,
-// green-900/green-700, --border, --text/--text-muted), but a persistent
-// panel that sits next to the relevant "Add" control instead of a modal
-// that interrupts. No animation, no dismiss button.
+// limit.
+//
+// Deliberately plain text plus a button, not a bordered panel (2026-10-06, at
+// the owner's request). It had a parchment background and a border, which read
+// as a heavy block competing with the section's own content. It is a footnote,
+// so it looks like one.
+//
+// Placement convention, also 2026-10-06: it belongs BELOW a section's recorded
+// items, near the foot of the page, not above the add control. Above the list
+// it pushed everything a reader came for further down the page, and the
+// allowance only means something once they have seen what they already have.
 //
 // Deliberately never says "Premium" or "Free plan" (2026-10-03). Naming the
 // tier in a nudge reads as a sales pitch at the exact moment someone is
@@ -45,6 +51,12 @@ export default function PlanLimitNotice({ limitKey, currentCount, alwaysShow = f
   const entry = PLAN_LIMITS[limitKey]
   if (!entry) return null
 
+  // Several caps are 1 (financial items, property, household info, donation
+  // bank, your last moments, one voice clip per message), so a hardcoded
+  // plural noun produced "your plan includes 1 items". Every count that
+  // reaches the copy goes through here.
+  const noun = (n) => (n === 1 ? entry.itemLabel : entry.itemLabelPlural)
+
   // null premium means unlimited, matching server/lib/planLimits.js's convention.
   const limit = isPremium ? (entry.premium ?? Infinity) : entry.free
   const atLimit = currentCount >= limit
@@ -55,11 +67,11 @@ export default function PlanLimitNotice({ limitKey, currentCount, alwaysShow = f
   if (isPremium) {
     if (!atLimit) return null
     return (
-      <Panel>
+      <Wrapper>
         <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: '0.875rem' }}>
-          You can add up to {entry.premium} {entry.itemLabelPlural}.
+          You can add up to {entry.premium} {noun(entry.premium)}.
         </p>
-      </Panel>
+      </Wrapper>
     )
   }
 
@@ -80,12 +92,14 @@ export default function PlanLimitNotice({ limitKey, currentCount, alwaysShow = f
     ? `You have more ${entry.itemLabelPlural} than your plan includes. They are all safe and will stay. Upgrade your account if you would like to add more.`
     : omitCount
       ? 'Upgrade your account if you would like to add more.'
-      : atLimit
+      // "You have added all 1 document" does not read, so an allowance of one
+      // keeps the plain statement of the limit instead.
+      : atLimit && limit > 1
         ? `You have added all ${limit} ${entry.itemLabelPlural} your plan includes. Upgrade your account if you would like to add more.`
-        : `Your plan includes ${limit} ${entry.itemLabelPlural}. Upgrade your account if you would like to add more.`
+        : `Your plan includes ${limit} ${noun(limit)}. Upgrade your account if you would like to add more.`
 
   return (
-    <Panel>
+    <Wrapper>
       <div className="d-flex justify-content-between align-items-center gap-3 flex-wrap">
         <p style={{ color: atLimit ? 'var(--text)' : 'var(--text-muted)', margin: 0, fontSize: '0.875rem' }}>
           {message}
@@ -108,19 +122,14 @@ export default function PlanLimitNotice({ limitKey, currentCount, alwaysShow = f
           Upgrade Your Account
         </Button>
       </div>
-    </Panel>
+    </Wrapper>
   )
 }
 
-function Panel({ children }) {
+// Spacing only. No background, no border: see the note at the top of the file.
+function Wrapper({ children }) {
   return (
-    <div style={{
-      background: 'var(--parchment)',
-      border: '1px solid var(--border)',
-      borderRadius: 'var(--card-radius-sm, 12px)',
-      padding: '11px 16px',
-      marginBottom: 16,
-    }}>
+    <div style={{ marginTop: 4, marginBottom: 24 }}>
       {children}
     </div>
   )
