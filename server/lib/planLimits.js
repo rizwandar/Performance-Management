@@ -15,6 +15,16 @@
 //
 // premium: null means no cap on Premium.
 const PLAN_LIMITS = {
+  // Ordinary trusted contacts only. The Legacy Contact is stored as one of
+  // the same trusted_contacts rows (is_executor = 1) but is a separate, free
+  // allowance of exactly one on every plan, so it is deliberately absent from
+  // this table: there is no free-vs-premium distinction to express, and the
+  // single-Legacy-Contact rule is enforced by the partial unique index
+  // trusted_contacts_one_executor rather than by a count. So these 2 and 10
+  // mean 2 and 10 trusted contacts BESIDES the Legacy Contact, which is why
+  // every cap query in routes/trustedContacts.js filters is_executor out.
+  // Owner's decision, 2026-10-04: a free account holds 1 Legacy Contact,
+  // 1 emergency contact and 2 trusted contacts, four people rather than two.
   trusted_contacts:       { free: 2, premium: 10 },
   personal_messages:      { free: 2, premium: null },
   unfinished_business:    { free: 2, premium: null },

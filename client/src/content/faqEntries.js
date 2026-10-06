@@ -32,7 +32,12 @@ const faqEntries = [
     id: 'legacy-contact-vs-trusted-contact',
     category: 'Trusted Contacts & Legacy Contact',
     question: "What's the difference between a Trusted Contact and a Legacy Contact?",
-    answer: "A Trusted Contact is one of up to three people you choose to give access to specific sections of your plans, on your own timeline: you send them a secure link yourself, and it's valid for 72 hours. A Legacy Contact is a role one of those three trusted contacts can also hold. They're the person notified first if you stop logging in, they get a link that never expires, and they can see everything you've recorded except your vault. They're the one who confirms what's happened, and only after they confirm are your other trusted contacts and the people you've listed to notify actually informed.",
+    // Reworded 2026-10-04 when the Legacy Contact became its own section and
+    // its own free allowance. Two things here had gone stale: the Legacy
+    // Contact is no longer necessarily one of your trusted contacts, and the
+    // old "up to three people" is not a number this copy should state at all,
+    // since how many trusted contacts an account may hold depends on its plan.
+    answer: "A Trusted Contact is someone you choose to give access to specific sections of your plans, on your own timeline: you send them a secure link yourself, and it's valid for 72 hours. A Legacy Contact is a single, separate role, and naming one does not use up one of your trusted contact places. It can be one of your trusted contacts or someone who isn't on that list at all. They're the person notified first if you stop logging in, they get a link that never expires, and they can see everything you've recorded except your vault. They're the one who confirms what's happened, and only after they confirm are your other trusted contacts and the people you've listed to notify actually informed.",
   },
   {
     id: 'stop-logging-in',

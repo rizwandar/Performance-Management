@@ -153,7 +153,7 @@ Current caps (Free / Premium):
 
 | Area | Free | Premium |
 |------|------|---------|
-| trusted contacts | 2 | 10 |
+| trusted contacts (the Legacy Contact not counted, see below) | 2 | 10 |
 | messages to loved ones | 2 | unlimited |
 | unfinished business | 2 | unlimited |
 | people to notify | 3 | unlimited |
@@ -233,6 +233,66 @@ Caps apply to **adding**, never to what already exists. An account that filled
 up while paying keeps every item on returning to free; nothing is ever deleted.
 `PlanLimitNotice` has distinct copy for that over-limit case, reassuring rather
 than threatening.
+
+The **Legacy Contact is outside the trusted contacts cap** (2026-10-04). A free
+account holds 1 Legacy Contact + 1 emergency contact + 2 trusted contacts, four
+people rather than two, and the Legacy Contact is free on every plan. It is
+still stored as a `trusted_contacts` row with `is_executor = 1`, protected by
+the `trusted_contacts_one_executor` partial unique index: the storage
+deliberately did not move, because every access token, permission and link path
+already works off that row. Only the counting and the presentation changed, so
+every cap query filters that row out (`ORDINARY_ONLY` in
+`server/routes/trustedContacts.js`, matched in `GET /api/sections/completion`
+and in `client/src/pages/sections/TrustedContactsPage.jsx`). Four consequences
+worth knowing before touching it:
+
+- `POST /api/trusted-contacts` accepts `is_executor: true` so the row can be
+  created already designated. Creating then promoting cannot work on a full free
+  account: the create would be refused by the cap the role is exempt from.
+- That POST refuses a second Legacy Contact, and `PUT /:id/executor` refuses to
+  **remove** the role while the ordinary list is full. Both are what stop the
+  exemption being farmed (create exempt, demote, repeat) into an unlimited
+  contacts list.
+- **The cap is applied wherever an exempt Legacy Contact row becomes an ordinary
+  one.** That is the whole of what stops the exemption being farmed, and it took
+  two passes to get right, so do not relax any of it without re-reading this.
+  One shared helper, `demotionCapRefusal` in `server/routes/trustedContacts.js`,
+  is used by every such path: the `PUT /:id/executor` demotion, the profile's
+  spouse checkbox being unticked, and the blanket clear that `syncSpouseExecutor`
+  performs when it creates or promotes the linked spouse row and displaces
+  whoever held the role. `PUT /api/users/me` holds `SELECT ... FOR UPDATE` on
+  the owner row across the profile write and the sync, so two concurrent saves
+  cannot both pass, and a refusal rolls the profile write back with it.
+
+  This paragraph previously recorded the profile path as an accepted quirk that
+  "cannot compound". That was wrong on both counts and is kept here as a warning
+  rather than deleted. It compounded without bound: untick to push the list one
+  over, create a new cap-exempt Legacy Contact, re-tick so the blanket clear
+  launders that person into an ordinary contact for free, untick again, repeat.
+  A second instance of the same shape was then found in `PUT /:id/executor`,
+  which keyed its check off whether *that* contact held the role while clearing
+  the role from every row. Both are fixed, both were verified by running the
+  exploit against a pre-fix build and watching it stop. The lesson is the
+  general one this file already carries twice: a reasoned-sounding "this cannot
+  compound" is worth nothing next to actually running it.
+- **Removing the role deletes that person's access tokens**, in the same
+  transaction and under the same lock as the demotion. A Legacy Contact's link
+  is non-expiring on purpose (`generateAccessLink` in
+  `server/lib/inactivityTimer.js`), and `routes/access.js` re-reads
+  `is_executor` live, so a demoted contact's scope narrowed correctly but their
+  link kept working for ever: with zero granted sections they still saw the
+  owner's name, date of birth, `about_me`, `legacy_message` and the
+  always-visible emergency contact block. Deleting the contact outright already
+  revoked their tokens by `ON DELETE CASCADE`, so demotion now matches
+  deletion. **Moving** the role to someone else revokes the displaced holder's
+  tokens too, for the same reason and in the same transaction, excluding the
+  incoming holder so a link the owner already sent them keeps working. Both
+  branches are keyed on the rows that actually hold the role, never on the
+  contact named in the URL, because the clearing UPDATE is blanket.
+  `DELETE /trusted-contacts/:id` also clears `users.spouse_is_executor` when
+  the deleted row was `linked_to_profile_spouse`, or the next `PUT
+  /api/users/me` (any profile save, since the route merges stored values)
+  re-creates the just-deleted spouse as Legacy Contact and re-emails them.
 
 Four files carry these numbers and are kept in step **by hand**, because
 `shared/` has no home for server-only values (`shared/package.json` only exports

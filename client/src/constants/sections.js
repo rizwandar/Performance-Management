@@ -1,4 +1,4 @@
-// Canonical list of the 21 plan sections, in the same group-by-group order
+// Canonical list of the 22 plan sections, in the same group-by-group order
 // they're laid out on the Dashboard (client/src/pages/DashboardPage.jsx).
 // This flat array order is also what drives the sequential prev/next
 // "journey" navigation on each section page (see SectionFooterNav.jsx) -
@@ -41,6 +41,16 @@ export const SECTIONS = [
   },
 
   // ── Your People ────────────────────────────────────────────────────────────
+  // Order within this group is the owner's own (2026-10-04): the Legacy
+  // Contact leads it because it is the most consequential choice on the plan,
+  // and it is listed separately from Trusted Contacts because it is a separate
+  // free allowance rather than one of those slots. On the server it is still a
+  // trusted_contacts row with is_executor = 1; nothing about the storage moved.
+  {
+    id: 'legacy_contact', label: 'Legacy Contact',
+    icon: '🗝️', route: '/sections/legacy-contact', group: 'people',
+    description: 'The one person who speaks for you when you cannot: notified first, able to confirm your passing, and the only one who can ever open your vault.',
+  },
   {
     id: 'emergency_contact', label: 'Emergency Contact',
     icon: '📞', route: '/sections/emergency-contact', group: 'people',

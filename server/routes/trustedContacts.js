@@ -54,6 +54,22 @@ router.get('/', requireAuth, async (req, res) => {
   res.json(result);
 });
 
+// The Legacy Contact is one of these rows (is_executor = 1) but it is a
+// separate, free allowance and must not consume a trusted contact slot
+// (owner's decision, 2026-10-04: a free account holds 1 Legacy Contact,
+// 1 emergency contact and 2 trusted contacts). Keeping it in this table was
+// deliberate rather than overlooked: every access token, permission and link
+// path already works off that row, so splitting the storage would be
+// migration risk for no user benefit. Only the counting and the presentation
+// changed, which is why every cap query here filters the row out instead of
+// the schema separating it.
+//
+// IS DISTINCT FROM 1 rather than = 0 because is_executor is a nullable
+// INTEGER DEFAULT 0 (see db/database.js), so a NULL has to count as an
+// ordinary contact. `is_executor = 0` would silently drop such a row from the
+// count and quietly hand that account an extra slot.
+const ORDINARY_ONLY = 'is_executor IS DISTINCT FROM 1';
+
 // Plan wording deliberately avoids naming the paid tier: the upgrade page is
 // where the plan is actually explained. See the matching copy in
 // client/src/components/PlanLimitNotice.jsx. Shared between the cheap
@@ -64,10 +80,91 @@ function capMessage(plan, limit) {
     : `You can add up to ${limit} trusted contacts.`;
 }
 
+// Separate wording for the one case where the cap bites on a removal rather
+// than an addition: giving up the Legacy Contact role moves that person back
+// onto the trusted contacts list, which is an addition to it.
+//
+// `subject` names whoever is losing the role, because the same refusal is
+// reported from the Profile page's spouse checkbox (routes/users.js), where
+// the person displaced is either the owner's spouse or the contact who holds
+// the role today, not the contact named in the URL. One template with a
+// substituted subject rather than a second copy of the sentence, so the
+// wording cannot drift between the two routes.
+function demoteCapMessage(plan, limit, subject = 'this person') {
+  const base = `Removing the Legacy Contact role would move ${subject} back to your trusted contacts, and you already have ${limit}.`;
+  return plan !== 'premium'
+    ? `${base} Remove a trusted contact first, or upgrade your account if you would like room for more.`
+    : `${base} Remove a trusted contact first.`;
+}
+
+// The one cap check for "an exempt Legacy Contact row is about to become an
+// ordinary contact", shared by every route that can cause that.
+//
+// It has to be shared rather than copied because the exemption is only safe
+// while EVERY such path is guarded. A row that can be converted from exempt
+// to ordinary without passing the cap is a free slot generator: designate an
+// exempt Legacy Contact, convert them to ordinary, designate another, and the
+// ordinary list grows without bound. routes/users.js's spouse checkbox was
+// exactly that hole (it moves the role, from two places, and checked
+// nothing), so it now calls this.
+//
+// Returns the refusal sentence, or null when there is room. The caller must
+// already hold the owner row lock (SELECT ... FOR UPDATE on users, as the add
+// route below does) and must apply the demotion in the same transaction:
+// without that, two concurrent saves both read a count with room and both
+// demote, which is the same race that once stored 11 contacts against a cap
+// of 10.
+async function demotionCapRefusal(client, userId, plan, subject) {
+  const limit = getLimit('trusted_contacts', plan);
+  if (limit === Infinity) return null;
+  const ordinary = await client.query(
+    `SELECT COUNT(*)::int AS c FROM trusted_contacts WHERE user_id = $1 AND ${ORDINARY_ONLY}`,
+    [userId]
+  );
+  return ordinary.rows[0].c >= limit ? demoteCapMessage(plan, limit, subject) : null;
+}
+
+// Tells a newly designated Legacy Contact what the role means right away,
+// rather than them finding out only if/when the inactivity timer eventually
+// lapses (see executorDesignatedEmail for why this matters: funerals often
+// happen within days, so they are also told about the "Report a passing"
+// page). Shared by the designate-an-existing-contact route and the
+// create-already-designated path, which have to say exactly the same thing.
+// Never throws: a failed email must not undo a designation already saved.
+async function notifyExecutorDesignated(userId, contact) {
+  if (!contact.email) return;
+  try {
+    const owner = await queryOne('SELECT name, inactivity_period_months FROM users WHERE id = $1', [userId]);
+    const previewLink = await generateAccessLink(contact, { purpose: 'executor_preview' });
+    await sendEmail({
+      to:      contact.email,
+      subject: `You have been named ${owner.name}'s Legacy Contact on In Good Hands`,
+      html:    executorDesignatedEmail({
+        recipientName:          contact.name,
+        ownerName:              owner.name,
+        inactivityPeriodMonths: owner.inactivity_period_months || 12,
+        accessLink:             previewLink,
+        reportDeathLink:        `${CLIENT_URL}/report-passing`,
+      }),
+    });
+  } catch (err) {
+    console.error('[trusted-contacts] Executor designation email failed:', err.message);
+  }
+}
+
 router.post('/', requireAuth, checkPlanLock, async (req, res) => {
   const { sequence, name, relationship, email, phone, invite_message, visible_sections = [] } = req.body;
 
   if (!name) return res.status(400).json({ error: 'Name is required.' });
+
+  // Create the row already designated as Legacy Contact. The Legacy Contact
+  // page needs this: a free account whose two trusted contact slots are
+  // already full must still be able to name a brand new person as Legacy
+  // Contact, which a create-then-promote pair of calls could not do, since the
+  // create would be refused by the very cap the role is exempt from. Both
+  // `true` and the 1 this column actually stores are accepted, so a future
+  // mobile client sending either reaches the same path.
+  const asExecutor = req.body.is_executor === true || req.body.is_executor === 1;
 
   const invalid = visible_sections.filter(s => !VALID_SECTIONS.has(s));
   if (invalid.length > 0) {
@@ -77,11 +174,18 @@ router.post('/', requireAuth, checkPlanLock, async (req, res) => {
   const plan = await getUserPlan(req.user.id);
   const limit = getLimit('trusted_contacts', plan);
 
-  const taken = (await queryAll(
-    'SELECT sequence FROM trusted_contacts WHERE user_id = $1', [req.user.id]
-  )).map(r => r.sequence);
+  // Every row for this user, the Legacy Contact included: UNIQUE
+  // (user_id, sequence) spans them all, so position assignment below has to
+  // see that row's position even though the cap does not count it.
+  const rows = await queryAll(
+    'SELECT sequence, is_executor FROM trusted_contacts WHERE user_id = $1', [req.user.id]
+  );
+  const taken = rows.map(r => r.sequence);
+  const ordinaryCount = rows.filter(r => r.is_executor !== 1).length;
 
-  if (taken.length >= limit) return res.status(400).json({ error: capMessage(plan, limit) });
+  if (!asExecutor && ordinaryCount >= limit) {
+    return res.status(400).json({ error: capMessage(plan, limit) });
+  }
 
   // sequence is optional. It is display order only - nothing in the app
   // reads it as a notification priority or escalation order (the only other
@@ -127,13 +231,36 @@ router.post('/', requireAuth, checkPlanLock, async (req, res) => {
       // in the normal case where a person adds one contact at a time. Other
       // users are unaffected, since the lock is on their own row.
       await client.query('SELECT id FROM users WHERE id = $1 FOR UPDATE', [req.user.id]);
+
+      // At most one Legacy Contact per owner. The partial unique index
+      // trusted_contacts_one_executor enforces that in the database as well,
+      // but checking here (under the lock above, so the answer cannot change
+      // underneath us) reports it as a sentence rather than a constraint
+      // violation. It also closes a cap bypass: without it, creating an exempt
+      // Legacy Contact row over and over and letting each new one demote the
+      // last would let an account hold any number of ordinary contacts.
+      if (asExecutor) {
+        const existing = await client.query(
+          'SELECT id FROM trusted_contacts WHERE user_id = $1 AND is_executor = 1', [req.user.id]
+        );
+        if (existing.rowCount > 0) {
+          const err = new Error('executor_exists');
+          err.executorExists = true;
+          throw err;
+        }
+      }
+
+      // The Legacy Contact row is exempt from the cap, so the in-statement
+      // guard is made unreachable for it rather than removed: one INSERT, one
+      // place that knows what the cap is.
+      const insertCap = asExecutor || limit === Infinity ? Number.MAX_SAFE_INTEGER : limit;
       const r = await client.query(`
-        INSERT INTO trusted_contacts (user_id, sequence, name, relationship, email, phone, invite_message)
-        SELECT $1, $2, $3, $4, $5, $6, $7
-        WHERE (SELECT COUNT(*) FROM trusted_contacts WHERE user_id = $1) < $8
+        INSERT INTO trusted_contacts (user_id, sequence, name, relationship, email, phone, invite_message, is_executor)
+        SELECT $1, $2, $3, $4, $5, $6, $7, $9
+        WHERE (SELECT COUNT(*) FROM trusted_contacts WHERE user_id = $1 AND ${ORDINARY_ONLY}) < $8
         RETURNING id
       `, [req.user.id, position, name, relationship || null, email || null, phone || null, invite_message || null,
-          limit === Infinity ? Number.MAX_SAFE_INTEGER : limit]);
+          insertCap, asExecutor ? 1 : 0]);
       if (r.rowCount === 0) {
         const err = new Error("plan_limit_reached");
         err.planLimitReached = true;
@@ -160,6 +287,9 @@ router.post('/', requireAuth, checkPlanLock, async (req, res) => {
     if (err && err.planLimitReached) {
       return res.status(400).json({ error: capMessage(plan, limit) });
     }
+    if (err && err.executorExists) {
+      return res.status(409).json({ error: 'You already have a Legacy Contact. Remove that role from them first, or name an existing trusted contact instead.' });
+    }
     if (err && err.code === '23505') {
       return res.status(409).json({ error: 'That position was just taken. Please try again.' });
     }
@@ -167,6 +297,7 @@ router.post('/', requireAuth, checkPlanLock, async (req, res) => {
   }
 
   const contact = await queryOne('SELECT * FROM trusted_contacts WHERE id = $1', [contactId]);
+  if (asExecutor) await notifyExecutorDesignated(req.user.id, contact);
   res.status(201).json({ ...contact, visible_sections });
 });
 
@@ -235,47 +366,121 @@ router.put('/:id/executor', requireAuth, checkPlanLock, async (req, res) => {
   );
   if (!contact) return res.status(404).json({ error: 'Contact not found.' });
 
-  const { is_executor } = req.body;
+  // Parsed exactly as the create route above parses it: only `true` and the 1
+  // this column actually stores mean "designate", everything else means
+  // "remove". A loose `if (!req.body.is_executor)` read the string "false" and
+  // an empty array as designate, so a client meaning to demote would instead
+  // hand the role to a third party and fire the designation email at them.
+  const asExecutor = req.body.is_executor === true || req.body.is_executor === 1;
+  const plan = await getUserPlan(req.user.id);
+
+  // Set inside the transaction and acted on after it, so the refusal path
+  // leaves the transaction to roll back without writing anything.
+  let refusal = null;
 
   await transaction(async (client) => {
+    // Owner row lock before counting, same discipline as the add route above
+    // and for the same reason: the cap check below and the UPDATEs that act on
+    // its answer must see one consistent count, or two concurrent demotions
+    // both find room and the account ends up over its allowance.
+    await client.query('SELECT id FROM users WHERE id = $1 FOR UPDATE', [req.user.id]);
+
+    // Giving up the role moves that person back onto the ordinary trusted
+    // contacts list, which is an addition to it, so the cap applies here just
+    // as it does when adding one. Refusing is also what keeps the exemption
+    // from being farmed: designate an exempt Legacy Contact, demote them,
+    // designate another, and an account could hold any number of ordinary
+    // contacts.
+    //
+    // The condition asks whether ANY row holds the role, not whether this one
+    // does, because the clearing UPDATE below is blanket. A request naming an
+    // ordinary contact with is_executor false still demotes whoever actually
+    // holds the role, so keying the check off contact.is_executor let that
+    // call grow the ordinary list by one while skipping the check entirely.
+    if (!asExecutor) {
+      const held = await client.query(
+        'SELECT id FROM trusted_contacts WHERE user_id = $1 AND is_executor = 1', [req.user.id]
+      );
+      if (held.rowCount > 0) {
+        // Name the person who actually loses the role, which is only the
+        // contact in the URL when that contact is the one holding it.
+        refusal = await demotionCapRefusal(
+          client, req.user.id, plan,
+          contact.is_executor ? 'this person' : 'your Legacy Contact'
+        );
+        if (refusal) return;
+
+        // Revoke the access links that person already holds. A Legacy
+        // Contact's link is deliberately non-expiring (generateAccessLink in
+        // lib/inactivityTimer.js), because by the time it matters there may be
+        // nobody left to resend it. Losing the role narrows what the link
+        // shows, since routes/access.js re-reads is_executor live on every
+        // request, but it does not make the link stop working: with no granted
+        // sections at all they would still see the owner's name, date of
+        // birth, about_me, legacy_message and the always-visible emergency
+        // contact block, for ever. Removing the role is presented as a clean
+        // handover, so it has to be one. Deleting the contact outright already
+        // revokes their tokens through ON DELETE CASCADE, so this only makes
+        // demotion behave the way deletion already does.
+        //
+        // Keyed on the rows that actually hold the role, not on the contact in
+        // the URL, for the same reason the cap check above is: the clearing
+        // UPDATE below is blanket.
+        await client.query(
+          'DELETE FROM trusted_contact_tokens WHERE contact_id = ANY($1)',
+          [held.rows.map(r => r.id)]
+        );
+      }
+    }
+
+    // Moving the role to someone else displaces the previous holder through
+    // the very same blanket clear below, so their non-expiring link has to go
+    // for exactly the reason the demotion branch above revokes one. Without
+    // this, handing the role to a new person left the old person's permanent
+    // link alive, which is the same leak one branch over and the easier one to
+    // miss, because nothing in the request mentions them.
+    //
+    // The incoming holder is excluded deliberately. They are about to hold the
+    // role, and dropping a link the owner had already sent them would break it
+    // for no reason.
+    if (asExecutor) {
+      const displaced = await client.query(
+        'SELECT id FROM trusted_contacts WHERE user_id = $1 AND is_executor = 1 AND id <> $2',
+        [req.user.id, contact.id]
+      );
+      if (displaced.rowCount > 0) {
+        await client.query(
+          'DELETE FROM trusted_contact_tokens WHERE contact_id = ANY($1)',
+          [displaced.rows.map(r => r.id)]
+        );
+      }
+    }
+
     await client.query('UPDATE trusted_contacts SET is_executor = 0 WHERE user_id = $1', [req.user.id]);
-    if (is_executor) {
+    if (asExecutor) {
       await client.query('UPDATE trusted_contacts SET is_executor = 1 WHERE id = $1', [contact.id]);
     }
     // Keep the Profile page's "designate my spouse as executor" checkbox
-    // (OPS-15) truthful if this contact is the one it's linked to, otherwise
-    // saving the profile again would silently re-apply the checkbox's stale
-    // state over whatever was just set here.
-    if (contact.linked_to_profile_spouse) {
-      await client.query('UPDATE users SET spouse_is_executor = $1 WHERE id = $2', [!!is_executor, req.user.id]);
-    }
+    // (OPS-15) truthful, otherwise saving the profile again would silently
+    // re-apply the checkbox's stale state over whatever was just set here.
+    //
+    // Written unconditionally rather than only when this contact is the linked
+    // spouse: the clearing UPDATE above is blanket, so moving the role TO
+    // another contact takes it away from the linked spouse too, and leaving
+    // the box ticked in that case both lies and makes the next profile save
+    // try to take the role back (which, now that the profile path is capped,
+    // would refuse an otherwise innocent save).
+    await client.query(
+      'UPDATE users SET spouse_is_executor = $1 WHERE id = $2',
+      [asExecutor && !!contact.linked_to_profile_spouse, req.user.id]
+    );
   });
+
+  if (refusal) return res.status(400).json({ error: refusal });
 
   const updated = await queryOne('SELECT * FROM trusted_contacts WHERE id = $1', [contact.id]);
 
-  // Let the new executor know right away what the role means, rather than them
-  // finding out only if/when the inactivity timer eventually lapses (see
-  // executorDesignatedEmail for why this matters: funerals often happen within
-  // days, so they're also told about the "Report a passing" page).
-  if (is_executor && updated.email) {
-    const owner = await queryOne('SELECT name, inactivity_period_months FROM users WHERE id = $1', [req.user.id]);
-    try {
-      const previewLink = await generateAccessLink(updated, { purpose: 'executor_preview' });
-      await sendEmail({
-        to:      updated.email,
-        subject: `You have been named ${owner.name}'s Legacy Contact on In Good Hands`,
-        html:    executorDesignatedEmail({
-          recipientName:          updated.name,
-          ownerName:              owner.name,
-          inactivityPeriodMonths: owner.inactivity_period_months || 12,
-          accessLink:             previewLink,
-          reportDeathLink:        `${CLIENT_URL}/report-passing`,
-        }),
-      });
-    } catch (err) {
-      console.error('[trusted-contacts] Executor designation email failed:', err.message);
-    }
-  }
+  if (asExecutor) await notifyExecutorDesignated(req.user.id, updated);
 
   res.json({ id: updated.id, is_executor: !!updated.is_executor });
 });
@@ -286,7 +491,23 @@ router.delete('/:id', requireAuth, checkPlanLock, async (req, res) => {
     [req.params.id, req.user.id]
   );
   if (!contact) return res.status(404).json({ error: 'Contact not found.' });
-  await query('DELETE FROM trusted_contacts WHERE id = $1', [contact.id]);
+
+  // Deleting the row the Profile page's spouse checkbox owns has to clear the
+  // checkbox too, in the same transaction. Left set, users.spouse_is_executor
+  // still says the spouse is the Legacy Contact while no linked row exists, so
+  // the next PUT /api/users/me takes syncSpouseExecutor's "no linked contact
+  // yet, so this save creates one" branch and silently re-creates the person
+  // just deleted, as Legacy Contact, and emails them the designation. That
+  // needs no spouse fields in the request to happen: the route merges the
+  // stored values, so any profile save at all is enough, including one from a
+  // page that never shows these fields.
+  await transaction(async (client) => {
+    await client.query('DELETE FROM trusted_contacts WHERE id = $1', [contact.id]);
+    if (contact.linked_to_profile_spouse) {
+      await client.query('UPDATE users SET spouse_is_executor = false WHERE id = $1', [req.user.id]);
+    }
+  });
+
   res.json({ success: true });
 });
 
@@ -342,3 +563,10 @@ router.post('/:id/access-link', requireAuth, checkPlanLock, async (req, res) => 
 });
 
 module.exports = router;
+
+// Exported for routes/users.js, whose Profile page spouse checkbox moves the
+// Legacy Contact role and therefore has to apply exactly this cap. Same
+// pattern routes/billing.js already uses to reach into routes/stripeWebhook.js
+// rather than keeping a second copy of shared logic. Nothing here requires
+// routes/users.js, so there is no require cycle.
+module.exports.demotionCapRefusal = demotionCapRefusal;
