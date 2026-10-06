@@ -88,6 +88,34 @@ async function refuseIfOverUploadCap(userId, res) {
   return true;
 }
 
+// The only sections that accept photo uploads, and the photo_role values each
+// one accepts. Nothing else may be uploaded as a photo.
+//
+// section_id arrives as free-form text in a multipart body and used to be
+// checked only by isVaultProtectedSection(), which answers whether a section
+// is sensitive, not whether it exists. The funeral gallery allowance is
+// counted per section (user_id + section_id + photo_role), and gallery photos
+// are deliberately excluded from the account-wide cap above because they have
+// their own allowance. Together that let a caller invent a new section_id on
+// each request and collect a fresh allowance of gallery photos every time,
+// uncapped in practice and paid for in R2 storage.
+//
+// This is a local allowlist rather than a borrowed one because the project has
+// no canonical server-side section list to borrow from: lib/vaultSections.js
+// names only the vault-protected sections, and the full 21-section list lives
+// on the client (client/src/constants/sections.js). Funeral and End-of-Life
+// Wishes is the only section with photo uploads today, and
+// client/src/pages/sections/FuneralWishesPage.jsx is its only caller.
+//
+// When a new section gains photo uploads, add its section_id and the roles it
+// accepts here, or its uploads will be refused. Refusing an unknown section is
+// the deliberate default: a photo filed under a section that does not exist
+// cannot be counted against any allowance that means anything, and cannot be
+// listed or deleted from the UI either.
+const PHOTO_SECTION_ROLES = new Map([
+  ['funeral_wishes', new Set(['funeral_main', 'funeral_gallery'])],
+]);
+
 // How much of the upload allowance is used, so the attach control can say so
 // before someone picks a file instead of refusing them after.
 //
@@ -239,6 +267,14 @@ router.post('/photos/upload', requireAuth, checkPlanLock, (req, res, next) => {
     if (!req.file)   return res.status(400).json({ error: 'No photo provided.' });
     if (!section_id) return res.status(400).json({ error: 'section_id is required.' });
     if (!photo_role) return res.status(400).json({ error: 'photo_role is required.' });
+    // Checked here, alongside the other two request-shape checks and ahead of
+    // the vault password, so an unrecognised section or role never reaches a
+    // cap count or an R2 write. See PHOTO_SECTION_ROLES above for why an
+    // unknown section_id has to be refused rather than accepted.
+    const allowedRoles = PHOTO_SECTION_ROLES.get(section_id);
+    if (!allowedRoles || !allowedRoles.has(photo_role)) {
+      return res.status(400).json({ error: 'Photos cannot be added to that section.' });
+    }
     if (isVaultProtectedSection(section_id)) {
       if (!await checkVault(vault_password, userId, res, req)) return;
     }

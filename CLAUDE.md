@@ -170,25 +170,60 @@ Current caps (Free / Premium):
 
 Enforcement points, since a cap is only real where a route refuses:
 
-- `refuseIfOverSectionCap` in `server/routes/sections.js` guards the five vault
-  sections. It is a plain `SELECT COUNT(*)` outside any transaction and takes
-  **no row lock**, so two concurrent adds can both pass it and overshoot the cap
-  by one. Known and accepted for now: the impact is one extra legal document,
-  not a crossed security boundary, and adding the lock means restructuring five
-  vault routes into transactions, which is more risk than the bug.
+- `sectionCapGuard` in `server/routes/sections.js` guards the five vault
+  sections (legal documents, financial items, property items, household info,
+  digital credentials). Since 2026-10-06 it **does hold a row lock**, in the
+  second of its two halves:
 
-  Do not confuse this with the `SELECT ... FOR UPDATE` guards that do exist, on
-  the trusted-contacts cap (`server/routes/trustedContacts.js`) and the
-  per-message voice-clip cap (`server/routes/sections.js`). Those are where the
-  "20 concurrent adds stored 11 against a cap of 10" lesson was learned, and
-  this file briefly and wrongly credited the same protection to
-  `refuseIfOverSectionCap`, which never had it. Verify the lock in the code
-  before relying on it for a new cap.
+  - `cap.full`, checked at the top of each POST route, is a plain
+    `SELECT COUNT(*)` outside any transaction. It only refuses early, before the
+    vault password is verified, so a full account is not charged scrypt's
+    deliberate cost. On its own it is racy, which is exactly why it is not the
+    only check.
+  - `cap.insert()` runs the INSERT inside a `transaction()` that takes
+    `SELECT id FROM users WHERE id = $1 FOR UPDATE` on the owner's row and
+    re-counts before inserting. This is what makes the cap hold. A free plan at
+    its limit is refused here with the same 400 and the same wording as the
+    early check; an uncapped Premium plan skips the lock and the re-count
+    because there is no last slot to race for.
+
+  All five vault POST routes use both halves. Measured on the local dev
+  database, 12 concurrent adds against a cap of 2 now store exactly 2 (before
+  the lock, the equivalent unlocked cap stored 10).
+
+  **Three non-vault caps still have no lock** and can still overshoot:
+  `POST /sections/messages` (personal messages), `POST /sections/unfinished-business`,
+  and `POST /sections/people-to-notify` each do a plain `SELECT COUNT(*)`
+  followed by an unprotected INSERT. Not addressed by the 2026-10-06 change and
+  not yet a decision either way.
+
+  The other locked caps, for comparison, are the trusted-contacts cap
+  (`server/routes/trustedContacts.js`) and the per-message voice-clip cap
+  (`POST /sections/:id/audio` in `server/routes/sections.js`). Those are where
+  the "20 concurrent adds stored 11 against a cap of 10" lesson was learned.
+  This file previously credited `refuseIfOverSectionCap`, the single-phase
+  helper `sectionCapGuard` replaced, with a lock it never had. Verify the lock
+  in the implementing line before relying on it for a new cap.
 - `refuseIfOverUploadCap` in `server/routes/documents.js` guards both upload
   routes, counting funeral gallery photos separately since they have their own
   allowance. `GET /api/documents/usage` reports `used` and `limit` so the attach
   control can state the allowance before a file is chosen, the total being
   account-wide and not derivable from one section's documents.
+
+  Because the funeral gallery allowance is counted per section
+  (`user_id` + `section_id` + `photo_role`) and gallery photos are excluded from
+  the account-wide cap, `section_id` on `POST /api/documents/photos/upload` is
+  validated against `PHOTO_SECTION_ROLES` in the same file (2026-10-06).
+  Without it, an invented `section_id` bought a fresh allowance of 5 gallery
+  photos per invented name. The allowlist is local to `documents.js` because
+  there is no canonical server-side section list to borrow from
+  (`server/lib/vaultSections.js` lists only the vault-protected sections; the
+  full list lives in `client/src/constants/sections.js`). `funeral_wishes` with
+  roles `funeral_main`/`funeral_gallery` is the only entry today; a new section
+  with photo uploads has to be added there or its uploads are refused.
+  `POST /api/documents/upload` (general attachments, plus `site_logo`) is
+  deliberately **not** restricted this way: its cap is account-wide, so an
+  invented `section_id` buys nothing there.
 
 Caps apply to **adding**, never to what already exists. An account that filled
 up while paying keeps every item on returning to free; nothing is ever deleted.
