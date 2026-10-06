@@ -145,7 +145,9 @@ app.use(async (req, res, next) => {
   // been falsely declared dead to stop their vault being handed over. A
   // maintenance window must not be the reason that link does nothing. The
   // path carries a secret token, so this is prefix-matched rather than listed
-  // above; it is one conditional UPDATE and reads nothing.
+  // above. It is cheap either way: the GET reads one row by token and renders
+  // a confirmation page, and the POST behind that page's button is one
+  // conditional UPDATE.
   if (req.path.startsWith('/api/vault-release/cancel/')) return next();
   try {
     const setting = await queryOne("SELECT value FROM app_settings WHERE key = 'maintenance_mode'");
