@@ -558,7 +558,18 @@ router.post('/reset-password', resetPasswordLimiter, resetRules, validate, async
 // staging first for a fix that otherwise needs no environment of its own.
 router.get('/verify-email/:token', async (req, res) => {
   const { token } = req.params;
-  const user = await queryOne('SELECT * FROM users WHERE email_verification_token = $1', [token]);
+  // Named columns rather than SELECT *, deliberately. This route is reachable
+  // by anyone with no session at all, and a SELECT * pulls password_hash, the
+  // reset token, the security answer hash and the vault release columns into
+  // scope beside a response object. Nothing leaks them today, but the comment
+  // above explains that the whole design rests on this route never gaining
+  // further power, and `res.json(user)` is a one line mistake away when the
+  // row in hand happens to contain everything. These five are all it uses.
+  const user = await queryOne(
+    `SELECT id, email, name, email_verified, email_verification_expires_at
+     FROM users WHERE email_verification_token = $1`,
+    [token]
+  );
   if (!user) return res.status(400).json({ error: 'Invalid or expired verification link.' });
   // Ahead of the expiry check on purpose. Once an account is verified, how old
   // its link is stops mattering, and "this link has expired" is the same

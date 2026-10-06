@@ -427,6 +427,16 @@ router.post('/users/:id/verify-email', auth, adminOnly, async (req, res) => {
     'UPDATE users SET email_verified = 1 WHERE id = $1',
     [user.id]
   );
+  // The user-driven path in routes/auth.js records an email_verified event, so
+  // this one left a gap: an admin asserting on someone's behalf that they
+  // control an address was the only way to set that flag with no trace of who
+  // did it. Written against the target user, matching the password_reset row
+  // further down this file, so it surfaces in that user's activity view rather
+  // than only in the admin's.
+  await query(
+    `INSERT INTO user_audit_logs (user_id, action, metadata) VALUES ($1, 'email_verified', $2)`,
+    [user.id, JSON.stringify({ verified_by: 'admin', admin_id: req.user.id })]
+  );
   res.json({ success: true });
 });
 
