@@ -59,6 +59,7 @@ import PetCarePage                from './pages/sections/PetCarePage'
 import HowToBeRememberedPage      from './pages/sections/HowToBeRememberedPage'
 import EmergencyContactPage       from './pages/sections/EmergencyContactPage'
 import TrustedContactsPage        from './pages/sections/TrustedContactsPage'
+import LegacyContactPage          from './pages/sections/LegacyContactPage'
 import UpgradePage                from './pages/UpgradePage'
 import WelcomeTrialPage           from './pages/WelcomeTrialPage'
 
@@ -939,6 +940,7 @@ function AppContent() {
           <Route path="/sections/how-to-be-remembered" element={<ProtectedRoute><HowToBeRememberedPage /></ProtectedRoute>} />
           <Route path="/sections/emergency-contact"    element={<ProtectedRoute><EmergencyContactPage /></ProtectedRoute>} />
           <Route path="/sections/trusted-contacts"     element={<ProtectedRoute><TrustedContactsPage /></ProtectedRoute>} />
+          <Route path="/sections/legacy-contact"       element={<ProtectedRoute><LegacyContactPage /></ProtectedRoute>} />
 
           {/* Export */}
           <Route path="/export" element={<ProtectedRoute><ExportPage /></ProtectedRoute>} />

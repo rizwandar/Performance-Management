@@ -153,7 +153,7 @@ Current caps (Free / Premium):
 
 | Area | Free | Premium |
 |------|------|---------|
-| trusted contacts | 2 | 10 |
+| trusted contacts (the Legacy Contact not counted, see below) | 2 | 10 |
 | messages to loved ones | 2 | unlimited |
 | unfinished business | 2 | unlimited |
 | people to notify | 3 | unlimited |
@@ -194,6 +194,32 @@ Caps apply to **adding**, never to what already exists. An account that filled
 up while paying keeps every item on returning to free; nothing is ever deleted.
 `PlanLimitNotice` has distinct copy for that over-limit case, reassuring rather
 than threatening.
+
+The **Legacy Contact is outside the trusted contacts cap** (2026-10-04). A free
+account holds 1 Legacy Contact + 1 emergency contact + 2 trusted contacts, four
+people rather than two, and the Legacy Contact is free on every plan. It is
+still stored as a `trusted_contacts` row with `is_executor = 1`, protected by
+the `trusted_contacts_one_executor` partial unique index: the storage
+deliberately did not move, because every access token, permission and link path
+already works off that row. Only the counting and the presentation changed, so
+every cap query filters that row out (`ORDINARY_ONLY` in
+`server/routes/trustedContacts.js`, matched in `GET /api/sections/completion`
+and in `client/src/pages/sections/TrustedContactsPage.jsx`). Three consequences
+worth knowing before touching it:
+
+- `POST /api/trusted-contacts` accepts `is_executor: true` so the row can be
+  created already designated. Creating then promoting cannot work on a full free
+  account: the create would be refused by the cap the role is exempt from.
+- That POST refuses a second Legacy Contact, and `PUT /:id/executor` refuses to
+  **remove** the role while the ordinary list is full. Both are what stop the
+  exemption being farmed (create exempt, demote, repeat) into an unlimited
+  contacts list.
+- `syncSpouseExecutor` in `server/routes/users.js` creates its row with
+  `is_executor = 1` from the outset and no longer cap-checks. Unticking that
+  profile box still demotes without a cap check, so an account can end up
+  holding one ordinary contact over its allowance that way. Accepted: the
+  checkbox has to tell the truth about who the Legacy Contact is, and no new row
+  is created, so it cannot compound.
 
 Four files carry these numbers and are kept in step **by hand**, because
 `shared/` has no home for server-only values (`shared/package.json` only exports

@@ -50,11 +50,19 @@ router.get('/completion', requireAuth, async (req, res) => {
   const uid = req.user.id;
 
   const [
-    userProfile, tcCount,
+    userProfile, tcCount, lcCount,
     ld, fi, fw, ptn, pi, pm, dc, stm, lw, hi, cd, pet, ins, ub, lm, doc, mr, db,
   ] = await Promise.all([
     queryOne('SELECT about_me, legacy_message, life_story, remembered_for, emergency_contact_name FROM users WHERE id = $1', [uid]),
-    queryOne('SELECT COUNT(*)::int as c FROM trusted_contacts WHERE user_id = $1', [uid]),
+    // Split in two (2026-10-04): the Legacy Contact is its own section on the
+    // dashboard and its own free allowance, so it must not be counted as a
+    // trusted contact here either, or the Trusted Contacts tile would report
+    // three against a plan that includes two. Both still read the same
+    // trusted_contacts row; only the counting changed. IS DISTINCT FROM 1
+    // because is_executor is a nullable INTEGER DEFAULT 0, so a NULL has to
+    // count as an ordinary contact.
+    queryOne('SELECT COUNT(*)::int as c FROM trusted_contacts WHERE user_id = $1 AND is_executor IS DISTINCT FROM 1', [uid]),
+    queryOne('SELECT COUNT(*)::int as c FROM trusted_contacts WHERE user_id = $1 AND is_executor = 1', [uid]),
     queryOne('SELECT COUNT(*)::int as c FROM legal_documents    WHERE user_id = $1', [uid]),
     queryOne('SELECT COUNT(*)::int as c FROM financial_items    WHERE user_id = $1', [uid]),
     queryOne('SELECT COUNT(*)::int as c FROM funeral_wishes     WHERE user_id = $1', [uid]),
@@ -93,6 +101,7 @@ router.get('/completion', requireAuth, async (req, res) => {
     personal_messages:     pm.c,
     digital_credentials:   dc.c,
     emergency_contact:     userProfile?.emergency_contact_name ? 1 : 0,
+    legacy_contact:        lcCount.c,
     trusted_contacts:      tcCount.c,
     songs_that_define_me:  stm.c,
     life_wishes:           lw.c,

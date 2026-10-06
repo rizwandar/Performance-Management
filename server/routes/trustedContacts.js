@@ -54,6 +54,22 @@ router.get('/', requireAuth, async (req, res) => {
   res.json(result);
 });
 
+// The Legacy Contact is one of these rows (is_executor = 1) but it is a
+// separate, free allowance and must not consume a trusted contact slot
+// (owner's decision, 2026-10-04: a free account holds 1 Legacy Contact,
+// 1 emergency contact and 2 trusted contacts). Keeping it in this table was
+// deliberate rather than overlooked: every access token, permission and link
+// path already works off that row, so splitting the storage would be
+// migration risk for no user benefit. Only the counting and the presentation
+// changed, which is why every cap query here filters the row out instead of
+// the schema separating it.
+//
+// IS DISTINCT FROM 1 rather than = 0 because is_executor is a nullable
+// INTEGER DEFAULT 0 (see db/database.js), so a NULL has to count as an
+// ordinary contact. `is_executor = 0` would silently drop such a row from the
+// count and quietly hand that account an extra slot.
+const ORDINARY_ONLY = 'is_executor IS DISTINCT FROM 1';
+
 // Plan wording deliberately avoids naming the paid tier: the upgrade page is
 // where the plan is actually explained. See the matching copy in
 // client/src/components/PlanLimitNotice.jsx. Shared between the cheap
@@ -64,10 +80,57 @@ function capMessage(plan, limit) {
     : `You can add up to ${limit} trusted contacts.`;
 }
 
+// Separate wording for the one case where the cap bites on a removal rather
+// than an addition: giving up the Legacy Contact role moves that person back
+// onto the trusted contacts list, which is an addition to it.
+function demoteCapMessage(plan, limit) {
+  const base = `Removing the Legacy Contact role would move this person back to your trusted contacts, and you already have ${limit}.`;
+  return plan !== 'premium'
+    ? `${base} Remove a trusted contact first, or upgrade your account if you would like room for more.`
+    : `${base} Remove a trusted contact first.`;
+}
+
+// Tells a newly designated Legacy Contact what the role means right away,
+// rather than them finding out only if/when the inactivity timer eventually
+// lapses (see executorDesignatedEmail for why this matters: funerals often
+// happen within days, so they are also told about the "Report a passing"
+// page). Shared by the designate-an-existing-contact route and the
+// create-already-designated path, which have to say exactly the same thing.
+// Never throws: a failed email must not undo a designation already saved.
+async function notifyExecutorDesignated(userId, contact) {
+  if (!contact.email) return;
+  try {
+    const owner = await queryOne('SELECT name, inactivity_period_months FROM users WHERE id = $1', [userId]);
+    const previewLink = await generateAccessLink(contact, { purpose: 'executor_preview' });
+    await sendEmail({
+      to:      contact.email,
+      subject: `You have been named ${owner.name}'s Legacy Contact on In Good Hands`,
+      html:    executorDesignatedEmail({
+        recipientName:          contact.name,
+        ownerName:              owner.name,
+        inactivityPeriodMonths: owner.inactivity_period_months || 12,
+        accessLink:             previewLink,
+        reportDeathLink:        `${CLIENT_URL}/report-passing`,
+      }),
+    });
+  } catch (err) {
+    console.error('[trusted-contacts] Executor designation email failed:', err.message);
+  }
+}
+
 router.post('/', requireAuth, checkPlanLock, async (req, res) => {
   const { sequence, name, relationship, email, phone, invite_message, visible_sections = [] } = req.body;
 
   if (!name) return res.status(400).json({ error: 'Name is required.' });
+
+  // Create the row already designated as Legacy Contact. The Legacy Contact
+  // page needs this: a free account whose two trusted contact slots are
+  // already full must still be able to name a brand new person as Legacy
+  // Contact, which a create-then-promote pair of calls could not do, since the
+  // create would be refused by the very cap the role is exempt from. Both
+  // `true` and the 1 this column actually stores are accepted, so a future
+  // mobile client sending either reaches the same path.
+  const asExecutor = req.body.is_executor === true || req.body.is_executor === 1;
 
   const invalid = visible_sections.filter(s => !VALID_SECTIONS.has(s));
   if (invalid.length > 0) {
@@ -77,11 +140,18 @@ router.post('/', requireAuth, checkPlanLock, async (req, res) => {
   const plan = await getUserPlan(req.user.id);
   const limit = getLimit('trusted_contacts', plan);
 
-  const taken = (await queryAll(
-    'SELECT sequence FROM trusted_contacts WHERE user_id = $1', [req.user.id]
-  )).map(r => r.sequence);
+  // Every row for this user, the Legacy Contact included: UNIQUE
+  // (user_id, sequence) spans them all, so position assignment below has to
+  // see that row's position even though the cap does not count it.
+  const rows = await queryAll(
+    'SELECT sequence, is_executor FROM trusted_contacts WHERE user_id = $1', [req.user.id]
+  );
+  const taken = rows.map(r => r.sequence);
+  const ordinaryCount = rows.filter(r => r.is_executor !== 1).length;
 
-  if (taken.length >= limit) return res.status(400).json({ error: capMessage(plan, limit) });
+  if (!asExecutor && ordinaryCount >= limit) {
+    return res.status(400).json({ error: capMessage(plan, limit) });
+  }
 
   // sequence is optional. It is display order only - nothing in the app
   // reads it as a notification priority or escalation order (the only other
@@ -127,13 +197,36 @@ router.post('/', requireAuth, checkPlanLock, async (req, res) => {
       // in the normal case where a person adds one contact at a time. Other
       // users are unaffected, since the lock is on their own row.
       await client.query('SELECT id FROM users WHERE id = $1 FOR UPDATE', [req.user.id]);
+
+      // At most one Legacy Contact per owner. The partial unique index
+      // trusted_contacts_one_executor enforces that in the database as well,
+      // but checking here (under the lock above, so the answer cannot change
+      // underneath us) reports it as a sentence rather than a constraint
+      // violation. It also closes a cap bypass: without it, creating an exempt
+      // Legacy Contact row over and over and letting each new one demote the
+      // last would let an account hold any number of ordinary contacts.
+      if (asExecutor) {
+        const existing = await client.query(
+          'SELECT id FROM trusted_contacts WHERE user_id = $1 AND is_executor = 1', [req.user.id]
+        );
+        if (existing.rowCount > 0) {
+          const err = new Error('executor_exists');
+          err.executorExists = true;
+          throw err;
+        }
+      }
+
+      // The Legacy Contact row is exempt from the cap, so the in-statement
+      // guard is made unreachable for it rather than removed: one INSERT, one
+      // place that knows what the cap is.
+      const insertCap = asExecutor || limit === Infinity ? Number.MAX_SAFE_INTEGER : limit;
       const r = await client.query(`
-        INSERT INTO trusted_contacts (user_id, sequence, name, relationship, email, phone, invite_message)
-        SELECT $1, $2, $3, $4, $5, $6, $7
-        WHERE (SELECT COUNT(*) FROM trusted_contacts WHERE user_id = $1) < $8
+        INSERT INTO trusted_contacts (user_id, sequence, name, relationship, email, phone, invite_message, is_executor)
+        SELECT $1, $2, $3, $4, $5, $6, $7, $9
+        WHERE (SELECT COUNT(*) FROM trusted_contacts WHERE user_id = $1 AND ${ORDINARY_ONLY}) < $8
         RETURNING id
       `, [req.user.id, position, name, relationship || null, email || null, phone || null, invite_message || null,
-          limit === Infinity ? Number.MAX_SAFE_INTEGER : limit]);
+          insertCap, asExecutor ? 1 : 0]);
       if (r.rowCount === 0) {
         const err = new Error("plan_limit_reached");
         err.planLimitReached = true;
@@ -160,6 +253,9 @@ router.post('/', requireAuth, checkPlanLock, async (req, res) => {
     if (err && err.planLimitReached) {
       return res.status(400).json({ error: capMessage(plan, limit) });
     }
+    if (err && err.executorExists) {
+      return res.status(409).json({ error: 'You already have a Legacy Contact. Remove that role from them first, or name an existing trusted contact instead.' });
+    }
     if (err && err.code === '23505') {
       return res.status(409).json({ error: 'That position was just taken. Please try again.' });
     }
@@ -167,6 +263,7 @@ router.post('/', requireAuth, checkPlanLock, async (req, res) => {
   }
 
   const contact = await queryOne('SELECT * FROM trusted_contacts WHERE id = $1', [contactId]);
+  if (asExecutor) await notifyExecutorDesignated(req.user.id, contact);
   res.status(201).json({ ...contact, visible_sections });
 });
 
@@ -237,6 +334,23 @@ router.put('/:id/executor', requireAuth, checkPlanLock, async (req, res) => {
 
   const { is_executor } = req.body;
 
+  // Giving up the role moves this person back onto the ordinary trusted
+  // contacts list, which is an addition to it, so the cap applies here just as
+  // it does when adding one. Refusing is also what keeps the exemption from
+  // being farmed: create an exempt Legacy Contact, demote them, create
+  // another, and an account could hold any number of ordinary contacts.
+  if (!is_executor && contact.is_executor) {
+    const plan  = await getUserPlan(req.user.id);
+    const limit = getLimit('trusted_contacts', plan);
+    const ordinary = await queryOne(
+      `SELECT COUNT(*)::int as c FROM trusted_contacts WHERE user_id = $1 AND ${ORDINARY_ONLY}`,
+      [req.user.id]
+    );
+    if (ordinary.c >= limit) {
+      return res.status(400).json({ error: demoteCapMessage(plan, limit) });
+    }
+  }
+
   await transaction(async (client) => {
     await client.query('UPDATE trusted_contacts SET is_executor = 0 WHERE user_id = $1', [req.user.id]);
     if (is_executor) {
@@ -253,29 +367,7 @@ router.put('/:id/executor', requireAuth, checkPlanLock, async (req, res) => {
 
   const updated = await queryOne('SELECT * FROM trusted_contacts WHERE id = $1', [contact.id]);
 
-  // Let the new executor know right away what the role means, rather than them
-  // finding out only if/when the inactivity timer eventually lapses (see
-  // executorDesignatedEmail for why this matters: funerals often happen within
-  // days, so they're also told about the "Report a passing" page).
-  if (is_executor && updated.email) {
-    const owner = await queryOne('SELECT name, inactivity_period_months FROM users WHERE id = $1', [req.user.id]);
-    try {
-      const previewLink = await generateAccessLink(updated, { purpose: 'executor_preview' });
-      await sendEmail({
-        to:      updated.email,
-        subject: `You have been named ${owner.name}'s Legacy Contact on In Good Hands`,
-        html:    executorDesignatedEmail({
-          recipientName:          updated.name,
-          ownerName:              owner.name,
-          inactivityPeriodMonths: owner.inactivity_period_months || 12,
-          accessLink:             previewLink,
-          reportDeathLink:        `${CLIENT_URL}/report-passing`,
-        }),
-      });
-    } catch (err) {
-      console.error('[trusted-contacts] Executor designation email failed:', err.message);
-    }
-  }
+  if (is_executor) await notifyExecutorDesignated(req.user.id, updated);
 
   res.json({ id: updated.id, is_executor: !!updated.is_executor });
 });

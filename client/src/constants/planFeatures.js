@@ -17,6 +17,13 @@
 // client/src/constants/planLimits.js, which mirrors the server's
 // server/lib/planLimits.js. Three files, kept in step by hand. Change one,
 // change all three in the same commit.
+//
+// The "A Legacy Contact, an emergency contact, and 2 trusted contacts" line
+// counts four people on purpose, and the 2 is not a typo for 3: since
+// 2026-10-04 the Legacy Contact is its own free allowance and no longer
+// consumes a trusted contact slot, so free really is one of each plus two.
+// Likewise "Up to 10 trusted contacts instead of 2" means ten besides the
+// Legacy Contact.
 export const FREE_FEATURES = [
   'Every section, including the vault',
   'Vault-encrypted protection for your most sensitive records',

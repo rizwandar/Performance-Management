@@ -156,6 +156,11 @@ router.post('/decline-signup-trial', auth, async (req, res) => {
 // lib/planLimits.js, which is the enforcement point, and the client mirror
 // in client/src/constants/planLimits.js and planFeatures.js. Four places,
 // kept in step by hand. Change one, change all of them in the same commit.
+//
+// The free list counts four people on purpose, and its 2 is not a typo for 3:
+// since 2026-10-04 the Legacy Contact is its own free allowance and no longer
+// consumes a trusted contact slot. "Up to 10 trusted contacts instead of 2"
+// likewise means ten besides the Legacy Contact.
 router.get('/plans', (req, res) => {
   res.json({
     plans: [

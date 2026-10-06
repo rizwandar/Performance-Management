@@ -42,14 +42,6 @@ const SECTIONS = [
 
 const emptyContact = { name: '', relationship: '', email: '', phone: '', invite_message: '' }
 
-// "4 October 2026", matching the wording in the spec and the profile's own
-// formatDate. Falls back to the raw value rather than rendering "Invalid Date".
-const formatIssuedDate = (iso) => {
-  if (!iso) return 'at an unknown date'
-  try { return new Date(iso).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' }) }
-  catch { return iso }
-}
-
 export default function TrustedContactsPage() {
   const { user } = useAuth()
   const { isPremium } = useSubscription()
@@ -99,60 +91,29 @@ export default function TrustedContactsPage() {
       .finally(() => setTcLoading(false))
   }
 
-  // Vault release state, so the Legacy Contact's card can say in one line
-  // whether their vault access is actually set up (spec 8.3 item 2). It is
-  // read-only here on purpose: issuing or re-issuing a code needs the vault
-  // password, which belongs on the profile's vault screens, not on a page
-  // about who can see which sections.
-  const [releaseStatus, setReleaseStatus] = useState(null)
-
-  const loadReleaseStatus = () => {
-    axios.get(`${API}/sections/digital-life/release/status`)
-      .then(r => setReleaseStatus(r.data))
-      // A failure here must not break the page. The line simply does not
-      // render, which is better than a card that cannot load at all.
-      .catch(() => setReleaseStatus(null))
-  }
+  // Vault release state, the Legacy Contact's own card and the explanation of
+  // that role all moved to LegacyContactPage.jsx (2026-10-04). This page is
+  // about who can see which sections; that one is about the single person who
+  // speaks for the owner. Keeping both here is what put one role in three
+  // places in the first place.
 
   useEffect(() => {
     loadContacts()
-    loadReleaseStatus()
   }, [])
-
-  // Whether the foot-of-page vault paragraph can promise a release at all.
-  // `enabled` alone is not enough: a suspended arrangement is one the owner
-  // cancelled, so telling them their Legacy Contact will be let in would be
-  // wrong until they resume it.
-  const releaseArmed = !!releaseStatus?.enabled && releaseStatus.release?.status !== 'suspended'
-
-  // The envelope survives its contact being deleted or demoted (contact_id is
-  // ON DELETE SET NULL, deliberately), and the code already handed over still
-  // opens it. So when the name is gone, say "they" rather than invent one or
-  // print the current Legacy Contact's name over an envelope sealed for
-  // somebody else.
-  const releaseContactName = releaseStatus?.release?.contact_name || 'they'
-
-  // Not hardcoded: window_hours is per-user, and the spec leaves room for a
-  // shorter window when an organization attests to a passing rather than a
-  // Legacy Contact declaring one. Days while it divides evenly, which covers
-  // both the 168-hour default and a 48-hour org window, hours otherwise, so an
-  // odd value can never render as "1.5 days".
-  const releaseWindow = (() => {
-    const hours = Number(releaseStatus?.release?.window_hours)
-    if (!Number.isFinite(hours) || hours <= 0) return '7 days'
-    if (hours % 24 === 0) {
-      const days = hours / 24
-      return days === 1 ? '1 day' : `${days} days`
-    }
-    return hours === 1 ? '1 hour' : `${hours} hours`
-  })()
 
   // Position is display order only (see the POST route in
   // server/routes/trustedContacts.js) and is now assigned server-side, so
   // the number shown against each contact is simply its place in the list.
   // That keeps the numbering contiguous even when the stored sequences are
   // not, which happens as soon as a middle contact is removed.
-  const ordered = [...contacts].sort((a, b) => a.sequence - b.sequence)
+  //
+  // The Legacy Contact is filtered out, not merely unlabelled. It is stored as
+  // one of these same rows (is_executor = 1) but it is a separate, free
+  // allowance that does not consume a slot, and the server counts the cap the
+  // same way (ORDINARY_ONLY in server/routes/trustedContacts.js). Counting it
+  // here would show three cards against a plan that includes two and declare
+  // the list full a person early.
+  const ordered = [...contacts].filter(c => !c.is_executor).sort((a, b) => a.sequence - b.sequence)
   const canAddMore = ordered.length < cap
 
   // Two different shapes for the same limit, on purpose. A free plan shows
@@ -231,32 +192,11 @@ export default function TrustedContactsPage() {
     setDeleting(false)
   }
 
-  const [executorSaving, setExecutorSaving] = useState(false)
-  // Only used for the "make executor" direction - removing someone as
-  // executor is low-stakes and reversible, so that action stays a single
-  // click. Making someone executor fires an immediate email to a third
-  // party, which deserves a confirm step right where the action happens,
-  // not just an explanation paragraph elsewhere on the page a user could
-  // click past without reading (OPS-19 found exactly that gap live).
-  const [executorConfirmTarget, setExecutorConfirmTarget] = useState(null)
-
-  const handleToggleExecutor = async (contact) => {
-    setExecutorSaving(true)
-    try {
-      await axios.put(`${API}/trusted-contacts/${contact.id}/executor`, { is_executor: !contact.is_executor })
-      setTcSuccess(contact.is_executor ? `${contact.name} is no longer your Legacy Contact.` : `${contact.name} is now your Legacy Contact and has been emailed about it.`)
-      loadContacts()
-      // Moving the role changes whether an existing sealed envelope still
-      // points at the current Legacy Contact, so the line below has to be
-      // re-read rather than left describing the previous arrangement.
-      loadReleaseStatus()
-      setTimeout(() => setTcSuccess(''), 3000)
-    } catch (err) {
-      setTcError(err.response?.data?.error || "We couldn't update this. Please try again.")
-    }
-    setExecutorConfirmTarget(null)
-    setExecutorSaving(false)
-  }
+  // The designate/undesignate action and its confirmation step moved to
+  // LegacyContactPage.jsx with the rest of that role. The confirm step itself
+  // is not optional wherever it lives: naming someone fires an immediate email
+  // to a third party, and OPS-19 found live that an explanation paragraph
+  // elsewhere on the page is something people click past without reading.
 
   const openSendLink = (contact) => {
     setLinkContact(contact)
@@ -283,10 +223,11 @@ export default function TrustedContactsPage() {
           destination the main navigation already reaches. The header is the
           first thing on the page. */}
       {/* The header carries what a first-time reader needs: what a trusted
-          contact is, how information reaches them, and what naming one of them
-          as Legacy Contact does. This replaced two standalone explainer panels
-          that sat further down the page and split the same explanation across
-          three places. Wording is the owner's own. */}
+          contact is, and how information reaches them. It used to carry the
+          Legacy Contact explanation too, which now has its own page: the role
+          is a separate, free allowance rather than one of these slots, so
+          explaining it here would imply it costs one. Wording is the owner's
+          own. */}
       <SectionHero
         eyebrow="Your People"
         headline="Trusted Contacts"
@@ -298,9 +239,9 @@ export default function TrustedContactsPage() {
               secure link.
             </p>
             <p className="mb-0">
-              You can also name one of them your <strong>Legacy Contact</strong>: the person notified
-              first, and the one who can confirm your passing. There is more about what that means
-              at the foot of this page.
+              The person notified first, and the one who can confirm your passing, is your{' '}
+              <Link to="/sections/legacy-contact">Legacy Contact</Link>. They are named on their own
+              page and do not use one of the slots below.
             </p>
           </>
         )}
@@ -345,47 +286,17 @@ export default function TrustedContactsPage() {
                               {contact.relationship && (
                                 <span className="text-muted small">({contact.relationship})</span>
                               )}
-                              {!!contact.is_executor && (
-                                <Badge bg={null} style={{ background: 'var(--green-800)', color: '#fff', fontWeight: 600 }}>
-                                  Legacy Contact
-                                </Badge>
-                              )}
                             </div>
                             <div className="text-muted small" style={{ paddingLeft: 34 }}>
                               {contact.email && <span className="me-3">✉ {contact.email}</span>}
                               {contact.phone && <span>📞 {formatPhone(contact.phone, user?.country_code)}</span>}
                             </div>
-                            {contact.is_executor ? (
-                              <>
-                                <p className="text-muted small mb-0" style={{ paddingLeft: 34, marginTop: 6 }}>
-                                  As Legacy Contact, sees everything you've recorded except your vault, regardless
-                                  of the sections picked below.
-                                </p>
-                                {/* Spec 8.3 item 2: one line of state and one
-                                    action, here rather than buried in the
-                                    profile, because this card is where you
-                                    look when you are thinking about this
-                                    person. Only shown once a vault exists:
-                                    there is nothing to release otherwise. */}
-                                {releaseStatus?.vault_exists && (
-                                  <p className="small mb-0" style={{ paddingLeft: 34, marginTop: 6 }}>
-                                    <span className="text-muted">
-                                      Vault release:{' '}
-                                      {releaseStatus.enabled && releaseStatus.release?.contact_id === contact.id
-                                        ? `code issued ${formatIssuedDate(releaseStatus.release.code_issued_at)}.`
-                                        : releaseStatus.enabled
-                                          ? 'set up for a different contact.'
-                                          : 'not set up.'}
-                                    </span>{' '}
-                                    <Link to="/profile?section=vault-password#vault-release">
-                                      {releaseStatus.enabled && releaseStatus.release?.contact_id === contact.id
-                                        ? 'Issue a new code'
-                                        : 'Set up'}
-                                    </Link>
-                                  </p>
-                                )}
-                              </>
-                            ) : contact.visible_sections?.length > 0 ? (
+                            {/* No Legacy Contact branch here any more: that row
+                                is filtered out of this list entirely, so every
+                                card below is an ordinary trusted contact whose
+                                access really is the sections they were
+                                granted. */}
+                            {contact.visible_sections?.length > 0 ? (
                               <div style={{ paddingLeft: 34, marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                                 {contact.visible_sections.map(sid => {
                                   const s = SECTIONS.find(x => x.id === sid)
@@ -407,11 +318,6 @@ export default function TrustedContactsPage() {
                             <Button size="sm" variant="primary" onClick={() => openSendLink(contact)}
                               disabled={!contact.email}>
                               Send access link
-                            </Button>
-                            <Button size="sm" variant={contact.is_executor ? 'outline-secondary' : 'outline-success'}
-                              onClick={() => contact.is_executor ? handleToggleExecutor(contact) : setExecutorConfirmTarget(contact)}
-                              disabled={executorSaving}>
-                              {contact.is_executor ? 'Remove as Legacy Contact' : 'Make Legacy Contact'}
                             </Button>
                             <Button size="sm" variant="outline-danger" onClick={() => setDeleteTarget(contact)}>Remove</Button>
                           </div>
@@ -449,77 +355,22 @@ export default function TrustedContactsPage() {
             )}
           </div>
 
-          <PlanLimitNotice limitKey="trusted_contacts" currentCount={contacts.length} alwaysShow omitCount />
+          {/* currentCount excludes the Legacy Contact, because `ordered` does:
+              the cap is about these slots only, and counting the Legacy
+              Contact here would tell a free account it was full while one slot
+              still stood empty. */}
+          <PlanLimitNotice limitKey="trusted_contacts" currentCount={ordered.length} alwaysShow omitCount />
 
-          {/* The Legacy Contact explanation sits at the foot of the page, not in
-              the header: it is the most consequential thing on this screen, but
-              it is reference material rather than something you act on while
-              adding a contact.
-
-              The closing vault paragraph used to state flatly that the vault
-              could never be opened by anyone, the Legacy Contact included. That
-              was true until vault release shipped and is now false for anyone
-              who has armed it, which is why there are two versions rather than
-              one hedged paragraph: release is opt-in, so no single wording is
-              honest for both states. Copy is the owner's own.
-
-              Neither version may be collapsed into the other, and the "only you
-              can decrypt" promise in both is a fact about the encryption rather
-              than a policy: the server holds ciphertext only, and arming
-              release does not change that, it only seals a second copy of the
-              key under a code the owner hands over in person. */}
-          <div style={{ background: 'var(--green-50)', border: '1px solid var(--green-100)', borderRadius: 10, padding: '20px 22px', marginTop: 24 }}>
-            <p style={{ fontWeight: 600, color: 'var(--green-900)', marginBottom: 10, fontSize: '1.02rem' }}>
-              About your Legacy Contact
-            </p>
-            <p className="text-muted small mb-2">
-              Any one of your trusted contacts can be named your Legacy Contact. It is the most
-              important choice on this page, so pick the person you would trust to act calmly on
-              your behalf when your family cannot.
-            </p>
-            <ul className="text-muted small mb-2" style={{ paddingLeft: '1.1rem', lineHeight: 1.75 }}>
-              <li>
-                <strong>Their access does not expire.</strong> Everyone else receives a link good for
-                72 hours. Your Legacy Contact keeps theirs, because when it is finally needed you will
-                not be there to send another one.
-              </li>
-              <li>
-                <strong>They see everything you have recorded, except your vault.</strong>
-              </li>
-              <li>
-                <strong>They are told first if you stop logging in.</strong> You choose how long that
-                wait is in{' '}<Link to="/profile/settings#inactivity-timer">your profile</Link>.
-              </li>
-              <li>
-                <strong>They can confirm your passing.</strong> That does not wait for any timer: the
-                moment it is confirmed, every trusted contact and everyone on your People to Notify
-                list is told straight away.
-              </li>
-            </ul>
-            {releaseArmed ? (
-              <p className="text-muted small mb-0">
-                <strong>Your vault is the exception.</strong> Your vault is encrypted and only you can
-                decrypt the information in your vault using your vault password. Only your Legacy
-                Contact {releaseContactName} can open it using the code you gave them, but only after
-                a passing is declared and a waiting period of {releaseWindow} has passed. During that
-                period we try to reach you on every contact detail we hold. In case you log in during
-                this period, we cancel the timer. After {releaseWindow}, your Legacy Contact gets a
-                secured link where they can enter the Vault Release Code you provided to them and
-                access the vault information.{' '}
-                <Link to="/faq#legacy-contact-vs-trusted-contact">Learn more</Link>.
-              </p>
-            ) : (
-              <p className="text-muted small mb-0">
-                <strong>Your vault is the exception.</strong> Once you set up your vault, only you can
-                decrypt your information using your vault password. This ensures that no one can see
-                your private data, even if the data is compromised. You can, though, designate a
-                Legacy Contact and set up a vault release in your profile. You will have to personally
-                hand them a Vault Release Code, which they can use to open the vault once you are not
-                there to take care of your affairs.{' '}
-                <Link to="/faq#legacy-contact-vs-trusted-contact">Learn more</Link>.
-              </p>
-            )}
-          </div>
+          {/* The "About your Legacy Contact" panel that used to close this page
+              moved to LegacyContactPage.jsx verbatim, both versions of its
+              vault paragraph included. It is reference material about a
+              different thing: that role is a separate, free allowance, and
+              explaining it at the foot of the page whose slots it does not use
+              is how the role came to be spread across three screens. */}
+          <p className="text-muted small" style={{ marginTop: 24 }}>
+            Looking for the person who is told first, and who can confirm your passing? That is your{' '}
+            <Link to="/sections/legacy-contact">Legacy Contact</Link>, named on their own page.
+          </p>
         </>
       )}
 
@@ -660,28 +511,6 @@ export default function TrustedContactsPage() {
           ) : (
             <Button variant="outline-secondary" onClick={() => setShowLinkModal(false)}>Close</Button>
           )}
-        </Modal.Footer>
-      </Modal>
-
-      {/* ── Make Legacy Contact Confirmation ──────────────────────────────────── */}
-      <Modal show={!!executorConfirmTarget} onHide={() => setExecutorConfirmTarget(null)} centered>
-        <Modal.Header closeButton>
-          <Modal.Title style={{ fontSize: '1.05rem' }}>Make {executorConfirmTarget?.name} your Legacy Contact?</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          They can view everything you've recorded except your vault, and are the one who
-          confirms what's happened if you stop logging in. Only then are your other trusted
-          contacts and the people you've listed to notify actually informed.
-          <p className="mb-0 mt-3" style={{ fontWeight: 600 }}>
-            They will be emailed right away to explain the role - not only if the inactivity
-            timer ever lapses.
-          </p>
-        </Modal.Body>
-        <Modal.Footer>
-          <Button variant="outline-secondary" onClick={() => setExecutorConfirmTarget(null)}>Cancel</Button>
-          <Button variant="success" onClick={() => handleToggleExecutor(executorConfirmTarget)} disabled={executorSaving}>
-            {executorSaving ? 'Saving…' : 'Yes, make Legacy Contact'}
-          </Button>
         </Modal.Footer>
       </Modal>
 

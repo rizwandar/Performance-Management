@@ -11,8 +11,6 @@ const { generateAccessLink } = require('../lib/inactivityTimer');
 const { stripe } = require('../lib/stripe');
 const { blockViewAs } = require('../lib/viewAsGuard');
 const checkPlanLock = require('../middleware/planLock');
-const { getLimit } = require('../lib/planLimits');
-const { getUserPlan } = require('../lib/subscription');
 
 const CLIENT_URL  = process.env.CLIENT_URL  || 'http://localhost:5173';
 
@@ -116,23 +114,24 @@ async function syncSpouseExecutor(userId, { marital_status, spouse_name, spouse_
     return wasExecutor ? null : { id: linked.id, name: spouse_name, email: spouse_email || null };
   }
 
-  // No linked contact yet. Trusted Contacts caps at a plan-aware limit
-  // (server/lib/planLimits.js - was a flat 3 for everyone before IDEA-43);
-  // if the owner already used all their available slots on other people,
-  // don't silently fail the whole profile save, just skip the executor
-  // sync and tell the client why. This was still hardcoded to 3 when
-  // IDEA-43 first shipped the plan-aware limit to the Trusted Contacts
-  // page itself (trustedContacts.js) - this is a separate code path
-  // (profile-save-triggered spouse sync) that got missed in that pass.
-  const plan = await getUserPlan(userId);
-  const limit = getLimit('trusted_contacts', plan);
-  const count = await queryOne('SELECT COUNT(*)::int as c FROM trusted_contacts WHERE user_id = $1', [userId]);
-  if (count.c >= limit) return { blocked: true };
-
+  // No linked contact yet, so this save creates one. The trusted contact cap
+  // used to be checked here and the sync skipped when the owner had already
+  // used every slot on other people. That check is gone (2026-10-04): the
+  // Legacy Contact is a separate, free allowance and never consumes a trusted
+  // contact slot, so the row this creates is exempt from the cap in exactly
+  // the way the one created by routes/trustedContacts.js is. The row is
+  // created with is_executor = 1 from the outset, so it is never counted as an
+  // ordinary contact even for an instant.
+  //
+  // The position is the lowest free one, searched without an upper bound. It
+  // used to be searched only up to the plan limit, which was unreachable while
+  // the cap check above stood but would now hand the INSERT an undefined
+  // sequence on a full account and write a NULL position.
   const taken = new Set(
     (await queryAll('SELECT sequence FROM trusted_contacts WHERE user_id = $1', [userId])).map(r => r.sequence)
   );
-  const sequence = Array.from({ length: limit }, (_, i) => i + 1).find(s => !taken.has(s));
+  let sequence = 1;
+  while (taken.has(sequence)) sequence += 1;
 
   const newContactId = await transaction(async (client) => {
     await client.query('UPDATE trusted_contacts SET is_executor = 0 WHERE user_id = $1', [userId]);
@@ -226,10 +225,11 @@ router.put('/me', auth, async (req, res) => {
       spouse_is_executor: merged.spouse_is_executor,
     });
 
+    // spouse_executor_blocked is gone with the cap check that produced it: the
+    // Legacy Contact no longer uses a trusted contact slot, so a full trusted
+    // contacts list can no longer stop the spouse being designated.
     const responseExtra = {};
-    if (syncResult?.blocked) {
-      responseExtra.spouse_executor_blocked = true;
-    } else if (syncResult) {
+    if (syncResult) {
       if (syncResult.email) {
         const owner = await queryOne('SELECT name, inactivity_period_months FROM users WHERE id = $1', [req.user.id]);
         try {

@@ -15,6 +15,7 @@ const API = import.meta.env.VITE_API_URL
 const ICON_SETS = {
   classic: {
     how_to_be_remembered: '🕯️',
+    legacy_contact:       '🗝️',
     emergency_contact:    '📞',
     trusted_contacts:     '🤝',
     legal_documents:      '📄',
@@ -38,6 +39,10 @@ const ICON_SETS = {
   },
   heritage: {
     how_to_be_remembered: '🕯️',
+    // Not the key this section gets in the classic set above: that key is
+    // already property_items here, and two sections in one set must not share
+    // a glyph (the same mistake unfinished_business/last_moments made below).
+    legacy_contact:       '⚜️',
     emergency_contact:    '📞',
     trusted_contacts:     '🤝',
     legal_documents:      '📜',
@@ -64,6 +69,7 @@ const ICON_SETS = {
   },
   modern: {
     how_to_be_remembered: '🕯️',
+    legacy_contact:       '🛡️',
     emergency_contact:    '📞',
     trusted_contacts:     '🤝',
     legal_documents:      '📋',

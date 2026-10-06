@@ -8,6 +8,13 @@
 // itemLabel/itemLabelPlural drive PlanLimitNotice's copy ("You've reached
 // the Free plan limit of 2 trusted contacts...").
 export const PLAN_LIMITS = {
+  // Ordinary trusted contacts only, the Legacy Contact excluded. The Legacy
+  // Contact is the same kind of record on the server (a trusted_contacts row
+  // with is_executor = 1) but it is a separate, free allowance of one on every
+  // plan, so it has no entry here and no free-vs-premium number to show. Any
+  // count passed to PlanLimitNotice for this key must therefore exclude it, or
+  // the notice will say an account is full one person early. See the matching
+  // comment in server/lib/planLimits.js.
   trusted_contacts:       { free: 2, premium: 10,   itemLabel: 'trusted contact',  itemLabelPlural: 'trusted contacts' },
   personal_messages:      { free: 2, premium: null, itemLabel: 'message',          itemLabelPlural: 'messages' },
   unfinished_business:    { free: 2, premium: null, itemLabel: 'entry',            itemLabelPlural: 'entries' },

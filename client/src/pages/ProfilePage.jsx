@@ -70,7 +70,7 @@ function PasswordRequirements({ password }) {
 
 export default function ProfilePage() {
   const { user: authUser, login, logout } = useAuth()
-  const { refresh: refreshSubscription, isPremium } = useSubscription()
+  const { refresh: refreshSubscription } = useSubscription()
   const navigate = useNavigate()
   const [loading, setLoading]   = useState(true)
   const [saving, setSaving]     = useState(false)
@@ -356,16 +356,15 @@ export default function ProfilePage() {
       if (authUser && form.name !== authUser.name) {
         login({ ...authUser, name: form.name })
       }
-      if (res.data?.spouse_executor_blocked) {
-        // Profile fields still saved, only the executor sync was skipped, so
-        // this is a warning alongside the save, not a failure of the save.
-        setSuccess(`Profile saved. Your spouse could not be added as Legacy Contact: you already have ${isPremium ? PLAN_LIMITS.trusted_contacts.premium : PLAN_LIMITS.trusted_contacts.free} trusted contacts. Remove one on the Trusted Contacts page first, then try again.`)
-      } else if (res.data?.spouse_executor_email_skipped) {
+      // The spouse_executor_blocked case is gone (2026-10-04): the Legacy
+      // Contact no longer consumes a trusted contact slot, so a full trusted
+      // contacts list can no longer stop the spouse being designated here.
+      if (res.data?.spouse_executor_email_skipped) {
         setSuccess("Profile saved. Your spouse has been added as Legacy Contact, but they weren't notified by email since no email address is on file for them.")
       } else {
         setSuccess('Profile saved.')
       }
-      setTimeout(() => setSuccess(''), res.data?.spouse_executor_blocked || res.data?.spouse_executor_email_skipped ? 6000 : 3000)
+      setTimeout(() => setSuccess(''), res.data?.spouse_executor_email_skipped ? 6000 : 3000)
     } catch (err) {
       setError(err.response?.data?.error || "We couldn't save your profile. Please try again.")
     }
