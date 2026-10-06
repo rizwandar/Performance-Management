@@ -164,10 +164,29 @@ router.post('/legal-documents/list', requireAuth, async (req, res) => {
 // capacity rather than access. The numbers live in lib/planLimits.js, which
 // is the single source of truth; see docs/FREE_VAULT_PLAN.md for the why.
 //
-// Returns true when it has already sent a response, so callers read as
-// `if (await refuseIfOverSectionCap(...)) return;`. The wording deliberately
-// does not name the paid tier, matching PlanLimitNotice on the client: the
-// upgrade page is where the plan gets explained.
+// The cap is enforced in two halves, and a POST route needs both:
+//
+//   cap.full is checked first and refuses an account that is already at its
+//   limit before the vault password is looked at. That ordering predates the
+//   lock below and is kept deliberately: a full account is refused without
+//   paying scryptSync's intentional ~50-100ms cost, and the error returned for
+//   a full account that also sent the wrong vault password does not change.
+//
+//   cap.insert() then runs the INSERT inside a transaction that locks the
+//   owner's users row and re-counts, which is what actually makes the cap
+//   hold. The count taken above runs outside any transaction, so under
+//   READ COMMITTED (Postgres's default) two concurrent adds each count against
+//   their own snapshot, both see room for the final slot, and both insert,
+//   overshooting the cap by one. Same two-phase shape as the voice-clip cap in
+//   POST /messages/:id/audio below and the trusted-contacts cap in
+//   routes/trustedContacts.js. The lock is on the owner's own users row, so
+//   one account's adds never serialise another account's.
+//
+// Both halves send their own 400 when they refuse, so call sites read as
+// `if (cap.full) return;` and `if (id === null) return;`. The wording
+// deliberately does not name the paid tier, matching PlanLimitNotice on the
+// client: the upgrade page is where the plan gets explained.
+//
 // The only table names this guard will ever query. A table name cannot be a
 // bound parameter, so it has to be interpolated; every value passed today is
 // a literal written at the call site and none comes from a request. The
@@ -178,25 +197,63 @@ const CAPPED_TABLES = new Set([
   'digital_credentials',
 ]);
 
-async function refuseIfOverSectionCap(req, res, { limitKey, table, noun }) {
-  if (!CAPPED_TABLES.has(table)) throw new Error(`refuseIfOverSectionCap: unknown table ${table}`);
+async function sectionCapGuard(req, res, { limitKey, table, noun }) {
+  if (!CAPPED_TABLES.has(table)) throw new Error(`sectionCapGuard: unknown table ${table}`);
   const plan = await getUserPlan(req.user.id);
   const limit = getLimit(limitKey, plan);
-  if (limit === Infinity) return false;
-  const existing = await queryOne(
-    `SELECT COUNT(*)::int AS c FROM ${table} WHERE user_id = $1`,
-    [req.user.id]
-  );
-  if (existing.c < limit) return false;
-  res.status(400).json({
+  const refuse = () => res.status(400).json({
     error: plan !== 'premium'
       ? `Your plan includes ${limit} ${noun}. Upgrade your account if you would like to add more.`
       : `You can add up to ${limit} ${noun}.`,
   });
-  return true;
+
+  let full = false;
+  if (limit !== Infinity) {
+    const existing = await queryOne(
+      `SELECT COUNT(*)::int AS c FROM ${table} WHERE user_id = $1`,
+      [req.user.id]
+    );
+    full = existing.c >= limit;
+  }
+  if (full) refuse();
+
+  return {
+    full,
+    // runInsert is handed the transaction's client and must return the result
+    // of its own `INSERT ... RETURNING id`. Resolves to the new row's id, or
+    // to null when this add lost the race for the last slot, in which case the
+    // 400 has already been sent. An uncapped (Premium) plan skips the lock and
+    // the re-count entirely: there is no last slot to race for.
+    insert: async (runInsert) => {
+      try {
+        return await transaction(async (client) => {
+          if (limit !== Infinity) {
+            await client.query('SELECT id FROM users WHERE id = $1 FOR UPDATE', [req.user.id]);
+            const recount = await client.query(
+              `SELECT COUNT(*)::int AS c FROM ${table} WHERE user_id = $1`,
+              [req.user.id]
+            );
+            if (recount.rows[0].c >= limit) {
+              throw Object.assign(new Error('SECTION_CAP'), { code: 'SECTION_CAP' });
+            }
+          }
+          const result = await runInsert(client);
+          return result.rows[0].id;
+        });
+      } catch (err) {
+        if (err.code === 'SECTION_CAP') {
+          refuse();
+          return null;
+        }
+        throw err;
+      }
+    },
+  };
 }
+
 router.post('/legal-documents', requireAuth, checkPlanLock, async (req, res) => {
-  if (await refuseIfOverSectionCap(req, res, { limitKey: 'legal_documents', table: 'legal_documents', noun: 'legal documents' })) return;
+  const cap = await sectionCapGuard(req, res, { limitKey: 'legal_documents', table: 'legal_documents', noun: 'legal documents' });
+  if (cap.full) return;
   const { vault_password, document_type, title, held_by, location, notes } = req.body;
   // REV-07: reuse the key checkVault() already derived, instead of deriving it again.
   // Vault-password verification (and its attempt/lockout tracking) still runs
@@ -204,7 +261,7 @@ router.post('/legal-documents', requireAuth, checkPlanLock, async (req, res) => 
   const key = await checkVault(vault_password, req.user.id, res, req);
   if (!key) return;
   if (!title) return res.status(400).json({ error: 'A title or description is required.' });
-  const result = await query(`
+  const id = await cap.insert((client) => client.query(`
     INSERT INTO legal_documents (user_id, document_type_enc, title_enc, held_by_enc, location_enc, notes_enc)
     VALUES ($1, $2, $3, $4, $5, $6) RETURNING id
   `, [
@@ -214,8 +271,9 @@ router.post('/legal-documents', requireAuth, checkPlanLock, async (req, res) => 
     encryptField(held_by, key),
     encryptField(location, key),
     encryptField(notes, key),
-  ]);
-  res.status(201).json({ id: result.rows[0].id });
+  ]));
+  if (id === null) return;
+  res.status(201).json({ id });
 });
 
 router.put('/legal-documents/:id', requireAuth, checkPlanLock, async (req, res) => {
@@ -262,12 +320,13 @@ router.post('/financial-affairs/list', requireAuth, async (req, res) => {
 });
 
 router.post('/financial-affairs', requireAuth, checkPlanLock, async (req, res) => {
-  if (await refuseIfOverSectionCap(req, res, { limitKey: 'financial_items', table: 'financial_items', noun: 'financial records' })) return;
+  const cap = await sectionCapGuard(req, res, { limitKey: 'financial_items', table: 'financial_items', noun: 'financial records' });
+  if (cap.full) return;
   const { vault_password, category, institution, account_type, account_reference, contact_name, contact_phone, notes } = req.body;
   const key = await checkVault(vault_password, req.user.id, res, req);
   if (!key) return;
   if (!institution && !category) return res.status(400).json({ error: 'Please provide at least an institution or category.' });
-  const result = await query(`
+  const id = await cap.insert((client) => client.query(`
     INSERT INTO financial_items (user_id, category_enc, institution_enc, account_type_enc, account_reference_enc, contact_name_enc, contact_phone_enc, notes_enc)
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id
   `, [
@@ -279,8 +338,9 @@ router.post('/financial-affairs', requireAuth, checkPlanLock, async (req, res) =
     encryptField(contact_name, key),
     encryptField(contact_phone, key),
     encryptField(notes, key),
-  ]);
-  res.status(201).json({ id: result.rows[0].id });
+  ]));
+  if (id === null) return;
+  res.status(201).json({ id });
 });
 
 router.put('/financial-affairs/:id', requireAuth, checkPlanLock, async (req, res) => {
@@ -504,12 +564,13 @@ router.post('/property-possessions/list', requireAuth, async (req, res) => {
 });
 
 router.post('/property-possessions', requireAuth, checkPlanLock, async (req, res) => {
-  if (await refuseIfOverSectionCap(req, res, { limitKey: 'property_items', table: 'property_items', noun: 'property items' })) return;
+  const cap = await sectionCapGuard(req, res, { limitKey: 'property_items', table: 'property_items', noun: 'property items' });
+  if (cap.full) return;
   const { vault_password, category, title, description, location, intended_recipient, notes } = req.body;
   const key = await checkVault(vault_password, req.user.id, res, req);
   if (!key) return;
   if (!title) return res.status(400).json({ error: 'A title is required.' });
-  const result = await query(`
+  const id = await cap.insert((client) => client.query(`
     INSERT INTO property_items (user_id, category_enc, title_enc, description_enc, location_enc, intended_recipient_enc, notes_enc)
     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id
   `, [
@@ -520,8 +581,9 @@ router.post('/property-possessions', requireAuth, checkPlanLock, async (req, res
     encryptField(location, key),
     encryptField(intended_recipient, key),
     encryptField(notes, key),
-  ]);
-  res.status(201).json({ id: result.rows[0].id });
+  ]));
+  if (id === null) return;
+  res.status(201).json({ id });
 });
 
 router.put('/property-possessions/:id', requireAuth, checkPlanLock, async (req, res) => {
@@ -847,12 +909,13 @@ router.post('/household-info/list', requireAuth, async (req, res) => {
 });
 
 router.post('/household-info', requireAuth, checkPlanLock, async (req, res) => {
-  if (await refuseIfOverSectionCap(req, res, { limitKey: 'household_info', table: 'household_info', noun: 'household entries' })) return;
+  const cap = await sectionCapGuard(req, res, { limitKey: 'household_info', table: 'household_info', noun: 'household entries' });
+  if (cap.full) return;
   const { vault_password, category, title, provider, account_reference, contact, notes } = req.body;
   const key = await checkVault(vault_password, req.user.id, res, req);
   if (!key) return;
   if (!title) return res.status(400).json({ error: 'A title is required.' });
-  const result = await query(`
+  const id = await cap.insert((client) => client.query(`
     INSERT INTO household_info (user_id, category_enc, title_enc, provider_enc, account_reference_enc, contact_enc, notes_enc)
     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id
   `, [
@@ -863,8 +926,9 @@ router.post('/household-info', requireAuth, checkPlanLock, async (req, res) => {
     encryptField(account_reference, key),
     encryptField(contact, key),
     encryptField(notes, key),
-  ]);
-  res.status(201).json({ id: result.rows[0].id });
+  ]));
+  if (id === null) return;
+  res.status(201).json({ id });
 });
 
 router.put('/household-info/:id', requireAuth, checkPlanLock, async (req, res) => {
@@ -1180,7 +1244,8 @@ router.post('/digital-life/list', requireAuth, async (req, res) => {
 });
 
 router.post('/digital-life', requireAuth, checkPlanLock, async (req, res) => {
-  if (await refuseIfOverSectionCap(req, res, { limitKey: 'digital_credentials', table: 'digital_credentials', noun: 'accounts' })) return;
+  const cap = await sectionCapGuard(req, res, { limitKey: 'digital_credentials', table: 'digital_credentials', noun: 'accounts' });
+  if (cap.full) return;
   const { vault_password, service, service_url, username, password, notes } = req.body;
   if (!service)        return res.status(400).json({ error: 'Service name is required.' });
   if (!username && !password) return res.status(400).json({ error: 'At least a username or password is required.' });
@@ -1192,12 +1257,13 @@ router.post('/digital-life', requireAuth, checkPlanLock, async (req, res) => {
   const key = await checkVault(vault_password, req.user.id, res, req);
   if (!key) return;
 
-  const result = await query(`
+  const id = await cap.insert((client) => client.query(`
     INSERT INTO digital_credentials (user_id, service, service_url, username_enc, password_enc, notes_enc)
     VALUES ($1, $2, $3, $4, $5, $6) RETURNING id
   `, [req.user.id, service, service_url || null,
-      encryptField(username, key), encryptField(password, key), encryptField(notes, key)]);
-  res.status(201).json({ id: result.rows[0].id });
+      encryptField(username, key), encryptField(password, key), encryptField(notes, key)]));
+  if (id === null) return;
+  res.status(201).json({ id });
 });
 
 router.put('/digital-life/:id', requireAuth, checkPlanLock, async (req, res) => {
