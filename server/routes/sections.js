@@ -226,12 +226,21 @@ const CAPPED_TABLES = new Set([
 // PlanLimitNotice on the client: the upgrade page is where the plan gets
 // explained. 'free-plan' is the older wording and does name it. New callers
 // should use the default.
-const CAP_REFUSAL_FREE_WORDING = {
+//
+// Null-prototype so the lookup below cannot be satisfied by an inherited key.
+// A plain object literal answers to 'constructor', 'toString' and 'valueOf',
+// which would slip past the `if (!freeWording) throw` guard and put a function
+// object where a sentence belongs. No caller can reach that today, since every
+// call site passes a literal, but the table allowlist beside this one is a Set
+// and is therefore safe by construction rather than by convention. These two
+// guards sit together and should be equally strong, so that reading one does
+// not teach the wrong lesson about the other.
+const CAP_REFUSAL_FREE_WORDING = Object.assign(Object.create(null), {
   'plan-includes': (limit, noun) =>
     `Your plan includes ${limit} ${noun}. Upgrade your account if you would like to add more.`,
   'free-plan': (limit, noun) =>
     `You can add up to ${limit} ${noun} on the Free plan. Upgrade to Premium to add more.`,
-};
+});
 
 async function sectionCapGuard(req, res, { limitKey, table, noun, wording = 'plan-includes' }) {
   if (!CAPPED_TABLES.has(table)) throw new Error(`sectionCapGuard: unknown table ${table}`);
