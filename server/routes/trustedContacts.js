@@ -433,6 +433,29 @@ router.put('/:id/executor', requireAuth, checkPlanLock, async (req, res) => {
       }
     }
 
+    // Moving the role to someone else displaces the previous holder through
+    // the very same blanket clear below, so their non-expiring link has to go
+    // for exactly the reason the demotion branch above revokes one. Without
+    // this, handing the role to a new person left the old person's permanent
+    // link alive, which is the same leak one branch over and the easier one to
+    // miss, because nothing in the request mentions them.
+    //
+    // The incoming holder is excluded deliberately. They are about to hold the
+    // role, and dropping a link the owner had already sent them would break it
+    // for no reason.
+    if (asExecutor) {
+      const displaced = await client.query(
+        'SELECT id FROM trusted_contacts WHERE user_id = $1 AND is_executor = 1 AND id <> $2',
+        [req.user.id, contact.id]
+      );
+      if (displaced.rowCount > 0) {
+        await client.query(
+          'DELETE FROM trusted_contact_tokens WHERE contact_id = ANY($1)',
+          [displaced.rows.map(r => r.id)]
+        );
+      }
+    }
+
     await client.query('UPDATE trusted_contacts SET is_executor = 0 WHERE user_id = $1', [req.user.id]);
     if (asExecutor) {
       await client.query('UPDATE trusted_contacts SET is_executor = 1 WHERE id = $1', [contact.id]);

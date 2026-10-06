@@ -245,10 +245,11 @@ worth knowing before touching it:
   owner's name, date of birth, `about_me`, `legacy_message` and the
   always-visible emergency contact block. Deleting the contact outright already
   revoked their tokens by `ON DELETE CASCADE`, so demotion now matches
-  deletion. Still open and deliberately not changed here: moving the role to
-  someone else (`PUT /:id/executor` with `is_executor: true`) displaces the
-  previous holder through the same blanket clear but leaves their non-expiring
-  token alive. Same gap, one branch over.
+  deletion. **Moving** the role to someone else revokes the displaced holder's
+  tokens too, for the same reason and in the same transaction, excluding the
+  incoming holder so a link the owner already sent them keeps working. Both
+  branches are keyed on the rows that actually hold the role, never on the
+  contact named in the URL, because the clearing UPDATE is blanket.
   `DELETE /trusted-contacts/:id` also clears `users.spouse_is_executor` when
   the deleted row was `linked_to_profile_spouse`, or the next `PUT
   /api/users/me` (any profile save, since the route merges stored values)
