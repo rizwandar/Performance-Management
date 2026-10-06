@@ -416,9 +416,26 @@ router.get('/vault-audit', auth, adminOnly, async (req, res) => {
 router.post('/users/:id/verify-email', auth, adminOnly, async (req, res) => {
   const user = await queryOne('SELECT id FROM users WHERE id = $1 AND is_admin = 0', [req.params.id]);
   if (!user) return res.status(404).json({ error: 'User not found.' });
+  // The token is left in place, same reasoning as GET /api/auth/verify-email
+  // in routes/auth.js. Clearing it here produced the same dead end from the
+  // other direction: an admin verifies the account by hand, the user then
+  // clicks the link still sitting in their inbox, and it matches no row, so
+  // they are told their link is invalid about an account that is verified.
+  // Leaving it means that click lands on the already-verified path and simply
+  // says so.
   await query(
-    'UPDATE users SET email_verified = 1, email_verification_token = NULL, email_verification_expires_at = NULL WHERE id = $1',
+    'UPDATE users SET email_verified = 1 WHERE id = $1',
     [user.id]
+  );
+  // The user-driven path in routes/auth.js records an email_verified event, so
+  // this one left a gap: an admin asserting on someone's behalf that they
+  // control an address was the only way to set that flag with no trace of who
+  // did it. Written against the target user, matching the password_reset row
+  // further down this file, so it surfaces in that user's activity view rather
+  // than only in the admin's.
+  await query(
+    `INSERT INTO user_audit_logs (user_id, action, metadata) VALUES ($1, 'email_verified', $2)`,
+    [user.id, JSON.stringify({ verified_by: 'admin', admin_id: req.user.id })]
   );
   res.json({ success: true });
 });

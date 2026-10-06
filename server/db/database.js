@@ -1392,7 +1392,17 @@ async function init() {
     await seedDemoCustomer({ name: 'David Kim', email: 'demo.david.kim@igh.local', status: 'archived', locationId: loc1.rows[0].id, viewConsent: true, archived: true });
   }
 
-  // Backfill: mark users without a verification token as verified
+  // Backfill: mark users without a verification token as verified.
+  //
+  // This is now the only place left that reads "token is NULL" as meaning
+  // "verified", and it runs on every boot. Since 2026-10-06 the verify route
+  // deliberately keeps the token instead of NULLing it on use (see
+  // GET /verify-email/:token in routes/auth.js for why), so a verified account
+  // normally still has one. That makes this predicate match strictly fewer
+  // rows than it used to, which is safe: it still catches the pre-verification
+  // accounts it was written for and no longer sweeps up freshly verified ones
+  // as a side effect. Do not invert it into "has a token means unverified";
+  // that stopped being true.
   await pool.query(
     'UPDATE users SET email_verified = 1 WHERE email_verification_token IS NULL AND email_verified = 0'
   );
