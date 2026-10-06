@@ -113,3 +113,50 @@ jobs:
           echo ""
           echo "All smoke tests passed."
         working-directory: server
+
+  # Guards the one file nothing else validates: server/package-lock.json.
+  #
+  # server/ is an npm workspace, so Dependabot writes its lockfile updates to
+  # the ROOT package-lock.json and leaves server/package-lock.json stale. Render
+  # builds the API with rootDir: server and runs `npm ci` there, and `npm ci`
+  # refuses to run at all when a package.json and its lockfile disagree. On
+  # 2026-10-06 that combination broke production API deploys while every check
+  # in this workflow stayed green, because the jobs above install from the root,
+  # which is always self-consistent.
+  #
+  # The copy to an empty directory outside the repo is the load-bearing part.
+  # Running npm inside server/ resolves against the workspace root, reports
+  # "up to date" and validates nothing at all.
+  server-lockfile:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+
+      - name: Install exactly as Render does, isolated from the workspace
+        run: |
+          set -euo pipefail
+          ISOLATED="$(mktemp -d)"
+          cp server/package.json server/package-lock.json "$ISOLATED/"
+          cd "$ISOLATED"
+          echo "Running npm ci against server/package-lock.json, outside the workspace."
+          if ! npm ci --ignore-scripts --no-audit --no-fund; then
+            echo ""
+            echo "server/package-lock.json is out of sync with server/package.json."
+            echo ""
+            echo "Render builds the API from server/ and runs npm ci, so this would"
+            echo "fail the next production deploy."
+            echo ""
+            echo "To fix: copy server/package.json alone into an empty directory"
+            echo "OUTSIDE this repo, run 'npm install --package-lock-only' there,"
+            echo "and copy the resulting package-lock.json back to server/."
+            echo "Running npm inside server/ will not work: it defers to the"
+            echo "workspace root and silently changes nothing."
+            exit 1
+          fi
+          echo "server/package-lock.json is consistent and installable."
