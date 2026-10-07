@@ -683,9 +683,9 @@ function UnverifiedEmailBanner() {
   )
 }
 
-// Persistent, non-blocking nudge for whichever additional recovery signal the
-// site's forgot-password flow actually requires (date of birth or a security
-// question) but this specific user hasn't set up - without it they'd be
+// Persistent, non-blocking nudge for the additional recovery signal the site's
+// forgot-password flow actually requires (a security question) but this
+// specific user hasn't set up - without it they'd be
 // silently unable to self-serve a password reset (SEC-05, follows from
 // SEC-04's "always email + an optional additional check" design). Derived
 // entirely from this user's own /users/me + the public /settings - no new
@@ -695,7 +695,11 @@ function UnverifiedEmailBanner() {
 function RecoveryCompletionBanner() {
   const { user } = useAuth()
   const location = useLocation()
-  const [gap, setGap] = useState(null) // 'dob' | 'security_question' | null
+  // 'security_question' | null. A 'dob' gap used to be possible too, when the
+  // site could be configured to ask for a date of birth; that method is gone
+  // (registration no longer collects one) and the server resolves it back to a
+  // plain email link, so there is no date-of-birth gap left to report.
+  const [gap, setGap] = useState(null)
 
   useEffect(() => {
     if (!user || user.is_admin) return
@@ -704,17 +708,14 @@ function RecoveryCompletionBanner() {
       axios.get(`${API}/users/me`),
     ]).then(([settingsRes, meRes]) => {
       const method = settingsRes.data.password_reset_method || 'email'
-      if (method === 'dob' && !meRes.data.date_of_birth) setGap('dob')
-      else if (method === 'security_question' && !meRes.data.has_security_question) setGap('security_question')
+      if (method === 'security_question' && !meRes.data.has_security_question) setGap('security_question')
       else setGap(null)
     }).catch(() => setGap(null))
   }, [user, location.pathname])
 
   if (!user || user.is_admin || !gap) return null
 
-  const message = gap === 'dob'
-    ? "This site's password reset also asks for your date of birth, but yours isn't on file."
-    : "This site's password reset also asks for your security question, but you haven't set one up."
+  const message = "This site's password reset also asks for your security question, but you haven't set one up."
 
   return (
     <div style={{

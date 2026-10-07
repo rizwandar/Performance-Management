@@ -13,6 +13,7 @@ const { setAuthCookies, clearAuthCookies } = require('../lib/authCookies');
 const { SIGNUP_TRIAL_ENABLED } = require('../lib/subscription');
 const { regimeForCountry } = require('../lib/complianceRegime');
 const { cancelPendingRelease } = require('../lib/releaseChallenge');
+const { resolvePasswordResetMethod } = require('../lib/passwordResetMethod');
 
 const { JWT_SECRET } = require('../lib/jwtSecret');
 
@@ -23,18 +24,9 @@ const { JWT_SECRET } = require('../lib/jwtSecret');
 // in db/database.js, so the two cannot drift apart.
 const { hashResetToken } = require('../lib/resetToken');
 
-// Cheap defense-in-depth against timing side-channels on the DOB comparison in
-// forgot-password. DOB is low-entropy to begin with, so this isn't the primary
-// defense - the per-email rate limiter below is.
-function timingSafeStringEqual(a, b) {
-  const bufA = Buffer.from(String(a ?? ''));
-  const bufB = Buffer.from(String(b ?? ''));
-  if (bufA.length !== bufB.length) {
-    crypto.timingSafeEqual(bufA, bufA);
-    return false;
-  }
-  return crypto.timingSafeEqual(bufA, bufB);
-}
+// The timing-safe string comparison that used to live here existed only for
+// the date-of-birth check in forgot-password, which is gone: see
+// lib/passwordResetMethod.js for why 'dob' is no longer a reachable method.
 
 const GENERIC_RESET_RESPONSE = { message: 'If that email is registered, a reset link has been sent.' };
 
@@ -428,43 +420,41 @@ router.post('/forgot-password/question', forgotPasswordQuestionLimiter, emailOnl
 const forgotRules = [
   body('email').trim().notEmpty().withMessage('Email is required.')
     .customSanitizer(v => v.toLowerCase()),
-  body('date_of_birth').optional({ checkFalsy: true })
-    .isDate().withMessage('Date of birth must be a valid date.'),
   body('security_answer').optional({ checkFalsy: true }).trim(),
 ];
-// Date of birth or a security-question answer, when the site is configured to
-// ask for one, is an ADDITIONAL check layered on top of the email link - never
-// an alternate path to a token. A reset link is always and only delivered by
-// email, the API never returns a token, and the response is identical whether
-// the account exists, the additional check matched, or the request was
-// rate-limited, so none of it is a signal an attacker can use to enumerate
-// accounts or brute-force a date of birth / security answer (SEC-04, SEC-05).
+// A security-question answer, when the site is configured to ask for one, is an
+// ADDITIONAL check layered on top of the email link - never an alternate path
+// to a token. A reset link is always and only delivered by email, the API never
+// returns a token, and the response is identical whether the account exists,
+// the additional check matched, or the request was rate-limited, so none of it
+// is a signal an attacker can use to enumerate accounts or brute-force a
+// security answer (SEC-04, SEC-05).
+//
+// Date of birth was a third option here. It is resolved away rather than
+// honoured now, because registration no longer collects a date of birth and
+// selecting that method would permanently lock every newer account out of
+// self-serve reset. See lib/passwordResetMethod.js for the full reasoning.
 router.post('/forgot-password', forgotPasswordLimiter, forgotRules, validate, async (req, res) => {
-  const { email, date_of_birth, security_answer } = req.body;
+  const { email, security_answer } = req.body;
   if (!email) return res.status(400).json({ error: 'Email is required' });
 
   const setting = await queryOne("SELECT value FROM app_settings WHERE key = 'password_reset_method'");
-  const method  = setting?.value || 'email';
-  const requireDob             = method === 'dob';
+  const method  = resolvePasswordResetMethod(setting?.value);
   const requireSecurityAnswer  = method === 'security_question';
-  if (requireDob && !date_of_birth) {
-    return res.status(400).json({ error: 'Date of birth is required' });
-  }
   if (requireSecurityAnswer && !security_answer) {
     return res.status(400).json({ error: 'An answer to your security question is required' });
   }
 
   const user = await queryOne('SELECT * FROM users WHERE email = $1', [email]);
-  const dobMatches = !requireDob || (!!user && timingSafeStringEqual(user.date_of_birth, date_of_birth));
   // A user who never set up a security question can't satisfy this check no
-  // matter what they type - same as a DOB mismatch, this falls through to the
-  // generic "no match" branch below rather than revealing why.
+  // matter what they type - this falls through to the generic "no match" branch
+  // below rather than revealing why.
   const securityAnswerMatches = !requireSecurityAnswer || (
     !!user && !!user.security_answer_hash &&
     bcrypt.compareSync(normalizeSecurityAnswer(security_answer), user.security_answer_hash)
   );
 
-  if (user && dobMatches && securityAnswerMatches) {
+  if (user && securityAnswerMatches) {
     const rawToken  = crypto.randomBytes(32).toString('hex');
     const tokenHash = hashResetToken(rawToken);
     const expiry    = new Date(Date.now() + 30 * 60 * 1000).toISOString();
@@ -479,7 +469,7 @@ router.post('/forgot-password', forgotPasswordLimiter, forgotRules, validate, as
     }).catch(e => console.error('[auth] Password reset email failed for user', user.id, ':', e.message));
     auditLog(user.id, 'password_reset_requested', req);
   } else {
-    const reason = !user ? 'no_account' : !dobMatches ? 'dob_mismatch' : 'security_answer_mismatch';
+    const reason = !user ? 'no_account' : 'security_answer_mismatch';
     auditLog(user?.id || null, 'password_reset_denied', req, { reason });
   }
 

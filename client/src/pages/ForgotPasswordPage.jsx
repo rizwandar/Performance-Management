@@ -8,7 +8,7 @@ const API = import.meta.env.VITE_API_URL
 
 export default function ForgotPasswordPage() {
   const [method, setMethod] = useState('email')
-  const [form, setForm] = useState({ email: '', date_of_birth: '', security_answer: '' })
+  const [form, setForm] = useState({ email: '', security_answer: '' })
   const [question, setQuestion] = useState(null)
   const [loadingQuestion, setLoadingQuestion] = useState(false)
   const [status, setStatus] = useState(null)
@@ -22,8 +22,8 @@ export default function ForgotPasswordPage() {
   }, [])
 
   // A reset link is always delivered by email, never returned here directly -
-  // date of birth or a security question answer (when the site asks for one)
-  // is only an additional check before that email is sent, not an alternate
+  // a security question answer (when the site asks for one) is only an
+  // additional check before that email is sent, not an alternate
   // way to get a working link. The response is identical whether the account
   // exists, the additional check matched, or the request was rate-limited, so
   // this form can't be used to test any of that (SEC-04, SEC-05).
@@ -81,17 +81,11 @@ export default function ForgotPasswordPage() {
                   required
                 />
               </Form.Group>
-              {method === 'dob' && (
-                <Form.Group className="mb-3">
-                  <Form.Label>Date of Birth</Form.Label>
-                  <Form.Control
-                    type="date"
-                    value={form.date_of_birth}
-                    onChange={e => setForm({ ...form, date_of_birth: e.target.value })}
-                    required
-                  />
-                </Form.Group>
-              )}
+              {/* A "Date of Birth" field used to appear here when the site was
+                  configured to ask for one. That method no longer exists: the
+                  server resolves it back to a plain email link, so asking for a
+                  date here would collect something nothing checks. See
+                  server/lib/passwordResetMethod.js. */}
               {method === 'security_question' && (
                 <Form.Group className="mb-3">
                   <Form.Label>

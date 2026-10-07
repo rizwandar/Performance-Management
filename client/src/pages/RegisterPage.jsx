@@ -120,8 +120,13 @@ const API = import.meta.env.VITE_API_URL
 
 export default function RegisterPage() {
   const navigate = useNavigate()
+  // Date of birth is deliberately not collected here (2026-10-06). It was the
+  // strongest identity field on this form, it is the most valuable single field
+  // to anyone who ever steals the database, and nothing in the product depends
+  // on having it at signup. It is still editable later in My Profile, and the
+  // users.date_of_birth column is untouched so existing values stay.
   const [form, setForm] = useState({
-    name: '', email: '', password: '', confirm_password: '', date_of_birth: '',
+    name: '', email: '', password: '', confirm_password: '',
     country_code: '', privacy_consent: false, gdpr_age_consent: false, health_data_consent: false,
   })
   const [error, setError]           = useState('')
@@ -168,7 +173,6 @@ export default function RegisterPage() {
         name:             form.name,
         email:            form.email,
         password:         form.password,
-        date_of_birth:    form.date_of_birth || null,
         country_code:     form.country_code,
         privacy_consent:     form.privacy_consent,
         gdpr_age_consent:    form.gdpr_age_consent,
@@ -263,17 +267,6 @@ export default function RegisterPage() {
                   complaint with your supervisory authority.
                 </p>
               )}
-            </Form.Group>
-
-            <Form.Group className="mb-3">
-              <Form.Label>
-                Date of Birth <span className="text-muted small">(optional, used for password recovery)</span>
-              </Form.Label>
-              <Form.Control
-                type="date"
-                value={form.date_of_birth}
-                onChange={e => setForm({ ...form, date_of_birth: e.target.value })}
-              />
             </Form.Group>
 
             <Row className="g-3 mb-4">

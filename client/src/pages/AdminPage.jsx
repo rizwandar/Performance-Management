@@ -663,7 +663,7 @@ AUTH SYSTEM:
 - CSRF: double-submit cookie. A second, non-httpOnly csrf_token cookie is set alongside the session cookie; the client echoes its value back as an X-CSRF-Token header on every mutating (non-GET/HEAD/OPTIONS) request, checked in server/middleware/auth.js. Only applies to cookie-authenticated requests - a Bearer-header request (mobile) is exempt, since CSRF is a browser/cookie phenomenon.
 - bcryptjs for password hashing, salt rounds = 10.
 - Rate limiting: 20 requests per 15 minutes on /api/auth routes, 200 requests per 15 minutes on general /api/ routes. forgot-password is additionally rate-limited per email address (5 per 15 minutes).
-- Password reset: always by emailed link, single-use, expires in 30 minutes, stored server-side as a SHA-256 hash (never the raw token, never returned in any API response). Admin can optionally also require date of birth or a security question as an extra check before that email is sent - either is only ever an additional signal, never an alternate path to a reset link. Security question answers are stored as a bcrypt hash (users.security_answer_hash), same as passwords. A successful reset (or any password change) bumps users.session_version, which invalidates any other already-issued session token.
+- Password reset: always by emailed link, single-use, expires in 30 minutes, stored server-side as a SHA-256 hash (never the raw token, never returned in any API response). Admin can optionally also require a security question as an extra check before that email is sent - it is only ever an additional signal, never an alternate path to a reset link. A date-of-birth option existed until 2026-10-06 and was removed when registration stopped collecting one. Security question answers are stored as a bcrypt hash (users.security_answer_hash), same as passwords. A successful reset (or any password change) bumps users.session_version, which invalidates any other already-issued session token.
 - Audit log: every login_success, login_failed, logout, register, password_changed, password_reset_requested, password_reset_denied stored in user_audit_logs table.
 - Vault failure audit: every failed vault attempt logged with attempt count.
 
@@ -898,7 +898,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
           <div style={card}>
             <BpSection title="User Journey">
               <BpTable rows={[
-                ['Registration', 'User provides name, email, date of birth, and password. A welcome email is sent. They land on the dashboard.'],
+                ['Registration', 'User provides name, email, country of residence, and password. Date of birth is no longer asked for at signup; it can be added later in My Profile. A welcome email is sent. They land on the dashboard.'],
                 ['Dashboard', 'Shows 21 section cards grouped into 4 color-coded groups. Each card shows completion status (Not started, In progress, Done). A progress bar shows overall completion.'],
                 ['First visit', 'New users see a welcome card with four suggested starting sections. Returning users see "Welcome back".'],
                 ['Filling sections', 'Each section has its own page with a form or list UI. Changes are saved immediately or via explicit Save buttons.'],
@@ -1004,7 +1004,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
             <BpSection title="Email Communications">
               <BpTable rows={[
                 ['Welcome email', 'Sent on registration. Warm welcome, link to log in.'],
-                ['Password reset', 'Sent on forgot-password request, always by email, reset link valid 30 minutes. If the site is set to also require date of birth or a security question, that\'s only an additional check before this email is sent, never an alternative to it.'],
+                ['Password reset', 'Sent on forgot-password request, always by email, reset link valid 30 minutes. If the site is set to also require a security question, that\'s only an additional check before this email is sent, never an alternative to it.'],
                 ['Inactivity reminder', 'Sent to the user as their timer approaches expiry. Days remaining shown clearly. Includes a "reset my timer" CTA (just log in again).'],
                 ['Inactivity notification', 'Sent to trusted contacts when the user\'s timer expires. Warm, gentle tone. Advises contacting the person directly first if possible. Includes the access link (72-hour for non-Legacy-Contacts, non-expiring for the Legacy Contact).'],
                 ['Contact access link', 'Sent to a trusted contact when the user manually clicks "Send access link". Tells them the owner has shared something important.'],
@@ -1221,7 +1221,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
             },
             {
               table: 'app_settings',
-              fields: 'id, key (unique), value. Keys: site_theme, site_font, site_icon_set, site_logo (R2 key), password_reset_method (email/dob/security_question)',
+              fields: 'id, key (unique), value. Keys: site_theme, site_font, site_icon_set, site_logo (R2 key), password_reset_method (email/security_question)',
             },
             {
               table: 'subscriptions',
@@ -1322,7 +1322,7 @@ Please confirm the stack choices above (or tell me which to change), and then we
             ['Error monitoring', 'Sentry (@sentry/node), initialised in instrument.js before any other import. Server errors reported automatically via the Express error handler.'],
             ['Error responses (SEC-08)', 'The global Express error handler (server/index.js) is gated on NODE_ENV: in production (set on both the staging and production Render services) it returns a generic {error: "Something went wrong...", code: "INTERNAL_ERROR"} instead of the raw err.message, since that could otherwise leak SQL fragments, table/column names, or other internal detail. Full detail is still logged server-side via console.error and reported to Sentry either way; only true local development sees the raw message.'],
             ['Org portal gating (SEC-12)', 'The org/funeral-home portal routes (organizations.js, orgPortal.js, orgPublic.js, orgRegister.js) are only require()\'d and registered at all when process.env.ORG_PORTAL_ENABLED === "true" (server/index.js). Unset in production, so those routes do not exist to be hit rather than merely being auth-rejected. Enabled on staging/local dev for continued testing.'],
-            ['Password reset', 'Always emailed, single-use, expires in 30 minutes. Token stored in users.reset_token as a SHA-256 hash (not the raw value) + reset_token_expiry; never returned in an API response. Admin can optionally also require date of birth or a security question as an additional check before that email is sent, never as an alternate path (fixed under SEC-04, which closed a prior gap where DOB alone could issue a reset token). POST /api/auth/forgot-password/question always returns a question (real or a deterministic decoy) so it can\'t be used to enumerate accounts. Also rate-limited per email address (5 requests / 15 min) independent of the general per-IP auth limiter.'],
+            ['Password reset', 'Always emailed, single-use, expires in 30 minutes. Token stored in users.reset_token as a SHA-256 hash (not the raw value) + reset_token_expiry; never returned in an API response. Admin can optionally also require a security question as an additional check before that email is sent, never as an alternate path (SEC-04 closed a prior gap where DOB alone could issue a reset token; the date-of-birth option itself was removed on 2026-10-06, when registration stopped collecting one, and any stored value for it resolves back to a plain email link). POST /api/auth/forgot-password/question always returns a question (real or a deterministic decoy) so it can\'t be used to enumerate accounts. Also rate-limited per email address (5 requests / 15 min) independent of the general per-IP auth limiter.'],
           ]} />
         </BpSection>
       </div>
@@ -2471,7 +2471,13 @@ export default function AdminPage() {
           <div className="d-flex gap-3 flex-wrap">
             {[
               { value: 'email',            label: 'Email link', desc: 'A reset link is sent to the registered email address' },
-              { value: 'dob',              label: 'Email link + date of birth', desc: 'User must also confirm their date of birth before the reset link is emailed' },
+              // "Email link + date of birth" was a third option here. It is
+              // gone because registration no longer collects a date of birth,
+              // so selecting it would have locked every newer account out of
+              // self-serve password reset with no explanation. The server
+              // resolves any stored 'dob' value back to 'email' as well, so
+              // removing the tile is the cosmetic half of the fix rather than
+              // the whole of it. See server/lib/passwordResetMethod.js.
               { value: 'security_question', label: 'Email link + security question', desc: "User must also answer their security question before the reset link is emailed. Only works for users who've set one up in My Profile." },
             ].map(opt => (
               <div key={opt.value}

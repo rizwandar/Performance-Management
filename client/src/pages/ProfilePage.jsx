@@ -992,6 +992,12 @@ immediately.</strong> Only the most recent code opens the vault.</div>
           <Col md={6}>
             <Form.Label>Date of birth</Form.Label>
             <Form.Control type="date" value={form.date_of_birth} onChange={set('date_of_birth')} />
+            {/* Registration stopped asking for this on 2026-10-06, so this is
+                now the only place it is collected. The hint says what it is for,
+                since nothing requires it. */}
+            <Form.Text className="text-muted">
+              Optional. It appears on your exported plan and to the contacts you give access to.
+            </Form.Text>
           </Col>
         </Row>
         <Form.Group className="mb-3">
@@ -1216,9 +1222,13 @@ immediately.</strong> Only the most recent code opens the vault.</div>
       <div style={{ background: 'var(--parchment)', borderRadius: 12, padding: '24px', marginBottom: 24, border: '1px solid var(--border)' }}>
         <h6 style={{ color: 'var(--green-900)', marginBottom: 4 }}>Vault Password</h6>
         <p className="text-muted small mb-4">
+          {/* Donation Bank joined the vault with IDEA-32 and was missing from
+              all three lists on this screen until 2026-10-06. The six sections
+              named here must match VAULT_PROTECTED_SECTIONS in
+              server/lib/vaultSections.js. */}
           Your vault password protects your most sensitive sections: Personal &amp; Legal Documents,
-          Digital Life, Financial Affairs, Property &amp; Possessions, and Household Information.
-          It is never stored on our servers. If you remember it, use <strong>Change vault password</strong>{' '}
+          Digital Life, Financial Affairs, Property &amp; Possessions, Household Information, and
+          Donation Bank. It is never stored on our servers. If you remember it, use <strong>Change vault password</strong>{' '}
           below, nothing is deleted. If you've completely forgotten it, the only option is a full
           vault reset, which permanently deletes all vault-protected content.
         </p>
@@ -1234,7 +1244,7 @@ immediately.</strong> Only the most recent code opens the vault.</div>
             <p className="text-muted small mb-0 mt-1">
               Your vault password will be created the first time you open any vault-protected
               section: Personal & Legal Documents, Digital Life, Financial Affairs,
-              Property & Possessions, or Household Information.
+              Property & Possessions, Household Information, or Donation Bank.
             </p>
           </div>
         )}
@@ -1246,8 +1256,8 @@ immediately.</strong> Only the most recent code opens the vault.</div>
               borderRadius: 8, padding: '10px 16px', marginBottom: 20, fontSize: '0.85rem',
               color: 'var(--green-800)',
             }}>
-              🔒 Vault is active. Your legal documents, digital credentials, financial, property, and
-              household information are protected.
+              🔒 Vault is active. Your legal documents, digital credentials, financial, property,
+              household information, and donation preferences are protected.
             </div>
 
             {vaultPwSuccess && <Alert variant="success">{vaultPwSuccess}</Alert>}
