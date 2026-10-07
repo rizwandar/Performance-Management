@@ -34,7 +34,17 @@ const faqEntries = [
     // docs/VAULT_RELEASE_ON_DEATH_SPEC.md and the live copy on the profile's
     // Vault Release panel, deliberately rather than freshly worded: nothing in
     // this answer may promise behavior the code does not have.
-    answer: "By default, no one but you. Your vault password is never stored anywhere, even in encrypted form, so neither we nor an admin can open your vault or hand it to anyone, no matter how much time passes. The vault protects your Personal & Legal Documents, Digital Life, Financial Affairs, Property & Possessions, Household Information, and Donation Bank sections. If you want your Legacy Contact to be able to open it once you are gone, you can set up vault release in your profile: we seal a copy of your vault key in an envelope that only one release code opens, we keep the envelope, and you hand the code to them yourself. We never send the code. If your passing is later declared, that code does not open anything straight away. A waiting period begins first, 7 days unless yours is set differently, we try to reach you on every contact detail we hold throughout it, and logging in at any point during that wait cancels it. If you never set vault release up, your vault stays sealed and what is inside it cannot be recovered by anyone, including us.",
+    //
+    // Corrected the same day on two counts. It said logging in "cancels it",
+    // which is only half of what happens: a cancellation suspends the whole
+    // arrangement, and every later declaration is refused until the owner
+    // resumes it in their profile (cancelPendingRelease in
+    // server/lib/releaseChallenge.js). An owner who stopped reading at
+    // "cancels it" could die with release switched off and a Legacy Contact
+    // holding a code that opens nothing. It also said "every contact detail we
+    // hold", which reads as a phone call: email is the only channel (CHANNELS
+    // in the same file, SMS scoped and dropped).
+    answer: "By default, no one but you. Your vault password is never stored anywhere, even in encrypted form, so neither we nor an admin can open your vault or hand it to anyone, no matter how much time passes. The vault protects your Personal & Legal Documents, Digital Life, Financial Affairs, Property & Possessions, Household Information, and Donation Bank sections. If you want your Legacy Contact to be able to open it once you are gone, you can set up vault release in your profile: we seal a copy of your vault key in an envelope that only one release code opens, we keep the envelope, and you hand the code to them yourself. We never send the code. If your passing is later declared, that code does not open anything straight away. A waiting period begins first, 7 days unless yours is set differently, and we write to every email address we hold for you, including your backup address, throughout it. If you log in at any point during that wait, we cancel the countdown and switch vault release off, and it stays off until you turn it back on in your profile. Turning it back on there keeps the code your Legacy Contact already holds, so a false alarm costs you nothing but the trip. If you never set vault release up, your vault stays sealed and what is inside it cannot be recovered by anyone, including us.",
   },
   {
     id: 'legacy-contact-vs-trusted-contact',
