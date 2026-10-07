@@ -45,7 +45,9 @@ client.interceptors.response.use(
 export const authApi = {
   login:          (email, password) => client.post('/auth/login', { email, password }).then(r => r.data),
   register:       (data)            => client.post('/auth/register', data).then(r => r.data),
-  forgotPassword: (email, dob)      => client.post('/auth/forgot-password', { email, ...(dob ? { date_of_birth: dob } : {}) }).then(r => r.data),
+  // No second factor sent: 'dob' is gone (server/lib/passwordResetMethod.js
+  // resolves it to 'email') and the server ignored date_of_birth here anyway.
+  forgotPassword: (email)           => client.post('/auth/forgot-password', { email }).then(r => r.data),
   resetPassword:  (token, password) => client.post('/auth/reset-password', { token, password }).then(r => r.data),
 }
 

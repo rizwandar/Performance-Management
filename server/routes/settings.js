@@ -3,6 +3,7 @@ const router = express.Router();
 const { queryAll, query } = require('../db/database');
 const auth = require('../middleware/auth');
 const { getDownloadUrl } = require('../lib/r2');
+const { resolvePasswordResetMethod } = require('../lib/passwordResetMethod');
 
 const adminOnly = (req, res, next) => {
   if (!req.user.is_admin) return res.status(403).json({ error: 'Admin access required' });
@@ -25,6 +26,14 @@ router.get('/', async (req, res) => {
   }
 
   if (!obj.site_name) obj.site_name = 'In Good Hands';
+
+  // Report the method the forgot-password route will actually apply, not the
+  // raw stored string. A stale 'dob' row (or anything else written through
+  // PUT /:key below) would otherwise make the forgot-password form ask for a
+  // date of birth that the server no longer checks, and the profile banner
+  // nag the user to supply one. See lib/passwordResetMethod.js.
+  obj.password_reset_method = resolvePasswordResetMethod(obj.password_reset_method);
+
   res.json(obj);
 });
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Row, Col, Card, Badge, Spinner } from 'react-bootstrap'
 import axios from 'axios'
@@ -339,7 +339,17 @@ export default function DashboardPage() {
 
       {/* ── Section groups ─────────────────────────────────────────────────── */}
       {GROUPS.map((group, gi) => {
-        const groupSections = SECTIONS.filter(s => s.group === group.id)
+        // Vault-protected sections are listed last within their group and
+        // introduced by their own heading row, so a user can see at a glance
+        // which parts of their plan are encrypted behind the vault password
+        // rather than having to remember. The split is driven by the
+        // vaultProtected flag in constants/sections.js (mirroring
+        // server/lib/vaultSections.js), not by group membership, so it keeps
+        // working if a vault section is ever moved to another group. Nothing
+        // here is a plan boundary: every section is open on every plan.
+        const inGroup        = SECTIONS.filter(s => s.group === group.id)
+        const groupSections  = [...inGroup.filter(s => !s.vaultProtected), ...inGroup.filter(s => s.vaultProtected)]
+        const firstVaultSectionId = groupSections.find(s => s.vaultProtected)?.id
         const groupStarted  = groupSections.filter(isStarted).length
         // A group only collapses once every section in it has at least one
         // entry, the same "started" signal the overall progress bar uses.
@@ -448,12 +458,38 @@ export default function DashboardPage() {
                 // tile no longer needs a locked state at all.
                 const handleClick = () => navigate(section.route)
                 return (
-                  <Col key={section.id} xs={12} sm={6} lg={4}>
+                  <Fragment key={section.id}>
+
+                  {/* Heading for the vault-protected part of this group. One
+                      short line only: the mechanics of vault release, and who
+                      can eventually open the vault, are explained on the
+                      Legacy Contact page, which is where that decision is
+                      actually made. */}
+                  {section.id === firstVaultSectionId && (
+                    <Col xs={12} style={{ marginTop: 10 }}>
+                      <div className="d-flex align-items-baseline gap-2 flex-wrap">
+                        <span style={{
+                          fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+                          color: group.startedBorder, background: group.iconBg,
+                          border: `1px solid ${group.cardBorder}`, borderRadius: 10, padding: '2px 10px',
+                          fontFamily: 'var(--ui-font, inherit)',
+                        }}>
+                          🔒 Vault protected
+                        </span>
+                      </div>
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', margin: '6px 0 0', fontFamily: 'var(--body-font, inherit)' }}>
+                        Everything you save in these sections is encrypted. You create a vault password the
+                        first time you open one, and that same password unlocks them.
+                      </p>
+                    </Col>
+                  )}
+
+                  <Col xs={12} sm={6} lg={4}>
                     <Card
                       className="h-100"
                       role="button"
                       tabIndex={0}
-                      aria-label={`${section.label}${started ? `, ${count(section)} items recorded` : ', not started'}`}
+                      aria-label={`${section.label}${section.vaultProtected ? ', vault protected' : ''}${started ? `, ${count(section)} items recorded` : ', not started'}`}
                       style={{
                         cursor: 'pointer',
                         background: group.cardBg,
@@ -473,6 +509,20 @@ export default function DashboardPage() {
                       }}
                     >
                       <Card.Body className="d-flex flex-column" style={{ padding: '16px' }}>
+
+                        {/* Marks the card itself, so the label travels with the
+                            section even when the heading above has scrolled
+                            out of view. */}
+                        {section.vaultProtected && (
+                          <span style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 4,
+                            fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.05em',
+                            textTransform: 'uppercase', color: group.startedBorder,
+                            marginBottom: 5, fontFamily: 'var(--ui-font, inherit)',
+                          }}>
+                            🔒 Vault
+                          </span>
+                        )}
 
                         {/* Title */}
                         <p style={{
@@ -533,6 +583,7 @@ export default function DashboardPage() {
                       </Card.Body>
                     </Card>
                   </Col>
+                  </Fragment>
                 )
               })}
                 </Row>

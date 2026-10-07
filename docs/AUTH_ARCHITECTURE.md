@@ -25,8 +25,10 @@ authenticate against the same accounts as the website.
 ### Registration flow
 
 `POST /api/auth/register` (`server/routes/auth.js:81-129`):
-1. Validates name/email/password/date_of_birth via `express-validator` (`registerRules`).
+1. Validates name/email/password via `express-validator` (`registerRules`).
    Password must be ≥8 chars, ≤128 chars, contain an uppercase letter and a digit.
+   `date_of_birth` is still accepted and still validated when present, but the web form stopped
+   collecting it on 2026-10-06, so new accounts normally have NULL in that column.
 2. Requires `privacy_consent: true` in the request body (blocks registration otherwise).
 3. Hashes password with `bcrypt` (cost factor 10).
 4. Creates the `users` row plus a `subscriptions` row with `plan='free', status='active'`.
@@ -63,11 +65,18 @@ token). A stolen token remains valid until it naturally expires (8h) or the user
 `POST /api/auth/forgot-password` → `POST /api/auth/reset-password`:
 - Always returns the same generic message regardless of whether the account exists — prevents
   account enumeration (SEC-04).
-- Optionally requires date-of-birth as a second factor, controlled by the
-  `app_settings.password_reset_method` toggle (`'email'` vs `'dob'`), admin-configurable.
-  DOB comparison uses `crypto.timingSafeEqual` to resist timing side-channels.
-- Rate-limited **by email** (not just IP) at 5 requests/15min, so guessing one account's DOB
-  can't be brute-forced by rotating IPs.
+- Optionally requires a security question answer as a second factor, controlled by the
+  `app_settings.password_reset_method` toggle, admin-configurable. The method is resolved
+  through `server/lib/passwordResetMethod.js`, which accepts only `'email'` and
+  `'security_question'` and maps anything else (a stale `'dob'` row included) to `'email'`.
+  A `'dob'` option did exist: the submitted date was compared against `users.date_of_birth`
+  with `crypto.timingSafeEqual` as an extra check before the reset link was emailed.
+  Registration stopped collecting a date of birth on 2026-10-06, so every newer account has
+  NULL there and could never satisfy the check. The comparison is gone and the toggle no
+  longer has that setting. Either way the second factor only ever gated whether the email was
+  sent; it was never an alternate route to a working token.
+- Rate-limited **by email** (not just IP) at 5 requests/15min, so guessing one account's second
+  factor can't be brute-forced by rotating IPs.
 - Reset token: 32 random bytes, **SHA-256 hashed before storage** (the DB never holds the raw
   token — only what was emailed does), 30-minute expiry.
 - On successful reset: **`session_version` is incremented**, which immediately invalidates every

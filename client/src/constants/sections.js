@@ -4,6 +4,15 @@
 // "journey" navigation on each section page (see SectionFooterNav.jsx) -
 // since the array is already laid out group by group, walking it front to
 // back naturally moves group by group too, without any special wrap logic.
+// `vaultProtected: true` marks the six sections whose contents are encrypted
+// with the user's own vault password. It mirrors VAULT_PROTECTED_SECTIONS in
+// server/lib/vaultSections.js, which stays the source of truth: the server
+// decides what is actually encrypted, this flag only decides what the dashboard
+// says about it. Kept in step by hand, like the plan limits in
+// client/src/constants/planLimits.js, since shared/ has no home for either.
+// Note the one id that differs in shape between the two files: this array uses
+// 'household-info' where the server set uses 'household_info'. Compare the
+// labels, not the ids, when checking the two lists match.
 export const SECTIONS = [
   // ── Your Legacy ────────────────────────────────────────────────────────────
   {
@@ -97,27 +106,27 @@ export const SECTIONS = [
   // ── Your Affairs ───────────────────────────────────────────────────────────
   {
     id: 'property_items', label: 'Property & Possessions',
-    icon: '🏡', route: '/sections/property-possessions', group: 'affairs',
+    icon: '🏡', route: '/sections/property-possessions', group: 'affairs', vaultProtected: true,
     description: 'A clear record of your home, vehicles, valuables, and the possessions that matter most.',
   },
   {
     id: 'household-info', label: 'Practical Household Information',
-    icon: '🔑', route: '/sections/household-info', group: 'affairs',
+    icon: '🔑', route: '/sections/household-info', group: 'affairs', vaultProtected: true,
     description: 'Practical details about utilities, subscriptions, and services that keep everyday life running smoothly.',
   },
   {
     id: 'financial_items', label: 'Financial Affairs',
-    icon: '💼', route: '/sections/financial-affairs', group: 'affairs',
+    icon: '💼', route: '/sections/financial-affairs', group: 'affairs', vaultProtected: true,
     description: 'Your accounts, investments, insurance policies, and financial affairs, all in one place.',
   },
   {
     id: 'legal_documents', label: 'Personal & Legal Documents',
-    icon: '📄', route: '/sections/legal-documents', group: 'affairs',
+    icon: '📄', route: '/sections/legal-documents', group: 'affairs', vaultProtected: true,
     description: 'Your will, powers of attorney, and identity documents, safely organized and easy to locate.',
   },
   {
     id: 'digital_credentials', label: 'Digital Life',
-    icon: '💻', route: '/sections/digital-life', group: 'affairs',
+    icon: '💻', route: '/sections/digital-life', group: 'affairs', vaultProtected: true,
     description: 'Your online accounts and passwords, secured by your vault password and accessible when needed.',
   },
   {
@@ -127,7 +136,7 @@ export const SECTIONS = [
   },
   {
     id: 'donation_bank', label: 'Donation Bank',
-    icon: '🩸', route: '/sections/donation-bank', group: 'affairs',
+    icon: '🩸', route: '/sections/donation-bank', group: 'affairs', vaultProtected: true,
     description: 'Your organ, tissue, and body donation preferences, vault-protected like the rest of your most sensitive records.',
   },
 ]

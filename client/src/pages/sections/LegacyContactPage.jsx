@@ -282,16 +282,20 @@ export default function LegacyContactPage() {
                       <p className="small mb-0" style={{ marginTop: 6 }}>
                         <span className="text-muted">
                           Vault release:{' '}
-                          {releaseStatus.enabled && releaseStatus.release?.contact_id === legacyContact.id
-                            ? `code issued ${formatIssuedDate(releaseStatus.release.code_issued_at)}.`
-                            : releaseStatus.enabled
-                              ? 'set up for a different contact.'
-                              : 'not set up.'}
+                          {releaseStatus.release?.needs_resume
+                            ? 'switched off after a reported passing.'
+                            : releaseStatus.enabled && releaseStatus.release?.contact_id === legacyContact.id
+                              ? `code issued ${formatIssuedDate(releaseStatus.release.code_issued_at)}.`
+                              : releaseStatus.enabled
+                                ? 'set up for a different contact.'
+                                : 'not set up.'}
                         </span>{' '}
                         <Link to="/profile?section=vault-password#vault-release">
-                          {releaseStatus.enabled && releaseStatus.release?.contact_id === legacyContact.id
-                            ? 'Issue a new code'
-                            : 'Set up'}
+                          {releaseStatus.release?.needs_resume
+                            ? 'Turn it back on'
+                            : releaseStatus.enabled && releaseStatus.release?.contact_id === legacyContact.id
+                              ? 'Issue a new code'
+                              : 'Set up'}
                         </Link>
                       </p>
                     )}
@@ -354,7 +358,26 @@ export default function LegacyContactPage() {
               can decrypt" promise in both is a fact about the encryption rather
               than a policy: the server holds ciphertext only, and arming
               release does not change that, it only seals a second copy of the
-              key under a code the owner hands over in person. */}
+              key under a code the owner hands over in person.
+
+              Both versions must state the same four things, because this page
+              is the only place the owner is told them (2026-10-06, owner's
+              instruction: this explanation belongs here, not on Trusted
+              Contacts): that vault release exists, that the code is handed over
+              by the owner in person, that a declared passing opens a waiting
+              period rather than releasing anything, and that logging in during
+              that period cancels it AND switches release off until the owner
+              turns it back on. Both versions said only "cancels it" until
+              2026-10-06, which was the dangerous half of the truth: a
+              cancellation suspends the arrangement (cancelPendingRelease in
+              server/lib/releaseChallenge.js), so an owner who believed the
+              feature was still live could die with a release that refuses every
+              declaration and a Legacy Contact holding a code that opens nothing.
+              The unarmed version said nothing about the waiting period until
+              then, which is the version almost everyone sees, release being
+              opt-in. The default window is 7 days
+              (window_hours DEFAULT 168 in db/database.js) and is per-row, hence
+              the hedge rather than a flat "7 days". */}
           <div style={{ background: 'var(--green-50)', border: '1px solid var(--green-100)', borderRadius: 10, padding: '20px 22px', marginTop: 24 }}>
             <p style={{ fontWeight: 600, color: 'var(--green-900)', marginBottom: 10, fontSize: '1.02rem' }}>
               About your Legacy Contact
@@ -389,10 +412,12 @@ export default function LegacyContactPage() {
                 decrypt the information in your vault using your vault password. Only your Legacy
                 Contact {releaseContactName} can open it using the code you gave them, but only after
                 a passing is declared and a waiting period of {releaseWindow} has passed. During that
-                period we try to reach you on every contact detail we hold. In case you log in during
-                this period, we cancel the timer. After {releaseWindow}, your Legacy Contact gets a
-                secured link where they can enter the Vault Release Code you provided to them and
-                access the vault information.{' '}
+                period we write to every email address we hold for you, including your backup
+                address. If you log in at any point during that wait, we cancel the countdown and
+                switch vault release off, and it stays off until you turn it back on in{' '}
+                <Link to="/profile?section=vault-password#vault-release">your profile</Link>. After{' '}
+                {releaseWindow}, your Legacy Contact gets a secured link where they can enter the
+                Vault Release Code you provided to them and access the vault information.{' '}
                 <Link to="/faq#legacy-contact-vs-trusted-contact">Learn more</Link>.
               </p>
             ) : (
@@ -402,7 +427,12 @@ export default function LegacyContactPage() {
                 your private data, even if the data is compromised. You can, though, designate a
                 Legacy Contact and set up a vault release in your profile. You will have to personally
                 hand them a Vault Release Code, which they can use to open the vault once you are not
-                there to take care of your affairs.{' '}
+                there to take care of your affairs. If your passing is declared, that code opens
+                nothing straight away: a waiting period begins first, 7 days unless yours is set
+                differently, and we write to every email address we hold for you, including your
+                backup address, throughout it. If you log in at any point during that wait, we
+                cancel the countdown and switch vault release off until you turn it back on in your
+                profile.{' '}
                 <Link to="/faq#legacy-contact-vs-trusted-contact">Learn more</Link>.
               </p>
             )}

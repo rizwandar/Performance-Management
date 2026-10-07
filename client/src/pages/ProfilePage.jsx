@@ -171,6 +171,7 @@ export default function ProfilePage() {
   const [showReleaseDisable, setShowReleaseDisable] = useState(false)
   const [releaseDisablePw, setReleaseDisablePw]     = useState('')
   const [releaseDisabling, setReleaseDisabling]     = useState(false)
+  const [releaseResuming, setReleaseResuming]       = useState(false)
   const [challengeEmailInput, setChallengeEmailInput] = useState('')
   const [challengeEmailSaving, setChallengeEmailSaving] = useState(false)
   const [challengeEmailError, setChallengeEmailError]   = useState('')
@@ -570,6 +571,58 @@ export default function ProfilePage() {
     }
     setReleaseDisabling(false)
   }
+
+  // Turning it back on after a cancellation suspended it.
+  //
+  // A cancellation does not re-arm the arrangement, it suspends it, and until
+  // the owner resumes it a further declaration is refused outright (see
+  // cancelPendingRelease in server/lib/releaseChallenge.js). Without this
+  // control the only way back was to re-issue the code, which would invalidate
+  // the slip the Legacy Contact is already holding and force a second physical
+  // handover for nothing. Resume deliberately keeps that code valid, which is
+  // why it needs no vault password: it changes no envelope and mints no code.
+  const handleResumeRelease = async () => {
+    setReleaseError('')
+    setReleaseResuming(true)
+    try {
+      await axios.post(`${API}/sections/digital-life/release/resume`, {})
+      setReleaseSuccess('Vault release is back on. The code your Legacy Contact already has still works, so there is nothing for you to hand over again.')
+      setTimeout(() => setReleaseSuccess(''), 8000)
+      await refreshReleaseStatus()
+    } catch (err) {
+      setReleaseError(err.response?.data?.error || 'Could not turn vault release back on. Please try again.')
+    }
+    setReleaseResuming(false)
+  }
+
+  // Shared by the armed and the suspended panels below, because it is true in
+  // both states. The envelope outlives its contact being deleted or demoted
+  // (contact_id is ON DELETE SET NULL, deliberately) and the code already handed
+  // over still opens it, so saying nothing here would be actively misleading
+  // whichever state the arrangement is in.
+  const releaseContactWarning = (() => {
+    const release = releaseStatus?.release
+    if (!release) return null
+    if (release.contact_missing) {
+      return (
+        <Alert variant="warning" className="small py-2">
+          The contact this was set up for has been removed. The code you handed out
+          still opens your vault, but there is now nobody designated to receive it.
+          Please set vault release up again.
+        </Alert>
+      )
+    }
+    if (!release.contact_is_legacy) {
+      return (
+        <Alert variant="warning" className="small py-2">
+          {release.contact_name} is no longer your Legacy Contact, but still holds a
+          code that opens your vault. Set vault release up again for whoever holds
+          that role now, which cancels the old code.
+        </Alert>
+      )
+    }
+    return null
+  })()
 
   const handleSaveChallengeEmail = async () => {
     setChallengeEmailError(''); setChallengeEmailSuccess('')
@@ -992,6 +1045,12 @@ immediately.</strong> Only the most recent code opens the vault.</div>
           <Col md={6}>
             <Form.Label>Date of birth</Form.Label>
             <Form.Control type="date" value={form.date_of_birth} onChange={set('date_of_birth')} />
+            {/* Registration stopped asking for this on 2026-10-06, so this is
+                now the only place it is collected. The hint says what it is for,
+                since nothing requires it. */}
+            <Form.Text className="text-muted">
+              Optional. It appears on your exported plan and to the contacts you give access to.
+            </Form.Text>
           </Col>
         </Row>
         <Form.Group className="mb-3">
@@ -1216,9 +1275,13 @@ immediately.</strong> Only the most recent code opens the vault.</div>
       <div style={{ background: 'var(--parchment)', borderRadius: 12, padding: '24px', marginBottom: 24, border: '1px solid var(--border)' }}>
         <h6 style={{ color: 'var(--green-900)', marginBottom: 4 }}>Vault Password</h6>
         <p className="text-muted small mb-4">
+          {/* Donation Bank joined the vault with IDEA-32 and was missing from
+              all three lists on this screen until 2026-10-06. The six sections
+              named here must match VAULT_PROTECTED_SECTIONS in
+              server/lib/vaultSections.js. */}
           Your vault password protects your most sensitive sections: Personal &amp; Legal Documents,
-          Digital Life, Financial Affairs, Property &amp; Possessions, and Household Information.
-          It is never stored on our servers. If you remember it, use <strong>Change vault password</strong>{' '}
+          Digital Life, Financial Affairs, Property &amp; Possessions, Household Information, and
+          Donation Bank. It is never stored on our servers. If you remember it, use <strong>Change vault password</strong>{' '}
           below, nothing is deleted. If you've completely forgotten it, the only option is a full
           vault reset, which permanently deletes all vault-protected content.
         </p>
@@ -1234,7 +1297,7 @@ immediately.</strong> Only the most recent code opens the vault.</div>
             <p className="text-muted small mb-0 mt-1">
               Your vault password will be created the first time you open any vault-protected
               section: Personal & Legal Documents, Digital Life, Financial Affairs,
-              Property & Possessions, or Household Information.
+              Property & Possessions, Household Information, or Donation Bank.
             </p>
           </div>
         )}
@@ -1246,8 +1309,8 @@ immediately.</strong> Only the most recent code opens the vault.</div>
               borderRadius: 8, padding: '10px 16px', marginBottom: 20, fontSize: '0.85rem',
               color: 'var(--green-800)',
             }}>
-              🔒 Vault is active. Your legal documents, digital credentials, financial, property, and
-              household information are protected.
+              🔒 Vault is active. Your legal documents, digital credentials, financial, property,
+              household information, and donation preferences are protected.
             </div>
 
             {vaultPwSuccess && <Alert variant="success">{vaultPwSuccess}</Alert>}
@@ -1717,6 +1780,58 @@ immediately.</strong> Only the most recent code opens the vault.</div>
                       </Button>
                     ) : null}
                   </>
+                ) : releaseStatus.release?.needs_resume ? (
+                  /* Suspended: a passing was declared and the owner stopped the
+                     countdown. That does not re-arm the arrangement, it switches
+                     it off, and every later declaration is refused until the
+                     owner resumes it (cancelPendingRelease in
+                     server/lib/releaseChallenge.js). This state used to render
+                     as "code issued ... for ...", identical to an armed one, so
+                     the owner was actively told everything was fine. If they
+                     then died without turning it back on, no window would open
+                     and the code they handed over would open nothing: the exact
+                     outcome this feature exists to prevent. */
+                  <>
+                    <p className="mb-2" style={{ fontWeight: 600, color: '#92400E' }}>
+                      Vault release: switched off for now
+                    </p>
+                    <p className="text-muted small">
+                      Someone reported that you had passed away. You stopped the countdown
+                      {releaseStatus.release?.cancelled_at ? ` on ${formatDate(releaseStatus.release.cancelled_at)}` : ''},
+                      so nothing was released and your vault is sealed exactly as it was.
+                    </p>
+                    <p className="text-muted small">
+                      Vault release stays switched off until you turn it back on. If your passing
+                      were reported again today, no waiting period would begin and the code your
+                      Legacy Contact holds would open nothing.
+                    </p>
+                    <p className="text-muted small">
+                      Turning it back on keeps the code{' '}
+                      {releaseStatus.release?.contact_name || 'your Legacy Contact'} already holds,
+                      so there is nothing for you to hand over again. Issuing a new code instead
+                      seals a fresh envelope and stops the code they are holding working, so choose
+                      that only if you think the code itself is no longer safe.
+                    </p>
+                    {releaseContactWarning}
+                    {!showReleaseSetup && !showReleaseDisable && (
+                      <div className="d-flex gap-3 flex-wrap align-items-center">
+                        <Button variant="primary" size="sm" disabled={releaseResuming}
+                          onClick={handleResumeRelease}>
+                          {releaseResuming ? 'Turning it back on...' : 'Turn vault release back on'}
+                        </Button>
+                        <Button variant="outline-primary" size="sm" onClick={() => {
+                          setReleaseSetupPw(''); setReleaseError(''); setShowReleaseSetup(true)
+                        }}>
+                          Issue a new code
+                        </Button>
+                        <button className="btn btn-link btn-sm p-0 text-danger" onClick={() => {
+                          setReleaseDisablePw(''); setReleaseError(''); setShowReleaseDisable(true)
+                        }}>
+                          Turn off vault release
+                        </button>
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <>
                     <p className="mb-2" style={{ fontWeight: 600 }}>
@@ -1725,28 +1840,12 @@ immediately.</strong> Only the most recent code opens the vault.</div>
                     </p>
                     <p className="text-muted small">
                       We are holding the sealed envelope. If your passing is reported, we wait{' '}
-                      {Math.round((releaseStatus.release?.window_hours || 168) / 24)} days and
-                      contact you the whole time first. Logging in at any point during that wait
-                      cancels it.
+                      {Math.round((releaseStatus.release?.window_hours || 168) / 24)} days and write
+                      to every email address we hold for you, including your backup address,
+                      throughout. Logging in at any point during that wait cancels the countdown
+                      and switches vault release off until you turn it back on here.
                     </p>
-                    {/* The role can move, or the contact can be deleted, after
-                        the envelope was sealed. The code already handed out
-                        still opens it, so saying nothing here would be
-                        actively misleading. */}
-                    {releaseStatus.release?.contact_missing && (
-                      <Alert variant="warning" className="small py-2">
-                        The contact this was set up for has been removed. The code you handed out
-                        still opens your vault, but there is now nobody designated to receive it.
-                        Please set vault release up again.
-                      </Alert>
-                    )}
-                    {!releaseStatus.release?.contact_missing && !releaseStatus.release?.contact_is_legacy && (
-                      <Alert variant="warning" className="small py-2">
-                        {releaseStatus.release?.contact_name} is no longer your Legacy Contact, but
-                        still holds a code that opens your vault. Set vault release up again for
-                        whoever holds that role now, which cancels the old code.
-                      </Alert>
-                    )}
+                    {releaseContactWarning}
                     {!showReleaseSetup && !showReleaseDisable && (
                       <div className="d-flex gap-3 flex-wrap">
                         <Button variant="outline-primary" size="sm" onClick={() => {

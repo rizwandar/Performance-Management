@@ -26,7 +26,25 @@ const faqEntries = [
     id: 'vault-access',
     category: 'Your Vault',
     question: "Who can access my vault after I'm gone?",
-    answer: "Today, no one but you can ever access anything protected by your vault password, not your Legacy Contact, not an admin, no one. Your vault password is never stored anywhere, even in encrypted form, so there is no way for In Good Hands itself to grant access to anyone else, including after you're gone or after a long period of inactivity. The vault protects your Legal Documents, Digital Life credentials, Financial Affairs, Property & Possessions, Household Info, and Donation Bank sections. If you want someone to have access to your vault after you're gone, the only way to do that today is to tell them your vault password yourself, outside of the app.",
+    // Rewritten 2026-10-06. This answer still said that nobody but the owner
+    // could ever open the vault and that telling someone the password was the
+    // only way to change that. Vault release shipped on 2026-10-05, so that
+    // was false for anyone who has set it up, and this is the page the Legacy
+    // Contact section links to for the detail. Mechanics here are taken from
+    // docs/VAULT_RELEASE_ON_DEATH_SPEC.md and the live copy on the profile's
+    // Vault Release panel, deliberately rather than freshly worded: nothing in
+    // this answer may promise behavior the code does not have.
+    //
+    // Corrected the same day on two counts. It said logging in "cancels it",
+    // which is only half of what happens: a cancellation suspends the whole
+    // arrangement, and every later declaration is refused until the owner
+    // resumes it in their profile (cancelPendingRelease in
+    // server/lib/releaseChallenge.js). An owner who stopped reading at
+    // "cancels it" could die with release switched off and a Legacy Contact
+    // holding a code that opens nothing. It also said "every contact detail we
+    // hold", which reads as a phone call: email is the only channel (CHANNELS
+    // in the same file, SMS scoped and dropped).
+    answer: "By default, no one but you. Your vault password is never stored anywhere, even in encrypted form, so neither we nor an admin can open your vault or hand it to anyone, no matter how much time passes. The vault protects your Personal & Legal Documents, Digital Life, Financial Affairs, Property & Possessions, Household Information, and Donation Bank sections. If you want your Legacy Contact to be able to open it once you are gone, you can set up vault release in your profile: we seal a copy of your vault key in an envelope that only one release code opens, we keep the envelope, and you hand the code to them yourself. We never send the code. If your passing is later declared, that code does not open anything straight away. A waiting period begins first, 7 days unless yours is set differently, and we write to every email address we hold for you, including your backup address, throughout it. If you log in at any point during that wait, we cancel the countdown and switch vault release off, and it stays off until you turn it back on in your profile. Turning it back on there keeps the code your Legacy Contact already holds, so a false alarm costs you nothing but the trip. If you never set vault release up, your vault stays sealed and what is inside it cannot be recovered by anyone, including us.",
   },
   {
     id: 'legacy-contact-vs-trusted-contact',
