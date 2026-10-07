@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { useNavigate, Link, useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { Button, Form, Row, Col, Alert, Spinner, Dropdown } from 'react-bootstrap'
 import axios from 'axios'
 import SectionHero from '../../components/SectionHero'
@@ -65,7 +65,6 @@ function FieldRow({ label, hint, action, children }) {
 }
 
 export default function FuneralWishesPage() {
-  const navigate = useNavigate()
   const { isPremium } = useSubscription()
   // Plan-aware funeral-gallery photo cap (Free 5, Premium 20) - replaces the
   // old flat 20 used below so the upload control can't offer a slot the
@@ -237,14 +236,6 @@ export default function FuneralWishesPage() {
 
   return (
     <div style={{ maxWidth: 700, margin: '0 auto' }}>
-      <div className="mb-4">
-        <button className="btn btn-link p-0 mb-2"
-          style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '0.9rem' }}
-          onClick={() => navigate('/profile')}>
-          ← Back to my plans
-        </button>
-      </div>
-
       <SectionHero
         eyebrow="Your Wishes"
         headline="How you'd like to be sent off"
@@ -522,8 +513,6 @@ export default function FuneralWishesPage() {
             </div>
           )}
 
-          <PlanLimitNotice limitKey="funeral_gallery_photos" currentCount={galleryPhotos.length} />
-
           {galleryPhotos.length < galleryPhotoLimit && (
             <button
               className="btn btn-outline-secondary btn-sm"
@@ -543,6 +532,10 @@ export default function FuneralWishesPage() {
             style={{ display: 'none' }}
             onChange={handleGalleryPhotoAdd}
           />
+
+          {/* Below the photos and the add control, not above them: the
+              allowance is a footnote to what is already here. */}
+          <PlanLimitNotice limitKey="funeral_gallery_photos" currentCount={galleryPhotos.length} />
         </div>
       </SectionCard>
       )}

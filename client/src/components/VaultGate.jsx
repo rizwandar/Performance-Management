@@ -85,10 +85,12 @@ export function VaultSetupScreen({ onSetup }) {
             <Col md={6}>
               <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 10, padding: 16, height: '100%' }}>
                 <p style={{ fontWeight: 600, marginBottom: 4 }}>Let me recover it with security questions</p>
+                {/* Owner's own wording, 2026-10-06. The "only as safe as those
+                    answers" caveat this used to carry is still stated in full
+                    on the Security page (client/src/pages/SecurityPage.jsx). */}
                 <p className="text-muted small mb-3">
-                  Set up 3-5 questions now. If you forget your password, answering at least 3 of them gets
-                  you back in and nothing is deleted. This does mean your vault is only as safe as those
-                  answers, not "even we cannot read it."
+                  Setup 3-5 questions now. If you forget your password, answering at least 3 of them gets
+                  you back in and nothing is deleted.
                 </p>
                 <Button variant="primary" size="sm" onClick={() => setStep('questions')}>
                   Set up recovery questions

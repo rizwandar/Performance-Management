@@ -1,5 +1,4 @@
 import { useEffect, useState, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { Button, Form, Row, Col, Alert, Modal, Spinner, Badge } from 'react-bootstrap'
 import axios from 'axios'
 import { VaultSetupScreen, VaultLockScreen } from '../../components/VaultGate'
@@ -39,8 +38,6 @@ const isKeyDocumentType = (type) => KEY_DOCUMENT_TYPES.includes(type)
 const empty = { document_type: '', title: '', held_by: '', location: '', notes: '' }
 
 export default function LegalDocumentsPage() {
-  const navigate = useNavigate()
-
   // Vault unlock state (password + timers) now lives in the shared, app-wide
   // VaultSessionContext (SEC-15) instead of page-local state, so unlocking on
   // any of the six vault sections keeps the others unlocked too, for as long
@@ -167,17 +164,6 @@ export default function LegalDocumentsPage() {
     }
   }
 
-  // ── Back link ──────────────────────────────────────────────────────────────
-  const backLink = (
-    <div className="mb-4">
-      <button className="btn btn-link p-0 mb-2"
-        style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '0.9rem' }}
-        onClick={() => navigate('/profile')}>
-        ← Back to my plans
-      </button>
-    </div>
-  )
-
   const hero = (
     <SectionHero
       eyebrow="Your Affairs"
@@ -201,7 +187,6 @@ export default function LegalDocumentsPage() {
   if (vaultState === 'loading') {
     return (
       <div style={{ maxWidth: 800, margin: '0 auto' }}>
-        {backLink}
       {hero}
         <div className="text-center py-5">
           <Spinner animation="border" style={{ color: 'var(--green-800)' }} />
@@ -213,7 +198,6 @@ export default function LegalDocumentsPage() {
   if (vaultState === 'no-vault') {
     return (
       <div style={{ maxWidth: 800, margin: '0 auto' }}>
-        {backLink}
       {hero}
         {disclaimer}
         <VaultSetupScreen onSetup={() => setVaultExists(true)} />
@@ -224,7 +208,6 @@ export default function LegalDocumentsPage() {
   if (vaultState === 'locked') {
     return (
       <div style={{ maxWidth: 800, margin: '0 auto' }}>
-        {backLink}
       {hero}
         {disclaimer}
         <VaultLockScreen onUnlock={handleUnlock} onReset={handleVaultReset} />
@@ -235,7 +218,6 @@ export default function LegalDocumentsPage() {
   // ── Unlocked ───────────────────────────────────────────────────────────────
   return (
     <div style={{ maxWidth: 800, margin: '0 auto' }}>
-      {backLink}
       {hero}
       {disclaimer}
 
@@ -258,9 +240,7 @@ export default function LegalDocumentsPage() {
       {success && <Alert variant="success">{success}</Alert>}
       {error && !showModal && <Alert variant="danger">{error}</Alert>}
 
-            <PlanLimitNotice limitKey="legal_documents" currentCount={items.length} alwaysShow />
-
-<div className="mb-4 d-flex align-items-center gap-3 flex-wrap">
+      <div className="mb-4 d-flex align-items-center gap-3 flex-wrap">
         <Button variant="primary" onClick={openAdd} disabled={atLimit}>+ Add a document</Button>
         {shareTrigger}
       </div>
@@ -327,6 +307,10 @@ export default function LegalDocumentsPage() {
           ))}
         </div>
       )}
+
+      {/* Below the recorded items, not above them: the allowance is a footnote
+          to what is already here, and at the top it pushed the items down. */}
+      <PlanLimitNotice limitKey="legal_documents" currentCount={items.length} alwaysShow />
 
       {/* Add / Edit modal */}
       <Modal show={showModal} onHide={() => setShowModal(false)} centered>

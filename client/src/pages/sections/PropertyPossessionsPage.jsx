@@ -1,5 +1,4 @@
 import { useEffect, useState, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { Button, Form, Row, Col, Alert, Modal, Spinner } from 'react-bootstrap'
 import axios from 'axios'
 import { VaultSetupScreen, VaultLockScreen } from '../../components/VaultGate'
@@ -27,8 +26,6 @@ const CATEGORY_LABELS = Object.fromEntries(CATEGORIES.map(c => [c.value, c.label
 const empty = { category: '', title: '', description: '', location: '', intended_recipient: '', notes: '' }
 
 export default function PropertyPossessionsPage() {
-  const navigate = useNavigate()
-
   // Vault unlock state (password + timers) now lives in the shared, app-wide
   // VaultSessionContext (SEC-15) instead of page-local state, so unlocking on
   // any of the six vault sections keeps the others unlocked too, for as long
@@ -149,16 +146,6 @@ export default function PropertyPossessionsPage() {
     }
   }
 
-  const backLink = (
-    <div className="mb-4">
-      <button className="btn btn-link p-0 mb-2"
-        style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '0.9rem' }}
-        onClick={() => navigate('/profile')}>
-        ← Back to my plans
-      </button>
-    </div>
-  )
-
   const hero = (
     <SectionHero
       eyebrow="Your Affairs"
@@ -173,7 +160,6 @@ export default function PropertyPossessionsPage() {
   if (vaultState === 'loading') {
     return (
       <div style={{ maxWidth: 800, margin: '0 auto' }}>
-        {backLink}
       {hero}
         <div className="text-center py-5">
           <Spinner animation="border" style={{ color: 'var(--green-800)' }} />
@@ -185,7 +171,6 @@ export default function PropertyPossessionsPage() {
   if (vaultState === 'no-vault') {
     return (
       <div style={{ maxWidth: 800, margin: '0 auto' }}>
-        {backLink}
       {hero}
         <VaultSetupScreen onSetup={() => setVaultExists(true)} />
       </div>
@@ -195,7 +180,6 @@ export default function PropertyPossessionsPage() {
   if (vaultState === 'locked') {
     return (
       <div style={{ maxWidth: 800, margin: '0 auto' }}>
-        {backLink}
       {hero}
         <VaultLockScreen onUnlock={handleUnlock} onReset={handleVaultReset} />
       </div>
@@ -204,7 +188,6 @@ export default function PropertyPossessionsPage() {
 
   return (
     <div style={{ maxWidth: 800, margin: '0 auto' }}>
-      {backLink}
       {hero}
 
       <div style={{
@@ -225,9 +208,7 @@ export default function PropertyPossessionsPage() {
       {success && <Alert variant="success">{success}</Alert>}
       {error && !showModal && <Alert variant="danger">{error}</Alert>}
 
-            <PlanLimitNotice limitKey="property_items" currentCount={items.length} alwaysShow />
-
-<div className="mb-4 d-flex align-items-center gap-3 flex-wrap">
+      <div className="mb-4 d-flex align-items-center gap-3 flex-wrap">
         <Button variant="primary" onClick={openAdd} disabled={atLimit}>+ Add an item</Button>
         {shareTrigger}
       </div>
@@ -287,6 +268,10 @@ export default function PropertyPossessionsPage() {
           ))}
         </div>
       )}
+
+      {/* Below the recorded items, not above them: the allowance is a footnote
+          to what is already here, and at the top it pushed the items down. */}
+      <PlanLimitNotice limitKey="property_items" currentCount={items.length} alwaysShow />
 
       <Modal show={showModal} onHide={() => setShowModal(false)} centered>
         <Modal.Header closeButton style={{ background: 'var(--green-50)', borderBottom: '1px solid var(--green-100)' }}>

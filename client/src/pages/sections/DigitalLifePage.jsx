@@ -166,17 +166,6 @@ export default function DigitalLifePage() {
     setShowPasswords(p => ({ ...p, [id]: !p[id] }))
   }
 
-  // ── Back link ──────────────────────────────────────────────────────────────
-  const backLink = (
-    <div className="mb-4">
-      <button className="btn btn-link p-0 mb-2"
-        style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '0.9rem' }}
-        onClick={() => navigate('/profile')}>
-        ← Back to my plans
-      </button>
-    </div>
-  )
-
   const hero = (
     <SectionHero
       eyebrow="Your Affairs"
@@ -192,7 +181,6 @@ export default function DigitalLifePage() {
   if (vaultState === 'loading') {
     return (
       <div style={{ maxWidth: 800, margin: '0 auto' }}>
-        {backLink}
       {hero}
         <div className="text-center py-5">
           <Spinner animation="border" style={{ color: 'var(--green-800)' }} />
@@ -205,7 +193,6 @@ export default function DigitalLifePage() {
   if (vaultState === 'no-vault') {
     return (
       <div style={{ maxWidth: 800, margin: '0 auto' }}>
-        {backLink}
       {hero}
         <VaultSetupScreen onSetup={() => setVaultExists(true)} />
       </div>
@@ -216,7 +203,6 @@ export default function DigitalLifePage() {
   if (vaultState === 'locked') {
     return (
       <div style={{ maxWidth: 800, margin: '0 auto' }}>
-        {backLink}
       {hero}
         <VaultLockScreen onUnlock={handleUnlock} onReset={handleVaultReset} />
       </div>
@@ -226,7 +212,6 @@ export default function DigitalLifePage() {
   // ── Unlocked — main vault UI ───────────────────────────────────────────────
   return (
     <div style={{ maxWidth: 800, margin: '0 auto' }}>
-      {backLink}
       {hero}
 
       {/* Vault status bar */}
@@ -255,9 +240,7 @@ export default function DigitalLifePage() {
       {success && <Alert variant="success">{success}</Alert>}
       {error && !showModal && <Alert variant="danger">{error}</Alert>}
 
-            <PlanLimitNotice limitKey="digital_credentials" currentCount={items.length} alwaysShow />
-
-<div className="mb-4 d-flex align-items-center gap-3 flex-wrap">
+      <div className="mb-4 d-flex align-items-center gap-3 flex-wrap">
         <Button variant="primary" onClick={openAdd} disabled={atLimit}>+ Add an account</Button>
         {shareTrigger}
       </div>
@@ -328,6 +311,10 @@ export default function DigitalLifePage() {
           ))}
         </div>
       )}
+
+      {/* Below the recorded items, not above them: the allowance is a footnote
+          to what is already here, and at the top it pushed the items down. */}
+      <PlanLimitNotice limitKey="digital_credentials" currentCount={items.length} alwaysShow />
 
       {/* Add / Edit modal */}
       <Modal show={showModal} onHide={() => setShowModal(false)} centered>

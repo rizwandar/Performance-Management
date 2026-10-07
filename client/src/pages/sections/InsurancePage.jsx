@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { Button, Form, Row, Col, Alert, Modal, Spinner } from 'react-bootstrap'
 import axios from 'axios'
 import SectionHero from '../../components/SectionHero'
@@ -22,7 +21,6 @@ const empty = {
 // no vault lock/unlock screens - it talks to the API directly, same pattern
 // as PetCarePage.
 export default function InsurancePage() {
-  const navigate = useNavigate()
   const [items, setItems]         = useState([])
   const [loading, setLoading]     = useState(true)
   const [saving, setSaving]       = useState(false)
@@ -94,12 +92,6 @@ export default function InsurancePage() {
 
   return (
     <div style={{ maxWidth: 800, margin: '0 auto' }}>
-      <div className="mb-4">
-        <button className="btn btn-link p-0 mb-2"
-          style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '0.9rem' }}
-          onClick={() => navigate('/profile')}>← Back to my plans</button>
-      </div>
-
       <SectionHero
         eyebrow="Your Affairs"
         headline="Your insurance policies, all in one place"

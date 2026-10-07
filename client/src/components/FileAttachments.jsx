@@ -149,7 +149,7 @@ export default function FileAttachments({ sectionId, itemId, sectionDocs, onUplo
           same restraint PlanLimitNotice uses. */}
       {canUpload && accountFull && (
         <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '4px 0' }}>
-          You have used all {usage.limit} file uploads your plan includes.{' '}
+          You have used all {usage.limit} file upload{usage.limit === 1 ? '' : 's'} your plan includes.{' '}
           <Link to="/upgrade" style={{ color: 'var(--green-800)' }}>Upgrade your account</Link>{' '}
           if you would like to add more.
         </p>

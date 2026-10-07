@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { Button, Form, Alert, Spinner } from 'react-bootstrap'
 import axios from 'axios'
 import SectionHero from '../../components/SectionHero'
@@ -51,7 +50,6 @@ function formatSeconds(total) {
 }
 
 export default function LastMomentsPage() {
-  const navigate = useNavigate()
   const [form, setForm]       = useState({ message: '', notes: '' })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving]   = useState(false)
@@ -208,14 +206,6 @@ export default function LastMomentsPage() {
 
   return (
     <div style={{ maxWidth: 800, margin: '0 auto' }}>
-      <div className="mb-4">
-        <button className="btn btn-link p-0 mb-2"
-          style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '0.9rem' }}
-          onClick={() => navigate('/profile')}>
-          ← Back to my plans
-        </button>
-      </div>
-
       <SectionHero
         eyebrow="Your Legacy"
         headline="One last thing to say"

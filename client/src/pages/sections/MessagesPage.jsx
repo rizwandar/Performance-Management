@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { Button, Form, Row, Col, Alert, Modal, Spinner } from 'react-bootstrap'
 import axios from 'axios'
 import SectionHero from '../../components/SectionHero'
@@ -47,7 +46,6 @@ function formatSeconds(total) {
 }
 
 export default function MessagesPage() {
-  const navigate = useNavigate()
   const { isPremium } = useSubscription()
   const [items, setItems]         = useState([])
   const [loading, setLoading]     = useState(true)
@@ -293,14 +291,6 @@ export default function MessagesPage() {
 
   return (
     <div style={{ maxWidth: 800, margin: '0 auto' }}>
-      <div className="mb-4">
-        <button className="btn btn-link p-0 mb-2"
-          style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '0.9rem' }}
-          onClick={() => navigate('/profile')}>
-          ← Back to my plans
-        </button>
-      </div>
-
       <SectionHero
         eyebrow="Your Legacy"
         headline="The words they'll hold onto"
@@ -309,8 +299,6 @@ export default function MessagesPage() {
         cta={{ label: '+ Write a message', onClick: openAdd, disabled: atFreeMessageLimit, disabledTitle: addMessageDisabledTitle }}
         secondaryAction={<ShareSectionTrigger section="personal_messages" sectionLabel="Messages to Loved Ones" />}
       />
-
-      <PlanLimitNotice limitKey="personal_messages" currentCount={items.length} />
 
       {success && <Alert variant="success">{success}</Alert>}
       {error && !showModal && <Alert variant="danger">{error}</Alert>}
@@ -383,6 +371,12 @@ export default function MessagesPage() {
           })}
         </div>
       )}
+
+      {/* Below the recorded messages, not above them: the allowance is a
+          footnote to what is already here, and at the top it pushed the
+          messages down. The voice-clip notice inside the modal below stays
+          put, since it belongs to one field rather than to this list. */}
+      <PlanLimitNotice limitKey="personal_messages" currentCount={items.length} />
 
       <Modal show={showModal} onHide={closeModal} centered size="lg">
         <Modal.Header closeButton style={{ background: 'var(--green-50)', borderBottom: '1px solid var(--green-100)' }}>

@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { Button, Form, Alert, Spinner } from 'react-bootstrap'
 import axios from 'axios'
 import { VaultSetupScreen, VaultLockScreen } from '../../components/VaultGate'
@@ -26,8 +25,6 @@ const empty = { organ_donation: '', organ_donation_details: '' }
 // body, same convention as the other vault sections' .../list routes) and
 // PUT .../donation-bank, rather than the list CRUD routes those use.
 export default function DonationBankPage() {
-  const navigate = useNavigate()
-
   const { vaultPassword, vaultUnlocked, unlockVault, lockVault } = useVaultSession()
   const [vaultExists, setVaultExists] = useState(null) // null = still checking
 
@@ -95,16 +92,6 @@ export default function DonationBankPage() {
     setSaving(false)
   }
 
-  const backLink = (
-    <div className="mb-4">
-      <button className="btn btn-link p-0 mb-2"
-        style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '0.9rem' }}
-        onClick={() => navigate('/profile')}>
-        ← Back to my plans
-      </button>
-    </div>
-  )
-
   const hero = (
     <SectionHero
       eyebrow="Your Affairs"
@@ -117,7 +104,6 @@ export default function DonationBankPage() {
   if (vaultState === 'loading') {
     return (
       <div style={{ maxWidth: 700, margin: '0 auto' }}>
-        {backLink}
         {hero}
         <div className="text-center py-5">
           <Spinner animation="border" style={{ color: 'var(--green-800)' }} />
@@ -129,7 +115,6 @@ export default function DonationBankPage() {
   if (vaultState === 'no-vault') {
     return (
       <div style={{ maxWidth: 700, margin: '0 auto' }}>
-        {backLink}
         {hero}
         <VaultSetupScreen onSetup={() => setVaultExists(true)} />
       </div>
@@ -139,7 +124,6 @@ export default function DonationBankPage() {
   if (vaultState === 'locked') {
     return (
       <div style={{ maxWidth: 700, margin: '0 auto' }}>
-        {backLink}
         {hero}
         <VaultLockScreen onUnlock={handleUnlock} onReset={handleVaultReset} />
       </div>
@@ -148,7 +132,6 @@ export default function DonationBankPage() {
 
   return (
     <div style={{ maxWidth: 700, margin: '0 auto' }}>
-      {backLink}
       {hero}
 
       <div style={{

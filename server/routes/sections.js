@@ -12,7 +12,7 @@ const { uploadFile, deleteFile, getDownloadUrl } = require('../lib/r2');
 const { matchesExtension } = require('../lib/fileSignature');
 const { blockViewAs } = require('../lib/viewAsGuard');
 const checkPlanLock = require('../middleware/planLock');
-const { getLimit } = require('../lib/planLimits');
+const { getLimit, countNoun } = require('../lib/planLimits');
 const { getUserPlan } = require('../lib/subscription');
 
 // Both checks below decode the session token directly (rather than relying on
@@ -235,23 +235,32 @@ const CAPPED_TABLES = new Set([
 // and is therefore safe by construction rather than by convention. These two
 // guards sit together and should be equally strong, so that reading one does
 // not teach the wrong lesson about the other.
+//
+// Each wording receives an already-built "N thing" / "N things" phrase rather
+// than the number and a plural noun: several of these caps are 1, which used to
+// print "Your plan includes 1 items".
 const CAP_REFUSAL_FREE_WORDING = Object.assign(Object.create(null), {
-  'plan-includes': (limit, noun) =>
-    `Your plan includes ${limit} ${noun}. Upgrade your account if you would like to add more.`,
-  'free-plan': (limit, noun) =>
-    `You can add up to ${limit} ${noun} on the Free plan. Upgrade to Premium to add more.`,
+  'plan-includes': (counted) =>
+    `Your plan includes ${counted}. Upgrade your account if you would like to add more.`,
+  'free-plan': (counted) =>
+    `You can add up to ${counted} on the Free plan. Upgrade to Premium to add more.`,
 });
 
-async function sectionCapGuard(req, res, { limitKey, table, noun, wording = 'plan-includes' }) {
+// `noun` is the plural form and `nounSingular` the singular. Both are required:
+// the nouns here are irregular (entry/entries, person/people), so there is no
+// safe default to derive one from the other.
+async function sectionCapGuard(req, res, { limitKey, table, noun, nounSingular, wording = 'plan-includes' }) {
   if (!CAPPED_TABLES.has(table)) throw new Error(`sectionCapGuard: unknown table ${table}`);
+  if (!nounSingular) throw new Error(`sectionCapGuard: missing nounSingular for ${table}`);
   const freeWording = CAP_REFUSAL_FREE_WORDING[wording];
   if (!freeWording) throw new Error(`sectionCapGuard: unknown wording ${wording}`);
   const plan = await getUserPlan(req.user.id);
   const limit = getLimit(limitKey, plan);
+  const counted = countNoun(limit, nounSingular, noun);
   const refuse = () => res.status(400).json({
     error: plan !== 'premium'
-      ? freeWording(limit, noun)
-      : `You can add up to ${limit} ${noun}.`,
+      ? freeWording(counted)
+      : `You can add up to ${counted}.`,
   });
 
   let full = false;
@@ -299,7 +308,7 @@ async function sectionCapGuard(req, res, { limitKey, table, noun, wording = 'pla
 }
 
 router.post('/legal-documents', requireAuth, checkPlanLock, async (req, res) => {
-  const cap = await sectionCapGuard(req, res, { limitKey: 'legal_documents', table: 'legal_documents', noun: 'legal documents' });
+  const cap = await sectionCapGuard(req, res, { limitKey: 'legal_documents', table: 'legal_documents', noun: 'legal documents', nounSingular: 'legal document' });
   if (cap.full) return;
   const { vault_password, document_type, title, held_by, location, notes } = req.body;
   // REV-07: reuse the key checkVault() already derived, instead of deriving it again.
@@ -367,7 +376,7 @@ router.post('/financial-affairs/list', requireAuth, async (req, res) => {
 });
 
 router.post('/financial-affairs', requireAuth, checkPlanLock, async (req, res) => {
-  const cap = await sectionCapGuard(req, res, { limitKey: 'financial_items', table: 'financial_items', noun: 'financial records' });
+  const cap = await sectionCapGuard(req, res, { limitKey: 'financial_items', table: 'financial_items', noun: 'financial records', nounSingular: 'financial record' });
   if (cap.full) return;
   const { vault_password, category, institution, account_type, account_reference, contact_name, contact_phone, notes } = req.body;
   const key = await checkVault(vault_password, req.user.id, res, req);
@@ -563,7 +572,7 @@ router.post('/people-to-notify', requireAuth, checkPlanLock, async (req, res) =>
   // not the account has room, and swapping the two would change which error a
   // full account sees for an empty form.
   const cap = await sectionCapGuard(req, res, {
-    limitKey: 'people_to_notify', table: 'people_to_notify', noun: 'people', wording: 'free-plan',
+    limitKey: 'people_to_notify', table: 'people_to_notify', noun: 'people', nounSingular: 'person', wording: 'free-plan',
   });
   if (cap.full) return;
   const id = await cap.insert((client) => client.query(`
@@ -610,7 +619,7 @@ router.post('/property-possessions/list', requireAuth, async (req, res) => {
 });
 
 router.post('/property-possessions', requireAuth, checkPlanLock, async (req, res) => {
-  const cap = await sectionCapGuard(req, res, { limitKey: 'property_items', table: 'property_items', noun: 'property items' });
+  const cap = await sectionCapGuard(req, res, { limitKey: 'property_items', table: 'property_items', noun: 'property items', nounSingular: 'property item' });
   if (cap.full) return;
   const { vault_password, category, title, description, location, intended_recipient, notes } = req.body;
   const key = await checkVault(vault_password, req.user.id, res, req);
@@ -692,7 +701,7 @@ router.post('/messages', requireAuth, checkPlanLock, async (req, res) => {
   // Recipient-name check stays ahead of the cap check, same reasoning as
   // POST /people-to-notify above.
   const cap = await sectionCapGuard(req, res, {
-    limitKey: 'personal_messages', table: 'personal_messages', noun: 'messages', wording: 'free-plan',
+    limitKey: 'personal_messages', table: 'personal_messages', noun: 'messages', nounSingular: 'message', wording: 'free-plan',
   });
   if (cap.full) return;
   const id = await cap.insert((client) => client.query(`
@@ -952,7 +961,7 @@ router.post('/household-info/list', requireAuth, async (req, res) => {
 });
 
 router.post('/household-info', requireAuth, checkPlanLock, async (req, res) => {
-  const cap = await sectionCapGuard(req, res, { limitKey: 'household_info', table: 'household_info', noun: 'household entries' });
+  const cap = await sectionCapGuard(req, res, { limitKey: 'household_info', table: 'household_info', noun: 'household entries', nounSingular: 'household entry' });
   if (cap.full) return;
   const { vault_password, category, title, provider, account_reference, contact, notes } = req.body;
   const key = await checkVault(vault_password, req.user.id, res, req);
@@ -1287,7 +1296,7 @@ router.post('/digital-life/list', requireAuth, async (req, res) => {
 });
 
 router.post('/digital-life', requireAuth, checkPlanLock, async (req, res) => {
-  const cap = await sectionCapGuard(req, res, { limitKey: 'digital_credentials', table: 'digital_credentials', noun: 'accounts' });
+  const cap = await sectionCapGuard(req, res, { limitKey: 'digital_credentials', table: 'digital_credentials', noun: 'accounts', nounSingular: 'account' });
   if (cap.full) return;
   const { vault_password, service, service_url, username, password, notes } = req.body;
   if (!service)        return res.status(400).json({ error: 'Service name is required.' });
@@ -1406,7 +1415,7 @@ router.post('/unfinished-business', requireAuth, checkPlanLock, async (req, res)
   // Name check stays ahead of the cap check, same reasoning as
   // POST /people-to-notify above.
   const cap = await sectionCapGuard(req, res, {
-    limitKey: 'unfinished_business', table: 'unfinished_business', noun: 'entries', wording: 'free-plan',
+    limitKey: 'unfinished_business', table: 'unfinished_business', noun: 'entries', nounSingular: 'entry', wording: 'free-plan',
   });
   if (cap.full) return;
   const id = await cap.insert((client) => client.query(`

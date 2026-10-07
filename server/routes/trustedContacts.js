@@ -6,7 +6,7 @@ const checkPlanLock = require('../middleware/planLock');
 const { sendEmail } = require('../lib/sendEmail');
 const { contactAccessEmail, executorDesignatedEmail } = require('../lib/emailTemplates');
 const { generateAccessLink } = require('../lib/inactivityTimer');
-const { getLimit } = require('../lib/planLimits');
+const { getLimit, countNoun } = require('../lib/planLimits');
 const { getUserPlan } = require('../lib/subscription');
 
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
@@ -75,9 +75,10 @@ const ORDINARY_ONLY = 'is_executor IS DISTINCT FROM 1';
 // client/src/components/PlanLimitNotice.jsx. Shared between the cheap
 // pre-check and the in-transaction guard so both report the same thing.
 function capMessage(plan, limit) {
+  const counted = countNoun(limit, 'trusted contact', 'trusted contacts');
   return plan !== 'premium'
-    ? `Your plan includes ${limit} trusted contacts. Upgrade your account if you would like to add more.`
-    : `You can add up to ${limit} trusted contacts.`;
+    ? `Your plan includes ${counted}. Upgrade your account if you would like to add more.`
+    : `You can add up to ${counted}.`;
 }
 
 // Separate wording for the one case where the cap bites on a removal rather
