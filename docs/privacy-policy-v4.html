@@ -1,0 +1,261 @@
+<div class="legal-header">
+  <h2>Privacy Policy</h2>
+  <p class="legal-updated">Last updated: October 2026. This policy applies to all users of In Good Hands.</p>
+</div>
+
+<section>
+  <h4>1. Introduction</h4>
+  <p>In Good Hands ("we", "us", "our") is committed to protecting your personal information and respecting your privacy. This Privacy Policy explains what data we collect, how we use it, where it is stored, and what rights you have.</p>
+  <p>In Good Hands currently launches and is marketed to users in the United States. This policy is written to meet the requirements of applicable US state privacy laws, including the California Consumer Privacy Act as amended by the California Privacy Rights Act (CCPA/CPRA), as well as the General Data Protection Regulation (GDPR, EU/UK), the Personal Information Protection and Electronic Documents Act (PIPEDA, Canada), Quebec Law 25, the Australian Privacy Act 1988, and the New Zealand Privacy Act 2020, for users who access the service from those regions.</p>
+  <p>By creating an account, you confirm that you have read this policy and agree to the collection and use of your information as described here.</p>
+</section>
+
+<section>
+  <h4>2. What Data We Collect</h4>
+  <p>We collect the following categories of personal information:</p>
+  <ul>
+    <li>Account information: your name, email address, date of birth (optional), and country of residence.</li>
+    <li>Profile and planning information: everything you record in the app, your wishes, contacts, documents, messages, and other plans.</li>
+    <li>Vault-protected data: what you record in the Legal Documents, Financial Affairs, Property and Possessions, Household Info, Digital Life and Donation Bank sections, encrypted with AES-256-GCM. The vault password is never stored on our servers. Section 4 explains exactly what this does and does not cover.</li>
+    <li>Consent records: the date and time you agreed to this Privacy Policy.</li>
+    <li>Usage and security logs: login events, failed login attempts, and vault access attempts. Used to protect your account.</li>
+    <li>Communications: messages you send via the contact form.</li>
+  </ul>
+  <p>Some of what you choose to record falls under "sensitive personal information" as defined by California law, specifically medical/health information (Medical Records and Donation Bank) and financial account information (Financial Affairs). We collect this only because you choose to record it as part of your own planning, and we use it solely to provide the service, never to analyze or infer anything about you, and never for advertising.</p>
+  <p>We do not collect payment card data (Stripe, our payment processor, handles that directly). We do not sell or share your personal information with third parties for marketing purposes.</p>
+</section>
+
+<section>
+  <h4>3. How We Use Your Data</h4>
+  <p>We use your personal information to:</p>
+  <ul>
+    <li>Provide and operate the In Good Hands service.</li>
+    <li>Send you transactional emails (welcome, password reset, inactivity reminders, security alerts).</li>
+    <li>Protect your account and detect security threats.</li>
+    <li>Comply with our legal obligations.</li>
+    <li>Respond to support requests.</li>
+  </ul>
+  <p>The only other circumstance in which your information may move is described in Section 9 (If This Business Is Sold) below.</p>
+</section>
+
+<section>
+  <h4>4. What We Can and Cannot See</h4>
+  <p>This is the question most people want answered first, so here is a plain answer. Some of what you record here genuinely cannot be read by us, by anyone who steals our database, or by anyone who might one day own this business. The rest can be. This section sets out exactly where that line falls, because a policy that implies more protection than the software actually provides would not be worth much to you.</p>
+
+  <div class="legal-jurisdiction">
+    <p class="legal-jurisdiction-title">🔐 What we cannot read</p>
+    <p>Six sections are sealed with your vault password: <strong>Legal Documents</strong>, <strong>Financial Affairs</strong>, <strong>Property and Possessions</strong>, <strong>Household Info</strong>, <strong>Digital Life</strong> and <strong>Donation Bank</strong>. What you type into those sections is encrypted before it is saved, using a key that is rebuilt from your vault password each time you unlock the vault. When you enter that password it travels to our server over an encrypted connection and is used to rebuild the key for that one request, then it is gone: we never write it to our database, not even scrambled. There is no stored key anywhere on our systems for us to use, hand over, or lose. The contents of those six sections are therefore unreadable to us, to anyone who obtained a copy of our database, and to any company that might one day buy this business.</p>
+    <p>Two limits on that are worth knowing. First, in the Digital Life section, the name and web address of each service you record are saved in ordinary readable form, so that the list can be shown and sorted; the username, password and notes you attach to each one are encrypted. Second, this protection is only as recoverable as your own access to it: if you lose your vault password and your recovery answers, we cannot retrieve any of this information for you. That is the trade, and it is deliberate.</p>
+  </div>
+
+  <div class="legal-jurisdiction">
+    <p class="legal-jurisdiction-title">📖 What we can read</p>
+    <p>Everything else you record is stored in a form our systems can read. That includes your messages to loved ones and the voice recordings attached to them, Your Last Moments, your life story and how you would like to be remembered, Unfinished Business, your funeral and end-of-life wishes, your <strong>Medical Records</strong>, your <strong>Doctors</strong>, insurance details, pets and pet care, children and dependants, your music and bucket list, and your trusted contacts, people to notify and emergency contact. We want to be specific about the medical ones, because people reasonably assume health information is the most protected thing in a product like this, and here it is not.</p>
+    <p>Files you upload are in this group as well, including files you attach to one of the six sealed sections. The record describing a document in your Legal Documents section is encrypted, but the file itself is not encrypted with your vault password, and the file's own name is stored in readable form. So if you upload your will as a PDF, that PDF can be read by us, even though the note saying where the signed original is kept cannot.</p>
+  </div>
+
+  <p>For the information we can read, we apply the measures described in Section 8 (Security): it travels over an encrypted connection, uploaded files are encrypted at rest by our storage provider and are only reachable through short-lived links tied to your signed-in account, and access is limited to the small number of people who operate the service. We do not read it as a matter of course. We look at it only where we have to: to run, maintain and fix the service, to investigate a security problem, to contact you or the people you have nominated when your plan says we should, or where the law requires it.</p>
+  <p>We do not sell it. We do not use it to advertise to you. We do not send it to any artificial intelligence service, and we do not use it to train AI systems. Section 9 (If This Business Is Sold) explains what would happen to all of it if this business ever changed hands.</p>
+</section>
+
+<section>
+  <h4>5. Data Storage and Residency</h4>
+  <p>Your data is stored in the following infrastructure:</p>
+  <div class="legal-jurisdiction">
+    <p class="legal-jurisdiction-title">🗄️ Database</p>
+    <p>Your account and planning data is stored in a PostgreSQL database on <strong>Render.com</strong> infrastructure, hosted in <strong>Oregon, United States (US West)</strong>. This means your data is processed in the United States, regardless of where you are located. For Canadian users, this constitutes a cross-border transfer under PIPEDA. For EU/UK users, this is a restricted transfer under GDPR. We apply equivalent privacy protections in all cases.</p>
+  </div>
+  <div class="legal-jurisdiction">
+    <p class="legal-jurisdiction-title">📁 File Storage</p>
+    <p>Uploaded files (such as document attachments) are stored on <strong>Cloudflare R2</strong>, with the bucket location set to <strong>Eastern North America (ENAM)</strong>, which corresponds to US East Coast infrastructure. Cloudflare does not currently offer a Canadian or EU-specific R2 region for this configuration. Files are therefore stored in the United States.</p>
+  </div>
+  <p>If you are in Canada, please note that your data may be stored on servers located outside Canada, specifically in the United States. Under PIPEDA, you retain your privacy rights regardless of where data is stored, and we apply equivalent protections.</p>
+  <p>If you are in the EU or UK, please note that your data may be transferred outside the European Economic Area. We apply GDPR-standard contractual protections.</p>
+</section>
+
+<section>
+  <h4>6. Your Rights</h4>
+  <p>You have the following rights regarding your personal information. To exercise any of these, use the self-service tools in your account or contact us at the address below. In Good Hands currently launches and is marketed to users in the United States; the sections below apply to all users regardless of location.</p>
+
+  <div class="legal-jurisdiction">
+    <p class="legal-jurisdiction-title">🇺🇸 US State Privacy Laws, including California (CCPA/CPRA)</p>
+    <p>
+      <strong>Right to know:</strong> You may request details of what personal information we collect, the sources it comes from, and how we use and disclose it.<br/>
+      <strong>Right to correct:</strong> Update inaccurate information via your Profile page, or contact us for data we hold that isn't self-editable.<br/>
+      <strong>Right to delete:</strong> Use "Delete My Account" in Profile Settings to delete all your data from our live systems immediately. See Section 7 (Data Retention) below for how long a residual copy may briefly remain in encrypted backups.<br/>
+      <strong>Right to limit use of sensitive personal information:</strong> Some of what you record here (medical/health information, financial account details) qualifies as "sensitive personal information" under California law. We only use it to provide the service you asked for, never to infer characteristics about you or for advertising. Because we don't use it for anything beyond that, there is nothing further to limit, but you may still contact us with questions.<br/>
+      <strong>Right to opt out of sale or sharing:</strong> We do not sell personal information, and we do not share it for cross-context behavioral advertising (the kind of "sharing" CPRA also covers). If this ever changes, for example if ad campaigns begin using retargeting pixels, we will update this policy first and provide a "Do Not Sell or Share My Personal Information" option before doing so.<br/>
+      <strong>Right to non-discrimination:</strong> Exercising any of these rights will not result in denial of service, a different price, or a different quality of service.<br/>
+      <strong>Authorized agents:</strong> You may designate an authorized agent to make a request on your behalf; we will verify the agent's authority before responding.<br/>
+      <strong>Verification:</strong> To protect your data, most requests must be made from your logged-in account. Requests made by email are verified by matching the details you provide against your account.<br/>
+      <strong>Response time:</strong> California law allows up to 45 days to respond (extendable by another 45 days for complex requests); we aim to respond well within that window.<br/>
+      <strong>Complaints:</strong> Contact the California Privacy Protection Agency (CPPA) at cppa.ca.gov, or your state Attorney General if you are in another US state with its own privacy law.
+    </p>
+  </div>
+
+  <div class="legal-jurisdiction">
+    <p class="legal-jurisdiction-title">🇪🇺 🇬🇧 GDPR (EU and UK)</p>
+    <p>
+      <strong>Right of access:</strong> Request a copy of your data.<br/>
+      <strong>Right to rectification:</strong> Correct inaccurate data via your Profile page.<br/>
+      <strong>Right to erasure:</strong> Delete your account and all data using the "Delete My Account" option in Profile Settings.<br/>
+      <strong>Right to portability:</strong> Export your data as a PDF using the Export feature.<br/>
+      <strong>Right to object:</strong> Contact us to object to any processing.<br/>
+      <strong>Right to lodge a complaint:</strong> Contact your national data protection authority (e.g. ICO in the UK, CNIL in France).
+    </p>
+  </div>
+
+  <div class="legal-jurisdiction">
+    <p class="legal-jurisdiction-title">🇨🇦 PIPEDA and Quebec Law 25 (Canada)</p>
+    <p>
+      <strong>Right of access:</strong> Request a copy of your personal information by contacting us.<br/>
+      <strong>Right to correction:</strong> Update your information via your Profile page.<br/>
+      <strong>Right to deletion:</strong> Use "Delete My Account" in Profile Settings. Data stored outside Canada is subject to the laws of that country; however, we apply PIPEDA-equivalent protections.<br/>
+      <strong>Complaints:</strong> Contact the Office of the Privacy Commissioner of Canada (OPC) at priv.gc.ca.
+    </p>
+  </div>
+
+  <div class="legal-jurisdiction">
+    <p class="legal-jurisdiction-title">🇦🇺 Australian Privacy Act 1988</p>
+    <p>
+      <strong>Access and correction:</strong> Update your information via your Profile page or contact us.<br/>
+      <strong>Complaints:</strong> Contact the Office of the Australian Information Commissioner (OAIC) at oaic.gov.au.
+    </p>
+  </div>
+
+  <div class="legal-jurisdiction">
+    <p class="legal-jurisdiction-title">🇳🇿 New Zealand Privacy Act 2020</p>
+    <p>
+      <strong>Access and correction:</strong> Update your information via your Profile page or contact us.<br/>
+      <strong>Complaints:</strong> Contact the Office of the Privacy Commissioner at privacy.org.nz.
+    </p>
+  </div>
+</section>
+
+<!--
+  ============================================================================
+  PLACEHOLDER: "Additional rights for users in the UK and European Economic
+  Area". NOT WRITTEN, AND DELIBERATELY SO. This is an internal note for the
+  owner and the reviewing lawyer. HTML comments do not display to users, but
+  they ARE visible in the published page source, so delete this block before
+  publishing if that is not wanted.
+
+  This section belongs here, as one clearly headed section inside this single
+  policy, not as a separate EU/UK policy and not as geolocation-switched
+  content: IP geolocation is unreliable, residence rather than browsing
+  location is what matters, two policies drift apart, and serving different
+  people different privacy terms reads badly if discovered.
+
+  It is left out of v4 because every item below is a determination about the
+  business rather than a fact about the code, and those determinations are
+  with a lawyer. Guessed wording here would be worse than a visible gap.
+
+  When written, it must cover:
+
+  1. Who the controller is, and whether an EU or UK representative is
+     required. This turns on whether the business is established in the EU or
+     UK, and if not, whether it targets users there.
+  2. A lawful basis for each processing purpose. This policy has none today,
+     while asserting elsewhere that GDPR applies.
+  3. A condition for special-category data. Medical Records and Doctors are
+     health data and are readable by the operator (see Section 4). The usual
+     route for a service like this is explicit consent, which must be a
+     genuine, separate, affirmative choice, not bundled into the single
+     combined privacy-and-terms checkbox currently used at signup. Note that
+     the signup form already has the pattern for this: it shows GDPR users a
+     separate age-confirmation checkbox. That checkbox is not currently
+     recorded server-side, which needs fixing either way, since a consent
+     that is not recorded cannot be evidenced later.
+  4. The international transfer mechanism that makes the United States
+     transfer described in Section 5 lawful. Standard Contractual Clauses
+     plus the UK Addendum are the usual answer, together with a transfer risk
+     assessment and confirmation that each processor is covered: Render,
+     Cloudflare, Resend, Stripe, Sentry and Infisical.
+  5. Data subject rights in full: access, rectification, erasure,
+     restriction, portability, objection, and the right to complain to a
+     supervisory authority, naming the ICO for UK users. Check this against
+     the GDPR box above, which is shorter than that list. Two specific gaps
+     to resolve there: the only export the product offers is a PDF, with no
+     machine-readable (JSON or CSV) output, which is weak evidence of a
+     portability right; and the export that includes the six vault-protected
+     sections requires a Premium plan, so a free user cannot export all of
+     their own data.
+  6. Retention periods stated specifically, rather than "as long as
+     necessary".
+  7. How Section 9 (If This Business Is Sold) interacts with all of the
+     above. A clause in a privacy policy does not by itself create a lawful
+     basis for transferring EU or UK personal data to an acquirer, and health
+     data carries further constraints on top.
+
+  Adding this as its own numbered section will shift the number of every
+  section after it, and will require updating the cross-references in
+  Sections 3, 6 and 13.
+  ============================================================================
+-->
+
+<section>
+  <h4>7. Data Retention</h4>
+  <p>We retain your data for as long as your account is active. When you delete your account, your personal data is deleted from our live systems immediately. Anonymised aggregated statistics (e.g. total user count) are not deleted.</p>
+  <p>We also keep encrypted daily backups of our database for disaster-recovery purposes, retained on a rolling basis for up to 14 days. Because a deleted account may already be captured in a backup taken before you deleted it, a residual copy of your data can remain in these backups for up to 14 days after deletion, until the backup containing it is rotated out and purged. We do not restore individual accounts from backups after deletion; backups exist solely to recover from a system-wide failure or data loss event.</p>
+  <p>Security and audit logs are retained for 12 months and then automatically deleted.</p>
+</section>
+
+<section>
+  <h4>8. Security</h4>
+  <p>We use the following security measures to protect your data:</p>
+  <ul>
+    <li>All data in transit is encrypted with TLS (HTTPS).</li>
+    <li>Passwords are hashed using bcrypt with a cost factor of 10.</li>
+    <li>Vault-protected text (digital credentials, legal document details, financial affairs, property and possessions, practical household information, donation and organ-donation preferences, and notes) is encrypted at rest with AES-256-GCM using a key derived from your vault password via scrypt. Your vault password is never stored on our servers: it is used to rebuild the key for the single request in which you supply it, and is never written to our database.</li>
+    <li>Uploaded files (such as document scans or photos) are stored in Cloudflare R2, encrypted at rest by the storage provider, and only ever accessible through short-lived signed URLs tied to your authenticated account, never a public link. Files are not additionally encrypted with your vault password.</li>
+    <li>Failed vault password attempts are monitored and trigger automatic security emails. After 5 failed attempts, you are signed out and your vault is temporarily locked for 3 minutes as a security measure. No data is deleted for incorrect attempts unless you have turned on the optional "maximum security" auto-delete setting yourself, which is switched off by default for every account.</li>
+    <li>JWT authentication tokens expire after 8 hours.</li>
+    <li>Rate limiting is applied to all authentication endpoints.</li>
+  </ul>
+</section>
+
+<section>
+  <h4>9. If This Business Is Sold</h4>
+  <p>In Good Hands may one day be sold, merged with another company, or have its assets acquired. If that happens, the information described in this policy would transfer to the new owner as part of the business, because the service cannot keep working for you without it.</p>
+  <p>We commit to the following:</p>
+  <ul>
+    <li><strong>We will tell you before it takes effect</strong>, by email, at least 30 days before your information transfers. Not an announcement afterwards.</li>
+    <li><strong>You can leave first.</strong> During that period you can export everything you have recorded and delete your account, and your information will not transfer.</li>
+    <li><strong>The commitments travel with the data.</strong> Any acquirer must honor this policy for the information it receives until you are given notice of, and agree to, a different one.</li>
+    <li><strong>Your vault stays sealed.</strong> The six vault-protected sections described in Section 4 are encrypted with a password we never store. We cannot read them, and nor can an acquirer. A sale does not change that.</li>
+  </ul>
+  <p>Before any such transaction, a prospective buyer may need to review limited information about the business during due diligence. Where that includes personal information, it is restricted to what is genuinely necessary to evaluate the transaction, is covered by a confidentiality agreement, and must be returned or destroyed if the transaction does not complete.</p>
+  <p>We do not sell your personal information as a product, to data brokers, to advertisers, or to anyone else. This section is about the business itself changing hands, which is a different thing.</p>
+</section>
+
+<section>
+  <h4>10. Cookies and Tracking</h4>
+  <p>In Good Hands uses no advertising cookies, tracking pixels, or third-party analytics. We keep you signed in using an httpOnly authentication cookie set by our server: this cookie cannot be read by JavaScript running in your browser, and our own client-side code never reads or stores your session token directly. It contains only your user ID, email, and admin status, and is used solely to keep you signed in, not for tracking. We also set a separate, non-sensitive cookie that our client-side code reads and echoes back as a security header on requests that change your data, a standard technique to help confirm requests are genuinely coming from you. That cookie is likewise not used for tracking.</p>
+  <p>When you register, your browser contacts ipapi.co directly to detect your country and pre-fill the country selector. This discloses your IP address to ipapi.co, a third-party geolocation service, for that purpose only. We do not send ipapi.co your name, email address, or anything else you have entered into In Good Hands.</p>
+</section>
+
+<section>
+  <h4>11. Children</h4>
+  <p>In Good Hands is intended for adults. We do not knowingly collect information from children under 16. If you are under 16, please do not use this service. If you believe a child has provided us with personal information, please contact us and we will delete it promptly.</p>
+</section>
+
+<section>
+  <h4>12. Changes to This Policy</h4>
+  <p>We may update this Privacy Policy from time to time. We will notify registered users by email if we make material changes. The "last updated" date at the top of this page reflects the most recent revision.</p>
+</section>
+
+<section>
+  <h4>13. Contact and Data Deletion Requests</h4>
+  <p>To exercise your privacy rights, request a copy of your data, or request deletion of your account:</p>
+  <ul>
+    <li>Self-service: Use the "Delete My Account" option in Profile Settings to delete all your data from our live systems immediately. See Section 7 (Data Retention) above for how long a residual copy may briefly remain in encrypted backups.</li>
+    <li>Email: Use the contact form at the bottom of any page, or email us directly.</li>
+    <li>Telephone: If you would prefer to speak with an administrator before deletion, you can request this via the contact form. An administrator will call you to confirm the deletion.</li>
+  </ul>
+  <p>We aim to respond to all privacy requests within 30 days. California residents are entitled to up to 45 days under state law (extendable once by another 45 days for complex requests); we aim to respond well within that window in all cases.</p>
+</section>
+
+<div class="legal-footer-note">
+  This Privacy Policy is provided for informational purposes and does not constitute legal advice.
+  If you have specific legal concerns, please consult a qualified privacy lawyer in your jurisdiction.
+</div>
