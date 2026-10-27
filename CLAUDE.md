@@ -435,6 +435,33 @@ sets it to `production` on every web service, staging included, which is why
 
 Optional: `ORG_PORTAL_ENABLED=true` registers the org/funeral-home portal routes (`organizations.js`, `orgPortal.js`, `orgPublic.js`, `orgRegister.js`). Unset or any other value keeps them unregistered entirely, not merely rejected (SEC-12) - this is the default in production since the org portal isn't part of the initial end-user launch. Set to `true` on staging/local dev to keep testing it.
 
+### Node runtime version
+
+Pinned repo-wide by `.node-version` at the repo root (currently `24.22.1`).
+Render reads it for every service built from this repo, whatever that service's
+`rootDir` is. Before it existed nothing pinned a version at all, since there is
+no `engines` field and no `.nvmrc`, so each service ran whatever default was
+current on the day it was created and the environments could drift apart
+unnoticed.
+
+Keep the pin in this file rather than adding a `NODE_VERSION` variable in
+Render's dashboard. Render's precedence puts `NODE_VERSION` above
+`.node-version`, and Infisical has been the live source of truth for both
+deployed services' env vars since 2026-08-14, so a hand-added dashboard var is
+exactly the kind of value a later sync can overwrite.
+
+`.github/workflows/` pins the same version so CI runs what production runs.
+Change one, change the other.
+
+Added 2026-10-27 in response to Render's security advisory: a Node TLS
+hostname-check bypass, a Brotli decompression RCE, and the eMudhra intermediate
+CA compromise. Two things are worth remembering from it. Node bundles its own
+root certificate store, so redeploying a service refreshes the system store but
+not Node's, and only a version bump clears a compromised CA. And the Brotli
+flaw was reachable without authentication: `express.json()` (body-parser 2.x)
+decompresses a `Content-Encoding: br` request body before any auth or CSRF
+middleware runs.
+
 ### Client and mobile
 
 **Client:** `VITE_API_URL` (required; `client/.env.development` is committed
